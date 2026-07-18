@@ -1,74 +1,56 @@
-# Habitat Sample Node App
+# Dynasty Central
 
-Welcome to the Habitat Sample Node App!
+Manage all your [MyFantasyLeague](https://home.myfantasyleague.com) dynasty
+leagues from one Android app — instead of navigating to each league one by one.
 
-![habitat-sample-node-app](https://user-images.githubusercontent.com/446285/31078915-96033340-a749-11e7-906c-7861521894fc.png)
+**Status:** Milestone 1 — a read-only, cross-league dashboard. Log in once and
+see every team's weekly matchup, live score, record, and standing, then drill
+into any roster. Write actions (lineups → waivers → trades) are the roadmap below.
 
+## Architecture
 
-## Instructions
-
-To practice packaging/running this app with Habitat
-
-### Workstation Prereqs:
-* Install and set up Habitat [(Instructions here)](https://www.habitat.sh/tutorials/download/)
-* Install Docker [(Instructions here)](https://www.docker.com/community-edition)
-* Clone this repository
-```bash
-$  git clone https://github.com/habitat-sh/sample-node-app.git
 ```
-* Change directories
-```bash
-$ cd sample-node-app
+┌─────────────────┐        ┌──────────────────────┐        ┌───────────────────┐
+│  Expo / RN app  │  HTTPS │  Node/Express backend │  HTTPS │  MyFantasyLeague  │
+│  (your phone)   │ ─────▶ │  (you host this)      │ ─────▶ │  export / import  │
+│  Bearer token   │        │  holds MFL session,   │        │  API              │
+│                 │ ◀───── │  aggregates leagues   │ ◀───── │                   │
+└─────────────────┘        └──────────────────────┘        └───────────────────┘
 ```
 
-### Building the Package:
-You'll see a directory called habitat.  Open the habitat/plan.sh file:
+The backend is **required**, not optional: MFL blocks generic clients, throttles
+requests, and credentials must never live in a phone app. One MFL login unlocks
+*all* your leagues via MFL's `myleagues`, which is what makes the centralized
+view possible.
 
-Your habitat/plan.sh should look like this:
-```sh
-pkg_name=sample-node-app
-pkg_origin=your_origin
-pkg_scaffolding="core/scaffolding-node"
-```
+- **[`backend/`](backend/README.md)** — Express aggregation API + MFL client. Runs
+  in DEMO mode out of the box (fixture data, no account needed).
+- **[`mobile/`](mobile/README.md)** — Expo/React Native app (login, dashboard, roster).
 
-Let's add in a version number
-```sh
-pkg_name=sample-node-app
-pkg_origin=your_origin
-pkg_scaffolding="core/scaffolding-node"
-pkg_version="1.0.1"
-```
-
-Now save and close the file.
-
-Enter the Habitat Studio
+## Quick start (demo, on a computer)
 
 ```bash
-$ hab studio enter
+# Terminal 1 — backend with fixture data
+cd backend && npm install && npm start
+
+# Terminal 2 — app (point it at the backend's LAN IP for a real device)
+cd mobile && npm install && EXPO_PUBLIC_API_URL=http://<lan-ip>:4000 npx expo start
 ```
 
-And run build
+Any username/password logs you into demo mode. See each sub-README for going live
+and for building an installable APK **without a computer** (Expo EAS cloud build).
 
-```bash
-(studio) $ build
-```
+## Roadmap
 
-### Running the Package with Docker
+- [x] **M1 — Dashboard (read-only):** all leagues, matchups, live scores, standings, rosters
+- [ ] **M2 — Lineups:** set starters per league from one screen (`import?TYPE=lineup`)
+- [ ] **M3 — Waivers / FAAB:** free agents + add/drop + blind-bid claims across leagues
+- [ ] **M4 — Trades:** view / propose / accept / reject (`import?TYPE=tradeProposal`)
+- [ ] **M5 — Hardening:** persistent session store, live-MFL verification, push alerts, Play Store
 
-Still in your studio, right after the build, export that package to a docker image
-```bash
-(studio) $ hab pkg export docker ./results/<habitat artifact>.hart
-```
+## Notes on live MFL
 
-Then exit out of the studio:
-```bash
-(studio) $ exit
-```
-
-Now start a Docker container from that image.
-
-```bash
-$ docker run -it -p 8000:8000 your_origin/sample-node-app
-```
-
-Now head to http://localhost:8000 and see your running app!
+Live-mode request/response shapes follow the
+[MFL API docs](https://api.myfantasyleague.com/2020/api_info?STATE=details) but
+have not yet been exercised against a real account in this repo — see
+[`backend/README.md`](backend/README.md#going-live--what-still-needs-verifying).
