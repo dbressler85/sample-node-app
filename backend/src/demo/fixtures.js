@@ -186,6 +186,74 @@ const MATCHUP_PROJECTION = {
   '19622': { opponent: 'Dynasty Destroyers', projected: 121.0 },
 };
 
+// Dynasty context per player: age and a 0-100 dynasty trade value. This is the
+// core lens for dynasty roster decisions (age curves + asset value).
+const DYNASTY = {
+  '13593': { age: 26, value: 95 }, // Jefferson
+  '14802': { age: 25, value: 98 }, // Chase
+  '15267': { age: 24, value: 96 }, // Bijan
+  '15859': { age: 23, value: 88 }, // Harrison
+  '13116': { age: 29, value: 82 }, // Lamar
+  '14086': { age: 25, value: 84 }, // Hall
+  '15264': { age: 23, value: 92 }, // Nabers
+  '12171': { age: 36, value: 38 }, // Kelce
+  '14990': { age: 24, value: 90 }, // Stroud
+  '15870': { age: 25, value: 72 }, // Nix
+  '14106': { age: 25, value: 78 }, // Olave
+  '13649': { age: 24, value: 91 }, // Gibbs
+  '14835': { age: 23, value: 89 }, // Bowers
+  '11686': { age: 30, value: 18 }, // Cook
+  '15266': { age: 23, value: 80 }, // Odunze
+  '13138': { age: 24, value: 83 }, // London
+};
+
+// Live matchup detail for the current week: live points, players yet to play,
+// and projected final for me and my opponent. Drives the live scoreboard.
+const LIVE = {
+  '64097': {
+    me: { score: 78.4, yetToPlay: 3, projectedFinal: 121.6 },
+    opp: { score: 84.1, yetToPlay: 2, projectedFinal: 118.0 },
+  },
+  '40750': {
+    me: { score: 91.0, yetToPlay: 1, projectedFinal: 133.8 },
+    opp: { score: 102.7, yetToPlay: 1, projectedFinal: 140.1 },
+  },
+  '19622': {
+    me: { score: 55.2, yetToPlay: 6, projectedFinal: 118.9 },
+    opp: { score: 60.8, yetToPlay: 5, projectedFinal: 121.0 },
+  },
+};
+
+// Pending trade offers awaiting my response, per league.
+const TRADES = {
+  '40750': [
+    { id: 't1', from: 'Superflex Savants', gives: ['Nix, Bo'], gets: ['Nabers, Malik'] },
+  ],
+  '19622': [
+    { id: 't2', from: 'Rebuild Rangers', gives: ['2027 1st', '2027 2nd'], gets: ['Gibbs, Jahmyr'] },
+  ],
+};
+
+// Pending waiver / FAAB claims I've queued, per league.
+const WAIVERS = {
+  '64097': [{ player: 'Cook, Dalvin', bid: 12, runsAt: 'Wed 3:00 AM' }],
+};
+
+// League-wide news, mapped to affected teams by whichever leagues roster the player.
+const NEWS = [
+  { id: 'n1', playerId: '15859', headline: 'Marvin Harrison ruled OUT (ankle)', severity: 'high' },
+  { id: 'n2', playerId: '15267', headline: 'Bijan Robinson on bye this week', severity: 'medium' },
+  { id: 'n3', playerId: '14802', headline: "Ja'Marr Chase questionable, expected to play", severity: 'low' },
+  { id: 'n4', playerId: '13649', headline: 'Jahmyr Gibbs sees season-high snap share', severity: 'low' },
+];
+
+// Rookie / future draft pick inventory per league (dynasty currency).
+const PICKS = {
+  '64097': ['2027 1st', '2027 3rd'],
+  '40750': ['2027 1st', '2027 2nd', '2028 1st'],
+  '19622': ['2027 2nd'],
+};
+
 module.exports = {
   players: () => PLAYERS,
   playerStatus: () => ({ ...PLAYER_STATUS }),
@@ -197,5 +265,11 @@ module.exports = {
   statProjections: () => ({ ...STAT_PROJECTIONS }),
   scoring: (leagueId) => (SCORING[leagueId] ? { ...SCORING[leagueId] } : null),
   lineupRequirements: (leagueId) => LINEUP_REQS[leagueId] || null,
+  dynasty: (playerId) => DYNASTY[playerId] || null,
+  live: (leagueId) => (LIVE[leagueId] ? JSON.parse(JSON.stringify(LIVE[leagueId])) : null),
+  trades: (leagueId) => (TRADES[leagueId] || []).map((t) => ({ ...t })),
+  waivers: (leagueId) => (WAIVERS[leagueId] || []).map((w) => ({ ...w })),
+  news: () => NEWS.map((n) => ({ ...n })),
+  picks: (leagueId) => (PICKS[leagueId] || []).slice(),
   week: () => WEEK,
 };

@@ -8,6 +8,7 @@ const config = require('./config');
 const authRoutes = require('./routes/auth');
 const apiRoutes = require('./routes/leagues');
 const lineupRoutes = require('./routes/lineups');
+const commandRoutes = require('./routes/command');
 
 const app = express();
 
@@ -20,6 +21,7 @@ app.get('/api/health', (req, res) => {
 });
 
 app.use('/api/auth', authRoutes);
+app.use('/api', commandRoutes);
 app.use('/api', lineupRoutes);
 app.use('/api', apiRoutes);
 

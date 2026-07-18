@@ -46,6 +46,7 @@ and for building an installable APK **without a computer** (Expo EAS cloud build
 ## Roadmap
 
 - [x] **M1 — Dashboard (read-only):** all leagues, matchups, live scores, standings, rosters
+- [x] **M1.5 — Command Center:** portfolio roll-up + cross-league triage queue, live scoreboard (players-yet-to-play + win probability), player-exposure view, news→impact mapping, and dynasty roster context (age/value/picks)
 - [x] **M2 — Lineups:** format-aware optimizer (per-league PPR / TE-premium / pass-TD scoring), per-league editor, and one-tap "Set All Lineups" (`import?TYPE=lineup`)
 - [x] **M2.5 — Safe & informed Set All:** availability-aware (never starts OUT / injured / bye players), floor/ceiling + matchup with win probability, safe/balanced/aggressive modes, and a review-diff before bulk apply
 - [ ] **M3 — Waivers / FAAB:** free agents + add/drop + blind-bid claims across leagues

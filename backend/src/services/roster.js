@@ -6,7 +6,32 @@ const mfl = require('../lib/mfl');
 const config = require('../config');
 const demo = require('../demo/fixtures');
 const players = require('../lib/players');
+const availabilityLib = require('../lib/availability');
 const leaguesService = require('./leagues');
+
+// Attach dynasty context (age, value) and availability to a resolved player.
+function enrich(player, ctx) {
+  const d = config.demoMode ? demo.dynasty(player.id) : null;
+  return {
+    ...player,
+    age: d ? d.age : null,
+    value: d ? d.value : null,
+    availability: availabilityLib.resolve(player, ctx.statusMap, ctx.byeMap, ctx.week),
+  };
+}
+
+// Team-level dynasty snapshot: total asset value, average age, and a rough
+// contender/rebuild outlook from the age of the most valuable core.
+function teamSummary(all) {
+  const valued = all.filter((p) => p.value != null);
+  const rosterValue = valued.reduce((s, p) => s + p.value, 0);
+  const avgAge = valued.length ? Math.round((valued.reduce((s, p) => s + (p.age || 0), 0) / valued.length) * 10) / 10 : null;
+  const core = valued.slice().sort((a, b) => b.value - a.value).slice(0, 5);
+  const coreAge = core.length ? Math.round((core.reduce((s, p) => s + (p.age || 0), 0) / core.length) * 10) / 10 : null;
+  let outlook = 'Balanced';
+  if (coreAge != null) outlook = coreAge <= 24.5 ? 'Ascending' : coreAge >= 28 ? 'Win-now window' : 'Balanced';
+  return { rosterValue, avgAge, coreAge, outlook };
+}
 
 async function findLeague(cookie, leagueId) {
   const leagues = await leaguesService.listLeagues(cookie);
@@ -52,9 +77,14 @@ async function getRoster(cookie, leagueId) {
   const empty = { starters: [], bench: [], ir: [], taxi: [] };
   const src = raw || empty;
 
-  const map = (ids) => (ids || []).map((id) => players.resolve(byId, id));
+  const ctx = {
+    week: config.demoMode ? demo.week() : Number(process.env.MFL_WEEK) || null,
+    statusMap: config.demoMode ? demo.playerStatus() : {},
+    byeMap: config.demoMode ? demo.byes() : {},
+  };
+  const map = (ids) => (ids || []).map((id) => enrich(players.resolve(byId, id), ctx));
 
-  return {
+  const roster = {
     leagueId: league.leagueId,
     name: league.name,
     franchiseId: league.franchiseId,
@@ -63,7 +93,10 @@ async function getRoster(cookie, leagueId) {
     bench: map(src.bench),
     ir: map(src.ir),
     taxi: map(src.taxi),
+    picks: config.demoMode ? demo.picks(league.leagueId) : [],
   };
+  roster.summary = teamSummary([...roster.starters, ...roster.bench, ...roster.ir, ...roster.taxi]);
+  return roster;
 }
 
 module.exports = { getRoster };
