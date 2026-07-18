@@ -43,6 +43,28 @@ cd mobile && npm install && EXPO_PUBLIC_API_URL=http://<lan-ip>:4000 npx expo st
 Any username/password logs you into demo mode. See each sub-README for going live
 and for building an installable APK **without a computer** (Expo EAS cloud build).
 
+## Test it on your phone (no computer needed)
+
+Two things must be online: the backend (a public URL) and the app (an installed APK).
+
+1. **Deploy the backend (free, ~3 min).** In [Render](https://render.com): New →
+   **Blueprint** → connect this repo. It reads [`render.yaml`](render.yaml) and
+   stands up the backend in DEMO mode with zero config. Copy the URL it gives you
+   and sanity-check it in your phone browser at `<url>/api/health` →
+   `{"ok":true,"demoMode":true}`.
+2. **Get an Expo token.** Free account at [expo.dev](https://expo.dev) → create an
+   access token → add it as the GitHub repo secret **`EXPO_TOKEN`**
+   (Settings → Secrets and variables → Actions).
+3. **Build the APK.** GitHub → **Actions** tab → *Build Android APK (EAS)* →
+   **Run workflow**, pasting your Render URL. EAS builds it in the cloud and prints
+   a download link (the first run also links the Expo project and generates the
+   Android keystore automatically).
+4. **Install.** Open the link on your phone → allow "install unknown apps" →
+   install → open → log in (any username/password works in demo).
+
+Every step is doable from the phone's browser. Note: Render's free tier sleeps when
+idle, so the first request after a while takes ~30s to wake.
+
 ## Roadmap
 
 - [x] **M1 — Dashboard (read-only):** all leagues, matchups, live scores, standings, rosters

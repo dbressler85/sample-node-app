@@ -1,0 +1,24 @@
+# One-click deploy for the Dynasty Central backend.
+#
+# In Render: New → Blueprint → connect this repo. Render reads this file and
+# stands up the backend as a free web service. It boots in DEMO mode with zero
+# config, so no secrets are required to try it.
+#
+# After deploy you'll get a public URL like https://dynasty-central-backend.onrender.com
+# Verify it at  <url>/api/health  → {"ok":true,"demoMode":true,...}
+# Then point the mobile app at that URL (see mobile/README.md / the workflow).
+services:
+  - type: web
+    name: dynasty-central-backend
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: MFL_DEMO_MODE
+        value: "true"
