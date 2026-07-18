@@ -1,16 +1,21 @@
 name: Build Android APK (EAS)
 
-# Cloud-builds an installable APK with no local machine required.
-# One-time setup: create a free Expo account, generate an access token at
-# https://expo.dev/settings/access-tokens, and add it as the repo secret EXPO_TOKEN.
-# Then run this workflow from the Actions tab and download the APK link it prints
-# (open it on your phone to sideload).
+# Cloud-builds an installable APK — no local machine required.
+#
+# One-time setup:
+#   1. Deploy the backend (see render.yaml) and copy its URL.
+#   2. Create a free Expo account, make an access token at
+#      https://expo.dev/settings/access-tokens
+#   3. Add it as the repo secret EXPO_TOKEN (Settings → Secrets → Actions).
+#
+# Each run: Actions tab → this workflow → Run workflow → paste your backend URL.
+# When it finishes, open the printed build link on your phone to install the APK.
 
 on:
   workflow_dispatch:
     inputs:
       api_url:
-        description: 'Backend URL the app should call (EXPO_PUBLIC_API_URL)'
+        description: 'Backend URL the app should call (e.g. https://xxx.onrender.com)'
         required: true
         default: 'https://your-backend.example.com'
 
@@ -29,8 +34,23 @@ jobs:
         run: npm install -g eas-cli
       - name: Install dependencies
         run: npm install
+
+      # EXPO_PUBLIC_* vars are embedded at build time on Expo's servers, so the
+      # value must live in eas.json — a shell env var here wouldn't reach them.
+      - name: Bake backend URL into eas.json
+        env:
+          API_URL: ${{ github.event.inputs.api_url }}
+        run: |
+          node -e "const fs=require('fs');const f='eas.json';const j=JSON.parse(fs.readFileSync(f,'utf8'));j.build.preview.env={...(j.build.preview.env||{}),EXPO_PUBLIC_API_URL:process.env.API_URL};fs.writeFileSync(f,JSON.stringify(j,null,2));console.log('Building with EXPO_PUBLIC_API_URL =',process.env.API_URL);"
+
+      # Links (or creates) the EAS project so a non-interactive build can run.
+      - name: Ensure EAS project is linked
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: eas init --non-interactive || true
+
+      # Android keystore is generated & managed by EAS automatically.
       - name: Build APK on EAS
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-          EXPO_PUBLIC_API_URL: ${{ github.event.inputs.api_url }}
         run: eas build --platform android --profile preview --non-interactive
