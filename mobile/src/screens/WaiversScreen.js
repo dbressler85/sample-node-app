@@ -17,6 +17,7 @@ import AvailabilityBadge from '../components/AvailabilityBadge';
 const SORTS = [
   { key: 'value', label: 'Value' },
   { key: 'projection', label: 'Proj' },
+  { key: 'ownership', label: 'Own%' },
   { key: 'trend', label: 'Trend' },
 ];
 
@@ -207,6 +208,7 @@ function FaRow({ p, onPress }) {
         <Text style={styles.faMeta}>
           {p.team}
           {p.projection != null ? ` · proj ${p.projection}` : ''}
+          {p.ownership != null ? ` · ${p.ownership}% rost` : ''}
           {p.trend ? ` · +${(p.trend / 1000).toFixed(1)}k adds` : ''}
           {p.onWaivers ? ` · waivers ${p.clearTime || ''}` : ' · free agent'}
         </Text>
