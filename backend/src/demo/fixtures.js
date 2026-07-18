@@ -167,8 +167,30 @@ const LINEUP_REQS = {
   ],
 };
 
+// Injury / game statuses for the current week (default ACTIVE if absent).
+// Harrison is OUT (a current starter who must be benched), Chase is Questionable.
+const PLAYER_STATUS = {
+  '15859': 'OUT', // Harrison — a Superflex starter; optimizer must replace him
+  '14802': 'QUESTIONABLE', // Chase — playable but flagged
+};
+
+// Team bye weeks. ATL is on bye this week, which sidelines multiple rostered
+// players across leagues (Robinson, London) — a real cross-league headache.
+const BYES = { ATL: 3 };
+
+// This week's opponent projected totals (median), used for win probability and
+// the safe/aggressive recommendation.
+const MATCHUP_PROJECTION = {
+  '64097': { opponent: 'Waiver Wire Wolves', projected: 96.0 },
+  '40750': { opponent: 'Superflex Savants', projected: 118.0 },
+  '19622': { opponent: 'Dynasty Destroyers', projected: 121.0 },
+};
+
 module.exports = {
   players: () => PLAYERS,
+  playerStatus: () => ({ ...PLAYER_STATUS }),
+  byes: () => ({ ...BYES }),
+  matchupProjection: (leagueId) => (MATCHUP_PROJECTION[leagueId] ? { ...MATCHUP_PROJECTION[leagueId] } : null),
   leagues: () => LEAGUES.map((l) => ({ ...l })),
   dashboard: (leagueId) => DASHBOARD[leagueId] || null,
   roster: (leagueId) => ROSTERS[leagueId] || null,

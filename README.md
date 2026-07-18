@@ -3,10 +3,12 @@
 Manage all your [MyFantasyLeague](https://home.myfantasyleague.com) dynasty
 leagues from one Android app — instead of navigating to each league one by one.
 
-**Status:** Milestone 2 — cross-league dashboard **plus lineup management**. Log
-in once, see every team's matchup/score/standing, and set your lineup in one
-league or **all leagues at once** ("Set All Lineups" optimizes every team by
-projected points in a single tap). Waivers → trades are next on the roadmap below.
+**Status:** Milestone 2.5 — cross-league dashboard **plus safe, informed lineup
+management**. Log in once, see every team's matchup/score/standing, and set your
+lineup in one league or **all leagues at once**. "Set All" is availability-aware
+(never starts an OUT/injured/bye player), shows a review diff before writing,
+supports safe/balanced/aggressive modes, and surfaces each matchup's win
+probability. Waivers → trades are next on the roadmap below.
 
 ## Architecture
 
@@ -45,6 +47,7 @@ and for building an installable APK **without a computer** (Expo EAS cloud build
 
 - [x] **M1 — Dashboard (read-only):** all leagues, matchups, live scores, standings, rosters
 - [x] **M2 — Lineups:** format-aware optimizer (per-league PPR / TE-premium / pass-TD scoring), per-league editor, and one-tap "Set All Lineups" (`import?TYPE=lineup`)
+- [x] **M2.5 — Safe & informed Set All:** availability-aware (never starts OUT / injured / bye players), floor/ceiling + matchup with win probability, safe/balanced/aggressive modes, and a review-diff before bulk apply
 - [ ] **M3 — Waivers / FAAB:** free agents + add/drop + blind-bid claims across leagues
 - [ ] **M4 — Trades:** view / propose / accept / reject (`import?TYPE=tradeProposal`)
 - [ ] **M5 — Hardening:** persistent session store, live-MFL verification, push alerts, Play Store

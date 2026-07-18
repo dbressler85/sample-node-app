@@ -42,12 +42,14 @@ export const api = {
   dashboard: () => request('/api/dashboard'),
   roster: (leagueId) => request(`/api/leagues/${leagueId}/roster`),
 
-  // Lineups (M2)
-  lineups: () => request('/api/lineups'),
-  lineupDetail: (leagueId) => request(`/api/leagues/${leagueId}/lineup`),
-  applyLineup: (leagueId, starters) =>
-    request(`/api/leagues/${leagueId}/lineup`, { method: 'POST', body: starters ? { starters } : {} }),
-  // Set all lineups at once. Pass no selections to optimize every league.
-  applyAllLineups: (leagues) =>
-    request('/api/lineups/apply', { method: 'POST', body: leagues ? { leagues } : {} }),
+  // Lineups (M2 / M2.5). mode: 'auto' | 'safe' | 'balanced' | 'aggressive'
+  lineups: (mode = 'auto') => request(`/api/lineups?mode=${mode}`),
+  lineupDetail: (leagueId, mode = 'auto') => request(`/api/leagues/${leagueId}/lineup?mode=${mode}`),
+  // Preview "Set All" as per-league diffs, writing nothing.
+  planLineups: (mode = 'auto') => request(`/api/lineups/plan?mode=${mode}`),
+  applyLineup: (leagueId, starters, mode = 'auto') =>
+    request(`/api/leagues/${leagueId}/lineup`, { method: 'POST', body: { starters: starters || undefined, mode } }),
+  // Set all lineups at once. `leagues` optionally narrows to selected leagueIds.
+  applyAllLineups: (mode = 'auto', leagues) =>
+    request('/api/lineups/apply', { method: 'POST', body: { mode, leagues: leagues || undefined } }),
 };
