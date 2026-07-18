@@ -30,6 +30,20 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+
+      # Fail early with a clear message if the Expo token secret is missing.
+      - name: Check EXPO_TOKEN is set
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::EXPO_TOKEN repository secret is missing or empty."
+            echo "Add it under: repo Settings → Secrets and variables → Actions → the 'Secrets' tab → New repository secret."
+            echo "Name must be exactly EXPO_TOKEN (no spaces). Value = an Expo access token from https://expo.dev/settings/access-tokens"
+            exit 1
+          fi
+          echo "EXPO_TOKEN is present."
+
       - name: Install EAS CLI
         run: npm install -g eas-cli
       - name: Install dependencies
