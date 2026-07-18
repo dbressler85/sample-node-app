@@ -109,6 +109,87 @@ function assert(cond, msg) {
     assert(harrison && harrison.affectedCount >= 1, 'news maps to affected teams');
     console.log(`✓ news→impact: "${harrison.headline}" affects ${harrison.affectedCount} of your teams (${harrison.startingCount} starting)`);
 
+    // --- M3: waivers / FAAB / free agents ---
+    // Board respects the per-league system.
+    const faab = (await j(await fetch(`${base}/api/leagues/64097/waivers`, authed))).body; // faab
+    const free = (await j(await fetch(`${base}/api/leagues/19622/waivers`, authed))).body; // free, full roster
+    assert(faab.system === 'faab' && faab.settings.faabRemaining > 0, 'faab league reports budget');
+    assert(free.system === 'free' && free.rosterFull === true, 'free league with full roster flagged');
+    assert(faab.freeAgents.length > 0 && faab.freeAgents.every((p) => p.value != null), 'board lists valued free agents');
+    console.log(
+      `✓ waiver boards: FAAB ($${faab.settings.faabRemaining} left, ${faab.freeAgents.length} FAs), ` +
+        `free league roster ${free.rosterCount}/${free.settings.rosterSize} (full: ${free.rosterFull})`
+    );
+
+    // Filter + sort.
+    const rbs = (await j(await fetch(`${base}/api/leagues/64097/waivers?position=RB&sort=projection`, authed))).body;
+    assert(rbs.freeAgents.every((p) => p.position === 'RB'), 'position filter works');
+    console.log(`✓ filter/sort: ${rbs.freeAgents.length} RBs by projection`);
+
+    // Preview fills smart assists: suggested drop (roster full) + suggested bid.
+    const prevFull = (await j(
+      await fetch(`${base}/api/leagues/19622/waivers/preview`, {
+        method: 'POST',
+        headers: { ...authed.headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ addId: '16002' }),
+      })
+    )).body;
+    assert(prevFull.dropRequired && prevFull.suggestedDrop, 'full roster -> a drop is suggested');
+    assert(prevFull.valid, 'preview with suggested drop is valid');
+    console.log(`✓ smart drop: adding ${prevFull.add.name} suggests dropping ${prevFull.suggestedDrop.name} (value ${prevFull.suggestedDrop.value})`);
+
+    const prevBid = (await j(
+      await fetch(`${base}/api/leagues/64097/waivers/preview`, {
+        method: 'POST',
+        headers: { ...authed.headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ addId: '16002' }),
+      })
+    )).body;
+    assert(prevBid.suggestedBid > 0 && prevBid.bid === prevBid.suggestedBid, 'faab preview suggests a bid');
+    assert(prevBid.budgetAfter === faab.settings.faabRemaining - prevBid.bid, 'budget-after computed');
+    console.log(`✓ bid guidance: ${prevBid.add.name} → $${prevBid.suggestedBid} (budget after $${prevBid.budgetAfter})`);
+
+    // Validation: over-budget bid rejected.
+    const bad = (await j(
+      await fetch(`${base}/api/leagues/64097/waivers/preview`, {
+        method: 'POST',
+        headers: { ...authed.headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ addId: '16002', bid: 9999 }),
+      })
+    )).body;
+    assert(!bad.valid && bad.errors.some((e) => /budget/i.test(e)), 'over-budget bid is rejected');
+    console.log('✓ validation: over-budget bid blocked');
+
+    // Submit a claim; it appears in pending.
+    const sub = (await j(
+      await fetch(`${base}/api/leagues/64097/waivers`, {
+        method: 'POST',
+        headers: { ...authed.headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ addId: '16002', bid: 20 }),
+      })
+    )).body;
+    assert(sub.submitted && sub.board.pending.some((c) => c.id === sub.submitted.id), 'submitted claim is now pending');
+    console.log(`✓ submit: claimed ${sub.submitted.add.name} for $${sub.submitted.bid} (${sub.board.pending.length} pending)`);
+
+    // Cancel it.
+    const canceled = (await j(await fetch(`${base}/api/leagues/64097/waivers/${sub.submitted.id}`, { method: 'DELETE', ...authed }))).body;
+    assert(!canceled.board.pending.some((c) => c.id === sub.submitted.id), 'canceled claim removed from pending');
+    console.log('✓ cancel: claim withdrawn');
+
+    // Cross-league best available.
+    const ba = (await j(await fetch(`${base}/api/waivers/best-available`, authed))).body;
+    assert(ba.players.length > 0, 'best-available has players');
+    const multi = ba.players.find((p) => p.leagueCount > 1);
+    assert(multi, 'a free agent is available in multiple leagues');
+    console.log(`✓ best available: ${multi.name} is free in ${multi.leagueCount} of your leagues`);
+
+    // Pending across leagues + triage deep-link.
+    const pend = (await j(await fetch(`${base}/api/waivers/pending`, authed))).body;
+    assert(pend.summary.pending >= 1, 'aggregate pending claims present');
+    const homeW = (await j(await fetch(`${base}/api/home`, authed))).body;
+    assert(homeW.triage.some((t) => t.action === 'waiver'), 'triage deep-links a waiver action');
+    console.log(`✓ pending across leagues: ${pend.summary.pending}; triage routes the bye-week hole to waivers`);
+
     // --- M2 / M2.5: lineups ---
     r = await j(await fetch(`${base}/api/lineups?mode=auto`, authed));
     assert(r.status === 200, 'lineups overview 200');

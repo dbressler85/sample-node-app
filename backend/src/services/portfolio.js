@@ -50,11 +50,11 @@ async function getHome(cookie, token) {
         id: `lineup-empty-${l.leagueId}`,
         type: 'lineup_incomplete',
         severity: 'high',
-        action: 'lineup',
+        action: 'waiver', // no eligible starter -> hit the waiver wire
         leagueId: l.leagueId,
         leagueName: l.name,
-        title: 'Empty starting slot',
-        subtitle: 'A lineup spot has no eligible starter',
+        title: 'Empty starting slot — add a player',
+        subtitle: 'No eligible starter; pick one up on waivers',
       });
     } else if (l.status === 'suboptimal') {
       items.push({
@@ -117,6 +117,7 @@ async function getHome(cookie, token) {
       waiversPending,
       actionItems: items.length,
     },
+    teams: leagues.map((l) => ({ leagueId: l.leagueId, name: l.name })),
     triage: items,
   };
 }

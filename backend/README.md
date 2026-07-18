@@ -49,6 +49,12 @@ live MFL with `MFL_DEMO_MODE=false`. See `.env.example` for all settings.
 | POST | `/api/lineups/apply` | **Set all lineups** — `{mode, leagues?:[{leagueId,starters?}]}` |
 | GET | `/api/leagues/:leagueId/lineup?mode=` | Lineup detail: slots (current + optimal), availability, floor/median/ceiling |
 | POST | `/api/leagues/:leagueId/lineup` | Set one league's lineup (`{starters?, mode}`) |
+| GET | `/api/leagues/:leagueId/waivers?position=&sort=` | Waiver board (system-aware: FAAB/FCFS/free), free agents, budget, pending |
+| POST | `/api/leagues/:leagueId/waivers/preview` | Validate a claim + fill suggested drop/bid (`{addId, dropId?, bid?}`) |
+| POST | `/api/leagues/:leagueId/waivers` | Submit a claim |
+| DELETE | `/api/leagues/:leagueId/waivers/:claimId` | Cancel a pending claim |
+| GET | `/api/waivers/best-available` | Top free agents across all your leagues |
+| GET | `/api/waivers/pending` | Pending claims + recent results across leagues |
 
 `mode` is `auto` (default; recommends safe/aggressive from the matchup), `safe`
 (maximize floor), `balanced` (median), or `aggressive` (maximize ceiling).
@@ -66,7 +72,8 @@ src/
   store/sessions.js    token -> MFL cookie (in-memory)
   store/lineups.js     applied lineups per session (in-memory)
   services/            leagues, dashboard, roster (dynasty ctx), lineups,
-                       portfolio (home/triage), scoreboard, exposure (+ news)
+                       portfolio (home/triage), scoreboard, exposure (+ news),
+                       waivers (board, best-available, smart drop/bid, claims)
   routes/              auth + api + lineup routes
   demo/fixtures.js     DEMO_MODE data (rosters, projected stats, scoring, lineup rules)
 ```

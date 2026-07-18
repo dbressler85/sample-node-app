@@ -21,6 +21,12 @@ const PLAYERS = [
   { id: '11686', name: 'Cook, Dalvin', position: 'RB', team: 'FA' },
   { id: '15266', name: 'Odunze, Rome', position: 'WR', team: 'CHI' },
   { id: '13138', name: 'London, Drake', position: 'WR', team: 'ATL' },
+  // Free-agent / waiver-wire targets (not on my rosters).
+  { id: '16001', name: 'Mims Jr., Marvin', position: 'WR', team: 'DEN' },
+  { id: '16002', name: 'Tracy Jr., Tyrone', position: 'RB', team: 'NYG' },
+  { id: '16003', name: 'Dowdle, Rico', position: 'RB', team: 'DAL' },
+  { id: '16004', name: "Robinson, Wan'Dale", position: 'WR', team: 'NYG' },
+  { id: '16005', name: 'Ferguson, Jake', position: 'TE', team: 'DAL' },
 ];
 
 // Three dynasty leagues on different MFL hosts, as `myleagues` would return them.
@@ -130,6 +136,12 @@ const STAT_PROJECTIONS = {
   // TEs: rec, recYds, recTd
   '12171': { rec: 6.0, recYds: 62, recTd: 0.45 }, // Kelce
   '14835': { rec: 5.5, recYds: 58, recTd: 0.4 }, // Bowers
+  // Free agents
+  '16001': { rec: 4.0, recYds: 55, recTd: 0.3 }, // Mims WR
+  '16002': { rushYds: 62, rushTd: 0.4, rec: 2.5, recYds: 18, recTd: 0.1 }, // Tracy RB
+  '16003': { rushYds: 48, rushTd: 0.3, rec: 1.5, recYds: 10, recTd: 0.0 }, // Dowdle RB
+  '16004': { rec: 5.0, recYds: 48, recTd: 0.2 }, // Wan'Dale WR
+  '16005': { rec: 4.5, recYds: 44, recTd: 0.3 }, // Ferguson TE
 };
 
 // Per-league scoring settings — deliberately different formats so the optimizer
@@ -205,6 +217,11 @@ const DYNASTY = {
   '11686': { age: 30, value: 18 }, // Cook
   '15266': { age: 23, value: 80 }, // Odunze
   '13138': { age: 24, value: 83 }, // London
+  '16001': { age: 23, value: 35 }, // Mims
+  '16002': { age: 24, value: 42 }, // Tracy
+  '16003': { age: 26, value: 28 }, // Dowdle
+  '16004': { age: 24, value: 33 }, // Wan'Dale
+  '16005': { age: 26, value: 37 }, // Ferguson
 };
 
 // Live matchup detail for the current week: live points, players yet to play,
@@ -254,6 +271,42 @@ const PICKS = {
   '19622': ['2027 2nd'],
 };
 
+// Per-league waiver settings. MFL leagues use one of three pickup systems, and
+// the claim UX differs for each: blind-bid/FAAB (budget), FCFS (waiver priority),
+// or free agents (immediate add/drop). rosterSize is the active-roster limit —
+// when full, a claim must include a drop.
+const WAIVER_SETTINGS = {
+  '64097': { system: 'faab', faabBudget: 100, faabRemaining: 78, minBid: 1, rosterSize: 12, clearTime: 'Wed 3:00 AM ET' },
+  '40750': { system: 'fcfs', waiverPriority: 3, waiverTeams: 12, rosterSize: 12, clearTime: 'Wed 3:00 AM ET' },
+  '19622': { system: 'free', rosterSize: 8 }, // full roster -> drop required; adds are immediate
+};
+
+// Free agents available per league (ids into PLAYERS). Overlap across leagues is
+// intentional so the cross-league "best available" view has multi-league targets.
+const FREE_AGENTS = {
+  '64097': ['16002', '16001', '16005', '16003'],
+  '40750': ['16002', '16004', '16001'],
+  '19622': ['16002', '16001', '16005', '16003'],
+};
+
+// Waiver-wire heat: how many leagues (market-wide) are adding each player.
+const TRENDS = { '16002': 5400, '16001': 3900, '16005': 2800, '16004': 2100, '16003': 1500 };
+
+// Seed pending claims per league (add/drop ids + bid or priority).
+const PENDING_CLAIMS = {
+  '64097': [{ system: 'faab', add: '16001', drop: '11686', bid: 15 }],
+  '40750': [{ system: 'fcfs', add: '16004', drop: '15266', priority: 3 }],
+  '19622': [],
+};
+
+// Recently processed claims, for the activity view.
+const WAIVER_RESULTS = {
+  '64097': [
+    { add: 'Flowers, Zay', bid: 8, result: 'won' },
+    { add: 'Dowdle, Rico', bid: 4, result: 'lost' },
+  ],
+};
+
 module.exports = {
   players: () => PLAYERS,
   playerStatus: () => ({ ...PLAYER_STATUS }),
@@ -271,5 +324,10 @@ module.exports = {
   waivers: (leagueId) => (WAIVERS[leagueId] || []).map((w) => ({ ...w })),
   news: () => NEWS.map((n) => ({ ...n })),
   picks: (leagueId) => (PICKS[leagueId] || []).slice(),
+  waiverSettings: (leagueId) => (WAIVER_SETTINGS[leagueId] ? { ...WAIVER_SETTINGS[leagueId] } : null),
+  freeAgents: (leagueId) => (FREE_AGENTS[leagueId] || []).slice(),
+  trend: (playerId) => TRENDS[playerId] || 0,
+  pendingClaims: (leagueId) => (PENDING_CLAIMS[leagueId] || []).map((c) => ({ ...c })),
+  waiverResults: (leagueId) => (WAIVER_RESULTS[leagueId] || []).map((r) => ({ ...r })),
   week: () => WEEK,
 };

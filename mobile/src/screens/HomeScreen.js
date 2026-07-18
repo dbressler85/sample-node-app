@@ -11,7 +11,7 @@ const SEV = {
 
 const ACTION_LABEL = { lineup: 'Set lineup ›', trade: 'View trade ›', waiver: 'View ›' };
 
-export default function HomeScreen({ onOpenLineup, onOpenLeague, onLogout }) {
+export default function HomeScreen({ onOpenLineup, onOpenLeague, onOpenWaivers, onLogout }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -36,6 +36,7 @@ export default function HomeScreen({ onOpenLineup, onOpenLeague, onLogout }) {
   function handleAction(item) {
     const league = { leagueId: item.leagueId, name: item.leagueName };
     if (item.action === 'lineup') onOpenLineup(league);
+    else if (item.action === 'waiver') onOpenWaivers(league);
     else onOpenLeague(league);
   }
 
@@ -86,6 +87,25 @@ export default function HomeScreen({ onOpenLineup, onOpenLeague, onLogout }) {
         }
         renderItem={({ item }) => <TriageRow item={item} onPress={() => handleAction(item)} />}
         ListEmptyComponent={<Text style={styles.clear}>🎉 Nothing needs you right now.</Text>}
+        ListFooterComponent={
+          data && data.teams && data.teams.length ? (
+            <View>
+              <Text style={styles.section}>Your teams · {data.teams.length}</Text>
+              {data.teams.map((t) => (
+                <Pressable
+                  key={t.leagueId}
+                  style={({ pressed }) => [styles.teamRow, pressed && { opacity: 0.7 }]}
+                  onPress={() => onOpenLeague({ leagueId: t.leagueId, name: t.name })}
+                >
+                  <Text style={styles.teamName} numberOfLines={1}>
+                    {t.name}
+                  </Text>
+                  <Text style={styles.teamChev}>›</Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : null
+        }
       />
     </View>
   );
@@ -175,4 +195,7 @@ const styles = StyleSheet.create({
   rowAction: { fontSize: 13, fontWeight: '700', marginLeft: 10 },
   error: { color: colors.bad, marginVertical: 8 },
   clear: { color: colors.textDim, textAlign: 'center', marginTop: 30, fontSize: 15 },
+  teamRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: 10 },
+  teamName: { color: colors.text, fontSize: 15, fontWeight: '700', flex: 1, marginRight: 10 },
+  teamChev: { color: colors.textDim, fontSize: 20, fontWeight: '700' },
 });

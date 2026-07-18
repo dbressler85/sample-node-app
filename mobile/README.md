@@ -44,14 +44,16 @@ App.js                 state-based screen router (login / dashboard / roster)
 src/config.js          backend URL resolution
 src/api.js             backend client
 src/auth.js            secure token persistence (expo-secure-store)
-src/screens/           LoginScreen, HomeScreen, ScoresScreen, DashboardScreen,
+src/screens/           LoginScreen, HomeScreen, ScoresScreen, WaiversScreen,
                        PlayersScreen, RosterScreen, LineupsScreen, LineupEditorScreen
 src/components/         LeagueCard, PlayerRow, AvailabilityBadge
 src/theme.js           shared dark-theme tokens
 ```
 
-Five bottom tabs — **Home** (portfolio roll-up + cross-league triage queue),
-**Scores** (live scoreboard with win probability), **Leagues** (per-league cards →
-roster), **Players** (exposure + news→impact), **Lineups** (Set All) — with
-full-screen overlays for the roster and lineup editor. Navigation is a small state
-machine for now; when we add waivers/trades we'll move to `expo-router`.
+Five bottom tabs — **Home** (portfolio roll-up + cross-league triage queue + your
+teams), **Scores** (live scoreboard with win probability), **Waivers** (per-league
+board + best-available + pending, with a claim sheet), **Players** (exposure +
+news→impact), **Lineups** (Set All) — with full-screen overlays for the roster and
+lineup editor. Home's triage deep-links a bye-week hole straight into the Waivers
+board. Navigation is a small state machine for now; when the app grows we'll move
+to `expo-router`.
