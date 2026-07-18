@@ -10,6 +10,7 @@ const apiRoutes = require('./routes/leagues');
 const lineupRoutes = require('./routes/lineups');
 const commandRoutes = require('./routes/command');
 const waiverRoutes = require('./routes/waivers');
+const playerHubRoutes = require('./routes/playerhub');
 
 const app = express();
 
@@ -23,6 +24,7 @@ app.get('/api/health', (req, res) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api', commandRoutes);
+app.use('/api', playerHubRoutes);
 app.use('/api', waiverRoutes);
 app.use('/api', lineupRoutes);
 app.use('/api', apiRoutes);

@@ -55,6 +55,12 @@ live MFL with `MFL_DEMO_MODE=false`. See `.env.example` for all settings.
 | DELETE | `/api/leagues/:leagueId/waivers/:claimId` | Cancel a pending claim |
 | GET | `/api/waivers/best-available` | Top free agents across all your leagues |
 | GET | `/api/waivers/pending` | Pending claims + recent results across leagues |
+| GET | `/api/players/search?q=&position=&status=` | Universe player search (annotated with your ownership) |
+| GET | `/api/players/rankings?type=&position=` | Rankings: value / position / trending / rookies |
+| GET | `/api/players/:id` | Player profile: stats, projection±, schedule difficulty, cross-league ownership |
+| GET | `/api/players/:id/add/preview` | Per-league claim preview for a cross-league add |
+| POST | `/api/players/:id/add` | Add across chosen leagues (`{leagues:[{leagueId,dropId?,bid?}]}`) |
+| POST | `/api/players/:id/drop` | Drop across chosen leagues (`{leagues:[leagueId]}`) |
 
 `mode` is `auto` (default; recommends safe/aggressive from the matchup), `safe`
 (maximize floor), `balanced` (median), or `aggressive` (maximize ceiling).
@@ -73,7 +79,8 @@ src/
   store/lineups.js     applied lineups per session (in-memory)
   services/            leagues, dashboard, roster (dynasty ctx), lineups,
                        portfolio (home/triage), scoreboard, exposure (+ news),
-                       waivers (board, best-available, smart drop/bid, claims)
+                       waivers (board, best-available, smart drop/bid, claims),
+                       playerhub (search, rankings, profile, cross-league add/drop)
   routes/              auth + api + lineup routes
   demo/fixtures.js     DEMO_MODE data (rosters, projected stats, scoring, lineup rules)
 ```

@@ -6,6 +6,7 @@ import HomeScreen from './src/screens/HomeScreen';
 import ScoresScreen from './src/screens/ScoresScreen';
 import WaiversScreen from './src/screens/WaiversScreen';
 import PlayersScreen from './src/screens/PlayersScreen';
+import PlayerProfileScreen from './src/screens/PlayerProfileScreen';
 import RosterScreen from './src/screens/RosterScreen';
 import LineupsScreen from './src/screens/LineupsScreen';
 import LineupEditorScreen from './src/screens/LineupEditorScreen';
@@ -44,6 +45,7 @@ export default function App() {
 
   const openRoster = (league) => setOverlay({ type: 'roster', league });
   const openLineup = (league) => setOverlay({ type: 'lineupEditor', league });
+  const openPlayer = (playerId) => setOverlay({ type: 'playerProfile', playerId });
   const openWaivers = (target) => {
     setWaiversTarget(target || null);
     setTab('waivers');
@@ -62,7 +64,7 @@ export default function App() {
           />
         );
       case 'players':
-        return <PlayersScreen />;
+        return <PlayersScreen onOpenPlayer={openPlayer} />;
       case 'lineups':
         return <LineupsScreen onOpenLineup={openLineup} />;
       case 'home':
@@ -93,6 +95,9 @@ export default function App() {
     }
     if (overlay && overlay.type === 'lineupEditor') {
       return <LineupEditorScreen league={overlay.league} onBack={() => setOverlay(null)} />;
+    }
+    if (overlay && overlay.type === 'playerProfile') {
+      return <PlayerProfileScreen playerId={overlay.playerId} onBack={() => setOverlay(null)} />;
     }
 
     return (

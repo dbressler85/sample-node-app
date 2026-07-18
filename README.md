@@ -3,11 +3,12 @@
 Manage all your [MyFantasyLeague](https://home.myfantasyleague.com) dynasty
 leagues from one Android app — instead of navigating to each league one by one.
 
-**Status:** Milestone 3 — a cross-league **command center** (portfolio, triage,
+**Status:** Milestone 4 — a cross-league **command center** (portfolio, triage,
 live scoreboard, player exposure) with **lineup management** (availability-aware
-"Set All") and **waivers / FAAB / free agents**. Manage claims per league across
-all three MFL pickup systems, with smart drop + bid guidance, validation, and a
-cross-league best-available view. The player-centric hub and trades are next.
+"Set All"), **waivers / FAAB / free agents**, and a **player hub**. Manage claims per league across
+all three MFL pickup systems, and a **player hub** — search any player, see his
+stats/projection and every league you roster him in, and **add or drop him across
+leagues at once**. Smart drop + bid guidance throughout. Trades are next.
 
 ## Architecture
 
@@ -49,8 +50,9 @@ and for building an installable APK **without a computer** (Expo EAS cloud build
 - [x] **M2 — Lineups:** format-aware optimizer (per-league PPR / TE-premium / pass-TD scoring), per-league editor, and one-tap "Set All Lineups" (`import?TYPE=lineup`)
 - [x] **M2.5 — Safe & informed Set All:** availability-aware (never starts OUT / injured / bye players), floor/ceiling + matchup with win probability, safe/balanced/aggressive modes, and a review-diff before bulk apply
 - [x] **M3 — Waivers / FAAB:** per-league board for all three MFL systems (FAAB / FCFS / free agents), filter/sort, cross-league best-available, smart drop + bid guidance, validated claim/cancel
-- [ ] **M4 — Player hub (player-centric):** search, stats/info, ownership across leagues, player-centric add/drop, then trades
-- [ ] **M5 — Hardening:** lock deadlines, push notifications, persistent session store, live-MFL verification, Play Store
+- [x] **M4 — Player hub:** universe search + rankings, rich profile (projection/floor/ceiling, game log + season, schedule difficulty, cross-league ownership), and player-centric **add/drop across leagues**
+- [ ] **M5 — Trades:** propose / counter / accept / reject, launched from the player profile
+- [ ] **M6 — Hardening:** lock deadlines, push notifications, persistent session store, live-MFL verification, Play Store
 
 ## Notes on live MFL
 

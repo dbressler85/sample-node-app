@@ -57,6 +57,24 @@ export const api = {
     const qs = q.toString();
     return request(`/api/leagues/${leagueId}/waivers${qs ? `?${qs}` : ''}`);
   },
+  // Player hub (M4)
+  playerSearch: (q, { position, status } = {}) => {
+    const p = new URLSearchParams();
+    if (q) p.set('q', q);
+    if (position) p.set('position', position);
+    if (status) p.set('status', status);
+    return request(`/api/players/search?${p.toString()}`);
+  },
+  playerRankings: (type = 'value', position) => {
+    const p = new URLSearchParams({ type });
+    if (position) p.set('position', position);
+    return request(`/api/players/rankings?${p.toString()}`);
+  },
+  playerProfile: (id) => request(`/api/players/${id}`),
+  playerAddPreview: (id) => request(`/api/players/${id}/add/preview`),
+  playerAdd: (id, leagues) => request(`/api/players/${id}/add`, { method: 'POST', body: { leagues } }),
+  playerDrop: (id, leagues) => request(`/api/players/${id}/drop`, { method: 'POST', body: { leagues } }),
+
   bestAvailable: () => request('/api/waivers/best-available'),
   waiverPending: () => request('/api/waivers/pending'),
   previewClaim: (leagueId, body) => request(`/api/leagues/${leagueId}/waivers/preview`, { method: 'POST', body }),
