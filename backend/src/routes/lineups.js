@@ -7,41 +7,51 @@ const lineups = require('../services/lineups');
 const router = express.Router();
 router.use(requireSession);
 
-// GET /api/lineups — cross-league overview with the points gap per league.
+// GET /api/lineups?mode=auto|safe|balanced|aggressive
+// Cross-league overview: points gap, warnings, matchup + win prob per league.
 router.get('/lineups', async (req, res, next) => {
   try {
-    res.json(await lineups.getOverview(req.mflCookie, req.token));
+    res.json(await lineups.getOverview(req.mflCookie, req.token, req.query.mode));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/lineups/plan?mode=... — preview "Set All" as per-league diffs, no writes.
+router.get('/lineups/plan', async (req, res, next) => {
+  try {
+    res.json(await lineups.plan(req.mflCookie, req.token, req.query.mode));
   } catch (err) {
     next(err);
   }
 });
 
 // POST /api/lineups/apply — set all lineups at once.
-// Body (optional): { leagues: [{ leagueId, starters?: [ids] }] }
-// With no body, every non-optimal league is set to its optimal lineup.
+// Body (optional): { mode, leagues: [{ leagueId, starters?: [ids] }] }
 router.post('/lineups/apply', async (req, res, next) => {
   try {
-    res.json(await lineups.applyAll(req.mflCookie, req.token, (req.body && req.body.leagues) || null));
+    const body = req.body || {};
+    res.json(await lineups.applyAll(req.mflCookie, req.token, body.mode, body.leagues || null));
   } catch (err) {
     next(err);
   }
 });
 
-// GET /api/leagues/:leagueId/lineup — detailed slots (current + optimal) for editing.
+// GET /api/leagues/:leagueId/lineup?mode=... — detailed slots for editing.
 router.get('/leagues/:leagueId/lineup', async (req, res, next) => {
   try {
-    res.json(await lineups.getLineup(req.mflCookie, req.token, req.params.leagueId));
+    res.json(await lineups.getLineup(req.mflCookie, req.token, req.params.leagueId, req.query.mode));
   } catch (err) {
     next(err);
   }
 });
 
 // POST /api/leagues/:leagueId/lineup — set one league's lineup.
-// Body (optional): { starters: [ids] }. With no starters, applies the optimal.
+// Body (optional): { starters: [ids], mode }
 router.post('/leagues/:leagueId/lineup', async (req, res, next) => {
   try {
-    const starters = (req.body && req.body.starters) || null;
-    res.json(await lineups.applyLineup(req.mflCookie, req.token, req.params.leagueId, starters));
+    const body = req.body || {};
+    res.json(await lineups.applyLineup(req.mflCookie, req.token, req.params.leagueId, body.starters || null, body.mode));
   } catch (err) {
     next(err);
   }

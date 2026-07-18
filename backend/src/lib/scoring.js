@@ -47,6 +47,20 @@ function projectPoints(stat, position, scoring) {
   return round1(points);
 }
 
+// Rough weekly volatility by position — how boom/bust the position is. Used to
+// turn a median projection into a floor/ceiling band. QBs are steady; TEs swing.
+const POSITION_VOLATILITY = { QB: 0.22, RB: 0.34, WR: 0.4, TE: 0.46, PK: 0.3, DEF: 0.45 };
+
+// Floor / median / ceiling band around a median projection.
+function band(median, position) {
+  const v = POSITION_VOLATILITY[position] != null ? POSITION_VOLATILITY[position] : 0.35;
+  return {
+    floor: round1(median * (1 - v)),
+    median: round1(median),
+    ceiling: round1(median * (1 + v)),
+  };
+}
+
 // Short human-readable format label, e.g. "PPR · TE+0.5 · 6pt PaTD".
 function describe(scoring) {
   const s = { ...DEFAULT_SCORING, ...(scoring || {}) };
@@ -57,4 +71,4 @@ function describe(scoring) {
   return parts.join(' · ');
 }
 
-module.exports = { DEFAULT_SCORING, projectPoints, describe };
+module.exports = { DEFAULT_SCORING, projectPoints, describe, band, round1 };

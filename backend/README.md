@@ -40,10 +40,14 @@ live MFL with `MFL_DEMO_MODE=false`. See `.env.example` for all settings.
 | GET | `/api/dashboard` | One card per league: matchup, live score, record, standing |
 | GET | `/api/leagues` | Flat list of all leagues on the account |
 | GET | `/api/leagues/:leagueId/roster` | Your roster (names resolved), bucketed by starters/bench/IR/taxi |
-| GET | `/api/lineups` | Cross-league lineup overview: current vs optimal points + gap per league |
-| POST | `/api/lineups/apply` | **Set all lineups** — optimize every non-optimal league in one call |
-| GET | `/api/leagues/:leagueId/lineup` | Lineup detail: slots with current + optimal picks, for editing |
-| POST | `/api/leagues/:leagueId/lineup` | Set one league's lineup (`{starters:[ids]}`, or optimal if omitted) |
+| GET | `/api/lineups?mode=` | Cross-league overview: gap, warnings, matchup + win prob (sorted most-urgent first) |
+| GET | `/api/lineups/plan?mode=` | Preview "Set All" as per-league diffs (in/out), writing nothing |
+| POST | `/api/lineups/apply` | **Set all lineups** — `{mode, leagues?:[{leagueId,starters?}]}` |
+| GET | `/api/leagues/:leagueId/lineup?mode=` | Lineup detail: slots (current + optimal), availability, floor/median/ceiling |
+| POST | `/api/leagues/:leagueId/lineup` | Set one league's lineup (`{starters?, mode}`) |
+
+`mode` is `auto` (default; recommends safe/aggressive from the matchup), `safe`
+(maximize floor), `balanced` (median), or `aggressive` (maximize ceiling).
 
 ## Layout
 
@@ -53,7 +57,8 @@ src/
   lib/mfl.js           low-level MFL client (host routing, UA, throttle, login)
   lib/players.js       cached player-id -> name/team/pos resolution
   lib/optimizer.js     pure lineup optimizer (slot expansion + best assignment)
-  lib/scoring.js       scoring engine (projected stats x league scoring -> points)
+  lib/scoring.js       scoring engine (stats x league scoring -> points; floor/ceiling band)
+  lib/availability.js  injury/bye/inactive -> startable + severity
   store/sessions.js    token -> MFL cookie (in-memory)
   store/lineups.js     applied lineups per session (in-memory)
   services/            leagues, dashboard, roster, lineups

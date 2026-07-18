@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
+import AvailabilityBadge from '../components/AvailabilityBadge';
 
 export default function LineupEditorScreen({ league, onBack }) {
   const [detail, setDetail] = useState(null);
@@ -130,6 +131,15 @@ export default function LineupEditorScreen({ league, onBack }) {
           {optimalDelta > 0.05 ? <Text style={styles.optHint}>  (+{optimalDelta} available)</Text> : null}
         </Text>
         {detail.format ? <Text style={styles.format}>{detail.format}</Text> : null}
+        {detail.matchup ? (
+          <Text style={styles.matchup}>
+            vs {detail.matchup.opponent} ·{' '}
+            <Text style={{ color: winColor(detail.matchup.winProb), fontWeight: '800' }}>
+              {Math.round(detail.matchup.winProb * 100)}% win
+            </Text>
+            {detail.mode ? <Text style={styles.modeTag}>  ·  {detail.mode.toUpperCase()}</Text> : null}
+          </Text>
+        ) : null}
       </View>
 
       <ScrollView contentContainerStyle={styles.slots}>
@@ -177,10 +187,18 @@ function SlotRow({ slot, player, onPress }) {
       {player ? (
         <>
           <View style={[styles.posDot, { backgroundColor: posColor }]} />
-          <Text style={styles.slotPlayer} numberOfLines={1}>
-            {player.name}
-          </Text>
-          <Text style={styles.slotProj}>{player.projection.toFixed(1)}</Text>
+          <View style={{ flex: 1 }}>
+            <View style={styles.slotPlayerRow}>
+              <Text style={styles.slotPlayer} numberOfLines={1}>
+                {player.name}
+              </Text>
+              <AvailabilityBadge availability={player.availability} style={{ marginLeft: 6 }} />
+            </View>
+            <Text style={styles.slotBand}>
+              floor {player.floor} · ceil {player.ceiling}
+            </Text>
+          </View>
+          <Text style={styles.slotProj}>{player.median.toFixed(1)}</Text>
         </>
       ) : (
         <Text style={styles.slotEmpty}>Tap to fill · empty</Text>
@@ -191,11 +209,9 @@ function SlotRow({ slot, player, onPress }) {
 }
 
 function PlayerPicker({ slot, players, assignments, slotIndex, onPick, onClose }) {
-  const startedElsewhere = new Set(assignments.filter((id, i) => id && i !== slotIndex));
   const candidates = players
     .filter((p) => slot.eligible.includes(p.position))
-    .map((p) => ({ ...p, benched: !startedElsewhere.has(p.id) && assignments[slotIndex] !== p.id }))
-    .sort((a, b) => b.projection - a.projection);
+    .sort((a, b) => b.median - a.median);
 
   return (
     <Pressable style={styles.sheetBackdrop} onPress={onClose}>
@@ -210,10 +226,12 @@ function PlayerPicker({ slot, players, assignments, slotIndex, onPick, onClose }
           renderItem={({ item }) => {
             const inThisSlot = assignments[slotIndex] === item.id;
             const elsewhere = assignments.includes(item.id) && !inThisSlot;
+            const unavailable = !item.availability.startable;
             return (
               <Pressable
-                style={({ pressed }) => [styles.cand, pressed && { opacity: 0.6 }]}
-                onPress={() => onPick(item.id)}
+                style={({ pressed }) => [styles.cand, unavailable && { opacity: 0.45 }, pressed && !unavailable && { opacity: 0.6 }]}
+                onPress={() => (unavailable ? null : onPick(item.id))}
+                disabled={unavailable}
               >
                 <View
                   style={[styles.posDot, { backgroundColor: positionColors[item.position] || colors.textDim }]}
@@ -221,9 +239,10 @@ function PlayerPicker({ slot, players, assignments, slotIndex, onPick, onClose }
                 <Text style={styles.candName} numberOfLines={1}>
                   {item.name} <Text style={styles.candTeam}>{item.position} · {item.team}</Text>
                 </Text>
+                <AvailabilityBadge availability={item.availability} style={{ marginRight: 8 }} />
                 {inThisSlot ? <Text style={styles.candTag}>current</Text> : null}
-                {elsewhere ? <Text style={styles.candTagDim}>starting</Text> : null}
-                <Text style={styles.candProj}>{item.projection.toFixed(1)}</Text>
+                {elsewhere && !inThisSlot ? <Text style={styles.candTagDim}>starting</Text> : null}
+                <Text style={styles.candProj}>{item.median.toFixed(1)}</Text>
               </Pressable>
             );
           }}
@@ -237,6 +256,12 @@ function PlayerPicker({ slot, players, assignments, slotIndex, onPick, onClose }
   );
 }
 
+function winColor(p) {
+  if (p >= 0.6) return colors.good;
+  if (p <= 0.4) return colors.bad;
+  return colors.warn;
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
@@ -247,6 +272,8 @@ const styles = StyleSheet.create({
   title: { color: colors.text, fontSize: 24, fontWeight: '900' },
   subtitle: { color: colors.textDim, fontSize: 14, marginTop: 2 },
   format: { color: colors.textDim, fontSize: 11, fontWeight: '700', marginTop: 4, letterSpacing: 0.3 },
+  matchup: { color: colors.textDim, fontSize: 13, marginTop: 4 },
+  modeTag: { color: colors.accent, fontSize: 11, fontWeight: '800' },
   totalStrong: { color: colors.text, fontWeight: '800' },
   optHint: { color: colors.warn, fontWeight: '700' },
   slots: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 16 },
@@ -263,7 +290,9 @@ const styles = StyleSheet.create({
   },
   slotName: { color: colors.textDim, fontSize: 12, fontWeight: '800', width: 74 },
   posDot: { width: 8, height: 8, borderRadius: 4, marginRight: 10 },
-  slotPlayer: { color: colors.text, fontSize: 15, fontWeight: '600', flex: 1 },
+  slotPlayerRow: { flexDirection: 'row', alignItems: 'center' },
+  slotPlayer: { color: colors.text, fontSize: 15, fontWeight: '600', flexShrink: 1 },
+  slotBand: { color: colors.textDim, fontSize: 11, marginTop: 2 },
   slotProj: { color: colors.text, fontSize: 15, fontWeight: '800', marginRight: 8 },
   slotEmpty: { color: colors.bad, fontSize: 14, flex: 1, fontStyle: 'italic' },
   slotChev: { color: colors.textDim, fontSize: 20 },

@@ -56,63 +56,95 @@ function assert(cond, msg) {
     console.log(`✓ roster for ${r.body.name}: ${r.body.starters.length} starters, ${r.body.bench.length} bench`);
     console.log(`    starters: ${r.body.starters.map((p) => `${p.name} (${p.position})`).join(', ')}`);
 
-    // --- M2: lineups ---
-    r = await j(await fetch(`${base}/api/lineups`, authed));
+    // --- M2 / M2.5: lineups ---
+    r = await j(await fetch(`${base}/api/lineups?mode=auto`, authed));
     assert(r.status === 200, 'lineups overview 200');
     assert(r.body.leagues.length === 3, 'lineups overview has 3 leagues');
     const before = r.body.summary;
     assert(before.needAttention >= 1, 'at least one league needs attention');
-    assert(before.pointsAvailable > 0, 'there are points available to gain');
+    assert(before.risky >= 1, 'at least one league has an unavailable current starter (risk)');
+    assert(r.body.leagues[0].status === 'risk', 'most urgent (risk) league sorts first');
     console.log(
       `✓ lineups overview: ${before.needAttention}/${before.total} need attention, ` +
-        `+${before.pointsAvailable} pts available`
+        `${before.risky} risky, +${before.pointsAvailable} pts available`
     );
     for (const l of r.body.leagues) {
+      const w = (l.warnings || []).map((x) => `${x.name}${x.status ? ` [${x.status}]` : ''}`).join(', ');
+      const mu = l.matchup ? ` vs ${l.matchup.opponent} (win ${Math.round(l.matchup.winProb * 100)}%)` : '';
+      console.log(`    - ${l.name} [${l.format}]: ${l.status}${mu}${w ? ` — ⚠ ${w}` : ''}`);
+    }
+
+    // Format awareness: same player, different scoring -> different points.
+    const std = (await j(await fetch(`${base}/api/leagues/64097/lineup`, authed))).body; // standard
+    const tep = (await j(await fetch(`${base}/api/leagues/19622/lineup`, authed))).body; // PPR + TE premium
+    const kStd = std.players.find((p) => p.id === '12171');
+    const kTep = tep.players.find((p) => p.id === '12171');
+    assert(kTep.median > kStd.median, 'TE premium + PPR raises Kelce vs standard');
+    console.log(`✓ format-aware: Kelce ${kStd.median} ("${std.format}") vs ${kTep.median} ("${tep.format}")`);
+
+    // Availability: no OUT/bye/injured player is ever in an optimal lineup, and
+    // every player has a sane floor <= median <= ceiling band.
+    for (const lg of ['64097', '40750', '19622']) {
+      const d = (await j(await fetch(`${base}/api/leagues/${lg}/lineup?mode=auto`, authed))).body;
+      const byId = new Map(d.players.map((p) => [p.id, p]));
+      const badStarter = d.optimal.starterIds.find((id) => !byId.get(id).availability.startable);
+      assert(!badStarter, `no unavailable player starts in optimal (${d.name})`);
+      assert(d.players.every((p) => p.floor <= p.median && p.median <= p.ceiling), `floor<=median<=ceiling (${d.name})`);
+      if (d.matchup) assert(d.matchup.winProb >= 0 && d.matchup.winProb <= 1, 'win prob in [0,1]');
+    }
+    const sf = (await j(await fetch(`${base}/api/leagues/40750/lineup?mode=auto`, authed))).body;
+    assert(sf.warnings.some((w) => w.status === 'OUT'), 'Superflex flags its OUT starter');
+    assert(!sf.optimal.starterIds.includes('15859'), 'optimal benches the OUT player (Harrison)');
+    console.log(`✓ availability: optimal lineups never start OUT/bye players; ${sf.name} benches its OUT starter`);
+
+    // Modes: safe maximizes floor, aggressive maximizes ceiling.
+    const bal = (await j(await fetch(`${base}/api/leagues/40750/lineup?mode=balanced`, authed))).body;
+    const safe = (await j(await fetch(`${base}/api/leagues/40750/lineup?mode=safe`, authed))).body;
+    const agg = (await j(await fetch(`${base}/api/leagues/40750/lineup?mode=aggressive`, authed))).body;
+    assert(safe.optimal.floor >= bal.optimal.floor, 'safe mode maximizes floor');
+    assert(agg.optimal.ceiling >= bal.optimal.ceiling, 'aggressive mode maximizes ceiling');
+    console.log(
+      `✓ modes: safe floor ${safe.optimal.floor} >= balanced ${bal.optimal.floor}; ` +
+        `aggressive ceiling ${agg.optimal.ceiling} >= balanced ${bal.optimal.ceiling}`
+    );
+
+    // Plan: a diff preview of "Set All", writing nothing.
+    r = await j(await fetch(`${base}/api/lineups/plan?mode=auto`, authed));
+    assert(r.status === 200 && r.body.summary.leaguesWithChanges >= 1, 'plan has changes to review');
+    const changed = r.body.leagues.filter((l) => l.changed);
+    assert(changed.every((l) => Array.isArray(l.adds) && Array.isArray(l.drops)), 'plan items carry adds/drops');
+    console.log(`✓ Set-All preview (no writes): ${r.body.summary.leaguesWithChanges} leagues would change`);
+    for (const l of changed) {
       console.log(
-        `    - ${l.name} [${l.format}]: ${l.status} (cur ${l.currentTotal} / opt ${l.optimalTotal}, +${l.delta})`
+        `    - ${l.name}: +${l.gained} pts · IN ${l.adds.map((p) => p.name).join(', ') || '—'} · ` +
+          `OUT ${l.drops.map((p) => p.name).join(', ') || '—'}`
       );
     }
 
-    // Format awareness: the SAME player scores differently under different league
-    // scoring. Kelce (TE) should project higher in the PPR + TE-premium league
-    // than in the standard league.
-    const kelce = '12171';
-    const std = (await j(await fetch(`${base}/api/leagues/64097/lineup`, authed))).body; // standard
-    const tep = (await j(await fetch(`${base}/api/leagues/19622/lineup`, authed))).body; // PPR + TE premium
-    const kStd = std.players.find((p) => p.id === kelce);
-    const kTep = tep.players.find((p) => p.id === kelce);
-    assert(kStd && kTep, 'Kelce present in both leagues');
-    assert(std.format && tep.format, 'leagues report their scoring format');
-    assert(kTep.projection > kStd.projection, 'TE premium + PPR raises Kelce vs standard');
-    console.log(
-      `✓ format-aware: Kelce projects ${kStd.projection} in "${std.format}" vs ` +
-        `${kTep.projection} in "${tep.format}"`
-    );
-
-    // Detailed editor view for one league.
-    const flexLeague = r.body.leagues.find((l) => l.status === 'incomplete') || r.body.leagues[0];
-    r = await j(await fetch(`${base}/api/leagues/${flexLeague.leagueId}/lineup`, authed));
-    assert(r.status === 200 && Array.isArray(r.body.slots), 'lineup detail has slots');
-    assert(r.body.optimal.total >= r.body.current.total, 'optimal >= current');
-    console.log(
-      `✓ lineup detail for ${r.body.name}: ${r.body.slots.length} slots, ${r.body.emptySlots} empty`
-    );
-
     // THE HEADLINE: set all lineups in one call.
-    r = await j(await fetch(`${base}/api/lineups/apply`, { method: 'POST', ...authed }));
-    assert(r.status === 200, 'apply-all 200');
-    assert(r.body.summary.leaguesUpdated >= 1, 'apply-all updated at least one league');
-    assert(r.body.summary.pointsGained > 0, 'apply-all gained points');
-    console.log(
-      `✓ SET ALL LINEUPS: ${r.body.summary.leaguesUpdated} leagues updated, ` +
-        `+${r.body.summary.pointsGained} pts`
+    r = await j(
+      await fetch(`${base}/api/lineups/apply`, {
+        method: 'POST',
+        headers: { ...authed.headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'auto' }),
+      })
     );
+    assert(r.status === 200 && r.body.summary.leaguesUpdated >= 1, 'apply-all updated leagues');
+    assert(r.body.summary.pointsGained > 0, 'apply-all gained points');
+    console.log(`✓ SET ALL LINEUPS: ${r.body.summary.leaguesUpdated} updated, +${r.body.summary.pointsGained} pts`);
 
-    // After applying, every league should be optimal with no gap left.
-    r = await j(await fetch(`${base}/api/lineups`, authed));
-    assert(r.body.summary.needAttention === 0, 'no leagues need attention after set-all');
-    assert(r.body.summary.pointsAvailable === 0, 'no points left on the table after set-all');
-    console.log('✓ all lineups optimal after set-all (0 pts left)');
+    // After applying: no risk remains (never starting unavailable players); any
+    // league still flagged is 'incomplete' (a bye left a slot with no healthy option).
+    r = await j(await fetch(`${base}/api/lineups?mode=auto`, authed));
+    assert(r.body.summary.risky === 0, 'no risky lineups after set-all');
+    assert(
+      r.body.leagues.every((l) => l.status === 'optimal' || l.status === 'incomplete'),
+      'remaining flags are only unfillable (bye) slots'
+    );
+    console.log(
+      `✓ after set-all: 0 risky; ${r.body.leagues.filter((l) => l.status === 'incomplete').length} ` +
+        `league(s) need a waiver pickup (bye-week hole)`
+    );
 
     r = await j(await fetch(`${base}/api/dashboard`));
     assert(r.status === 401, 'dashboard without token is 401');

@@ -1,39 +1,49 @@
 'use strict';
 
-// Lineup management across all leagues — the heart of M2.
+// Lineup management across all leagues (M2 + M2.5).
 //
-// For each league we compute the *current* lineup and the *optimal* lineup (by
-// projected points, respecting that league's slot rules), expose the gap, and let
-// the user apply the optimal lineup to one league or, in one shot, to all of them.
+// For each league we compute the current and optimal lineups — respecting slot
+// rules, that league's SCORING, and player AVAILABILITY (never starting an OUT /
+// injured / bye player) — expose the points gap and any warnings, and let the
+// user apply one league or all of them. Optimization can favor floor (safe),
+// median (balanced), or ceiling (aggressive) points, recommended per matchup.
 
 const config = require('../config');
 const demo = require('../demo/fixtures');
 const mfl = require('../lib/mfl');
 const optimizer = require('../lib/optimizer');
 const scoringLib = require('../lib/scoring');
+const availabilityLib = require('../lib/availability');
 const rosterService = require('./roster');
 const leaguesService = require('./leagues');
 const lineupStore = require('../store/lineups');
 
+const MODES = new Set(['auto', 'safe', 'balanced', 'aggressive']);
+const WINPROB_SIGMA = 12; // points; controls how projected margin maps to win %
+
+function normalizeMode(mode) {
+  return MODES.has(mode) ? mode : 'auto';
+}
+function modeKeyFor(mode) {
+  return mode === 'safe' ? 'floor' : mode === 'aggressive' ? 'ceiling' : 'median';
+}
+function winProbability(margin) {
+  return Math.round((1 / (1 + Math.exp(-margin / WINPROB_SIGMA))) * 100) / 100;
+}
+
 // --- data loaders (demo vs live) --------------------------------------------
 
 function currentWeek() {
-  // Demo has a fixed week; live mode would derive it from liveScoring/nflSchedule.
   return config.demoMode ? demo.week() : Number(process.env.MFL_WEEK) || null;
 }
 
 async function loadRequirements(cookie, league) {
   if (config.demoMode) return demo.lineupRequirements(league.leagueId) || [];
-
-  // Live: MFL's `league` export describes starting requirements. Shapes vary by
-  // league, so this is a best-effort parse and needs verification against a real
-  // account before trusting live mode.
   const res = await mfl.exportRequest('league', { host: league.host, cookie, L: league.leagueId });
   const starters = res && res.league && res.league.starters;
   const positions = mfl.toArray(starters && starters.position);
   return positions.map((p) => {
     const eligible = String(p.name || '').split('|').map((s) => s.trim()).filter(Boolean);
-    // limit is like "1-1" or "0-3"; use the max as the slot count.
     const max = parseInt(String(p.limit || '1').split('-').pop(), 10) || 1;
     return { name: eligible.length > 1 ? 'FLEX' : eligible[0] || 'FLEX', eligible, count: max };
   });
@@ -41,23 +51,39 @@ async function loadRequirements(cookie, league) {
 
 async function loadScoring(cookie, league) {
   if (config.demoMode) return demo.scoring(league.leagueId) || {};
-  // Live: MFL's `rules`/`league` exports carry the scoring settings. Parsing them
-  // into our scoring shape is a follow-up; live projections below use MFL's own
-  // per-league projectedScores instead, which are already format-aware.
-  return {};
+  return {}; // live scoring-rule parsing is a follow-up; see leagueProjection
 }
 
-// Format-aware projections: a map of player id -> projected points *for this
-// league's scoring*. In demo we compute projected stats x the league's scoring so
-// the same player scores differently across formats (PPR, TE premium, 6pt TDs).
-// In live mode MFL's projectedScores are already computed in the league's scoring.
+async function loadStatuses(cookie) {
+  if (config.demoMode) return demo.playerStatus();
+  try {
+    const res = await mfl.exportRequest('injuries', { cookie, W: currentWeek() });
+    const list = mfl.toArray(res && res.injuries && res.injuries.injury);
+    const map = {};
+    for (const i of list) map[String(i.id)] = String(i.status || '').toUpperCase();
+    return map;
+  } catch (e) {
+    return {};
+  }
+}
+
+async function loadByes(cookie) {
+  if (config.demoMode) return demo.byes();
+  // Live: derive team bye weeks from nflSchedule (a team missing in a week is on bye).
+  return {}; // follow-up
+}
+
+function loadMatchup(league) {
+  if (config.demoMode) return demo.matchupProjection(league.leagueId);
+  return null; // live matchup projection is a follow-up (schedule + opponent roster)
+}
+
+// Format-aware median projection per player (see M2 commit for rationale).
 async function leagueProjection(cookie, league, poolPlayers, scoring) {
   if (config.demoMode) {
     const stats = demo.statProjections();
     const map = new Map();
-    for (const p of poolPlayers) {
-      map.set(p.id, scoringLib.projectPoints(stats[p.id], p.position, scoring));
-    }
+    for (const p of poolPlayers) map.set(p.id, scoringLib.projectPoints(stats[p.id], p.position, scoring));
     return map;
   }
   try {
@@ -75,65 +101,115 @@ async function leagueProjection(cookie, league, poolPlayers, scoring) {
 }
 
 function currentStarterIds(token, league, rosterStarterIds) {
-  // A previously-applied lineup takes precedence over the roster's default.
   return lineupStore.get(token, league.leagueId) || rosterStarterIds;
 }
 
 // --- view building ----------------------------------------------------------
 
-function buildView({ league, week, requirements, pool, starterIds, franchiseName, format }) {
+function buildView({ league, week, requirements, pool, starterIds, franchiseName, format, matchup, requestedMode }) {
   const poolById = new Map(pool.map((p) => [p.id, p]));
+  const startable = pool.filter((p) => p.availability.startable);
 
-  const optimal = optimizer.optimize(requirements, pool);
+  // Assign slots ranking by a chosen band key; report always uses canonical
+  // pool objects (projection === median) so the UI shows consistent numbers.
+  const assignOn = (players, key) => optimizer.assign(requirements, players.map((p) => ({ ...p, projection: p[key] })));
+  const canon = (assignment) => assignment.map((p) => (p ? poolById.get(p.id) : null));
+  const sumKey = (players, key) => scoringLib.round1(players.reduce((s, p) => s + (p ? p[key] : 0), 0));
+
+  // Current lineup as fielded (an unavailable starter contributes ~0 points).
   const currentPlayers = starterIds.map((id) => poolById.get(id)).filter(Boolean);
-  const current = optimizer.assign(requirements, currentPlayers);
-  const currentTotal = optimizer.total(current.assignment);
+  const current = canon(assignOn(currentPlayers, 'median').assignment);
+  const currentMedian = sumKey(current, 'median');
 
-  const slots = optimal.slots.map((slot, i) => ({
+  // Matchup + recommendation are based on the lineup you'd currently field.
+  const oppProjected = matchup ? matchup.projected : null;
+  const winProb = oppProjected != null ? winProbability(currentMedian - oppProjected) : null;
+  const recommendedMode = winProb == null ? 'balanced' : winProb >= 0.6 ? 'safe' : winProb <= 0.4 ? 'aggressive' : 'balanced';
+  const effectiveMode = !requestedMode || requestedMode === 'auto' ? recommendedMode : requestedMode;
+
+  const optimalAssign = assignOn(startable, modeKeyFor(effectiveMode));
+  const optimal = canon(optimalAssign.assignment);
+  const optimalMedian = sumKey(optimal, 'median');
+
+  const slots = optimalAssign.slots.map((slot, i) => ({
     name: slot.name,
     eligible: slot.eligible,
-    current: current.assignment[i] || null,
-    optimal: optimal.assignment[i] || null,
+    current: current[i] || null,
+    optimal: optimal[i] || null,
   }));
 
-  const currentIds = current.assignment.filter(Boolean).map((p) => p.id);
-  const emptySlots = current.assignment.filter((x) => !x).length;
-  const delta = optimizer.round1(optimal.total - currentTotal);
+  const currentIds = current.filter(Boolean).map((p) => p.id);
+  const optimalIds = optimal.filter(Boolean).map((p) => p.id);
+  const currentEmpty = current.filter((x) => !x).length;
+  const optimalEmpty = optimal.filter((x) => !x).length;
+  const delta = scoringLib.round1(optimalMedian - currentMedian);
+
+  // Warnings: current starters who are unavailable, and slots no healthy player can fill.
+  const warnings = [];
+  for (const id of starterIds) {
+    const p = poolById.get(id);
+    if (p && !p.availability.startable) {
+      warnings.push({ playerId: p.id, name: p.name, position: p.position, status: p.availability.status });
+    }
+  }
+  if (optimalEmpty > 0) {
+    warnings.push({ playerId: null, name: `No healthy player for ${optimalEmpty} slot(s)`, position: null, status: 'INCOMPLETE' });
+  }
 
   let status;
-  if (emptySlots > 0) status = 'incomplete';
+  if (warnings.some((w) => w.playerId)) status = 'risk';
+  else if (currentEmpty > 0) status = 'incomplete';
   else if (delta > 0.05) status = 'suboptimal';
   else status = 'optimal';
 
   const startingSet = new Set(currentIds);
   const players = pool
     .map((p) => ({ ...p, starting: startingSet.has(p.id) }))
-    .sort((a, b) => b.projection - a.projection);
+    .sort((a, b) => b.median - a.median);
 
   return {
     leagueId: league.leagueId,
     name: league.name,
     host: league.host,
+    franchiseId: league.franchiseId,
     franchiseName: franchiseName || league.franchiseName,
     format,
     week,
+    mode: effectiveMode,
+    recommendedMode,
+    matchup: matchup
+      ? { opponent: matchup.opponent, opponentProjected: matchup.projected, myProjected: currentMedian, winProb }
+      : null,
     slots,
     players,
-    current: { starterIds: currentIds, total: currentTotal },
-    optimal: { starterIds: optimal.starterIds, total: optimal.total },
+    current: {
+      starterIds: currentIds,
+      total: currentMedian,
+      floor: sumKey(current, 'floor'),
+      ceiling: sumKey(current, 'ceiling'),
+    },
+    optimal: {
+      starterIds: optimalIds,
+      total: optimalMedian,
+      floor: sumKey(optimal, 'floor'),
+      ceiling: sumKey(optimal, 'ceiling'),
+    },
     delta,
-    emptySlots,
+    emptySlots: currentEmpty,
+    warnings,
     status,
   };
 }
 
-async function viewForLeague(cookie, token, league) {
-  const [requirements, scoring, roster] = await Promise.all([
+async function viewForLeague(cookie, token, league, requestedMode) {
+  const [requirements, scoring, roster, statusMap, byeMap] = await Promise.all([
     loadRequirements(cookie, league),
     loadScoring(cookie, league),
     rosterService.getRoster(cookie, league.leagueId),
+    loadStatuses(cookie),
+    loadByes(cookie),
   ]);
-
+  const week = currentWeek();
   const rosterStarterIds = roster.starters.map((p) => p.id);
   const basePool = [...roster.starters, ...roster.bench].map((p) => ({
     id: p.id,
@@ -143,21 +219,42 @@ async function viewForLeague(cookie, token, league) {
   }));
 
   const projMap = await leagueProjection(cookie, league, basePool, scoring);
-  const pool = basePool.map((p) => ({ ...p, projection: projMap.get(p.id) || 0 }));
 
-  const starterIds = currentStarterIds(token, league, rosterStarterIds);
+  const pool = basePool.map((p) => {
+    const median = projMap.get(p.id) || 0;
+    const availability = availabilityLib.resolve(p, statusMap, byeMap, week);
+    const b = scoringLib.band(median, p.position);
+    const startable = availability.startable;
+    return {
+      id: p.id,
+      name: p.name,
+      position: p.position,
+      team: p.team,
+      availability,
+      // Unavailable players score ~0 and are never chosen for the optimal lineup.
+      floor: startable ? b.floor : 0,
+      median: startable ? b.median : 0,
+      ceiling: startable ? b.ceiling : 0,
+      projection: startable ? b.median : 0,
+    };
+  });
+
   return buildView({
     league,
-    week: currentWeek(),
+    week,
     requirements,
     pool,
-    starterIds,
+    starterIds: currentStarterIds(token, league, rosterStarterIds),
     franchiseName: roster.franchiseName,
     format: scoringLib.describe(scoring),
+    matchup: loadMatchup(league),
+    requestedMode,
   });
 }
 
 // --- public API -------------------------------------------------------------
+
+const STATUS_RANK = { risk: 3, incomplete: 2, suboptimal: 1, optimal: 0 };
 
 function summarize(view) {
   return {
@@ -166,39 +263,48 @@ function summarize(view) {
     format: view.format,
     week: view.week,
     status: view.status,
+    mode: view.mode,
+    recommendedMode: view.recommendedMode,
     currentTotal: view.current.total,
     optimalTotal: view.optimal.total,
     delta: view.delta,
     emptySlots: view.emptySlots,
+    warnings: view.warnings,
+    matchup: view.matchup,
     slotCount: view.slots.length,
   };
 }
 
-// Cross-league overview — one compact card per league, with the points gap.
-async function getOverview(cookie, token) {
+async function getOverview(cookie, token, mode) {
+  const requested = normalizeMode(mode);
   const leagues = await leaguesService.listLeagues(cookie);
   const views = await Promise.all(
     leagues.map(async (league) => {
       try {
-        return summarize(await viewForLeague(cookie, token, league));
+        return summarize(await viewForLeague(cookie, token, league, requested));
       } catch (e) {
         return { leagueId: league.leagueId, name: league.name, error: e.message };
       }
     })
   );
+  // Most urgent first: risk > incomplete > suboptimal > optimal.
+  views.sort((a, b) => (STATUS_RANK[b.status] || -1) - (STATUS_RANK[a.status] || -1));
+
   const actionable = views.filter((v) => v.status && v.status !== 'optimal');
   return {
     week: currentWeek(),
+    mode: requested,
     leagues: views,
     summary: {
       total: views.length,
       needAttention: actionable.length,
-      pointsAvailable: optimizer.round1(actionable.reduce((s, v) => s + (v.delta || 0), 0)),
+      risky: views.filter((v) => v.status === 'risk').length,
+      pointsAvailable: scoringLib.round1(actionable.reduce((s, v) => s + (v.delta || 0), 0)),
     },
   };
 }
 
-async function getLineup(cookie, token, leagueId) {
+async function findLeague(cookie, leagueId) {
   const leagues = await leaguesService.listLeagues(cookie);
   const league = leagues.find((l) => l.leagueId === String(leagueId));
   if (!league) {
@@ -206,10 +312,60 @@ async function getLineup(cookie, token, leagueId) {
     err.status = 404;
     throw err;
   }
-  return viewForLeague(cookie, token, league);
+  return league;
 }
 
-// Submit a lineup to MFL (live) / record it (demo), then return the fresh view.
+async function getLineup(cookie, token, leagueId, mode) {
+  const league = await findLeague(cookie, leagueId);
+  return viewForLeague(cookie, token, league, normalizeMode(mode));
+}
+
+// A preview of "Set All" — per-league diffs (who comes in / out), applied to
+// nothing. This is what the review screen renders before the user confirms.
+async function plan(cookie, token, mode) {
+  const requested = normalizeMode(mode);
+  const leagues = await leaguesService.listLeagues(cookie);
+  const items = await Promise.all(
+    leagues.map(async (league) => {
+      try {
+        const view = await viewForLeague(cookie, token, league, requested);
+        const cur = new Set(view.current.starterIds);
+        const opt = new Set(view.optimal.starterIds);
+        const byId = new Map(view.players.map((p) => [p.id, p]));
+        const drops = view.current.starterIds.filter((id) => !opt.has(id)).map((id) => byId.get(id)).filter(Boolean);
+        const adds = view.optimal.starterIds.filter((id) => !cur.has(id)).map((id) => byId.get(id)).filter(Boolean);
+        return {
+          leagueId: view.leagueId,
+          name: view.name,
+          format: view.format,
+          status: view.status,
+          mode: view.mode,
+          recommendedMode: view.recommendedMode,
+          warnings: view.warnings,
+          before: view.current.total,
+          after: view.optimal.total,
+          gained: view.delta,
+          changed: adds.length > 0 || drops.length > 0,
+          adds,
+          drops,
+        };
+      } catch (e) {
+        return { leagueId: league.leagueId, name: league.name, error: e.message };
+      }
+    })
+  );
+  items.sort((a, b) => (STATUS_RANK[b.status] || -1) - (STATUS_RANK[a.status] || -1));
+  const changed = items.filter((i) => i.changed);
+  return {
+    mode: requested,
+    leagues: items,
+    summary: {
+      leaguesWithChanges: changed.length,
+      pointsAvailable: scoringLib.round1(changed.reduce((s, i) => s + (i.gained || 0), 0)),
+    },
+  };
+}
+
 async function submitLineup(cookie, token, league, starterIds, week) {
   if (!config.demoMode) {
     await mfl.importRequest('lineup', {
@@ -224,54 +380,61 @@ async function submitLineup(cookie, token, league, starterIds, week) {
   lineupStore.set(token, league.leagueId, starterIds);
 }
 
-async function applyLineup(cookie, token, leagueId, starterIds) {
-  const leagues = await leaguesService.listLeagues(cookie);
-  const league = leagues.find((l) => l.leagueId === String(leagueId));
-  if (!league) {
-    const err = new Error(`League ${leagueId} not found for this account`);
-    err.status = 404;
-    throw err;
-  }
-  const view = await viewForLeague(cookie, token, league);
-  const valid = new Set(view.players.map((p) => p.id));
-  const ids = (starterIds && starterIds.length ? starterIds : view.optimal.starterIds).map(String);
-  const unknown = ids.filter((id) => !valid.has(id));
-  if (unknown.length) {
-    const err = new Error(`Players not on this roster: ${unknown.join(', ')}`);
+// Reject a manual selection that starts an unavailable player.
+function assertStartable(view, ids) {
+  const byId = new Map(view.players.map((p) => [p.id, p]));
+  const bad = ids.filter((id) => {
+    const p = byId.get(id);
+    return !p || !p.availability.startable;
+  });
+  if (bad.length) {
+    const names = bad.map((id) => (byId.get(id) ? `${byId.get(id).name} (${byId.get(id).availability.status})` : id));
+    const err = new Error(`Can't start unavailable/unknown players: ${names.join(', ')}`);
     err.status = 400;
     throw err;
   }
-  await submitLineup(cookie, token, league, ids, view.week);
-  return viewForLeague(cookie, token, league);
 }
 
-// The headline: optimize + apply across leagues in one call.
-// Body may pass explicit per-league selections; otherwise every non-optimal
-// league is set to its optimal lineup.
-async function applyAll(cookie, token, selections) {
+async function applyLineup(cookie, token, leagueId, starterIds, mode) {
+  const league = await findLeague(cookie, leagueId);
+  const view = await viewForLeague(cookie, token, league, normalizeMode(mode));
+  const ids = (starterIds && starterIds.length ? starterIds : view.optimal.starterIds).map(String);
+  assertStartable(view, ids);
+  await submitLineup(cookie, token, league, ids, view.week);
+  return viewForLeague(cookie, token, league, normalizeMode(mode));
+}
+
+// Set all lineups at once. `selections` optionally names leagues (and custom
+// starters); otherwise every non-optimal league is set to its optimal lineup.
+async function applyAll(cookie, token, mode, selections) {
+  const requested = normalizeMode(mode);
   const leagues = await leaguesService.listLeagues(cookie);
   const byId = new Map((selections || []).map((s) => [String(s.leagueId), s]));
+  const onlyThese = selections && selections.length ? new Set(byId.keys()) : null;
 
   const results = await Promise.all(
     leagues.map(async (league) => {
       try {
-        const view = await viewForLeague(cookie, token, league);
+        if (onlyThese && !onlyThese.has(league.leagueId)) return null; // caller narrowed the set
+        const view = await viewForLeague(cookie, token, league, requested);
         const sel = byId.get(league.leagueId);
         const explicit = sel && sel.starters && sel.starters.length;
-        // Skip leagues that are already optimal unless the caller named them.
-        if (!explicit && view.status === 'optimal') {
+        const ids = (explicit ? sel.starters : view.optimal.starterIds).map(String);
+        assertStartable(view, ids);
+
+        const noChange = ids.length === view.current.starterIds.length && ids.every((id) => view.current.starterIds.includes(id));
+        if (!explicit && (view.status === 'optimal' || noChange)) {
           return { leagueId: league.leagueId, name: league.name, applied: false, reason: 'already optimal', before: view.current.total, after: view.current.total, gained: 0 };
         }
-        const ids = (explicit ? sel.starters : view.optimal.starterIds).map(String);
         await submitLineup(cookie, token, league, ids, view.week);
-        const after = await viewForLeague(cookie, token, league);
+        const after = await viewForLeague(cookie, token, league, requested);
         return {
           leagueId: league.leagueId,
           name: league.name,
           applied: true,
           before: view.current.total,
           after: after.current.total,
-          gained: optimizer.round1(after.current.total - view.current.total),
+          gained: scoringLib.round1(after.current.total - view.current.total),
           starterIds: ids,
         };
       } catch (e) {
@@ -280,13 +443,15 @@ async function applyAll(cookie, token, selections) {
     })
   );
 
+  const real = results.filter(Boolean);
   return {
-    results,
+    mode: requested,
+    results: real,
     summary: {
-      leaguesUpdated: results.filter((r) => r.applied).length,
-      pointsGained: optimizer.round1(results.reduce((s, r) => s + (r.gained || 0), 0)),
+      leaguesUpdated: real.filter((r) => r.applied).length,
+      pointsGained: scoringLib.round1(real.reduce((s, r) => s + (r.gained || 0), 0)),
     },
   };
 }
 
-module.exports = { getOverview, getLineup, applyLineup, applyAll };
+module.exports = { getOverview, getLineup, plan, applyLineup, applyAll };
