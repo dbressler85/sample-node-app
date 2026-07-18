@@ -1,182 +1,216 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, FlatList, StyleSheet, Pressable, RefreshControl, ActivityIndicator } from 'react-native';
+import { View, Text, FlatList, StyleSheet, Pressable, TextInput, ActivityIndicator, ScrollView } from 'react-native';
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import AvailabilityBadge from '../components/AvailabilityBadge';
 
-export default function PlayersScreen() {
-  const [view, setView] = useState('exposure'); // 'exposure' | 'news'
-  const [exposure, setExposure] = useState(null);
+const TABS = [
+  ['rankings', 'Rankings'],
+  ['mine', 'My Players'],
+  ['news', 'News'],
+];
+const RANK_TYPES = [
+  ['value', 'Value'],
+  ['trending', 'Trending'],
+  ['rookies', 'Rookies'],
+];
+
+export default function PlayersScreen({ onOpenPlayer }) {
+  const [query, setQuery] = useState('');
+  const [searchRes, setSearchRes] = useState(null);
+  const [tab, setTab] = useState('rankings');
+  const [rankType, setRankType] = useState('value');
+  const [rankings, setRankings] = useState(null);
+  const [mine, setMine] = useState(null);
   const [news, setNews] = useState(null);
   const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
 
-  const load = useCallback(async () => {
-    setError(null);
-    try {
-      const [e, n] = await Promise.all([api.exposure(), api.news()]);
-      setExposure(e);
-      setNews(n);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
+  // Debounced-ish search on query change.
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) {
+      setSearchRes(null);
+      return;
     }
-  }, []);
+    let alive = true;
+    api.playerSearch(q).then((r) => alive && setSearchRes(r)).catch((e) => alive && setError(e.message));
+    return () => {
+      alive = false;
+    };
+  }, [query]);
+
+  const loadRankings = useCallback(() => {
+    api.playerRankings(rankType).then(setRankings).catch((e) => setError(e.message));
+  }, [rankType]);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    if (tab === 'rankings') loadRankings();
+    if (tab === 'mine' && !mine) api.exposure().then(setMine).catch((e) => setError(e.message));
+    if (tab === 'news' && !news) api.news().then(setNews).catch((e) => setError(e.message));
+  }, [tab, loadRankings, mine, news]);
 
-  if (loading) {
-    return (
-      <View style={[styles.container, styles.center]}>
-        <ActivityIndicator color={colors.accent} size="large" />
-      </View>
-    );
-  }
+  const searching = query.trim().length >= 2;
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Players</Text>
-        {exposure ? (
-          <Text style={styles.subtitle}>
-            {exposure.summary.uniquePlayers} rostered · {exposure.summary.multiLeague} in multiple leagues
-          </Text>
+      </View>
+
+      <View style={styles.searchWrap}>
+        <TextInput
+          style={styles.search}
+          placeholder="Search any player…"
+          placeholderTextColor={colors.textDim}
+          value={query}
+          onChangeText={setQuery}
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+        {query ? (
+          <Pressable onPress={() => setQuery('')} hitSlop={10}>
+            <Text style={styles.clear}>✕</Text>
+          </Pressable>
         ) : null}
       </View>
 
-      <View style={styles.segment}>
-        <Seg label="Exposure" active={view === 'exposure'} onPress={() => setView('exposure')} />
-        <Seg label={`News${news && news.news.length ? ` (${news.news.length})` : ''}`} active={view === 'news'} onPress={() => setView('news')} />
-      </View>
-
-      {error ? (
-        <View style={styles.center}>
-          <Text style={styles.error}>{error}</Text>
-        </View>
-      ) : view === 'exposure' ? (
-        <FlatList
-          data={exposure ? exposure.players : []}
-          keyExtractor={(p) => p.id}
-          contentContainerStyle={styles.list}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.accent} />}
-          renderItem={({ item }) => <ExposureRow p={item} />}
-        />
+      {searching ? (
+        !searchRes ? (
+          <Center><ActivityIndicator color={colors.accent} /></Center>
+        ) : (
+          <FlatList
+            data={searchRes.players}
+            keyExtractor={(p) => p.id}
+            contentContainerStyle={styles.list}
+            renderItem={({ item }) => <PlayerRow p={item} onPress={() => onOpenPlayer(item.id)} />}
+            ListEmptyComponent={<Text style={styles.empty}>No players match “{query}”.</Text>}
+          />
+        )
       ) : (
-        <FlatList
-          data={news ? news.news : []}
-          keyExtractor={(n) => n.id}
-          contentContainerStyle={styles.list}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.accent} />}
-          renderItem={({ item }) => <NewsRow n={item} />}
-          ListEmptyComponent={<Text style={styles.empty}>No news right now.</Text>}
-        />
+        <>
+          <View style={styles.segment}>
+            {TABS.map(([k, label]) => (
+              <Pressable key={k} style={[styles.seg, tab === k && styles.segActive]} onPress={() => setTab(k)}>
+                <Text style={[styles.segText, tab === k && styles.segTextActive]}>{label}</Text>
+              </Pressable>
+            ))}
+          </View>
+
+          {tab === 'rankings' ? (
+            <>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.typeRow}>
+                {RANK_TYPES.map(([k, label]) => (
+                  <Pressable key={k} style={[styles.typeChip, rankType === k && styles.typeChipActive]} onPress={() => setRankType(k)}>
+                    <Text style={[styles.typeText, rankType === k && { color: colors.text }]}>{label}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+              <FlatList
+                data={rankings ? rankings.players : []}
+                keyExtractor={(p) => p.id}
+                contentContainerStyle={styles.list}
+                renderItem={({ item, index }) => <PlayerRow p={item} rank={index + 1} onPress={() => onOpenPlayer(item.id)} />}
+                ListEmptyComponent={<Center><ActivityIndicator color={colors.accent} /></Center>}
+              />
+            </>
+          ) : tab === 'mine' ? (
+            <FlatList
+              data={mine ? mine.players : []}
+              keyExtractor={(p) => p.id}
+              contentContainerStyle={styles.list}
+              renderItem={({ item }) => <PlayerRow p={item} sub={`${item.count} leagues · ${item.startingCount} starting`} onPress={() => onOpenPlayer(item.id)} />}
+              ListEmptyComponent={<Center><ActivityIndicator color={colors.accent} /></Center>}
+            />
+          ) : (
+            <FlatList
+              data={news ? news.news : []}
+              keyExtractor={(n) => n.id}
+              contentContainerStyle={styles.list}
+              renderItem={({ item }) => <NewsRow n={item} onPress={() => item.player.id && onOpenPlayer(item.player.id)} />}
+              ListEmptyComponent={<Center><ActivityIndicator color={colors.accent} /></Center>}
+            />
+          )}
+        </>
       )}
     </View>
   );
 }
 
-function Seg({ label, active, onPress }) {
+function PlayerRow({ p, rank, sub, onPress }) {
+  const posColor = positionColors[p.position] || colors.textDim;
   return (
-    <Pressable style={[styles.seg, active && styles.segActive]} onPress={onPress}>
-      <Text style={[styles.segText, active && styles.segTextActive]}>{label}</Text>
+    <Pressable style={({ pressed }) => [styles.row, pressed && { opacity: 0.7 }]} onPress={onPress}>
+      {rank ? <Text style={styles.rank}>{rank}</Text> : null}
+      <View style={[styles.posBadge, { backgroundColor: posColor + '22', borderColor: posColor }]}>
+        <Text style={[styles.pos, { color: posColor }]}>{p.position}</Text>
+      </View>
+      <View style={{ flex: 1 }}>
+        <View style={styles.nameRow}>
+          <Text style={styles.name} numberOfLines={1}>{p.name}</Text>
+          <AvailabilityBadge availability={p.availability} style={{ marginLeft: 6 }} />
+          {p.mine ? <Text style={styles.mine}>YOURS</Text> : null}
+        </View>
+        <Text style={styles.meta}>
+          {p.team}
+          {p.posRank ? ` · ${p.position}${p.posRank}` : ''}
+          {p.ownership != null ? ` · ${p.ownership}% rost` : ''}
+          {sub ? ` · ${sub}` : ''}
+        </Text>
+      </View>
+      {p.value != null ? <Text style={styles.value}>{p.value}</Text> : null}
     </Pressable>
   );
 }
 
-function ExposureRow({ p }) {
-  const posColor = positionColors[p.position] || colors.textDim;
+function NewsRow({ n, onPress }) {
+  const sev = n.severity === 'high' ? colors.bad : n.severity === 'medium' ? colors.warn : colors.textDim;
   return (
-    <View style={styles.row}>
-      <View style={styles.rowTop}>
-        <View style={[styles.posDot, { backgroundColor: posColor }]} />
-        <Text style={styles.name} numberOfLines={1}>
-          {p.name}
+    <Pressable style={({ pressed }) => [styles.row, pressed && { opacity: 0.7 }]} onPress={onPress}>
+      <View style={[styles.dot, { backgroundColor: sev }]} />
+      <View style={{ flex: 1 }}>
+        <Text style={styles.newsHead} numberOfLines={2}>{n.headline}</Text>
+        <Text style={styles.meta}>
+          {n.affectedCount > 0 ? `Affects ${n.affectedCount} of your teams${n.startingCount ? ` · starting in ${n.startingCount}` : ''}` : 'Not on your rosters'}
         </Text>
-        <AvailabilityBadge availability={p.availability} style={{ marginLeft: 6 }} />
-        <View style={{ flex: 1 }} />
-        {p.value != null ? <Text style={styles.value}>{p.value}</Text> : null}
       </View>
-      <Text style={styles.meta}>
-        {p.position} · {p.team}
-        {p.age != null ? ` · age ${p.age}` : ''} · {p.count} league{p.count === 1 ? '' : 's'} ({p.startingCount} starting) · {p.exposurePct}% exposure
-      </Text>
-      <View style={styles.leagueChips}>
-        {p.leagues.map((l) => (
-          <View key={l.leagueId} style={styles.leagueChip}>
-            <View style={[styles.startDot, { backgroundColor: l.starting ? colors.good : colors.border }]} />
-            <Text style={styles.leagueChipText} numberOfLines={1}>
-              {l.name}
-            </Text>
-          </View>
-        ))}
-      </View>
-    </View>
+      <Text style={styles.chev}>›</Text>
+    </Pressable>
   );
 }
 
-function NewsRow({ n }) {
-  const sev = n.severity === 'high' ? colors.bad : n.severity === 'medium' ? colors.warn : colors.textDim;
-  return (
-    <View style={styles.row}>
-      <View style={styles.rowTop}>
-        <View style={[styles.sevDot, { backgroundColor: sev }]} />
-        <Text style={styles.newsHead} numberOfLines={2}>
-          {n.headline}
-        </Text>
-      </View>
-      {n.affectedCount > 0 ? (
-        <Text style={styles.affects}>
-          Affects {n.affectedCount} of your team{n.affectedCount === 1 ? '' : 's'}
-          {n.startingCount > 0 ? ` · starting in ${n.startingCount}` : ''}
-        </Text>
-      ) : (
-        <Text style={styles.affectsDim}>Not on any of your rosters</Text>
-      )}
-      <View style={styles.leagueChips}>
-        {n.affectedLeagues.map((l) => (
-          <View key={l.leagueId} style={styles.leagueChip}>
-            <View style={[styles.startDot, { backgroundColor: l.starting ? colors.good : colors.border }]} />
-            <Text style={styles.leagueChipText} numberOfLines={1}>
-              {l.name}
-            </Text>
-          </View>
-        ))}
-      </View>
-    </View>
-  );
+function Center({ children }) {
+  return <View style={styles.center}>{children}</View>;
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  center: { padding: 30, alignItems: 'center' },
   header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 6 },
   title: { color: colors.text, fontSize: 26, fontWeight: '900' },
-  subtitle: { color: colors.textDim, fontSize: 13, marginTop: 2 },
+  searchWrap: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14, marginBottom: 8 },
+  search: { flex: 1, color: colors.text, fontSize: 16, paddingVertical: 12 },
+  clear: { color: colors.textDim, fontSize: 16, paddingHorizontal: 6 },
   segment: { flexDirection: 'row', marginHorizontal: 16, backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 3, marginBottom: 6 },
   seg: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
   segActive: { backgroundColor: colors.cardAlt },
   segText: { color: colors.textDim, fontSize: 13, fontWeight: '700' },
   segTextActive: { color: colors.text },
-  list: { paddingHorizontal: 16, paddingBottom: 32, paddingTop: 6 },
-  row: { backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: 10 },
-  rowTop: { flexDirection: 'row', alignItems: 'center' },
-  posDot: { width: 8, height: 8, borderRadius: 4, marginRight: 10 },
+  typeRow: { paddingHorizontal: 16, gap: 8, paddingVertical: 6 },
+  typeChip: { backgroundColor: colors.card, borderRadius: 8, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 6 },
+  typeChipActive: { backgroundColor: colors.cardAlt, borderColor: colors.accent },
+  typeText: { color: colors.textDim, fontSize: 12, fontWeight: '700' },
+  list: { paddingHorizontal: 16, paddingBottom: 32, paddingTop: 4 },
+  row: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 12, marginBottom: 10 },
+  rank: { color: colors.textDim, fontSize: 13, fontWeight: '800', width: 22 },
+  posBadge: { width: 40, paddingVertical: 2, borderRadius: 6, borderWidth: 1, alignItems: 'center', marginRight: 10 },
+  pos: { fontSize: 11, fontWeight: '800' },
+  nameRow: { flexDirection: 'row', alignItems: 'center' },
   name: { color: colors.text, fontSize: 15, fontWeight: '700', flexShrink: 1 },
-  value: { color: colors.accent, fontSize: 15, fontWeight: '900' },
-  meta: { color: colors.textDim, fontSize: 12, marginTop: 6 },
-  leagueChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
-  leagueChip: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.cardAlt, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
-  startDot: { width: 6, height: 6, borderRadius: 3, marginRight: 5 },
-  leagueChipText: { color: colors.textDim, fontSize: 11, fontWeight: '600', maxWidth: 120 },
-  sevDot: { width: 10, height: 10, borderRadius: 5, marginRight: 10 },
-  newsHead: { color: colors.text, fontSize: 15, fontWeight: '700', flex: 1 },
-  affects: { color: colors.text, fontSize: 13, marginTop: 8, fontWeight: '600' },
-  affectsDim: { color: colors.textDim, fontSize: 13, marginTop: 8 },
-  empty: { color: colors.textDim, textAlign: 'center', marginTop: 30 },
-  error: { color: colors.bad, textAlign: 'center' },
+  mine: { color: colors.good, fontSize: 9, fontWeight: '900', marginLeft: 6, borderWidth: 1, borderColor: colors.good, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1, overflow: 'hidden' },
+  meta: { color: colors.textDim, fontSize: 12, marginTop: 2 },
+  value: { color: colors.accent, fontSize: 15, fontWeight: '900', marginLeft: 10 },
+  dot: { width: 10, height: 10, borderRadius: 5, marginRight: 10 },
+  newsHead: { color: colors.text, fontSize: 14, fontWeight: '700' },
+  chev: { color: colors.textDim, fontSize: 20, marginLeft: 8 },
+  empty: { color: colors.textDim, textAlign: 'center', marginTop: 24 },
 });

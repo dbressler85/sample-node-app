@@ -198,6 +198,56 @@ function assert(cond, msg) {
     assert(homeW.triage.some((t) => t.action === 'waiver'), 'triage deep-links a waiver action');
     console.log(`✓ pending across leagues: ${pend.summary.pending}; triage routes the bye-week hole to waivers`);
 
+    // --- M4: player hub ---
+    const postJson = (path, body) =>
+      fetch(`${base}${path}`, { method: 'POST', headers: { ...authed.headers, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+
+    // Universe search.
+    const srch = (await j(await fetch(`${base}/api/players/search?q=jeff`, authed))).body;
+    assert(srch.players.some((p) => p.name.includes('Jefferson')), 'search finds a player by name');
+    assert(srch.players.every((p) => 'mine' in p), 'search results annotate your ownership');
+    console.log(`✓ search "jeff": ${srch.players.length} hit(s), top ${srch.players[0].name} (value ${srch.players[0].value})`);
+
+    // Rankings.
+    const rkValue = (await j(await fetch(`${base}/api/players/rankings?type=value`, authed))).body;
+    for (let k = 1; k < rkValue.players.length; k++) assert(rkValue.players[k - 1].value >= rkValue.players[k].value, 'value rankings sorted desc');
+    const rkTrend = (await j(await fetch(`${base}/api/players/rankings?type=trending`, authed))).body;
+    assert(rkTrend.players.length > 0, 'trending rankings present');
+    console.log(`✓ rankings: #1 value ${rkValue.players[0].name}; trending #1 ${rkTrend.players[0].name}`);
+
+    // Profile of a rostered star.
+    const prof = (await j(await fetch(`${base}/api/players/13593`, authed))).body; // Jefferson
+    assert(prof.outlook && prof.outlook.floor <= prof.outlook.median && prof.outlook.median <= prof.outlook.ceiling, 'profile projection has floor<=median<=ceiling');
+    assert(prof.season && prof.gameLog.length >= 1, 'profile has season + game log');
+    assert(prof.schedule.upcoming.length >= 1 && prof.schedule.avgDifficulty != null, 'profile has upcoming schedule difficulty');
+    assert(prof.crossLeague.some((c) => c.relation === 'rostered'), 'profile shows leagues you roster him');
+    console.log(
+      `✓ profile ${prof.name}: #${prof.overallRank} overall (${prof.position}${prof.posRank}), ` +
+        `${prof.season.ppg} ppg, sched diff ${prof.schedule.avgDifficulty}, rostered in ${prof.actions.dropLeagues.length} of your leagues`
+    );
+
+    // Profile of a free agent → cross-league add options.
+    const faProf = (await j(await fetch(`${base}/api/players/16002`, authed))).body; // Tracy
+    assert(faProf.actions.addLeagues.length >= 2, 'free agent is addable in multiple leagues');
+    console.log(`✓ cross-league: ${faProf.name} is available to add in ${faProf.actions.addLeagues.length} of your leagues`);
+
+    // Preview + submit the player-centric add across leagues.
+    const prevAdd = (await j(await fetch(`${base}/api/players/16002/add/preview`, authed))).body;
+    assert(prevAdd.leagues.length === faProf.actions.addLeagues.length, 'add preview covers each eligible league');
+    console.log(`✓ add preview: ${prevAdd.leagues.map((l) => `${l.name.split(' ')[0]}${l.suggestedBid != null ? ` $${l.suggestedBid}` : ''}`).join(', ')}`);
+    const doneAdd = (await j(
+      await postJson('/api/players/16002/add', { leagues: prevAdd.leagues.map((l) => ({ leagueId: l.leagueId })) })
+    )).body;
+    assert(doneAdd.summary.submitted === prevAdd.leagues.length, 'add submitted across all chosen leagues');
+    console.log(`✓ ADD ACROSS LEAGUES: ${faProf.name} claimed in ${doneAdd.summary.submitted} leagues at once`);
+
+    // Player-centric drop.
+    const dropRes = (await j(await postJson('/api/players/13593/drop', { leagues: ['64097'] }))).body;
+    assert(dropRes.summary.dropped === 1, 'drop recorded');
+    const profAfter = (await j(await fetch(`${base}/api/players/13593`, authed))).body;
+    assert(profAfter.crossLeague.find((c) => c.leagueId === '64097').relation === 'dropped', 'profile reflects the drop');
+    console.log('✓ drop: player-centric drop reflected in the profile');
+
     // --- M2 / M2.5: lineups ---
     r = await j(await fetch(`${base}/api/lineups?mode=auto`, authed));
     assert(r.status === 200, 'lineups overview 200');

@@ -311,6 +311,39 @@ const WAIVER_RESULTS = {
   ],
 };
 
+// Recent game logs (weeks 1-2) keyed by player id. Season totals derive from these.
+const GAME_LOG = {
+  '13593': [{ week: 1, pts: 22.4, line: '7-118, TD' }, { week: 2, pts: 15.1, line: '6-71' }],
+  '14802': [{ week: 1, pts: 26.0, line: '9-121, TD' }, { week: 2, pts: 18.4, line: '7-88' }],
+  '15267': [{ week: 1, pts: 19.5, line: '84 ru, TD, 3-25' }, { week: 2, pts: 14.2, line: '61 ru, 4-30' }],
+  '13116': [{ week: 1, pts: 27.8, line: '250 pa, 2 TD, 60 ru' }, { week: 2, pts: 21.0, line: '210 pa, TD, 45 ru' }],
+  '13649': [{ week: 1, pts: 18.0, line: '72 ru, TD, 3-28' }, { week: 2, pts: 16.5, line: '65 ru, 4-33' }],
+  '12171': [{ week: 1, pts: 11.0, line: '6-58' }, { week: 2, pts: 8.4, line: '5-44' }],
+  '14990': [{ week: 1, pts: 19.2, line: '280 pa, 2 TD' }, { week: 2, pts: 16.0, line: '245 pa, TD' }],
+  '15264': [{ week: 1, pts: 17.5, line: '8-92' }, { week: 2, pts: 12.1, line: '6-61' }],
+  '14086': [{ week: 1, pts: 15.0, line: '60 ru, 4-40' }, { week: 2, pts: 18.2, line: '78 ru, TD, 3-22' }],
+  '16002': [{ week: 1, pts: 12.5, line: '58 ru, 2-15' }, { week: 2, pts: 14.0, line: '70 ru, TD' }],
+};
+
+// Upcoming schedule + matchup difficulty (1 easy .. 10 tough) by NFL team.
+const SCHEDULE = {
+  MIN: [{ week: 4, opp: '@CHI', difficulty: 6 }, { week: 5, opp: 'DET', difficulty: 8 }, { week: 6, opp: '@GB', difficulty: 7 }],
+  CIN: [{ week: 4, opp: 'CAR', difficulty: 3 }, { week: 5, opp: '@BAL', difficulty: 8 }, { week: 6, opp: 'PIT', difficulty: 6 }],
+  ATL: [{ week: 4, opp: '@NO', difficulty: 5 }, { week: 5, opp: 'TB', difficulty: 6 }, { week: 6, opp: '@CAR', difficulty: 3 }],
+  BAL: [{ week: 4, opp: '@KC', difficulty: 8 }, { week: 5, opp: 'CIN', difficulty: 6 }, { week: 6, opp: '@WAS', difficulty: 5 }],
+  DET: [{ week: 4, opp: 'SEA', difficulty: 6 }, { week: 5, opp: '@MIN', difficulty: 7 }, { week: 6, opp: 'CIN', difficulty: 6 }],
+  KC: [{ week: 4, opp: 'BAL', difficulty: 7 }, { week: 5, opp: '@JAX', difficulty: 5 }, { week: 6, opp: 'DET', difficulty: 6 }],
+  HOU: [{ week: 4, opp: '@PIT', difficulty: 7 }, { week: 5, opp: 'IND', difficulty: 5 }, { week: 6, opp: '@GB', difficulty: 7 }],
+  NYG: [{ week: 4, opp: 'DAL', difficulty: 6 }, { week: 5, opp: '@SEA', difficulty: 7 }, { week: 6, opp: 'PHI', difficulty: 8 }],
+  NYJ: [{ week: 4, opp: '@MIA', difficulty: 5 }, { week: 5, opp: 'DAL', difficulty: 6 }, { week: 6, opp: '@BUF', difficulty: 8 }],
+  DAL: [{ week: 4, opp: '@NYG', difficulty: 5 }, { week: 5, opp: '@NYJ', difficulty: 5 }, { week: 6, opp: 'CAR', difficulty: 3 }],
+  DEN: [{ week: 4, opp: '@NYJ', difficulty: 5 }, { week: 5, opp: 'PHI', difficulty: 8 }, { week: 6, opp: '@LV', difficulty: 4 }],
+  NO: [{ week: 4, opp: 'ATL', difficulty: 5 }, { week: 5, opp: '@KC', difficulty: 8 }, { week: 6, opp: 'TB', difficulty: 6 }],
+  CHI: [{ week: 4, opp: 'MIN', difficulty: 6 }, { week: 5, opp: '@LV', difficulty: 4 }, { week: 6, opp: '@JAX', difficulty: 5 }],
+  LV: [{ week: 4, opp: 'CLE', difficulty: 5 }, { week: 5, opp: 'CHI', difficulty: 5 }, { week: 6, opp: 'DEN', difficulty: 5 }],
+  ARI: [{ week: 4, opp: '@SF', difficulty: 8 }, { week: 5, opp: '@IND', difficulty: 5 }, { week: 6, opp: 'GB', difficulty: 7 }],
+};
+
 module.exports = {
   players: () => PLAYERS,
   playerStatus: () => ({ ...PLAYER_STATUS }),
@@ -334,5 +367,8 @@ module.exports = {
   ownership: (playerId) => (OWNERSHIP[playerId] != null ? OWNERSHIP[playerId] : 0),
   pendingClaims: (leagueId) => (PENDING_CLAIMS[leagueId] || []).map((c) => ({ ...c })),
   waiverResults: (leagueId) => (WAIVER_RESULTS[leagueId] || []).map((r) => ({ ...r })),
+  gameLog: (playerId) => (GAME_LOG[playerId] || []).map((g) => ({ ...g })),
+  schedule: (team) => (SCHEDULE[team] || []).map((s) => ({ ...s })),
+  allPlayers: () => PLAYERS.map((p) => ({ ...p })),
   week: () => WEEK,
 };
