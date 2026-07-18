@@ -57,13 +57,8 @@ jobs:
         run: |
           node -e "const fs=require('fs');const f='eas.json';const j=JSON.parse(fs.readFileSync(f,'utf8'));j.build.preview.env={...(j.build.preview.env||{}),EXPO_PUBLIC_API_URL:process.env.API_URL};fs.writeFileSync(f,JSON.stringify(j,null,2));console.log('Building with EXPO_PUBLIC_API_URL =',process.env.API_URL);"
 
-      # Links (or creates) the EAS project so a non-interactive build can run.
-      - name: Ensure EAS project is linked
-        env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: eas init --non-interactive || true
-
-      # Android keystore is generated & managed by EAS automatically.
+      # The EAS project is linked via app.json (owner + extra.eas.projectId), so
+      # no init is needed. Android keystore is generated & managed by EAS.
       - name: Build APK on EAS
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}

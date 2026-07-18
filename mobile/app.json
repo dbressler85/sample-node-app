@@ -2,6 +2,7 @@
   "expo": {
     "name": "Dynasty Central",
     "slug": "dynasty-central",
+    "owner": "SonicBologna",
     "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
@@ -22,7 +23,10 @@
       "bundleIdentifier": "com.dynastycentral.app"
     },
     "extra": {
-      "//": "Override the backend URL at build/run time with EXPO_PUBLIC_API_URL."
+      "//": "Override the backend URL at build/run time with EXPO_PUBLIC_API_URL.",
+      "eas": {
+        "projectId": "761454da-7a00-442c-93b5-38ddf72a8b77"
+      }
     }
   }
 }
