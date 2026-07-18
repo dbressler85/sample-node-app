@@ -106,25 +106,39 @@ const ROSTERS = {
   },
 };
 
-// Projected points for the current week, keyed by player id. Deterministic so the
-// optimizer produces stable, reviewable results in demo mode.
-const PROJECTIONS = {
-  '13593': 19.5, // Jefferson WR
-  '14802': 21.0, // Chase WR
-  '15267': 18.0, // Bijan RB
-  '15859': 14.5, // Harrison WR
-  '13116': 24.0, // Lamar QB
-  '14086': 16.5, // Hall RB
-  '15264': 15.0, // Nabers WR
-  '12171': 12.5, // Kelce TE
-  '14990': 18.5, // Stroud QB
-  '15870': 16.0, // Nix QB
-  '14106': 13.5, // Olave WR
-  '13649': 17.5, // Gibbs RB
-  '14835': 11.5, // Bowers TE
-  '11686': 8.0, // Cook RB
-  '15266': 12.0, // Odunze WR
-  '13138': 13.0, // London WR
+// Projected RAW stats for the current week, keyed by player id. These are
+// format-independent — the per-league scoring settings below turn them into
+// points, so the same player is worth different points in different leagues.
+const STAT_PROJECTIONS = {
+  // QBs: passYds, passTd, passInt, rushYds, rushTd
+  '13116': { passYds: 250, passTd: 1.8, passInt: 0.6, rushYds: 55, rushTd: 0.5 }, // Lamar
+  '14990': { passYds: 275, passTd: 1.9, passInt: 0.7, rushYds: 12, rushTd: 0.1 }, // Stroud
+  '15870': { passYds: 235, passTd: 1.6, passInt: 0.6, rushYds: 28, rushTd: 0.3 }, // Nix
+  // RBs: rushYds, rushTd, rec, recYds, recTd
+  '15267': { rushYds: 78, rushTd: 0.6, rec: 3.5, recYds: 28, recTd: 0.2 }, // Bijan
+  '13649': { rushYds: 72, rushTd: 0.6, rec: 3.2, recYds: 30, recTd: 0.2 }, // Gibbs
+  '14086': { rushYds: 68, rushTd: 0.5, rec: 4.0, recYds: 33, recTd: 0.2 }, // Hall
+  '11686': { rushYds: 40, rushTd: 0.2, rec: 1.5, recYds: 10, recTd: 0.0 }, // Cook
+  // WRs: rec, recYds, recTd
+  '13593': { rec: 6.8, recYds: 92, recTd: 0.6 }, // Jefferson
+  '14802': { rec: 7.2, recYds: 95, recTd: 0.7 }, // Chase
+  '15264': { rec: 6.5, recYds: 78, recTd: 0.4 }, // Nabers
+  '15859': { rec: 5.5, recYds: 72, recTd: 0.45 }, // Harrison
+  '14106': { rec: 5.8, recYds: 70, recTd: 0.35 }, // Olave
+  '13138': { rec: 5.6, recYds: 68, recTd: 0.35 }, // London
+  '15266': { rec: 4.8, recYds: 58, recTd: 0.3 }, // Odunze
+  // TEs: rec, recYds, recTd
+  '12171': { rec: 6.0, recYds: 62, recTd: 0.45 }, // Kelce
+  '14835': { rec: 5.5, recYds: 58, recTd: 0.4 }, // Bowers
+};
+
+// Per-league scoring settings — deliberately different formats so the optimizer
+// has to account for each: standard, superflex + 6pt passing TDs, and PPR with a
+// tight-end premium.
+const SCORING = {
+  '64097': { ppr: 0, tePremium: 0, passTd: 4 }, // Dynasty Warlords — standard, 4pt PaTD
+  '40750': { ppr: 1, tePremium: 0, passTd: 6 }, // Superflex Society — full PPR, 6pt PaTD
+  '19622': { ppr: 1, tePremium: 0.5, passTd: 4 }, // Keeper Kings — full PPR + TE premium
 };
 
 // Starting lineup requirements per league. Deliberately varied to exercise the
@@ -158,7 +172,8 @@ module.exports = {
   leagues: () => LEAGUES.map((l) => ({ ...l })),
   dashboard: (leagueId) => DASHBOARD[leagueId] || null,
   roster: (leagueId) => ROSTERS[leagueId] || null,
-  projections: () => ({ ...PROJECTIONS }),
+  statProjections: () => ({ ...STAT_PROJECTIONS }),
+  scoring: (leagueId) => (SCORING[leagueId] ? { ...SCORING[leagueId] } : null),
   lineupRequirements: (leagueId) => LINEUP_REQS[leagueId] || null,
   week: () => WEEK,
 };

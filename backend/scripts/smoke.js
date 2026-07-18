@@ -68,8 +68,26 @@ function assert(cond, msg) {
         `+${before.pointsAvailable} pts available`
     );
     for (const l of r.body.leagues) {
-      console.log(`    - ${l.name}: ${l.status} (cur ${l.currentTotal} / opt ${l.optimalTotal}, +${l.delta})`);
+      console.log(
+        `    - ${l.name} [${l.format}]: ${l.status} (cur ${l.currentTotal} / opt ${l.optimalTotal}, +${l.delta})`
+      );
     }
+
+    // Format awareness: the SAME player scores differently under different league
+    // scoring. Kelce (TE) should project higher in the PPR + TE-premium league
+    // than in the standard league.
+    const kelce = '12171';
+    const std = (await j(await fetch(`${base}/api/leagues/64097/lineup`, authed))).body; // standard
+    const tep = (await j(await fetch(`${base}/api/leagues/19622/lineup`, authed))).body; // PPR + TE premium
+    const kStd = std.players.find((p) => p.id === kelce);
+    const kTep = tep.players.find((p) => p.id === kelce);
+    assert(kStd && kTep, 'Kelce present in both leagues');
+    assert(std.format && tep.format, 'leagues report their scoring format');
+    assert(kTep.projection > kStd.projection, 'TE premium + PPR raises Kelce vs standard');
+    console.log(
+      `✓ format-aware: Kelce projects ${kStd.projection} in "${std.format}" vs ` +
+        `${kTep.projection} in "${tep.format}"`
+    );
 
     // Detailed editor view for one league.
     const flexLeague = r.body.leagues.find((l) => l.status === 'incomplete') || r.body.leagues[0];

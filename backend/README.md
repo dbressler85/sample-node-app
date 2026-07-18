@@ -53,11 +53,12 @@ src/
   lib/mfl.js           low-level MFL client (host routing, UA, throttle, login)
   lib/players.js       cached player-id -> name/team/pos resolution
   lib/optimizer.js     pure lineup optimizer (slot expansion + best assignment)
+  lib/scoring.js       scoring engine (projected stats x league scoring -> points)
   store/sessions.js    token -> MFL cookie (in-memory)
   store/lineups.js     applied lineups per session (in-memory)
   services/            leagues, dashboard, roster, lineups
   routes/              auth + api + lineup routes
-  demo/fixtures.js     DEMO_MODE data (rosters, projections, lineup rules)
+  demo/fixtures.js     DEMO_MODE data (rosters, projected stats, scoring, lineup rules)
 ```
 
 ## Going live — what still needs verifying
@@ -65,5 +66,14 @@ src/
 The MFL read/write shapes are coded to the [public API docs](https://api.myfantasyleague.com/2020/api_info?STATE=details)
 but haven't been run against a real account here. Before trusting live mode,
 verify against your own leagues: `login`, `myleagues`, `liveScoring`, `schedule`,
-`leagueStandings`, `rosters`, `players`. Write actions (lineups/waivers/trades)
-are the next milestone and are not implemented yet.
+`leagueStandings`, `rosters`, `players`, and — for lineups — `projectedScores`
+(used directly as format-aware projections in live mode) plus parsing each
+league's starting requirements from `league`.
+
+**Scoring/format awareness.** The optimizer is format-aware: projections are the
+player's projected points *in each league's scoring* (PPR, TE premium, pass-TD
+value, etc.), so the same player is ranked differently per league. In demo mode
+this is computed as projected stats × the league's scoring (`lib/scoring.js`); in
+live mode MFL's per-league `projectedScores` already reflect the league's scoring.
+Parsing MFL's raw scoring rules into `lib/scoring.js` settings (to compute from
+stats live, and to show the format label) is a follow-up.

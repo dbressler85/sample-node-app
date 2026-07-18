@@ -129,6 +129,7 @@ export default function LineupEditorScreen({ league, onBack }) {
           <Text style={styles.totalStrong}>{total}</Text>
           {optimalDelta > 0.05 ? <Text style={styles.optHint}>  (+{optimalDelta} available)</Text> : null}
         </Text>
+        {detail.format ? <Text style={styles.format}>{detail.format}</Text> : null}
       </View>
 
       <ScrollView contentContainerStyle={styles.slots}>
@@ -245,6 +246,7 @@ const styles = StyleSheet.create({
   header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8 },
   title: { color: colors.text, fontSize: 24, fontWeight: '900' },
   subtitle: { color: colors.textDim, fontSize: 14, marginTop: 2 },
+  format: { color: colors.textDim, fontSize: 11, fontWeight: '700', marginTop: 4, letterSpacing: 0.3 },
   totalStrong: { color: colors.text, fontWeight: '800' },
   optHint: { color: colors.warn, fontWeight: '700' },
   slots: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 16 },
