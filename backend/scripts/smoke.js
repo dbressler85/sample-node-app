@@ -126,6 +126,14 @@ function assert(cond, msg) {
     assert(rbs.freeAgents.every((p) => p.position === 'RB'), 'position filter works');
     console.log(`✓ filter/sort: ${rbs.freeAgents.length} RBs by projection`);
 
+    // Sort by ownership %.
+    const byOwn = (await j(await fetch(`${base}/api/leagues/64097/waivers?sort=ownership`, authed))).body;
+    assert(byOwn.freeAgents.every((p) => p.ownership != null), 'free agents carry ownership %');
+    for (let k = 1; k < byOwn.freeAgents.length; k++) {
+      assert(byOwn.freeAgents[k - 1].ownership >= byOwn.freeAgents[k].ownership, 'sorted by ownership desc');
+    }
+    console.log(`✓ ownership sort: ${byOwn.freeAgents.map((p) => `${p.name.split(',')[0]} ${p.ownership}%`).join(', ')}`);
+
     // Preview fills smart assists: suggested drop (roster full) + suggested bid.
     const prevFull = (await j(
       await fetch(`${base}/api/leagues/19622/waivers/preview`, {

@@ -59,6 +59,7 @@ function makeFreeAgent(id, byId, scoring, statMap, ctx, system, settings) {
     age: d ? d.age : null,
     projection,
     trend: config.demoMode ? demo.trend(id) : 0,
+    ownership: config.demoMode ? demo.ownership(id) : null,
     onWaivers: system !== 'free',
     clearTime: system !== 'free' ? settings.clearTime || null : null,
     availability: availabilityLib.resolve(base, ctx.statusMap, ctx.byeMap, ctx.week),
@@ -122,7 +123,8 @@ async function getBoard(cookie, token, leagueId, { position, sort } = {}) {
   let freeAgents = await loadFreeAgents(cookie, league, settings);
   if (position) freeAgents = freeAgents.filter((p) => p.position === position);
 
-  const key = sort === 'projection' ? 'projection' : sort === 'trend' ? 'trend' : 'value';
+  const SORT_KEYS = { projection: 'projection', trend: 'trend', ownership: 'ownership', value: 'value' };
+  const key = SORT_KEYS[sort] || 'value';
   freeAgents.sort((a, b) => (b[key] || 0) - (a[key] || 0));
 
   const pending = store.list(token, leagueId, config.demoMode ? demo.pendingClaims(leagueId) : []).map((c) => claimView(c, byId));
@@ -268,7 +270,7 @@ async function getBestAvailable(cookie, token) {
     const statMap = config.demoMode ? demo.statProjections() : {};
     for (const id of config.demoMode ? demo.freeAgents(league.leagueId) : []) {
       const fa = makeFreeAgent(id, byId, scoring, statMap, ctx, settings.system, settings);
-      if (!map.has(id)) map.set(id, { id: fa.id, name: fa.name, position: fa.position, team: fa.team, value: fa.value, age: fa.age, trend: fa.trend, availability: fa.availability, leagues: [] });
+      if (!map.has(id)) map.set(id, { id: fa.id, name: fa.name, position: fa.position, team: fa.team, value: fa.value, age: fa.age, trend: fa.trend, ownership: fa.ownership, availability: fa.availability, leagues: [] });
       map.get(id).leagues.push({ leagueId: league.leagueId, name: league.name, system: settings.system });
     }
   }

@@ -292,6 +292,10 @@ const FREE_AGENTS = {
 // Waiver-wire heat: how many leagues (market-wide) are adding each player.
 const TRENDS = { '16002': 5400, '16001': 3900, '16005': 2800, '16004': 2100, '16003': 1500 };
 
+// Ownership %: share of leagues site-wide that roster the player. A key waiver
+// signal — how contested a pickup is / how fast he's being scooped up.
+const OWNERSHIP = { '16002': 41, '16001': 33, '16005': 22, '16004': 18, '16003': 12 };
+
 // Seed pending claims per league (add/drop ids + bid or priority).
 const PENDING_CLAIMS = {
   '64097': [{ system: 'faab', add: '16001', drop: '11686', bid: 15 }],
@@ -327,6 +331,7 @@ module.exports = {
   waiverSettings: (leagueId) => (WAIVER_SETTINGS[leagueId] ? { ...WAIVER_SETTINGS[leagueId] } : null),
   freeAgents: (leagueId) => (FREE_AGENTS[leagueId] || []).slice(),
   trend: (playerId) => TRENDS[playerId] || 0,
+  ownership: (playerId) => (OWNERSHIP[playerId] != null ? OWNERSHIP[playerId] : 0),
   pendingClaims: (leagueId) => (PENDING_CLAIMS[leagueId] || []).map((c) => ({ ...c })),
   waiverResults: (leagueId) => (WAIVER_RESULTS[leagueId] || []).map((r) => ({ ...r })),
   week: () => WEEK,
