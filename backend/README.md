@@ -40,6 +40,10 @@ live MFL with `MFL_DEMO_MODE=false`. See `.env.example` for all settings.
 | GET | `/api/dashboard` | One card per league: matchup, live score, record, standing |
 | GET | `/api/leagues` | Flat list of all leagues on the account |
 | GET | `/api/leagues/:leagueId/roster` | Your roster (names resolved), bucketed by starters/bench/IR/taxi |
+| GET | `/api/lineups` | Cross-league lineup overview: current vs optimal points + gap per league |
+| POST | `/api/lineups/apply` | **Set all lineups** — optimize every non-optimal league in one call |
+| GET | `/api/leagues/:leagueId/lineup` | Lineup detail: slots with current + optimal picks, for editing |
+| POST | `/api/leagues/:leagueId/lineup` | Set one league's lineup (`{starters:[ids]}`, or optimal if omitted) |
 
 ## Layout
 
@@ -48,10 +52,12 @@ src/
   config.js            env-driven config
   lib/mfl.js           low-level MFL client (host routing, UA, throttle, login)
   lib/players.js       cached player-id -> name/team/pos resolution
+  lib/optimizer.js     pure lineup optimizer (slot expansion + best assignment)
   store/sessions.js    token -> MFL cookie (in-memory)
-  services/            leagues (myleagues), dashboard aggregation, roster
-  routes/              auth + api routes
-  demo/fixtures.js     DEMO_MODE data
+  store/lineups.js     applied lineups per session (in-memory)
+  services/            leagues, dashboard, roster, lineups
+  routes/              auth + api + lineup routes
+  demo/fixtures.js     DEMO_MODE data (rosters, projections, lineup rules)
 ```
 
 ## Going live — what still needs verifying

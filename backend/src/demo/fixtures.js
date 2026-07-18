@@ -106,10 +106,59 @@ const ROSTERS = {
   },
 };
 
+// Projected points for the current week, keyed by player id. Deterministic so the
+// optimizer produces stable, reviewable results in demo mode.
+const PROJECTIONS = {
+  '13593': 19.5, // Jefferson WR
+  '14802': 21.0, // Chase WR
+  '15267': 18.0, // Bijan RB
+  '15859': 14.5, // Harrison WR
+  '13116': 24.0, // Lamar QB
+  '14086': 16.5, // Hall RB
+  '15264': 15.0, // Nabers WR
+  '12171': 12.5, // Kelce TE
+  '14990': 18.5, // Stroud QB
+  '15870': 16.0, // Nix QB
+  '14106': 13.5, // Olave WR
+  '13649': 17.5, // Gibbs RB
+  '14835': 11.5, // Bowers TE
+  '11686': 8.0, // Cook RB
+  '15266': 12.0, // Odunze WR
+  '13138': 13.0, // London WR
+};
+
+// Starting lineup requirements per league. Deliberately varied to exercise the
+// optimizer: a standard league (already optimal), a superflex league (a bench WR
+// should start), and a PPR flex league (a starting slot is left empty).
+const LINEUP_REQS = {
+  '64097': [
+    { name: 'QB', eligible: ['QB'], count: 1 },
+    { name: 'RB', eligible: ['RB'], count: 2 },
+    { name: 'WR', eligible: ['WR'], count: 2 },
+    { name: 'TE', eligible: ['TE'], count: 1 },
+  ],
+  '40750': [
+    { name: 'QB', eligible: ['QB'], count: 1 },
+    { name: 'RB', eligible: ['RB'], count: 1 },
+    { name: 'WR', eligible: ['WR'], count: 2 },
+    { name: 'TE', eligible: ['TE'], count: 1 },
+    { name: 'SUPERFLEX', eligible: ['QB', 'RB', 'WR', 'TE'], count: 1 },
+  ],
+  '19622': [
+    { name: 'QB', eligible: ['QB'], count: 1 },
+    { name: 'RB', eligible: ['RB'], count: 2 },
+    { name: 'WR', eligible: ['WR'], count: 2 },
+    { name: 'TE', eligible: ['TE'], count: 1 },
+    { name: 'FLEX', eligible: ['RB', 'WR', 'TE'], count: 1 },
+  ],
+};
+
 module.exports = {
   players: () => PLAYERS,
   leagues: () => LEAGUES.map((l) => ({ ...l })),
   dashboard: (leagueId) => DASHBOARD[leagueId] || null,
   roster: (leagueId) => ROSTERS[leagueId] || null,
+  projections: () => ({ ...PROJECTIONS }),
+  lineupRequirements: (leagueId) => LINEUP_REQS[leagueId] || null,
   week: () => WEEK,
 };

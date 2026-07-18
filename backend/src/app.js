@@ -7,6 +7,7 @@ const morgan = require('morgan');
 const config = require('./config');
 const authRoutes = require('./routes/auth');
 const apiRoutes = require('./routes/leagues');
+const lineupRoutes = require('./routes/lineups');
 
 const app = express();
 
@@ -19,6 +20,7 @@ app.get('/api/health', (req, res) => {
 });
 
 app.use('/api/auth', authRoutes);
+app.use('/api', lineupRoutes);
 app.use('/api', apiRoutes);
 
 // 404

@@ -44,10 +44,14 @@ App.js                 state-based screen router (login / dashboard / roster)
 src/config.js          backend URL resolution
 src/api.js             backend client
 src/auth.js            secure token persistence (expo-secure-store)
-src/screens/           LoginScreen, DashboardScreen, RosterScreen
+src/screens/           LoginScreen, DashboardScreen, RosterScreen,
+                       LineupsScreen, LineupEditorScreen
 src/components/         LeagueCard, PlayerRow
 src/theme.js           shared dark-theme tokens
 ```
 
-Navigation is intentionally a tiny state machine for this three-screen MVP;
-when we add lineups/waivers/trades we'll move to `expo-router`.
+Two bottom tabs (Dashboard, Lineups) with full-screen overlays (roster, lineup
+editor). **Lineups** shows the projected-points gap per league and a one-tap
+**Set All Lineups** action; the editor lets you swap any slot and save one league.
+Navigation is a small state machine for now; when we add waivers/trades we'll
+move to `expo-router`.
