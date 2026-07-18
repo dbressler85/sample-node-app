@@ -4,7 +4,7 @@ import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import LoginScreen from './src/screens/LoginScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import ScoresScreen from './src/screens/ScoresScreen';
-import DashboardScreen from './src/screens/DashboardScreen';
+import WaiversScreen from './src/screens/WaiversScreen';
 import PlayersScreen from './src/screens/PlayersScreen';
 import RosterScreen from './src/screens/RosterScreen';
 import LineupsScreen from './src/screens/LineupsScreen';
@@ -15,7 +15,7 @@ import { colors } from './src/theme';
 const TABS = [
   { key: 'home', label: 'Home', icon: '⌂' },
   { key: 'scores', label: 'Scores', icon: '◉' },
-  { key: 'leagues', label: 'Leagues', icon: '▦' },
+  { key: 'waivers', label: 'Waivers', icon: '⇄' },
   { key: 'players', label: 'Players', icon: '◐' },
   { key: 'lineups', label: 'Lineups', icon: '⚑' },
 ];
@@ -25,6 +25,7 @@ export default function App() {
   const [authed, setAuthed] = useState(false);
   const [tab, setTab] = useState('home');
   const [overlay, setOverlay] = useState(null); // {type,league} | null
+  const [waiversTarget, setWaiversTarget] = useState(null); // {leagueId, position}
 
   useEffect(() => {
     (async () => {
@@ -43,20 +44,37 @@ export default function App() {
 
   const openRoster = (league) => setOverlay({ type: 'roster', league });
   const openLineup = (league) => setOverlay({ type: 'lineupEditor', league });
+  const openWaivers = (target) => {
+    setWaiversTarget(target || null);
+    setTab('waivers');
+  };
 
   function renderTab() {
     switch (tab) {
       case 'scores':
         return <ScoresScreen />;
-      case 'leagues':
-        return <DashboardScreen onOpenLeague={openRoster} onLogout={handleLogout} />;
+      case 'waivers':
+        return (
+          <WaiversScreen
+            key={`w-${waiversTarget ? waiversTarget.leagueId : 'all'}`}
+            initialLeagueId={waiversTarget ? waiversTarget.leagueId : null}
+            initialPosition={waiversTarget ? waiversTarget.position : null}
+          />
+        );
       case 'players':
         return <PlayersScreen />;
       case 'lineups':
         return <LineupsScreen onOpenLineup={openLineup} />;
       case 'home':
       default:
-        return <HomeScreen onOpenLineup={openLineup} onOpenLeague={openRoster} onLogout={handleLogout} />;
+        return (
+          <HomeScreen
+            onOpenLineup={openLineup}
+            onOpenLeague={openRoster}
+            onOpenWaivers={(league) => openWaivers({ leagueId: league.leagueId, position: league.position })}
+            onLogout={handleLogout}
+          />
+        );
     }
   }
 

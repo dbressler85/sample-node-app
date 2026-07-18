@@ -40,6 +40,7 @@ export const api = {
     request('/api/auth/login', { method: 'POST', body: { username, password } }),
   logout: () => request('/api/auth/logout', { method: 'POST' }),
   dashboard: () => request('/api/dashboard'),
+  leaguesList: () => request('/api/leagues'),
   roster: (leagueId) => request(`/api/leagues/${leagueId}/roster`),
 
   // Command center (M1.5)
@@ -47,6 +48,20 @@ export const api = {
   scoreboard: () => request('/api/scoreboard'),
   exposure: () => request('/api/players/exposure'),
   news: () => request('/api/news'),
+
+  // Waivers / FAAB / free agents (M3)
+  waiverBoard: (leagueId, { position, sort } = {}) => {
+    const q = new URLSearchParams();
+    if (position) q.set('position', position);
+    if (sort) q.set('sort', sort);
+    const qs = q.toString();
+    return request(`/api/leagues/${leagueId}/waivers${qs ? `?${qs}` : ''}`);
+  },
+  bestAvailable: () => request('/api/waivers/best-available'),
+  waiverPending: () => request('/api/waivers/pending'),
+  previewClaim: (leagueId, body) => request(`/api/leagues/${leagueId}/waivers/preview`, { method: 'POST', body }),
+  submitClaim: (leagueId, body) => request(`/api/leagues/${leagueId}/waivers`, { method: 'POST', body }),
+  cancelClaim: (leagueId, claimId) => request(`/api/leagues/${leagueId}/waivers/${claimId}`, { method: 'DELETE' }),
 
   // Lineups (M2 / M2.5). mode: 'auto' | 'safe' | 'balanced' | 'aggressive'
   lineups: (mode = 'auto') => request(`/api/lineups?mode=${mode}`),

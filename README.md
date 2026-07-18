@@ -3,12 +3,11 @@
 Manage all your [MyFantasyLeague](https://home.myfantasyleague.com) dynasty
 leagues from one Android app — instead of navigating to each league one by one.
 
-**Status:** Milestone 2.5 — cross-league dashboard **plus safe, informed lineup
-management**. Log in once, see every team's matchup/score/standing, and set your
-lineup in one league or **all leagues at once**. "Set All" is availability-aware
-(never starts an OUT/injured/bye player), shows a review diff before writing,
-supports safe/balanced/aggressive modes, and surfaces each matchup's win
-probability. Waivers → trades are next on the roadmap below.
+**Status:** Milestone 3 — a cross-league **command center** (portfolio, triage,
+live scoreboard, player exposure) with **lineup management** (availability-aware
+"Set All") and **waivers / FAAB / free agents**. Manage claims per league across
+all three MFL pickup systems, with smart drop + bid guidance, validation, and a
+cross-league best-available view. The player-centric hub and trades are next.
 
 ## Architecture
 
@@ -49,9 +48,9 @@ and for building an installable APK **without a computer** (Expo EAS cloud build
 - [x] **M1.5 — Command Center:** portfolio roll-up + cross-league triage queue, live scoreboard (players-yet-to-play + win probability), player-exposure view, news→impact mapping, and dynasty roster context (age/value/picks)
 - [x] **M2 — Lineups:** format-aware optimizer (per-league PPR / TE-premium / pass-TD scoring), per-league editor, and one-tap "Set All Lineups" (`import?TYPE=lineup`)
 - [x] **M2.5 — Safe & informed Set All:** availability-aware (never starts OUT / injured / bye players), floor/ceiling + matchup with win probability, safe/balanced/aggressive modes, and a review-diff before bulk apply
-- [ ] **M3 — Waivers / FAAB:** free agents + add/drop + blind-bid claims across leagues
-- [ ] **M4 — Trades:** view / propose / accept / reject (`import?TYPE=tradeProposal`)
-- [ ] **M5 — Hardening:** persistent session store, live-MFL verification, push alerts, Play Store
+- [x] **M3 — Waivers / FAAB:** per-league board for all three MFL systems (FAAB / FCFS / free agents), filter/sort, cross-league best-available, smart drop + bid guidance, validated claim/cancel
+- [ ] **M4 — Player hub (player-centric):** search, stats/info, ownership across leagues, player-centric add/drop, then trades
+- [ ] **M5 — Hardening:** lock deadlines, push notifications, persistent session store, live-MFL verification, Play Store
 
 ## Notes on live MFL
 
