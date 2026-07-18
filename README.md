@@ -44,7 +44,7 @@ and for building an installable APK **without a computer** (Expo EAS cloud build
 ## Roadmap
 
 - [x] **M1 — Dashboard (read-only):** all leagues, matchups, live scores, standings, rosters
-- [x] **M2 — Lineups:** projected-points optimizer, per-league editor, and one-tap "Set All Lineups" (`import?TYPE=lineup`)
+- [x] **M2 — Lineups:** format-aware optimizer (per-league PPR / TE-premium / pass-TD scoring), per-league editor, and one-tap "Set All Lineups" (`import?TYPE=lineup`)
 - [ ] **M3 — Waivers / FAAB:** free agents + add/drop + blind-bid claims across leagues
 - [ ] **M4 — Trades:** view / propose / accept / reject (`import?TYPE=tradeProposal`)
 - [ ] **M5 — Hardening:** persistent session store, live-MFL verification, push alerts, Play Store

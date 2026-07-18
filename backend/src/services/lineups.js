@@ -10,6 +10,7 @@ const config = require('../config');
 const demo = require('../demo/fixtures');
 const mfl = require('../lib/mfl');
 const optimizer = require('../lib/optimizer');
+const scoringLib = require('../lib/scoring');
 const rosterService = require('./roster');
 const leaguesService = require('./leagues');
 const lineupStore = require('../store/lineups');
@@ -38,26 +39,39 @@ async function loadRequirements(cookie, league) {
   });
 }
 
-async function loadProjections(cookie /*, league */) {
-  if (config.demoMode) return demo.projections();
-  // Live: export?TYPE=projectedScores per league/week. Not yet verified; returning
-  // an empty map degrades gracefully (optimizer just can't rank without numbers).
+async function loadScoring(cookie, league) {
+  if (config.demoMode) return demo.scoring(league.leagueId) || {};
+  // Live: MFL's `rules`/`league` exports carry the scoring settings. Parsing them
+  // into our scoring shape is a follow-up; live projections below use MFL's own
+  // per-league projectedScores instead, which are already format-aware.
   return {};
 }
 
-// The pool of players eligible to be started (whole roster minus IR/taxi),
-// enriched with position and projection.
-async function loadPool(cookie, league, projById) {
-  const roster = await rosterService.getRoster(cookie, league.leagueId);
-  const startersFromRoster = roster.starters.map((p) => p.id);
-  const pool = [...roster.starters, ...roster.bench].map((p) => ({
-    id: p.id,
-    name: p.name,
-    position: p.position,
-    team: p.team,
-    projection: Number(projById[p.id]) || 0,
-  }));
-  return { pool, rosterStarterIds: startersFromRoster, franchiseName: roster.franchiseName };
+// Format-aware projections: a map of player id -> projected points *for this
+// league's scoring*. In demo we compute projected stats x the league's scoring so
+// the same player scores differently across formats (PPR, TE premium, 6pt TDs).
+// In live mode MFL's projectedScores are already computed in the league's scoring.
+async function leagueProjection(cookie, league, poolPlayers, scoring) {
+  if (config.demoMode) {
+    const stats = demo.statProjections();
+    const map = new Map();
+    for (const p of poolPlayers) {
+      map.set(p.id, scoringLib.projectPoints(stats[p.id], p.position, scoring));
+    }
+    return map;
+  }
+  try {
+    const res = await mfl.exportRequest('projectedScores', {
+      host: league.host,
+      cookie,
+      L: league.leagueId,
+      W: currentWeek(),
+    });
+    const list = mfl.toArray(res && res.projectedScores && res.projectedScores.playerScore);
+    return new Map(list.map((p) => [String(p.id), Number(p.score) || 0]));
+  } catch (e) {
+    return new Map();
+  }
 }
 
 function currentStarterIds(token, league, rosterStarterIds) {
@@ -67,7 +81,7 @@ function currentStarterIds(token, league, rosterStarterIds) {
 
 // --- view building ----------------------------------------------------------
 
-function buildView({ league, week, requirements, pool, starterIds, franchiseName }) {
+function buildView({ league, week, requirements, pool, starterIds, franchiseName, format }) {
   const poolById = new Map(pool.map((p) => [p.id, p]));
 
   const optimal = optimizer.optimize(requirements, pool);
@@ -101,6 +115,7 @@ function buildView({ league, week, requirements, pool, starterIds, franchiseName
     name: league.name,
     host: league.host,
     franchiseName: franchiseName || league.franchiseName,
+    format,
     week,
     slots,
     players,
@@ -113,13 +128,33 @@ function buildView({ league, week, requirements, pool, starterIds, franchiseName
 }
 
 async function viewForLeague(cookie, token, league) {
-  const [requirements, projById] = await Promise.all([
+  const [requirements, scoring, roster] = await Promise.all([
     loadRequirements(cookie, league),
-    loadProjections(cookie, league),
+    loadScoring(cookie, league),
+    rosterService.getRoster(cookie, league.leagueId),
   ]);
-  const { pool, rosterStarterIds, franchiseName } = await loadPool(cookie, league, projById);
+
+  const rosterStarterIds = roster.starters.map((p) => p.id);
+  const basePool = [...roster.starters, ...roster.bench].map((p) => ({
+    id: p.id,
+    name: p.name,
+    position: p.position,
+    team: p.team,
+  }));
+
+  const projMap = await leagueProjection(cookie, league, basePool, scoring);
+  const pool = basePool.map((p) => ({ ...p, projection: projMap.get(p.id) || 0 }));
+
   const starterIds = currentStarterIds(token, league, rosterStarterIds);
-  return buildView({ league, week: currentWeek(), requirements, pool, starterIds, franchiseName });
+  return buildView({
+    league,
+    week: currentWeek(),
+    requirements,
+    pool,
+    starterIds,
+    franchiseName: roster.franchiseName,
+    format: scoringLib.describe(scoring),
+  });
 }
 
 // --- public API -------------------------------------------------------------
@@ -128,6 +163,7 @@ function summarize(view) {
   return {
     leagueId: view.leagueId,
     name: view.name,
+    format: view.format,
     week: view.week,
     status: view.status,
     currentTotal: view.current.total,

@@ -161,6 +161,7 @@ function Row({ item, onPress }) {
           <Text style={[styles.badgeText, { color: s.color }]}>{s.label}</Text>
         </View>
       </View>
+      {item.format ? <Text style={styles.format}>{item.format}</Text> : null}
       <View style={styles.rowBottom}>
         <Text style={styles.pts}>
           <Text style={styles.ptsStrong}>{item.currentTotal}</Text>
@@ -203,6 +204,7 @@ const styles = StyleSheet.create({
   rowTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   rowBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 },
   league: { color: colors.text, fontSize: 16, fontWeight: '700', flex: 1, marginRight: 10 },
+  format: { color: colors.textDim, fontSize: 11, fontWeight: '700', marginTop: 4, letterSpacing: 0.3 },
   badge: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3 },
   badgeText: { fontSize: 11, fontWeight: '800' },
   pts: { fontSize: 15 },
