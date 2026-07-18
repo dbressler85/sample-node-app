@@ -1,0 +1,36 @@
+name: Build Android APK (EAS)
+
+# Cloud-builds an installable APK with no local machine required.
+# One-time setup: create a free Expo account, generate an access token at
+# https://expo.dev/settings/access-tokens, and add it as the repo secret EXPO_TOKEN.
+# Then run this workflow from the Actions tab and download the APK link it prints
+# (open it on your phone to sideload).
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_url:
+        description: 'Backend URL the app should call (EXPO_PUBLIC_API_URL)'
+        required: true
+        default: 'https://your-backend.example.com'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install EAS CLI
+        run: npm install -g eas-cli
+      - name: Install dependencies
+        run: npm install
+      - name: Build APK on EAS
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          EXPO_PUBLIC_API_URL: ${{ github.event.inputs.api_url }}
+        run: eas build --platform android --profile preview --non-interactive
