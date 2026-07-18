@@ -42,6 +42,12 @@ export const api = {
   dashboard: () => request('/api/dashboard'),
   roster: (leagueId) => request(`/api/leagues/${leagueId}/roster`),
 
+  // Command center (M1.5)
+  home: () => request('/api/home'),
+  scoreboard: () => request('/api/scoreboard'),
+  exposure: () => request('/api/players/exposure'),
+  news: () => request('/api/news'),
+
   // Lineups (M2 / M2.5). mode: 'auto' | 'safe' | 'balanced' | 'aggressive'
   lineups: (mode = 'auto') => request(`/api/lineups?mode=${mode}`),
   lineupDetail: (leagueId, mode = 'auto') => request(`/api/leagues/${leagueId}/lineup?mode=${mode}`),

@@ -56,6 +56,59 @@ function assert(cond, msg) {
     console.log(`✓ roster for ${r.body.name}: ${r.body.starters.length} starters, ${r.body.bench.length} bench`);
     console.log(`    starters: ${r.body.starters.map((p) => `${p.name} (${p.position})`).join(', ')}`);
 
+    // --- M1.5: command center ---
+    // Dynasty roster context.
+    const dr = (await j(await fetch(`${base}/api/leagues/64097/roster`, authed))).body;
+    assert(dr.starters.every((p) => p.value != null && p.age != null), 'roster players carry age + dynasty value');
+    assert(dr.summary && dr.summary.outlook && dr.summary.rosterValue > 0, 'roster has a dynasty team summary');
+    assert(Array.isArray(dr.picks), 'roster lists rookie picks');
+    console.log(
+      `✓ dynasty roster: value ${dr.summary.rosterValue}, core age ${dr.summary.coreAge} (${dr.summary.outlook}), picks: ${dr.picks.join(', ')}`
+    );
+
+    // Portfolio + triage home.
+    const home = (await j(await fetch(`${base}/api/home`, authed))).body;
+    assert(home.portfolio && home.portfolio.leagues === 3, 'home rolls up all leagues');
+    assert(Array.isArray(home.triage) && home.triage.length >= 1, 'home has a triage queue');
+    assert(home.triage[0].severity === 'high', 'triage is sorted most-urgent first');
+    assert(home.portfolio.tradeOffers >= 1, 'trade offers surfaced');
+    console.log(
+      `✓ home: ${home.portfolio.weekRecord} this week · ${home.portfolio.lineupsNeedAttention} lineups, ` +
+        `${home.portfolio.tradeOffers} trades, ${home.portfolio.waiversPending} waivers · ${home.triage.length} to-dos`
+    );
+    for (const t of home.triage.slice(0, 4)) console.log(`    [${t.severity}] ${t.leagueName}: ${t.title}`);
+
+    // Live scoreboard.
+    const sb = (await j(await fetch(`${base}/api/scoreboard`, authed))).body;
+    assert(sb.games.length === 3, 'scoreboard has all games');
+    assert(sb.games.every((g) => g.winProb >= 0 && g.winProb <= 1 && g.me.yetToPlay != null), 'games have win prob + players left');
+    // Closest game first among non-locked.
+    const liveGames = sb.games.filter((g) => !g.locked);
+    if (liveGames.length >= 2) {
+      assert(Math.abs(liveGames[0].winProb - 0.5) <= Math.abs(liveGames[1].winProb - 0.5), 'closest game sorts first');
+    }
+    console.log(`✓ scoreboard: ${sb.summary.live} live, ${sb.summary.close} close`);
+    for (const g of sb.games)
+      console.log(
+        `    ${g.name}: ${g.me.score}-${g.opp.score} vs ${g.opponent} · ${Math.round(g.winProb * 100)}% (${g.me.yetToPlay} to play)${g.close ? ' ⚡close' : ''}`
+      );
+
+    // Player exposure (the cross-league moat).
+    const exp = (await j(await fetch(`${base}/api/players/exposure`, authed))).body;
+    assert(exp.players.length > 0 && exp.summary.multiLeague >= 1, 'exposure finds multi-league players');
+    const topExp = exp.players[0];
+    assert(topExp.count >= 1 && topExp.leagues.every((l) => typeof l.starting === 'boolean'), 'exposure records starting per league');
+    console.log(`✓ exposure: ${exp.summary.uniquePlayers} players, ${exp.summary.multiLeague} rostered in multiple leagues`);
+    for (const p of exp.players.filter((x) => x.count > 1).slice(0, 4))
+      console.log(`    ${p.name} — ${p.count} leagues (${p.startingCount} starting), value ${p.value}`);
+
+    // News mapped to impact.
+    const news = (await j(await fetch(`${base}/api/news`, authed))).body;
+    assert(news.news.length > 0, 'news feed present');
+    const harrison = news.news.find((n) => n.player.id === '15859');
+    assert(harrison && harrison.affectedCount >= 1, 'news maps to affected teams');
+    console.log(`✓ news→impact: "${harrison.headline}" affects ${harrison.affectedCount} of your teams (${harrison.startingCount} starting)`);
+
     // --- M2 / M2.5: lineups ---
     r = await j(await fetch(`${base}/api/lineups?mode=auto`, authed));
     assert(r.status === 200, 'lineups overview 200');

@@ -37,6 +37,10 @@ live MFL with `MFL_DEMO_MODE=false`. See `.env.example` for all settings.
 | GET | `/api/health` | Liveness + mode |
 | POST | `/api/auth/login` | Log into MFL, get app token |
 | POST | `/api/auth/logout` | Destroy session |
+| GET | `/api/home` | Command center: portfolio roll-up + cross-league triage queue |
+| GET | `/api/scoreboard` | Live matchups across leagues (players-yet-to-play, win prob), sorted by closeness |
+| GET | `/api/players/exposure` | Every league you roster each player in (starting + status + value) |
+| GET | `/api/news` | League news mapped to which of your teams it affects |
 | GET | `/api/dashboard` | One card per league: matchup, live score, record, standing |
 | GET | `/api/leagues` | Flat list of all leagues on the account |
 | GET | `/api/leagues/:leagueId/roster` | Your roster (names resolved), bucketed by starters/bench/IR/taxi |
@@ -61,7 +65,8 @@ src/
   lib/availability.js  injury/bye/inactive -> startable + severity
   store/sessions.js    token -> MFL cookie (in-memory)
   store/lineups.js     applied lineups per session (in-memory)
-  services/            leagues, dashboard, roster, lineups
+  services/            leagues, dashboard, roster (dynasty ctx), lineups,
+                       portfolio (home/triage), scoreboard, exposure (+ news)
   routes/              auth + api + lineup routes
   demo/fixtures.js     DEMO_MODE data (rosters, projected stats, scoring, lineup rules)
 ```

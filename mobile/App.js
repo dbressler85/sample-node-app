@@ -2,19 +2,28 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, StatusBar, ActivityIndicator, SafeAreaView, Platform } from 'react-native';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import LoginScreen from './src/screens/LoginScreen';
+import HomeScreen from './src/screens/HomeScreen';
+import ScoresScreen from './src/screens/ScoresScreen';
 import DashboardScreen from './src/screens/DashboardScreen';
+import PlayersScreen from './src/screens/PlayersScreen';
 import RosterScreen from './src/screens/RosterScreen';
 import LineupsScreen from './src/screens/LineupsScreen';
 import LineupEditorScreen from './src/screens/LineupEditorScreen';
 import { loadSession, clearSession } from './src/auth';
 import { colors } from './src/theme';
 
-// Lightweight navigation held in state — two bottom tabs (Dashboard, Lineups)
-// with full-screen overlays pushed on top (roster, lineup editor).
+const TABS = [
+  { key: 'home', label: 'Home', icon: '⌂' },
+  { key: 'scores', label: 'Scores', icon: '◉' },
+  { key: 'leagues', label: 'Leagues', icon: '▦' },
+  { key: 'players', label: 'Players', icon: '◐' },
+  { key: 'lineups', label: 'Lineups', icon: '⚑' },
+];
+
 export default function App() {
   const [booting, setBooting] = useState(true);
   const [authed, setAuthed] = useState(false);
-  const [tab, setTab] = useState('dashboard'); // 'dashboard' | 'lineups'
+  const [tab, setTab] = useState('home');
   const [overlay, setOverlay] = useState(null); // {type,league} | null
 
   useEffect(() => {
@@ -28,8 +37,27 @@ export default function App() {
   async function handleLogout() {
     await clearSession();
     setAuthed(false);
-    setTab('dashboard');
+    setTab('home');
     setOverlay(null);
+  }
+
+  const openRoster = (league) => setOverlay({ type: 'roster', league });
+  const openLineup = (league) => setOverlay({ type: 'lineupEditor', league });
+
+  function renderTab() {
+    switch (tab) {
+      case 'scores':
+        return <ScoresScreen />;
+      case 'leagues':
+        return <DashboardScreen onOpenLeague={openRoster} onLogout={handleLogout} />;
+      case 'players':
+        return <PlayersScreen />;
+      case 'lineups':
+        return <LineupsScreen onOpenLineup={openLineup} />;
+      case 'home':
+      default:
+        return <HomeScreen onOpenLineup={openLineup} onOpenLeague={openRoster} onLogout={handleLogout} />;
+    }
   }
 
   function render() {
@@ -51,16 +79,7 @@ export default function App() {
 
     return (
       <View style={styles.flex}>
-        <View style={styles.flex}>
-          {tab === 'dashboard' ? (
-            <DashboardScreen
-              onOpenLeague={(league) => setOverlay({ type: 'roster', league })}
-              onLogout={handleLogout}
-            />
-          ) : (
-            <LineupsScreen onOpenLineup={(league) => setOverlay({ type: 'lineupEditor', league })} />
-          )}
-        </View>
+        <View style={styles.flex}>{renderTab()}</View>
         <TabBar tab={tab} onChange={setTab} />
       </View>
     );
@@ -78,18 +97,16 @@ export default function App() {
 function TabBar({ tab, onChange }) {
   return (
     <View style={styles.tabbar}>
-      <Tab label="Dashboard" icon="▦" active={tab === 'dashboard'} onPress={() => onChange('dashboard')} />
-      <Tab label="Lineups" icon="⚑" active={tab === 'lineups'} onPress={() => onChange('lineups')} />
+      {TABS.map((t) => {
+        const active = tab === t.key;
+        return (
+          <Pressable key={t.key} style={styles.tab} onPress={() => onChange(t.key)} hitSlop={6}>
+            <Text style={[styles.tabIcon, { color: active ? colors.accent : colors.textDim }]}>{t.icon}</Text>
+            <Text style={[styles.tabLabel, { color: active ? colors.accent : colors.textDim }]}>{t.label}</Text>
+          </Pressable>
+        );
+      })}
     </View>
-  );
-}
-
-function Tab({ label, icon, active, onPress }) {
-  return (
-    <Pressable style={styles.tab} onPress={onPress} hitSlop={8}>
-      <Text style={[styles.tabIcon, { color: active ? colors.accent : colors.textDim }]}>{icon}</Text>
-      <Text style={[styles.tabLabel, { color: active ? colors.accent : colors.textDim }]}>{label}</Text>
-    </Pressable>
   );
 }
 
@@ -107,5 +124,5 @@ const styles = StyleSheet.create({
   },
   tab: { flex: 1, alignItems: 'center' },
   tabIcon: { fontSize: 18, marginBottom: 2 },
-  tabLabel: { fontSize: 11, fontWeight: '700' },
+  tabLabel: { fontSize: 10, fontWeight: '700' },
 });

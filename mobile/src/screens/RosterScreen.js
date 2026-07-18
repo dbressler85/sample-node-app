@@ -46,8 +46,16 @@ export default function RosterScreen({ league, onBack }) {
         <Text style={styles.title} numberOfLines={1}>
           {league.name}
         </Text>
-        {league.franchiseName ? <Text style={styles.subtitle}>{league.franchiseName}</Text> : null}
+        {roster && roster.franchiseName ? <Text style={styles.subtitle}>{roster.franchiseName}</Text> : null}
       </View>
+
+      {roster && roster.summary ? (
+        <View style={styles.summary}>
+          <Summary label="Roster value" value={roster.summary.rosterValue} />
+          <Summary label="Core age" value={roster.summary.coreAge != null ? `${roster.summary.coreAge}y` : '—'} />
+          <Summary label="Outlook" value={roster.summary.outlook} wide />
+        </View>
+      ) : null}
 
       {loading ? (
         <View style={styles.center}>
@@ -69,8 +77,33 @@ export default function RosterScreen({ league, onBack }) {
             </Text>
           )}
           renderItem={({ item }) => <PlayerRow player={item} />}
+          ListFooterComponent={
+            roster && roster.picks && roster.picks.length ? (
+              <View>
+                <Text style={styles.sectionHeader}>Rookie picks · {roster.picks.length}</Text>
+                <View style={styles.picks}>
+                  {roster.picks.map((pick, i) => (
+                    <View key={i} style={styles.pickChip}>
+                      <Text style={styles.pickText}>{pick}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            ) : null
+          }
         />
       )}
+    </View>
+  );
+}
+
+function Summary({ label, value, wide }) {
+  return (
+    <View style={[styles.summaryCell, wide && { flex: 1.4 }]}>
+      <Text style={styles.summaryLabel}>{label}</Text>
+      <Text style={styles.summaryValue} numberOfLines={1}>
+        {value}
+      </Text>
     </View>
   );
 }
@@ -82,6 +115,13 @@ const styles = StyleSheet.create({
   back: { color: colors.accent, fontSize: 16, fontWeight: '600' },
   header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8 },
   title: { color: colors.text, fontSize: 24, fontWeight: '900' },
+  summary: { flexDirection: 'row', marginHorizontal: 16, marginBottom: 4, backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 14, gap: 8 },
+  summaryCell: { flex: 1 },
+  summaryLabel: { color: colors.textDim, fontSize: 11, fontWeight: '700' },
+  summaryValue: { color: colors.text, fontSize: 16, fontWeight: '900', marginTop: 3 },
+  picks: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+  pickChip: { backgroundColor: colors.cardAlt, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: colors.border },
+  pickText: { color: colors.text, fontSize: 13, fontWeight: '700' },
   subtitle: { color: colors.textDim, fontSize: 14, marginTop: 2 },
   list: { paddingHorizontal: 20, paddingBottom: 32 },
   sectionHeader: {
