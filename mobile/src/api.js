@@ -41,4 +41,13 @@ export const api = {
   logout: () => request('/api/auth/logout', { method: 'POST' }),
   dashboard: () => request('/api/dashboard'),
   roster: (leagueId) => request(`/api/leagues/${leagueId}/roster`),
+
+  // Lineups (M2)
+  lineups: () => request('/api/lineups'),
+  lineupDetail: (leagueId) => request(`/api/leagues/${leagueId}/lineup`),
+  applyLineup: (leagueId, starters) =>
+    request(`/api/leagues/${leagueId}/lineup`, { method: 'POST', body: starters ? { starters } : {} }),
+  // Set all lineups at once. Pass no selections to optimize every league.
+  applyAllLineups: (leagues) =>
+    request('/api/lineups/apply', { method: 'POST', body: leagues ? { leagues } : {} }),
 };

@@ -56,6 +56,46 @@ function assert(cond, msg) {
     console.log(`✓ roster for ${r.body.name}: ${r.body.starters.length} starters, ${r.body.bench.length} bench`);
     console.log(`    starters: ${r.body.starters.map((p) => `${p.name} (${p.position})`).join(', ')}`);
 
+    // --- M2: lineups ---
+    r = await j(await fetch(`${base}/api/lineups`, authed));
+    assert(r.status === 200, 'lineups overview 200');
+    assert(r.body.leagues.length === 3, 'lineups overview has 3 leagues');
+    const before = r.body.summary;
+    assert(before.needAttention >= 1, 'at least one league needs attention');
+    assert(before.pointsAvailable > 0, 'there are points available to gain');
+    console.log(
+      `✓ lineups overview: ${before.needAttention}/${before.total} need attention, ` +
+        `+${before.pointsAvailable} pts available`
+    );
+    for (const l of r.body.leagues) {
+      console.log(`    - ${l.name}: ${l.status} (cur ${l.currentTotal} / opt ${l.optimalTotal}, +${l.delta})`);
+    }
+
+    // Detailed editor view for one league.
+    const flexLeague = r.body.leagues.find((l) => l.status === 'incomplete') || r.body.leagues[0];
+    r = await j(await fetch(`${base}/api/leagues/${flexLeague.leagueId}/lineup`, authed));
+    assert(r.status === 200 && Array.isArray(r.body.slots), 'lineup detail has slots');
+    assert(r.body.optimal.total >= r.body.current.total, 'optimal >= current');
+    console.log(
+      `✓ lineup detail for ${r.body.name}: ${r.body.slots.length} slots, ${r.body.emptySlots} empty`
+    );
+
+    // THE HEADLINE: set all lineups in one call.
+    r = await j(await fetch(`${base}/api/lineups/apply`, { method: 'POST', ...authed }));
+    assert(r.status === 200, 'apply-all 200');
+    assert(r.body.summary.leaguesUpdated >= 1, 'apply-all updated at least one league');
+    assert(r.body.summary.pointsGained > 0, 'apply-all gained points');
+    console.log(
+      `✓ SET ALL LINEUPS: ${r.body.summary.leaguesUpdated} leagues updated, ` +
+        `+${r.body.summary.pointsGained} pts`
+    );
+
+    // After applying, every league should be optimal with no gap left.
+    r = await j(await fetch(`${base}/api/lineups`, authed));
+    assert(r.body.summary.needAttention === 0, 'no leagues need attention after set-all');
+    assert(r.body.summary.pointsAvailable === 0, 'no points left on the table after set-all');
+    console.log('✓ all lineups optimal after set-all (0 pts left)');
+
     r = await j(await fetch(`${base}/api/dashboard`));
     assert(r.status === 401, 'dashboard without token is 401');
     console.log('✓ auth required (401 without token)');
