@@ -28,7 +28,7 @@ async function runPool(items, limit, worker) {
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, next));
 }
 
-export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpenWaivers, onOpenTrades, onOpenTradeInbox, onOpenDraft, onLogout }) {
+export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpenWaivers, onOpenTrades, onOpenTradeInbox, onOpenDraft, onOpenDraftHub, onLogout }) {
   const [leagues, setLeagues] = useState([]);
   const [statuses, setStatuses] = useState({}); // leagueId -> { name, status, items }
   const [drafts, setDrafts] = useState([]); // active/scheduled drafts across leagues
@@ -192,7 +192,10 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
             <Portfolio p={portfolio} phase={phase} loading={summaryLoading} />
             {drafts.length ? (
               <View>
-                <Text style={styles.section}>Drafts · {drafts.length}</Text>
+                <Pressable style={styles.sectionRow} onPress={onOpenDraftHub}>
+                  <Text style={styles.section}>Drafts · {drafts.length}</Text>
+                  <Text style={styles.sectionLink}>Hub ›</Text>
+                </Pressable>
                 {drafts.map((d) => (
                   <Pressable
                     key={d.leagueId}
@@ -386,6 +389,8 @@ const styles = StyleSheet.create({
   chipSpinner: { height: 22, justifyContent: 'center' },
   chipLabel: { color: colors.textDim, fontSize: 11, fontWeight: '600', marginTop: 2 },
   section: { color: colors.text, fontSize: 15, fontWeight: '800', marginTop: 20, marginBottom: 10 },
+  sectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  sectionLink: { color: colors.accent, fontSize: 13, fontWeight: '700', marginTop: 20, marginBottom: 10 },
   groupHeader: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 14, marginBottom: 8 },
   dot: { width: 10, height: 10, borderRadius: 5, marginRight: 12 },
   groupLabel: { color: colors.text, fontSize: 15, fontWeight: '700', flex: 1 },

@@ -18,6 +18,7 @@ import WaiverWizardScreen from './src/screens/WaiverWizardScreen';
 import TradesScreen from './src/screens/TradesScreen';
 import TradeInboxScreen from './src/screens/TradeInboxScreen';
 import DraftScreen from './src/screens/DraftScreen';
+import DraftHubScreen from './src/screens/DraftHubScreen';
 import { loadSession, clearSession } from './src/auth';
 import { colors } from './src/theme';
 
@@ -96,6 +97,7 @@ export default function App() {
   const openTrades = (league) => pushOverlay({ type: 'trades', league });
   const openTradeInbox = () => pushOverlay({ type: 'tradeInbox' });
   const openDraft = (league) => pushOverlay({ type: 'draft', league });
+  const openDraftHub = () => pushOverlay({ type: 'draftHub' });
   const openPlayer = (playerId) => pushOverlay({ type: 'playerProfile', playerId });
   const openWaivers = (target) => {
     setWaiversTarget(target || null);
@@ -130,6 +132,7 @@ export default function App() {
             onOpenTrades={openTrades}
             onOpenTradeInbox={openTradeInbox}
             onOpenDraft={openDraft}
+            onOpenDraftHub={openDraftHub}
             onLogout={handleLogout}
           />
         );
@@ -177,6 +180,9 @@ export default function App() {
     }
     if (overlay && overlay.type === 'draft') {
       return <DraftScreen league={overlay.league} onBack={popOverlay} />;
+    }
+    if (overlay && overlay.type === 'draftHub') {
+      return <DraftHubScreen onBack={popOverlay} onOpenDraft={openDraft} />;
     }
     if (overlay && overlay.type === 'playerProfile') {
       return <PlayerProfileScreen playerId={overlay.playerId} onBack={popOverlay} />;
