@@ -326,6 +326,12 @@ async function getLineup(cookie, token, leagueId, mode) {
   return viewForLeague(cookie, token, league, normalizeMode(mode));
 }
 
+// Lightweight single-league status (used for progressive Home loading).
+async function getStatus(cookie, token, leagueId, { light = true } = {}) {
+  const league = await findLeague(cookie, leagueId);
+  return summarize(await viewForLeague(cookie, token, league, 'auto', { light }));
+}
+
 // A preview of "Set All" — per-league diffs (who comes in / out), applied to
 // nothing. This is what the review screen renders before the user confirms.
 async function plan(cookie, token, mode) {
@@ -460,4 +466,4 @@ async function applyAll(cookie, token, mode, selections) {
   };
 }
 
-module.exports = { getOverview, getLineup, plan, applyLineup, applyAll };
+module.exports = { getOverview, getLineup, getStatus, plan, applyLineup, applyAll };

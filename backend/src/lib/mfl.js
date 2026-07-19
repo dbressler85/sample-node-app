@@ -113,11 +113,15 @@ async function rawRequest({ host, command, params, cookie, method = 'GET', body 
 // this collapses those into one call and makes pull-to-refresh cheap.
 const readCache = new Map(); // key -> { at, value }
 
-// Read data via the export command (cached).
+// Slow-changing data gets a long TTL; everything else a short one.
+const STATIC_TYPES = new Set(['league', 'rules', 'myleagues', 'players', 'nflSchedule']);
+
+// Read data via the export command (cached, TTL depends on how volatile it is).
 async function exportRequest(type, { host = config.apiHost, cookie = null, ...params } = {}) {
   const key = `${cookie || ''}|${host}|${type}|${JSON.stringify(params)}`;
+  const ttl = STATIC_TYPES.has(type) ? config.mflStaticTtlMs : config.mflCacheTtlMs;
   const hit = readCache.get(key);
-  if (hit && Date.now() - hit.at < config.mflCacheTtlMs) return hit.value;
+  if (hit && Date.now() - hit.at < ttl) return hit.value;
 
   const value = await rawRequest({ host, command: 'export', params: { TYPE: type, ...params }, cookie });
   readCache.set(key, { at: Date.now(), value });

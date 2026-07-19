@@ -1,9 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, FlatList, StyleSheet, Pressable, RefreshControl, ActivityIndicator } from 'react-native';
 import { api } from '../api';
+import { getValue, setValue } from '../cache';
 import { colors } from '../theme';
 
-// Group metadata: label, urgency color, and whether it's expanded by default.
 const GROUPS = {
   lineup_risk: { label: 'Unavailable player in lineup', color: colors.bad, open: true },
   lineup_incomplete: { label: 'Empty slot — needs a pickup', color: colors.bad, open: true },
@@ -14,33 +14,77 @@ const GROUPS = {
 };
 const GROUP_ORDER = ['lineup_risk', 'lineup_incomplete', 'trade_offer', 'lineup_unset', 'lineup_suboptimal', 'waiver_pending'];
 const ACTION_LABEL = { lineup: 'Set ›', waiver: 'Waivers ›', trade: 'View ›' };
+const CONCURRENCY = 4;
+
+// Run `worker` over items with limited concurrency.
+async function runPool(items, limit, worker) {
+  let idx = 0;
+  const next = async () => {
+    while (idx < items.length) {
+      const i = idx++;
+      await worker(items[i], i);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, next));
+}
 
 export default function HomeScreen({ onOpenLineup, onOpenLeague, onOpenWaivers, onLogout }) {
-  const [data, setData] = useState(null);
+  const [leagues, setLeagues] = useState([]);
+  const [statuses, setStatuses] = useState({}); // leagueId -> { name, status, items }
+  const [expanded, setExpanded] = useState(new Set(GROUP_ORDER.filter((t) => GROUPS[t].open)));
+  const [progress, setProgress] = useState(null); // { done, total }
   const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [expanded, setExpanded] = useState(new Set());
+  const [booting, setBooting] = useState(true);
+  const running = useRef(false);
+  const week = useRef(null);
 
-  const load = useCallback(async () => {
+  // 1) Instant paint from disk cache.
+  useEffect(() => {
+    (async () => {
+      const [cachedLeagues, cachedStatuses] = await Promise.all([getValue('leagues'), getValue('statuses')]);
+      if (cachedLeagues) setLeagues(cachedLeagues);
+      if (cachedStatuses) setStatuses(cachedStatuses);
+      setBooting(false);
+      refresh();
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 2) Refresh: fetch the league list, then stream each league's status.
+  const refresh = useCallback(async () => {
+    if (running.current) return;
+    running.current = true;
     setError(null);
     try {
-      const d = await api.home();
-      setData(d);
-      // Default: open urgent groups, collapse the rest (e.g. the "not set" flood).
-      const present = new Set((d.triage || []).map((t) => t.type));
-      setExpanded(new Set(GROUP_ORDER.filter((t) => present.has(t) && GROUPS[t] && GROUPS[t].open)));
+      const res = await api.leaguesList();
+      const list = res.leagues.map((l) => ({ leagueId: l.leagueId, name: l.name }));
+      setLeagues(list);
+      setValue('leagues', list);
+
+      setProgress({ done: 0, total: list.length });
+      const collected = {};
+      await runPool(list, CONCURRENCY, async (lg) => {
+        try {
+          const t = await api.leagueTriage(lg.leagueId);
+          collected[lg.leagueId] = { name: t.name, status: t.status, items: t.items };
+        } catch (e) {
+          collected[lg.leagueId] = { name: lg.name, status: 'error', items: [] };
+        }
+        setStatuses((prev) => ({ ...prev, [lg.leagueId]: collected[lg.leagueId] }));
+        setProgress((p) => (p ? { done: p.done + 1, total: p.total } : p));
+      });
+      // Keep only current leagues, then persist.
+      const pruned = {};
+      for (const lg of list) if (collected[lg.leagueId]) pruned[lg.leagueId] = collected[lg.leagueId];
+      setStatuses(pruned);
+      setValue('statuses', pruned);
     } catch (e) {
       setError(e.message);
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      setProgress(null);
+      running.current = false;
     }
   }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
 
   function handleAction(item) {
     const league = { leagueId: item.leagueId, name: item.leagueName };
@@ -57,21 +101,39 @@ export default function HomeScreen({ onOpenLineup, onOpenLeague, onOpenWaivers, 
     });
   }
 
-  // Build a flat row list: a header per present group, plus item rows when open.
+  // Derive everything from the (current) leagues + their statuses.
+  const { portfolio, allItems } = useMemo(() => {
+    const vals = leagues.map((l) => statuses[l.leagueId]).filter(Boolean);
+    const items = vals.flatMap((v) => v.items || []);
+    return {
+      allItems: items,
+      portfolio: {
+        leagues: leagues.length,
+        needAttention: vals.filter((v) => v.status && v.status !== 'optimal' && v.status !== 'error').length,
+        injuries: vals.filter((v) => v.status === 'risk').length,
+        holes: vals.filter((v) => v.status === 'incomplete').length,
+        lineupsToSet: vals.filter((v) => v.status === 'unset').length,
+        tradeOffers: items.filter((i) => i.type === 'trade_offer').length,
+        waiversPending: items.filter((i) => i.type === 'waiver_pending').length,
+        actionItems: items.length,
+      },
+    };
+  }, [leagues, statuses]);
+
   const rows = useMemo(() => {
     const byType = {};
-    for (const t of (data && data.triage) || []) (byType[t.type] || (byType[t.type] = [])).push(t);
+    for (const t of allItems) (byType[t.type] || (byType[t.type] = [])).push(t);
     const out = [];
     for (const type of GROUP_ORDER) {
-      const items = byType[type];
-      if (!items || !items.length) continue;
-      out.push({ kind: 'header', type, count: items.length });
-      if (expanded.has(type)) for (const item of items) out.push({ kind: 'item', item });
+      const its = byType[type];
+      if (!its || !its.length) continue;
+      out.push({ kind: 'header', type, count: its.length });
+      if (expanded.has(type)) for (const item of its) out.push({ kind: 'item', item });
     }
     return out;
-  }, [data, expanded]);
+  }, [allItems, expanded]);
 
-  if (loading) {
+  if (booting) {
     return (
       <View style={[styles.container, styles.center]}>
         <ActivityIndicator color={colors.accent} size="large" />
@@ -79,14 +141,16 @@ export default function HomeScreen({ onOpenLineup, onOpenLeague, onOpenWaivers, 
     );
   }
 
-  const p = data && data.portfolio;
+  const loading = !!progress && progress.done < progress.total;
 
   return (
     <View style={styles.container}>
       <View style={styles.topbar}>
         <View>
           <Text style={styles.title}>Command Center</Text>
-          {data ? <Text style={styles.subtitle}>Week {data.week}</Text> : null}
+          <Text style={styles.subtitle}>
+            {loading ? `Updating ${progress.done}/${progress.total}…` : `${portfolio.leagues} leagues`}
+          </Text>
         </View>
         <Pressable onPress={onLogout} hitSlop={10}>
           <Text style={styles.logout}>Log out</Text>
@@ -95,16 +159,17 @@ export default function HomeScreen({ onOpenLineup, onOpenLeague, onOpenWaivers, 
 
       <FlatList
         data={rows}
-        keyExtractor={(r, i) => (r.kind === 'header' ? `h-${r.type}` : `i-${r.item.id}`)}
+        keyExtractor={(r) => (r.kind === 'header' ? `h-${r.type}` : `i-${r.item.id}`)}
         contentContainerStyle={styles.list}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.accent} />
-        }
+        refreshControl={<RefreshControl refreshing={false} onRefresh={refresh} tintColor={colors.accent} />}
         ListHeaderComponent={
           <View>
-            {p ? <Portfolio p={p} /> : null}
+            <Portfolio p={portfolio} />
             {error ? <Text style={styles.error}>{error}</Text> : null}
-            <Text style={styles.section}>Needs attention{p ? ` · ${p.actionItems}` : ''}</Text>
+            <Text style={styles.section}>
+              Needs attention · {portfolio.actionItems}
+              {loading ? '  ·  updating…' : ''}
+            </Text>
           </View>
         }
         renderItem={({ item: row }) =>
@@ -114,12 +179,18 @@ export default function HomeScreen({ onOpenLineup, onOpenLeague, onOpenWaivers, 
             <TriageRow item={row.item} onPress={() => handleAction(row.item)} />
           )
         }
-        ListEmptyComponent={<Text style={styles.clear}>🎉 Nothing needs you right now.</Text>}
+        ListEmptyComponent={
+          loading ? (
+            <View style={styles.center}><ActivityIndicator color={colors.accent} /></View>
+          ) : (
+            <Text style={styles.clear}>🎉 Nothing needs you right now.</Text>
+          )
+        }
         ListFooterComponent={
-          data && data.teams && data.teams.length ? (
+          leagues.length ? (
             <View>
-              <Text style={styles.section}>Your teams · {data.teams.length}</Text>
-              {data.teams.map((t) => (
+              <Text style={styles.section}>Your teams · {leagues.length}</Text>
+              {leagues.map((t) => (
                 <Pressable key={t.leagueId} style={({ pressed }) => [styles.teamRow, pressed && { opacity: 0.7 }]} onPress={() => onOpenLeague({ leagueId: t.leagueId, name: t.name })}>
                   <Text style={styles.teamName} numberOfLines={1}>{t.name}</Text>
                   <Text style={styles.teamChev}>›</Text>
@@ -176,9 +247,7 @@ function GroupHeader({ type, count, open, onPress }) {
     <Pressable style={({ pressed }) => [styles.groupHeader, pressed && { opacity: 0.7 }]} onPress={onPress}>
       <View style={[styles.dot, { backgroundColor: g.color }]} />
       <Text style={styles.groupLabel} numberOfLines={1}>{g.label}</Text>
-      <View style={styles.countPill}>
-        <Text style={styles.countText}>{count}</Text>
-      </View>
+      <View style={styles.countPill}><Text style={styles.countText}>{count}</Text></View>
       <Text style={styles.caret}>{open ? '⌄' : '›'}</Text>
     </Pressable>
   );
@@ -195,7 +264,7 @@ function TriageRow({ item, onPress }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 30 },
   topbar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8 },
   title: { color: colors.text, fontSize: 26, fontWeight: '900' },
   subtitle: { color: colors.textDim, fontSize: 13, marginTop: 2 },

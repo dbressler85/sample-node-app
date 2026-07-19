@@ -79,6 +79,12 @@ function assert(cond, msg) {
     );
     for (const t of home.triage.slice(0, 4)) console.log(`    [${t.severity}] ${t.leagueName}: ${t.title}`);
 
+    // Progressive per-league triage (drives instant + streamed Home loading).
+    const oneLeague = (await j(await fetch(`${base}/api/home/league/64097`, authed))).body;
+    assert(oneLeague.leagueId === '64097' && Array.isArray(oneLeague.items), 'per-league triage returns items');
+    assert(typeof oneLeague.status === 'string', 'per-league triage returns a status');
+    console.log(`✓ per-league triage: ${oneLeague.name} → ${oneLeague.status}, ${oneLeague.items.length} item(s)`);
+
     // Live scoreboard.
     const sb = (await j(await fetch(`${base}/api/scoreboard`, authed))).body;
     assert(sb.games.length === 3, 'scoreboard has all games');

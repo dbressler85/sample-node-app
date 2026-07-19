@@ -3,6 +3,7 @@ import { View, Text, Pressable, StyleSheet, StatusBar, ActivityIndicator, SafeAr
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import useAndroidBack from './src/useAndroidBack';
 import { setAuthLostHandler } from './src/api';
+import { clearAll as clearCache } from './src/cache';
 import LoginScreen from './src/screens/LoginScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import ScoresScreen from './src/screens/ScoresScreen';
@@ -42,6 +43,7 @@ export default function App() {
   useEffect(() => {
     setAuthLostHandler(async () => {
       await clearSession();
+      await clearCache();
       setAuthed(false);
       setTab('home');
       setOverlay(null);
@@ -68,6 +70,7 @@ export default function App() {
 
   async function handleLogout() {
     await clearSession();
+    await clearCache();
     setAuthed(false);
     setTab('home');
     setOverlay(null);
