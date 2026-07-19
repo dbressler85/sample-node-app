@@ -74,6 +74,15 @@ export default function ScoresScreen() {
             />
           }
           renderItem={({ item }) => <Game g={item} />}
+          ListEmptyComponent={
+            <View style={styles.emptyWrap}>
+              <Text style={styles.emptyTitle}>No live games right now</Text>
+              <Text style={styles.emptyText}>
+                The scoreboard lights up on game day. During the week and the offseason there's no live
+                scoring to show. Pull down to refresh.
+              </Text>
+            </View>
+          }
         />
       )}
     </View>
@@ -147,4 +156,7 @@ const styles = StyleSheet.create({
   wpFill: { height: 6, borderRadius: 3 },
   wpText: { color: colors.textDim, fontSize: 11, marginTop: 6, fontWeight: '600' },
   error: { color: colors.bad, textAlign: 'center' },
+  emptyWrap: { paddingHorizontal: 24, paddingTop: 60, alignItems: 'center' },
+  emptyTitle: { color: colors.text, fontSize: 17, fontWeight: '800', marginBottom: 8 },
+  emptyText: { color: colors.textDim, fontSize: 14, textAlign: 'center', lineHeight: 20 },
 });

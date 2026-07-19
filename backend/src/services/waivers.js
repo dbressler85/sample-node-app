@@ -71,7 +71,23 @@ async function loadFreeAgents(cookie, league, settings) {
   const ctx = ctxFor();
   const scoring = config.demoMode ? demo.scoring(league.leagueId) || {} : {};
   const statMap = config.demoMode ? demo.statProjections() : {};
-  const ids = config.demoMode ? demo.freeAgents(league.leagueId) : [];
+
+  let ids;
+  if (config.demoMode) {
+    ids = demo.freeAgents(league.leagueId);
+  } else {
+    // export?TYPE=freeAgents returns everyone not on a roster in this league.
+    try {
+      const res = await mfl.exportRequest('freeAgents', { host: league.host, cookie, L: league.leagueId });
+      const units = mfl.toArray(res && res.freeAgents && res.freeAgents.leagueUnit);
+      const players = units.flatMap((u) => mfl.toArray(u && u.player));
+      ids = players.map((p) => String(p.id)).slice(0, 300); // cap payload
+      console.log(`[freeAgents] league=${league.leagueId} total=${players.length} returned=${ids.length}`);
+    } catch (e) {
+      console.log(`[freeAgents] league=${league.leagueId} error=${e.message}`);
+      ids = [];
+    }
+  }
   return ids.map((id) => makeFreeAgent(id, byId, scoring, statMap, ctx, settings.system, settings));
 }
 

@@ -55,8 +55,9 @@ async function liveForLeague(cookie, league) {
   try {
     const res = await mfl.exportRequest('liveScoring', { host: league.host, cookie, L: league.leagueId });
     const franchises = mfl.toArray(res && res.liveScoring && res.liveScoring.franchise);
+    console.log(`[liveScoring] league=${league.leagueId} franchises=${franchises.length}`);
     const mine = franchises.find((f) => String(f.id) === league.franchiseId);
-    if (!mine) return null;
+    if (!mine) return null; // no live data (e.g. offseason / no games in progress)
     const opp = franchises.find((f) => String(f.id) === String(mine.opp_id));
     const toCard = (f) => ({
       score: Number(f && f.score) || 0,

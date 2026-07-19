@@ -1,0 +1,31 @@
+name: Keep backend warm
+
+# Render's free tier sleeps after ~15 min idle, causing slow cold starts.
+# This pings the health endpoint every ~13 min to keep it awake.
+#
+# One-time setup: add a repository *variable* (not secret) named BACKEND_URL
+# with your Render URL — Settings → Secrets and variables → Actions → Variables →
+# New repository variable → BACKEND_URL = https://<your-service>.onrender.com
+#
+# Note: GitHub's scheduled runs are best-effort and can be delayed a few minutes.
+# For rock-solid uptime, a dedicated pinger (e.g. UptimeRobot) or a paid Render
+# instance is more reliable — but this is free and usually good enough.
+
+on:
+  schedule:
+    - cron: '*/13 * * * *'
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping /api/health
+        run: |
+          URL="${{ vars.BACKEND_URL }}"
+          if [ -z "$URL" ]; then
+            echo "Set repository variable BACKEND_URL to your Render URL to enable keep-warm."
+            exit 0
+          fi
+          echo "Pinging $URL/api/health"
+          curl -sS --max-time 90 "$URL/api/health" || echo "ping failed (backend may be waking up)"
