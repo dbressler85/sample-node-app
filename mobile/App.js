@@ -133,6 +133,7 @@ export default function App() {
             onOpenTradeInbox={openTradeInbox}
             onOpenDraft={openDraft}
             onOpenDraftHub={openDraftHub}
+            onOpenPlayer={openPlayer}
             onLogout={handleLogout}
           />
         );

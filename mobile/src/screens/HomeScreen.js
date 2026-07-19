@@ -28,10 +28,11 @@ async function runPool(items, limit, worker) {
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, next));
 }
 
-export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpenWaivers, onOpenTrades, onOpenTradeInbox, onOpenDraft, onOpenDraftHub, onLogout }) {
+export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpenWaivers, onOpenTrades, onOpenTradeInbox, onOpenDraft, onOpenDraftHub, onOpenPlayer, onLogout }) {
   const [leagues, setLeagues] = useState([]);
   const [statuses, setStatuses] = useState({}); // leagueId -> { name, status, items }
   const [drafts, setDrafts] = useState([]); // active/scheduled drafts across leagues
+  const [news, setNews] = useState([]); // news touching your rostered players
   const [expanded, setExpanded] = useState(new Set(GROUP_ORDER.filter((t) => GROUPS[t].open)));
   const [progress, setProgress] = useState(null); // { done, total }
   const [error, setError] = useState(null);
@@ -65,6 +66,10 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
 
       // Drafts are cross-league and seasonal — fetch once and surface if any are active.
       api.drafts().then((d) => setDrafts((d.drafts || []).filter((x) => x.status && x.status !== 'none' && x.status !== 'complete'))).catch(() => {});
+
+      // News that touches your rostered players — the cross-league moat, surfaced
+      // on the command center (already ranked by severity × teams-you-start).
+      api.news().then((r) => setNews(r.news || [])).catch(() => {});
 
       setProgress({ done: 0, total: list.length });
       const collected = {};
@@ -165,6 +170,8 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
   // of the aggregate counts rather than a misleading run of zeroes. When we have
   // cached data, statuses are already complete, so numbers update in place.
   const summaryLoading = busy && !(leagues.length > 0 && leagues.every((l) => statuses[l.leagueId]));
+  // Top news touching your rostered players (already ranked severity × starters).
+  const topNews = news.filter((n) => n.affectedCount > 0).slice(0, 4);
 
   return (
     <View style={styles.container}>
@@ -232,6 +239,14 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
                 </View>
                 <Text style={styles.teamChev}>›</Text>
               </Pressable>
+            ) : null}
+            {topNews.length ? (
+              <View>
+                <Text style={styles.section}>News · your players</Text>
+                {topNews.map((n) => (
+                  <NewsRow key={n.id} n={n} onPress={() => n.player && n.player.id && onOpenPlayer && onOpenPlayer(n.player.id)} />
+                ))}
+              </View>
             ) : null}
             {error ? <Text style={styles.error}>{error}</Text> : null}
             <Text style={styles.section}>
@@ -369,6 +384,24 @@ function TriageRow({ item, onPress }) {
   );
 }
 
+function NewsRow({ n, onPress }) {
+  const sev = n.severity === 'high' ? colors.bad : n.severity === 'medium' ? colors.warn : colors.textDim;
+  const name = n.player && n.player.name ? n.player.name.split(',')[0] : null;
+  return (
+    <Pressable style={({ pressed }) => [styles.newsRow, pressed && { opacity: 0.7 }]} onPress={onPress}>
+      <View style={[styles.newsDot, { backgroundColor: sev }]} />
+      <View style={{ flex: 1 }}>
+        <Text style={styles.newsHead} numberOfLines={2}>{n.headline}</Text>
+        <Text style={styles.newsMeta} numberOfLines={1}>
+          {name ? `${name} · ` : ''}affects {n.affectedCount} team{n.affectedCount === 1 ? '' : 's'}
+          {n.startingCount ? <Text style={{ color: colors.warn, fontWeight: '700' }}>{` · starting in ${n.startingCount}`}</Text> : null}
+        </Text>
+      </View>
+      <Text style={styles.teamChev}>›</Text>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 30 },
@@ -405,6 +438,10 @@ const styles = StyleSheet.create({
   teamRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: 10 },
   teamName: { color: colors.text, fontSize: 15, fontWeight: '700', marginRight: 10 },
   teamSub: { color: colors.textDim, fontSize: 12, marginTop: 3 },
+  newsRow: { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: 8 },
+  newsDot: { width: 8, height: 8, borderRadius: 4, marginRight: 12, marginTop: 6 },
+  newsHead: { color: colors.text, fontSize: 14, fontWeight: '700', lineHeight: 19 },
+  newsMeta: { color: colors.textDim, fontSize: 12, marginTop: 4 },
   inboxRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 14, marginTop: 12 },
   inboxName: { color: colors.text, fontSize: 15, fontWeight: '800' },
   inboxSub: { color: colors.textDim, fontSize: 12, marginTop: 3 },
