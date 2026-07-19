@@ -494,6 +494,9 @@ async function submitLineup(cookie, token, league, starterIds, week) {
       FRANCHISE: league.franchiseId,
       STARTERS: starterIds.join(','),
     });
+    // The starter/bench split just changed — drop this league's cached roster so
+    // the re-read after applying reflects the new lineup instead of a stale one.
+    rosterService.invalidate(cookie, league.leagueId);
   }
   lineupStore.set(token, league.leagueId, starterIds);
 }

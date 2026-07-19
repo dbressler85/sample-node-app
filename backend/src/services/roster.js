@@ -11,7 +11,15 @@ const nflLib = require('../lib/nfl');
 const enrichmentLib = require('../lib/enrichment');
 const leagueFormat = require('../lib/leagueformat');
 const picksLib = require('../lib/picks');
+const { createMemo } = require('../lib/memo');
 const leaguesService = require('./leagues');
+
+// Assembling a roster means several MFL reads (roster, injuries, byes, picks) plus
+// enrichment and per-player availability work, and getRoster is called repeatedly
+// for the same league across one screen (lineups, on-deck, portfolio, trades all
+// pull it). Memoize the assembled result per (cookie, league) on the short TTL,
+// coalescing concurrent builds; writes to a league invalidate its entry.
+const rosterMemo = createMemo({ ttlMs: config.mflCacheTtlMs });
 
 // Attach dynasty context (age, value) and availability to a resolved player.
 function enrich(player, ctx) {
@@ -69,6 +77,19 @@ async function rawRoster(league, cookie) {
 }
 
 async function getRoster(cookie, leagueId) {
+  if (config.demoMode) return buildRoster(cookie, leagueId);
+  return rosterMemo.get(`${cookie}|${leagueId}`, () => buildRoster(cookie, leagueId));
+}
+
+// Drop the cached roster for a league after a write to it (lineup set, add/drop,
+// waiver processed), so the next read reflects the change. Also clears the raw MFL
+// reads for that league.
+function invalidate(cookie, leagueId) {
+  rosterMemo.invalidate(`${cookie}|${leagueId}`);
+  mfl.invalidateLeague(cookie, leagueId);
+}
+
+async function buildRoster(cookie, leagueId) {
   const league = await findLeague(cookie, leagueId);
   if (!league) {
     const err = new Error(`League ${leagueId} not found for this account`);
@@ -107,4 +128,4 @@ async function getRoster(cookie, leagueId) {
   return roster;
 }
 
-module.exports = { getRoster };
+module.exports = { getRoster, invalidate };
