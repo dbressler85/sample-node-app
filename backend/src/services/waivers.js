@@ -173,10 +173,14 @@ async function getBoard(cookie, token, leagueId, { position, sort } = {}) {
   const [byId, roster] = await Promise.all([playersLib.load(cookie), rosterService.getRoster(cookie, leagueId)]);
 
   let freeAgents = await loadFreeAgents(cookie, league, settings);
+  // Drop entities whose name didn't resolve (team defenses / non-player ids show
+  // up as "Player 0800" and clutter the live board).
+  if (!config.demoMode) freeAgents = freeAgents.filter((p) => p.name && !/^Player \d+$/.test(p.name));
   if (position) freeAgents = freeAgents.filter((p) => p.position === position);
 
   const SORT_KEYS = { projection: 'projection', trend: 'trend', ownership: 'ownership', value: 'value' };
-  const key = SORT_KEYS[sort] || 'value';
+  // Default sort: value in demo (we have values), projection in live (we don't).
+  const key = SORT_KEYS[sort] || (config.demoMode ? 'value' : 'projection');
   freeAgents.sort((a, b) => (b[key] || 0) - (a[key] || 0));
 
   const pending = store.list(token, leagueId, config.demoMode ? demo.pendingClaims(leagueId) : []).map((c) => claimView(c, byId));

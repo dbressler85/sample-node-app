@@ -110,7 +110,13 @@ export default function PlayersScreen({ onOpenPlayer }) {
                 keyExtractor={(p) => p.id}
                 contentContainerStyle={styles.list}
                 renderItem={({ item, index }) => <PlayerRow p={item} rank={index + 1} onPress={() => onOpenPlayer(item.id)} />}
-                ListEmptyComponent={<Center><ActivityIndicator color={colors.accent} /></Center>}
+                ListEmptyComponent={
+                  !rankings ? (
+                    <Center><ActivityIndicator color={colors.accent} /></Center>
+                  ) : (
+                    <Text style={styles.note}>{rankings.note || 'No players to rank.'}</Text>
+                  )
+                }
               />
             </>
           ) : tab === 'mine' ? (
@@ -127,7 +133,13 @@ export default function PlayersScreen({ onOpenPlayer }) {
               keyExtractor={(n) => n.id}
               contentContainerStyle={styles.list}
               renderItem={({ item }) => <NewsRow n={item} onPress={() => item.player.id && onOpenPlayer(item.player.id)} />}
-              ListEmptyComponent={<Center><ActivityIndicator color={colors.accent} /></Center>}
+              ListEmptyComponent={
+                !news ? (
+                  <Center><ActivityIndicator color={colors.accent} /></Center>
+                ) : (
+                  <Text style={styles.note}>No player news right now. (Live news isn’t wired yet.)</Text>
+                )
+              }
             />
           )}
         </>
@@ -213,4 +225,5 @@ const styles = StyleSheet.create({
   newsHead: { color: colors.text, fontSize: 14, fontWeight: '700' },
   chev: { color: colors.textDim, fontSize: 20, marginLeft: 8 },
   empty: { color: colors.textDim, textAlign: 'center', marginTop: 24 },
+  note: { color: colors.textDim, textAlign: 'center', marginTop: 40, marginHorizontal: 28, fontSize: 14, lineHeight: 20 },
 });

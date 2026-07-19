@@ -156,13 +156,16 @@ function buildView({ league, week, requirements, pool, starterIds, franchiseName
     warnings.push({ playerId: null, name: `No healthy player for ${optimalEmpty} slot(s)`, position: null, status: 'INCOMPLETE' });
   }
 
-  // Distinguish a genuine hole (no eligible player can fill a slot -> waivers)
-  // from a lineup that's simply not set yet (roster can fill it -> just set it).
-  const realHole = optimalEmpty > 0;
+  // Classify carefully so we don't cry "hole" at an unset lineup:
+  //  - nothing set at all (offseason / not submitted) -> 'unset' (just set it),
+  //    even if some specialty slot (K/DEF/IDP) can't currently be filled.
+  //  - lineup IS set but a slot has no eligible player -> 'incomplete' (waivers).
+  const currentSet = current.filter(Boolean).length;
   let status;
   if (warnings.some((w) => w.playerId)) status = 'risk';
-  else if (realHole) status = 'incomplete'; // needs a pickup
-  else if (currentEmpty > 0) status = 'unset'; // fillable; lineup just isn't set
+  else if (currentSet === 0) status = 'unset';
+  else if (optimalEmpty > 0) status = 'incomplete'; // needs a pickup
+  else if (currentEmpty > 0) status = 'unset'; // partially set, fillable
   else if (delta > 0.05) status = 'suboptimal';
   else status = 'optimal';
 
@@ -252,7 +255,10 @@ async function viewForLeague(cookie, token, league, requestedMode, { light = fal
     pool,
     starterIds: currentStarterIds(token, league, rosterStarterIds),
     franchiseName: roster.franchiseName,
-    format: scoringLib.describe(scoring),
+    // Only show a scoring label when we actually parsed the scoring (demo). In
+    // live we rely on MFL's already-format-aware projectedScores, so don't
+    // fabricate a "Standard · 4pt PaTD" label.
+    format: config.demoMode ? scoringLib.describe(scoring) : null,
     matchup: loadMatchup(league),
     requestedMode,
   });
@@ -305,7 +311,12 @@ async function getOverview(cookie, token, mode, { light = false } = {}) {
       total: views.length,
       needAttention: actionable.length,
       risky: views.filter((v) => v.status === 'risk').length,
-      pointsAvailable: scoringLib.round1(actionable.reduce((s, v) => s + (v.delta || 0), 0)),
+      unset: views.filter((v) => v.status === 'unset').length,
+      // Only "suboptimal" leagues have real points sitting on the bench; an unset
+      // lineup's delta is its whole projection, which isn't "left on the table".
+      pointsAvailable: scoringLib.round1(
+        views.filter((v) => v.status === 'suboptimal').reduce((s, v) => s + (v.delta || 0), 0)
+      ),
     },
   };
 }
