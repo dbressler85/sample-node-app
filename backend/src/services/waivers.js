@@ -39,17 +39,44 @@ async function findLeague(cookie, leagueId) {
   return league;
 }
 
-function loadSettings(league) {
+async function loadSettings(league, cookie) {
   if (config.demoMode) return demo.waiverSettings(league.leagueId) || { system: 'free', rosterSize: 99 };
-  return { system: 'free', rosterSize: 99 }; // live settings parsing is a follow-up
+  // Parse the live league settings (roster size, FAAB budget/system) best-effort.
+  try {
+    const res = await mfl.exportRequest('league', { host: league.host, cookie, L: league.leagueId });
+    const lg = (res && res.league) || {};
+    const franchises = mfl.toArray(lg.franchises && lg.franchises.franchise);
+    const mine = franchises.find((f) => String(f.id) === league.franchiseId);
+    const faabRemaining = mine && mine.bbidAvailableBalance != null && mine.bbidAvailableBalance !== ''
+      ? Number(mine.bbidAvailableBalance)
+      : null;
+    const usesFaab = faabRemaining != null || lg.bbidSeasonWaivers === '1' || lg.bbidWaivers === '1';
+    const settings = {
+      system: usesFaab ? 'faab' : 'fcfs',
+      rosterSize: parseInt(lg.rosterSize, 10) || 99,
+      faabRemaining,
+      faabBudget: null,
+      minBid: parseInt(lg.minBid, 10) || 1,
+      clearTime: null,
+    };
+    console.log(`[waiverSettings] league=${league.leagueId} system=${settings.system} rosterSize=${settings.rosterSize} faab=${faabRemaining}`);
+    return settings;
+  } catch (e) {
+    console.log(`[waiverSettings] league=${league.leagueId} error=${e.message}`);
+    return { system: 'free', rosterSize: 99 };
+  }
 }
 
 // Enrich a free-agent id into a board entry (value, projection, trend, status).
-function makeFreeAgent(id, byId, scoring, statMap, ctx, system, settings) {
+function makeFreeAgent(id, byId, scoring, statMap, ctx, system, settings, liveProj) {
   const base = playersLib.resolve(byId, id);
   const d = config.demoMode ? demo.dynasty(id) : null;
   const stat = statMap[id];
-  const projection = stat ? scoringLib.projectPoints(stat, base.position, scoring) : null;
+  const projection = liveProj && liveProj.has(id)
+    ? liveProj.get(id)
+    : stat
+    ? scoringLib.projectPoints(stat, base.position, scoring)
+    : null;
   return {
     id: base.id,
     name: base.name,
@@ -73,6 +100,7 @@ async function loadFreeAgents(cookie, league, settings) {
   const statMap = config.demoMode ? demo.statProjections() : {};
 
   let ids;
+  let liveProj = null;
   if (config.demoMode) {
     ids = demo.freeAgents(league.leagueId);
   } else {
@@ -87,8 +115,16 @@ async function loadFreeAgents(cookie, league, settings) {
       console.log(`[freeAgents] league=${league.leagueId} error=${e.message}`);
       ids = [];
     }
+    // Format-aware projections for the board (MFL projectedScores).
+    try {
+      const pr = await mfl.exportRequest('projectedScores', { host: league.host, cookie, L: league.leagueId });
+      const list = mfl.toArray(pr && pr.projectedScores && pr.projectedScores.playerScore);
+      liveProj = new Map(list.map((p) => [String(p.id), Math.round((Number(p.score) || 0) * 10) / 10]));
+    } catch (e) {
+      /* projections are optional */
+    }
   }
-  return ids.map((id) => makeFreeAgent(id, byId, scoring, statMap, ctx, settings.system, settings));
+  return ids.map((id) => makeFreeAgent(id, byId, scoring, statMap, ctx, settings.system, settings, liveProj));
 }
 
 function activeCount(roster) {
@@ -133,7 +169,7 @@ function claimView(claim, byId) {
 
 async function getBoard(cookie, token, leagueId, { position, sort } = {}) {
   const league = await findLeague(cookie, leagueId);
-  const settings = loadSettings(league);
+  const settings = await loadSettings(league, cookie);
   const [byId, roster] = await Promise.all([playersLib.load(cookie), rosterService.getRoster(cookie, leagueId)]);
 
   let freeAgents = await loadFreeAgents(cookie, league, settings);
@@ -171,7 +207,7 @@ async function getBoard(cookie, token, leagueId, { position, sort } = {}) {
 // Build a validated claim preview (also fills in suggested drop/bid).
 async function preview(cookie, token, leagueId, payload) {
   const league = await findLeague(cookie, leagueId);
-  const settings = loadSettings(league);
+  const settings = await loadSettings(league, cookie);
   const [byId, roster] = await Promise.all([playersLib.load(cookie), rosterService.getRoster(cookie, leagueId)]);
   const available = new Set(config.demoMode ? demo.freeAgents(leagueId) : []);
   const rosterIds = new Set([...roster.starters, ...roster.bench, ...roster.ir, ...roster.taxi].map((p) => p.id));
@@ -281,7 +317,7 @@ async function getBestAvailable(cookie, token) {
   const map = new Map();
 
   for (const league of leagues) {
-    const settings = loadSettings(league);
+    const settings = await loadSettings(league, cookie);
     const scoring = config.demoMode ? demo.scoring(league.leagueId) || {} : {};
     const statMap = config.demoMode ? demo.statProjections() : {};
     for (const id of config.demoMode ? demo.freeAgents(league.leagueId) : []) {
