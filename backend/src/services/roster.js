@@ -76,7 +76,7 @@ async function getRoster(cookie, leagueId) {
     throw err;
   }
 
-  const week = config.demoMode ? demo.week() : Number(process.env.MFL_WEEK) || null;
+  const week = config.demoMode ? demo.week() : await nflLib.currentWeek(cookie);
   const fmt = await leagueFormat.format(cookie, league);
   const [raw, byId, statusMap, byeMap, picks, enr] = await Promise.all([
     rawRoster(league, cookie),

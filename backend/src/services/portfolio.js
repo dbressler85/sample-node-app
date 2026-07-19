@@ -18,6 +18,7 @@ const playersLib = require('../lib/players');
 const leaguesService = require('./leagues');
 const lineupsService = require('./lineups');
 const rosterService = require('./roster');
+const nflLib = require('../lib/nfl');
 const waiverStore = require('../store/waivers');
 
 const SEV = { high: 3, medium: 2, low: 1 };
@@ -25,11 +26,11 @@ const SEV = { high: 3, medium: 2, low: 1 };
 // In the NFL offseason there are no games, so lineup triage is noise and the
 // dashboard should pivot to dynasty concerns (value, outlook) + trades/waivers,
 // which run all year. Phase is derived from whether there's an active week.
-function currentWeek() {
-  return config.demoMode ? demo.week() : Number(process.env.MFL_WEEK) || null;
+async function currentWeek(cookie) {
+  return config.demoMode ? demo.week() : nflLib.currentWeek(cookie);
 }
-function seasonPhase() {
-  const w = currentWeek();
+async function seasonPhase(cookie) {
+  const w = await currentWeek(cookie);
   return w && w >= 1 && w <= 18 ? 'in_season' : 'offseason';
 }
 
@@ -124,7 +125,7 @@ async function getLeagueTriage(cookie, token, leagueId) {
     err.status = 404;
     throw err;
   }
-  const phase = seasonPhase();
+  const phase = await seasonPhase(cookie);
   const items = [];
   let status = 'offseason';
   let dynasty = null;
@@ -143,7 +144,7 @@ async function getLeagueTriage(cookie, token, leagueId) {
 }
 
 async function getHome(cookie, token) {
-  const phase = seasonPhase();
+  const phase = await seasonPhase(cookie);
   const leagues = await leaguesService.listLeagues(cookie);
   const items = [];
   const counts = { injuries: 0, holes: 0, lineupsToSet: 0 };
@@ -184,7 +185,7 @@ async function getHome(cookie, token) {
   const coreAges = dynastyList.map((d) => d.coreAge).filter((a) => a != null);
   return {
     phase,
-    week: currentWeek(),
+    week: await currentWeek(cookie),
     portfolio: {
       leagues: leagues.length,
       needAttention: phase === 'in_season' ? counts.injuries + counts.holes + counts.lineupsToSet : items.length,

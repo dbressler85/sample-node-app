@@ -16,18 +16,23 @@ const mfl = require('../lib/mfl');
 const scoringLib = require('../lib/scoring');
 const availabilityLib = require('../lib/availability');
 const enrichmentLib = require('../lib/enrichment');
+const nflLib = require('../lib/nfl');
 const leagueFormat = require('../lib/leagueformat');
 const leaguesService = require('./leagues');
 const rosterService = require('./roster');
 const playersLib = require('../lib/players');
 const store = require('../store/waivers');
 
-function ctxFor() {
-  return {
-    week: config.demoMode ? demo.week() : Number(process.env.MFL_WEEK) || null,
-    statusMap: config.demoMode ? demo.playerStatus() : {},
-    byeMap: config.demoMode ? demo.byes() : {},
-  };
+// Availability context (current week + injury/bye maps). In live these are now
+// really fetched from MFL so free agents are badged OUT/bye correctly, instead
+// of everyone showing as ACTIVE.
+async function ctxFor(cookie) {
+  if (config.demoMode) {
+    return { week: demo.week(), statusMap: demo.playerStatus(), byeMap: demo.byes() };
+  }
+  const week = await nflLib.currentWeek(cookie);
+  const [statusMap, byeMap] = await Promise.all([nflLib.injuryMap(cookie, week), nflLib.byeMap(cookie, week)]);
+  return { week, statusMap, byeMap };
 }
 
 async function findLeague(cookie, leagueId) {
@@ -108,8 +113,11 @@ async function freeAgentIds(cookie, league) {
 }
 
 async function loadFreeAgents(cookie, league, settings) {
-  const [byId, enr] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(await leagueFormat.format(cookie, league), cookie)]);
-  const ctx = ctxFor();
+  const [byId, enr, ctx] = await Promise.all([
+    playersLib.load(cookie),
+    enrichmentLib.snapshot(await leagueFormat.format(cookie, league), cookie),
+    ctxFor(cookie),
+  ]);
   const scoring = config.demoMode ? demo.scoring(league.leagueId) || {} : {};
   const statMap = config.demoMode ? demo.statProjections() : {};
 
@@ -333,8 +341,7 @@ async function cancel(cookie, token, leagueId, claimId) {
 // annotated with which leagues he's available in and under what system.
 async function getBestAvailable(cookie, token) {
   const leagues = await leaguesService.listLeagues(cookie);
-  const [byId, enr] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(undefined, cookie)]);
-  const ctx = ctxFor();
+  const [byId, enr, ctx] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(undefined, cookie), ctxFor(cookie)]);
   const map = new Map();
 
   for (const league of leagues) {
