@@ -13,6 +13,7 @@ import {
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import AvailabilityBadge from '../components/AvailabilityBadge';
+import useAndroidBack from '../useAndroidBack';
 
 const SORTS = [
   { key: 'value', label: 'Value' },
@@ -33,6 +34,15 @@ export default function WaiversScreen({ initialLeagueId, initialPosition }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [claim, setClaim] = useState(null); // {leagueId, addId}
+
+  // Back closes the claim sheet first.
+  useAndroidBack(useCallback(() => {
+    if (claim) {
+      setClaim(null);
+      return true;
+    }
+    return false;
+  }, [claim]));
 
   // Bootstrap league list.
   useEffect(() => {

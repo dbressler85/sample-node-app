@@ -12,6 +12,7 @@ import {
 import { api } from '../api';
 import { colors } from '../theme';
 import AvailabilityBadge from '../components/AvailabilityBadge';
+import useAndroidBack from '../useAndroidBack';
 
 const STATUS = {
   risk: { label: 'Risk', color: colors.bad },
@@ -36,6 +37,15 @@ export default function LineupsScreen({ onOpenLineup }) {
   const [plan, setPlan] = useState(null); // review sheet
   const [planning, setPlanning] = useState(false);
   const [applying, setApplying] = useState(false);
+
+  // Back closes the review sheet first.
+  useAndroidBack(useCallback(() => {
+    if (plan) {
+      setPlan(null);
+      return true;
+    }
+    return false;
+  }, [plan]));
 
   const load = useCallback(async () => {
     setError(null);

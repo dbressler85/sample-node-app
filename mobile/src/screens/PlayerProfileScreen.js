@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, Pressable, ActivityIndicator, Alert } from 'react-native';
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import AvailabilityBadge from '../components/AvailabilityBadge';
+import useAndroidBack from '../useAndroidBack';
 
 const RELATION = {
   rostered: { label: 'Rostered', color: colors.good },
@@ -29,6 +30,15 @@ export default function PlayerProfileScreen({ playerId, onBack }) {
   useEffect(() => {
     load();
   }, [playerId]);
+
+  // Back closes an open action sheet before leaving the profile.
+  useAndroidBack(useCallback(() => {
+    if (sheet) {
+      setSheet(null);
+      return true;
+    }
+    return false;
+  }, [sheet]));
 
   if (error) {
     return (
