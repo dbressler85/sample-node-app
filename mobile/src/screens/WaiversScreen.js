@@ -392,10 +392,10 @@ function BestView({ best, onPick }) {
       contentContainerStyle={styles.list}
       ListEmptyComponent={
         <View style={styles.emptyWrap}>
-          <Text style={styles.emptyTitle}>Nothing to show yet</Text>
+          <Text style={styles.emptyTitle}>No cross-league free agents</Text>
           <Text style={styles.emptyText}>
-            The cross-league “best available” view isn’t wired for live leagues yet. Open a league
-            from the Leagues tab for now.
+            Nothing notable is available across your leagues right now. Open a league from the
+            Leagues tab to see its full board.
           </Text>
         </View>
       }

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, StatusBar, ActivityIndicator, SafeAreaView, Platform } from 'react-native';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import useAndroidBack from './src/useAndroidBack';
-import { setAuthLostHandler } from './src/api';
+import { api, setAuthLostHandler } from './src/api';
 import { clearAll as clearCache } from './src/cache';
 import LoginScreen from './src/screens/LoginScreen';
 import HomeScreen from './src/screens/HomeScreen';
@@ -31,6 +31,7 @@ const TABS = [
 export default function App() {
   const [booting, setBooting] = useState(true);
   const [authed, setAuthed] = useState(false);
+  const [demoMode, setDemoMode] = useState(false);
   const [tab, setTab] = useState('home');
   // Overlays form a stack so back returns to the previous screen (e.g. Trades or
   // Draft opened from a roster returns to that roster, not Home).
@@ -45,6 +46,7 @@ export default function App() {
     (async () => {
       const token = await loadSession();
       setAuthed(!!token);
+      if (token) api.health().then((h) => setDemoMode(!!h.demoMode)).catch(() => {});
       setBooting(false);
     })();
   }, []);
@@ -119,6 +121,7 @@ export default function App() {
       default:
         return (
           <HomeScreen
+            demoMode={demoMode}
             onOpenLineup={openLineup}
             onOpenLeague={openRoster}
             onOpenWaivers={(league) => openWaivers({ leagueId: league.leagueId, position: league.position })}
@@ -138,7 +141,16 @@ export default function App() {
         </View>
       );
     }
-    if (!authed) return <LoginScreen onLoggedIn={() => setAuthed(true)} />;
+    if (!authed) {
+      return (
+        <LoginScreen
+          onLoggedIn={(info) => {
+            if (info && typeof info.demoMode === 'boolean') setDemoMode(info.demoMode);
+            setAuthed(true);
+          }}
+        />
+      );
+    }
 
     if (overlay && overlay.type === 'roster') {
       return <RosterScreen league={overlay.league} onBack={popOverlay} onOpenTrades={openTrades} onOpenDraft={openDraft} />;

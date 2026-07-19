@@ -28,7 +28,7 @@ async function runPool(items, limit, worker) {
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, next));
 }
 
-export default function HomeScreen({ onOpenLineup, onOpenLeague, onOpenWaivers, onOpenTrades, onOpenDraft, onLogout }) {
+export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpenWaivers, onOpenTrades, onOpenDraft, onLogout }) {
   const [leagues, setLeagues] = useState([]);
   const [statuses, setStatuses] = useState({}); // leagueId -> { name, status, items }
   const [drafts, setDrafts] = useState([]); // active/scheduled drafts across leagues
@@ -174,7 +174,7 @@ export default function HomeScreen({ onOpenLineup, onOpenLeague, onOpenWaivers, 
           <Text style={styles.subtitle}>
             {loading
               ? `Updating ${progress.done}/${progress.total}…`
-              : `${portfolio.leagues} leagues${phase === 'offseason' ? ' · Offseason' : ''}`}
+              : `${portfolio.leagues} leagues${phase === 'offseason' ? ' · Offseason' : ''}${demoMode ? ' · DEMO' : ''}`}
           </Text>
         </View>
         <Pressable onPress={onLogout} hitSlop={10}>

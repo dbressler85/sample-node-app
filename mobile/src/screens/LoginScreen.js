@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -19,6 +19,13 @@ export default function LoginScreen({ onLoggedIn }) {
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  // Ask the backend whether it's in demo mode, so the hint is honest in a live
+  // deploy instead of always claiming any credentials work.
+  const [demoMode, setDemoMode] = useState(null); // null = unknown yet
+
+  useEffect(() => {
+    api.health().then((h) => setDemoMode(!!h.demoMode)).catch(() => setDemoMode(null));
+  }, []);
 
   async function submit() {
     setBusy(true);
@@ -46,6 +53,12 @@ export default function LoginScreen({ onLoggedIn }) {
         <Text style={styles.brandTop}>DYNASTY</Text>
         <Text style={styles.brandMain}>Central</Text>
         <Text style={styles.tagline}>Many leagues, one hub.</Text>
+
+        {demoMode ? (
+          <View style={styles.demoPill}>
+            <Text style={styles.demoPillText}>DEMO MODE</Text>
+          </View>
+        ) : null}
 
         <TextInput
           style={styles.input}
@@ -76,8 +89,10 @@ export default function LoginScreen({ onLoggedIn }) {
         </Pressable>
 
         <Text style={styles.hint}>
-          In demo mode any username/password works. Your credentials go only to your own backend, which
-          logs into MFL on your behalf.
+          {demoMode
+            ? 'Demo mode — any username/password works. '
+            : 'Enter your MyFantasyLeague username and password. '}
+          Your credentials go only to your own backend, which logs into MFL on your behalf.
         </Text>
       </View>
     </KeyboardAvoidingView>
@@ -91,6 +106,8 @@ const styles = StyleSheet.create({
   brandTop: { color: colors.textDim, fontSize: 13, fontWeight: '700', letterSpacing: 5, textAlign: 'center', marginLeft: 5 },
   brandMain: { color: colors.text, fontSize: 40, fontWeight: '900', textAlign: 'center', letterSpacing: -1, marginTop: 2 },
   tagline: { color: colors.textDim, fontSize: 14, textAlign: 'center', marginTop: 8, marginBottom: 32 },
+  demoPill: { alignSelf: 'center', borderWidth: 1, borderColor: colors.gold, borderRadius: 6, paddingHorizontal: 10, paddingVertical: 3, marginBottom: 18 },
+  demoPillText: { color: colors.gold, fontSize: 11, fontWeight: '900', letterSpacing: 1 },
   input: {
     backgroundColor: colors.card,
     borderColor: colors.border,

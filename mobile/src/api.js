@@ -53,12 +53,12 @@ export const api = {
   login: (username, password) =>
     request('/api/auth/login', { method: 'POST', body: { username, password } }),
   logout: () => request('/api/auth/logout', { method: 'POST' }),
-  dashboard: () => request('/api/dashboard'),
+  health: () => request('/api/health'),
   leaguesList: () => request('/api/leagues'),
   roster: (leagueId) => request(`/api/leagues/${leagueId}/roster`),
 
-  // Command center (M1.5)
-  home: () => request('/api/home'),
+  // Command center (M1.5) — the Home screen composes from leaguesList +
+  // per-league leagueTriage (progressive load), not a single /api/home call.
   leagueTriage: (leagueId) => request(`/api/home/league/${leagueId}`),
   scoreboard: () => request('/api/scoreboard'),
   exposure: () => request('/api/players/exposure'),
