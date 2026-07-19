@@ -1,24 +1,59 @@
 # One-click deploy for the Dynasty Central backend.
 #
 # In Render: New → Blueprint → connect this repo. Render reads this file and
-# stands up the backend as a free web service. It boots in DEMO mode with zero
-# config, so no secrets are required to try it.
+# stands up the backend. It boots in DEMO mode with zero config, so no secrets
+# are required to try it.
 #
 # After deploy you'll get a public URL like https://dynasty-central-backend.onrender.com
 # Verify it at  <url>/api/health  → {"ok":true,"demoMode":true,...}
 # Then point the mobile app at that URL (see mobile/README.md / the workflow).
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# STAYING LOGGED IN / PRODUCTION NOTES
+#
+# The FREE plan sleeps after ~15 min idle and its filesystem is wiped on every
+# restart/redeploy. On wake the process starts fresh with no in-memory sessions,
+# so you get logged out — and the push-notification scheduler isn't running while
+# it's asleep. For a real, always-logged-in experience:
+#
+#   1. Change `plan: free` → `plan: starter`  (always-on, no idle sleep).
+#   2. Uncomment the `disk:` block and the `DATA_DIR` env var below (a Render Disk
+#      is only available on paid plans). This gives the app a persistent path.
+#   3. Keep the `SESSION_SECRET` var below (already set to auto-generate). With a
+#      secret + a durable DATA_DIR, sessions are encrypted at rest and restored on
+#      boot, so restarts/redeploys don't log anyone out.
+#
+# Free-tier stopgap (no cost): point an uptime pinger (UptimeRobot, cron-job.org)
+# at <url>/api/health every ~10 min to keep it awake. That preserves in-memory
+# sessions between deploys and lets the scheduler run — but a redeploy still
+# resets them. The paid plan + disk is the robust fix.
+# ─────────────────────────────────────────────────────────────────────────────
 services:
   - type: web
     name: dynasty-central-backend
     runtime: node
-    plan: free
+    plan: free # → change to `starter` for always-on + a persistent disk (see notes above)
     rootDir: backend
     buildCommand: npm install
     startCommand: npm start
     healthCheckPath: /api/health
     autoDeploy: true
+    # Persistent storage for sessions + app state. Requires a paid plan; uncomment
+    # together with the DATA_DIR env var below.
+    # disk:
+    #   name: dynasty-data
+    #   mountPath: /var/data
+    #   sizeGB: 1
     envVars:
       - key: NODE_VERSION
         value: "20"
       - key: MFL_DEMO_MODE
         value: "true"
+      # Encrypts persisted sessions at rest. Auto-generated & kept stable by Render;
+      # needed (with DATA_DIR on a disk) to keep users logged in across restarts.
+      - key: SESSION_SECRET
+        generateValue: true
+      # Uncomment together with the `disk:` block above so durable state lands on
+      # the mounted disk instead of the ephemeral filesystem.
+      # - key: DATA_DIR
+      #   value: /var/data

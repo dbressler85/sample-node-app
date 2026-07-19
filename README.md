@@ -62,8 +62,29 @@ Two things must be online: the backend (a public URL) and the app (an installed 
 4. **Install.** Open the link on your phone → allow "install unknown apps" →
    install → open → log in (any username/password works in demo).
 
-Every step is doable from the phone's browser. Note: Render's free tier sleeps when
-idle, so the first request after a while takes ~30s to wake.
+Every step is doable from the phone's browser.
+
+### Staying logged in (Render notes)
+
+Render's **free** plan sleeps after ~15 min idle and wipes its filesystem on every
+restart, so the first request after a while takes ~30s to wake — and because the
+in-memory sessions are gone on wake, **you get logged out** (and the push scheduler
+isn't running while it's asleep). The app no longer logs you out on a transient
+wake blip, but once the backend has actually restarted, the old token is invalid.
+
+To stay logged in for real (and keep push notifications working), make it always-on
+with durable storage — all wired in [`render.yaml`](render.yaml):
+
+1. Set the service to **`plan: starter`** (always-on, no idle sleep).
+2. Add a **Render Disk** (uncomment the `disk:` block, mount `/var/data`) and set
+   **`DATA_DIR=/var/data`** so state lands on the disk, not the ephemeral filesystem.
+3. Keep **`SESSION_SECRET`** (auto-generated in the blueprint) — with a secret + a
+   durable `DATA_DIR`, sessions are **encrypted at rest** and restored on boot, so
+   restarts and redeploys don't log anyone out.
+
+Free-tier stopgap (no cost): point an uptime pinger (UptimeRobot / cron-job.org) at
+`<url>/api/health` every ~10 min to keep it awake. That preserves sessions between
+deploys, but a redeploy still resets them — the paid plan + disk is the robust fix.
 
 ## Roadmap
 
