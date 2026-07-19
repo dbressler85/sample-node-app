@@ -98,14 +98,16 @@ async function buildRoster(cookie, leagueId) {
   }
 
   const week = config.demoMode ? demo.week() : await nflLib.currentWeek(cookie);
-  const fmt = await leagueFormat.format(cookie, league);
+  // Chain format -> snapshot inside the Promise.all so format's league/rules reads
+  // (on a cold cache) overlap the roster/injury/bye/picks reads instead of running
+  // serially ahead of them.
   const [raw, byId, statusMap, byeMap, picks, enr] = await Promise.all([
     rawRoster(league, cookie),
     players.load(cookie),
     config.demoMode ? Promise.resolve(demo.playerStatus()) : nflLib.injuryMap(cookie, week),
     config.demoMode ? Promise.resolve(demo.byes()) : nflLib.byeMap(cookie, week),
     picksLib.franchisePicks(cookie, league).then((list) => list.map((p) => p.label)),
-    enrichmentLib.snapshot(fmt, cookie),
+    leagueFormat.format(cookie, league).then((fmt) => enrichmentLib.snapshot(fmt, cookie)),
   ]);
   const empty = { starters: [], bench: [], ir: [], taxi: [] };
   const src = raw || empty;

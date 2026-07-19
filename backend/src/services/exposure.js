@@ -25,39 +25,40 @@ async function gather(cookie) {
   return { totalLeagues: leagues.length, rosters };
 }
 
-function bucketOf(roster, id) {
-  if (roster.starters.some((p) => p.id === id)) return 'starter';
-  if (roster.bench.some((p) => p.id === id)) return 'bench';
-  if (roster.ir.some((p) => p.id === id)) return 'ir';
-  return 'taxi';
-}
-
 async function getExposure(cookie) {
   const { totalLeagues, rosters } = await gather(cookie);
   const map = new Map(); // playerId -> aggregate record
 
   for (const { league, roster } of rosters) {
-    const all = [...roster.starters, ...roster.bench, ...roster.ir, ...roster.taxi];
-    const startingSet = new Set(roster.starters.map((p) => p.id));
-    for (const p of all) {
-      if (!map.has(p.id)) {
-        map.set(p.id, {
-          id: p.id,
-          name: p.name,
-          position: p.position,
-          team: p.team,
-          age: p.age,
-          value: p.value,
-          availability: p.availability,
-          leagues: [],
+    // Iterate each bucket with its label so we know a player's bucket directly,
+    // instead of re-scanning all four arrays per player (was O(rosterSize^2)).
+    const buckets = [
+      ['starter', roster.starters],
+      ['bench', roster.bench],
+      ['ir', roster.ir],
+      ['taxi', roster.taxi],
+    ];
+    for (const [bucket, list] of buckets) {
+      for (const p of list) {
+        if (!map.has(p.id)) {
+          map.set(p.id, {
+            id: p.id,
+            name: p.name,
+            position: p.position,
+            team: p.team,
+            age: p.age,
+            value: p.value,
+            availability: p.availability,
+            leagues: [],
+          });
+        }
+        map.get(p.id).leagues.push({
+          leagueId: league.leagueId,
+          name: league.name,
+          starting: bucket === 'starter',
+          bucket,
         });
       }
-      map.get(p.id).leagues.push({
-        leagueId: league.leagueId,
-        name: league.name,
-        starting: startingSet.has(p.id),
-        bucket: bucketOf(roster, p.id),
-      });
     }
   }
 

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, FlatList, RefreshControl, ActivityIndicator, Alert } from 'react-native';
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
@@ -51,9 +51,13 @@ export default function TradeInboxScreen({ onBack, onOpenLeague }) {
     }
   }
 
-  // Best deals first: favorable → fair → unfavorable, then by net value.
-  const offers = (data && data.offers ? [...data.offers] : []).sort(
-    (a, b) => (VRANK[a.analysis.verdict] - VRANK[b.analysis.verdict]) || (b.analysis.net - a.analysis.net)
+  // Best deals first: favorable → fair → unfavorable, then by net value. Memoized
+  // so the sort doesn't re-run on every unrelated re-render (busy/refresh flips).
+  const offers = useMemo(
+    () => (data && data.offers ? [...data.offers] : []).sort(
+      (a, b) => (VRANK[a.analysis.verdict] - VRANK[b.analysis.verdict]) || (b.analysis.net - a.analysis.net)
+    ),
+    [data]
   );
   const summary = data && data.summary;
 

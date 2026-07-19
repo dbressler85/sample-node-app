@@ -88,6 +88,10 @@ deploys, but a redeploy still resets them — the paid plan + disk is the robust
 
 ## Roadmap
 
+> Milestone history below. For the **current backlog** — remaining features,
+> performance/caching follow-ups, data limitations, and hardening/ops — see
+> [`ROADMAP.md`](ROADMAP.md).
+
 - [x] **M1 — Dashboard (read-only):** all leagues, matchups, live scores, standings, rosters
 - [x] **M1.5 — Command Center:** portfolio roll-up + cross-league triage queue, live scoreboard (players-yet-to-play + win probability), player-exposure view, news→impact mapping, and dynasty roster context (age/value/picks)
 - [x] **M2 — Lineups:** format-aware optimizer (per-league PPR / TE-premium / pass-TD scoring), per-league editor, and one-tap "Set All Lineups" (`import?TYPE=lineup`)

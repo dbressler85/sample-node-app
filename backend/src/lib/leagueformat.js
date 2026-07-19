@@ -8,6 +8,7 @@ const config = require('../config');
 const demo = require('../demo/fixtures');
 const mfl = require('./mfl');
 const playersLib = require('./players');
+const { createMemo } = require('./memo');
 
 // A readable name for a slot given its eligible positions. A multi-position slot
 // isn't just a generic "FLEX": a QB-eligible flex is a SUPERFLEX (drives value),
@@ -105,7 +106,20 @@ async function scoringRules(cookie, league) {
 // derived from the lineup slots. PPR comes from demo scoring in demo and from the
 // live scoring rules in live — falling back to full PPR (the dynasty norm) only
 // when the rules can't be parsed, with `pprDetected` telling callers which it is.
+// format() (and the requirements() parse it awaits) are recomputed by every
+// service that touches a league on a screen — several redundant re-parses of the
+// same league per request. The underlying league/rules reads are HTTP-cached;
+// memoize the derived format per (cookie, league) on the static TTL. Slots and
+// scoring rules are slow-changing and no in-app write alters them, so no
+// invalidation is needed.
+const formatMemo = createMemo({ ttlMs: config.mflStaticTtlMs });
+
 async function format(cookie, league) {
+  if (config.demoMode) return buildFormat(cookie, league);
+  return formatMemo.get(`${cookie}|${league.leagueId}`, () => buildFormat(cookie, league));
+}
+
+async function buildFormat(cookie, league) {
   const reqs = await requirements(cookie, league);
   if (config.demoMode) {
     const s = demo.scoring(league.leagueId) || {};
