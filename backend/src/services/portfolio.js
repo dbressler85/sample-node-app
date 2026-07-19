@@ -17,9 +17,26 @@ const mfl = require('../lib/mfl');
 const playersLib = require('../lib/players');
 const leaguesService = require('./leagues');
 const lineupsService = require('./lineups');
+const rosterService = require('./roster');
 const waiverStore = require('../store/waivers');
 
 const SEV = { high: 3, medium: 2, low: 1 };
+
+// In the NFL offseason there are no games, so lineup triage is noise and the
+// dashboard should pivot to dynasty concerns (value, outlook) + trades/waivers,
+// which run all year. Phase is derived from whether there's an active week.
+function currentWeek() {
+  return config.demoMode ? demo.week() : Number(process.env.MFL_WEEK) || null;
+}
+function seasonPhase() {
+  const w = currentWeek();
+  return w && w >= 1 && w <= 18 ? 'in_season' : 'offseason';
+}
+
+function dynastyOf(roster) {
+  if (!roster || !roster.summary) return null;
+  return { value: roster.summary.rosterValue, coreAge: roster.summary.coreAge, outlook: roster.summary.outlook };
+}
 
 // Pending trade offers awaiting my response. Live: MFL pendingTrades (best-effort
 // — field names vary, so it's defensive and resolves ids to names where it can).
@@ -97,7 +114,9 @@ async function extraItems(cookie, token, league) {
   return items;
 }
 
-// One league's triage contribution (status + items), for progressive loading.
+// One league's triage contribution, for progressive loading. In-season we lead
+// with lineup status; in the offseason we skip it (no games) and attach a
+// dynasty summary instead — so the per-league call count stays flat either way.
 async function getLeagueTriage(cookie, token, leagueId) {
   const league = (await leaguesService.listLeagues(cookie)).find((l) => l.leagueId === String(leagueId));
   if (!league) {
@@ -105,29 +124,52 @@ async function getLeagueTriage(cookie, token, leagueId) {
     err.status = 404;
     throw err;
   }
-  const l = await lineupsService.getStatus(cookie, token, leagueId, { light: true });
+  const phase = seasonPhase();
   const items = [];
-  const li = lineupItem(l);
-  if (li) items.push(li);
+  let status = 'offseason';
+  let dynasty = null;
+
+  if (phase === 'in_season') {
+    const l = await lineupsService.getStatus(cookie, token, leagueId, { light: true });
+    status = l.status;
+    const li = lineupItem(l);
+    if (li) items.push(li);
+  } else {
+    dynasty = dynastyOf(await rosterService.getRoster(cookie, leagueId).catch(() => null));
+  }
+
   items.push(...(await extraItems(cookie, token, league)));
-  return { leagueId: league.leagueId, name: league.name, status: l.status, items };
+  return { leagueId: league.leagueId, name: league.name, status, phase, dynasty, items };
 }
 
 async function getHome(cookie, token) {
-  const [leagues, overview] = await Promise.all([
-    leaguesService.listLeagues(cookie),
-    lineupsService.getOverview(cookie, token, 'auto', { light: true }),
-  ]);
-
+  const phase = seasonPhase();
+  const leagues = await leaguesService.listLeagues(cookie);
   const items = [];
   const counts = { injuries: 0, holes: 0, lineupsToSet: 0 };
-  for (const l of overview.leagues) {
-    if (l.status === 'risk') counts.injuries += 1;
-    else if (l.status === 'incomplete') counts.holes += 1;
-    else if (l.status === 'unset') counts.lineupsToSet += 1;
-    const li = lineupItem(l);
-    if (li) items.push(li);
+  const teams = [];
+  const dynastyList = [];
+
+  if (phase === 'in_season') {
+    const overview = await lineupsService.getOverview(cookie, token, 'auto', { light: true });
+    for (const l of overview.leagues) {
+      if (l.status === 'risk') counts.injuries += 1;
+      else if (l.status === 'incomplete') counts.holes += 1;
+      else if (l.status === 'unset') counts.lineupsToSet += 1;
+      const li = lineupItem(l);
+      if (li) items.push(li);
+    }
+    teams.push(...leagues.map((l) => ({ leagueId: l.leagueId, name: l.name })));
+  } else {
+    // Offseason: no lineups — attach each team's dynasty summary instead.
+    const rosters = await Promise.all(leagues.map((l) => rosterService.getRoster(cookie, l.leagueId).catch(() => null)));
+    leagues.forEach((l, i) => {
+      const dynasty = dynastyOf(rosters[i]);
+      if (dynasty) dynastyList.push(dynasty);
+      teams.push({ leagueId: l.leagueId, name: l.name, dynasty });
+    });
   }
+
   let tradeOffers = 0;
   let waiversPending = 0;
   const extra = await Promise.all(leagues.map((league) => extraItems(cookie, token, league)));
@@ -139,19 +181,26 @@ async function getHome(cookie, token) {
 
   items.sort((a, b) => (SEV[b.severity] || 0) - (SEV[a.severity] || 0));
 
+  const coreAges = dynastyList.map((d) => d.coreAge).filter((a) => a != null);
   return {
-    week: overview.week,
+    phase,
+    week: currentWeek(),
     portfolio: {
       leagues: leagues.length,
-      needAttention: overview.summary.needAttention,
+      needAttention: phase === 'in_season' ? counts.injuries + counts.holes + counts.lineupsToSet : items.length,
       injuries: counts.injuries,
       holes: counts.holes,
       lineupsToSet: counts.lineupsToSet,
       tradeOffers,
       waiversPending,
+      // Dynasty rollup (offseason): total asset value + avg core age + outlook mix.
+      rosterValue: dynastyList.reduce((s, d) => s + (d.value || 0), 0),
+      avgCoreAge: coreAges.length ? Math.round((coreAges.reduce((s, a) => s + a, 0) / coreAges.length) * 10) / 10 : null,
+      contenders: dynastyList.filter((d) => d.outlook === 'Win-now window').length,
+      ascending: dynastyList.filter((d) => d.outlook === 'Ascending').length,
       actionItems: items.length,
     },
-    teams: leagues.map((l) => ({ leagueId: l.leagueId, name: l.name })),
+    teams,
     triage: items,
   };
 }
