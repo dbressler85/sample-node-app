@@ -15,6 +15,7 @@ const playersLib = require('../lib/players');
 const nflLib = require('../lib/nfl');
 const newsLib = require('../lib/news');
 const enrichmentLib = require('../lib/enrichment');
+const leagueFormat = require('../lib/leagueformat');
 const leaguesService = require('./leagues');
 const rosterService = require('./roster');
 const waiversService = require('./waivers');
@@ -260,6 +261,11 @@ async function profile(cookie, token, playerId) {
       const proj = config.demoMode
         ? leagueProjection(playerId, base.position, league.leagueId)
         : await liveLeagueProjection(cookie, league, playerId);
+      // Format-aware dynasty value for THIS league — a superflex QB is worth far
+      // more here than in a 1QB league, so the value differs per format. Snapshots
+      // cache per format, so repeated formats across leagues are cheap.
+      const fmt = await leagueFormat.format(cookie, league);
+      const enrL = await enrichmentLib.snapshot(fmt, cookie);
       return {
         leagueId: league.leagueId,
         name: league.name,
@@ -267,9 +273,15 @@ async function profile(cookie, token, playerId) {
         bucket,
         system: config.demoMode ? (demo.waiverSettings(league.leagueId) || {}).system : null,
         leagueProjection: proj,
+        value: enrL.value(playerId),
+        format: leagueFormat.label(fmt),
       };
     })
   );
+  // The player's value spread across your league formats (the "compare across my
+  // leagues" signal). Same everywhere in a single-format portfolio; wider in a mix.
+  const leagueValues = crossLeague.map((c) => c.value).filter((v) => v != null);
+  const valueRange = leagueValues.length ? { min: Math.min(...leagueValues), max: Math.max(...leagueValues) } : null;
 
   // Headline outlook: demo uses a neutral baseline off raw stats; live has no raw
   // stats, so use the best per-league projected points we found as the median.
@@ -291,6 +303,7 @@ async function profile(cookie, token, playerId) {
     age: enr.age(playerId),
     byeWeek: byeMap[base.team] || null,
     value: enr.value(playerId),
+    valueRange,
     overallRank: ranks.overall.get(playerId) || null,
     posRank: ranks.pos.get(playerId) || null,
     ownership: enr.ownership(playerId),

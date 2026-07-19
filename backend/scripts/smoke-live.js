@@ -29,6 +29,7 @@ const TESTS = [
   'session-persist-test',
   'ondeck-test',
   'notifications-test',
+  'profile-format-test',
 ];
 
 let failed = 0;
