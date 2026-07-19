@@ -193,8 +193,11 @@ async function getBoard(cookie, token, leagueId, { position, sort } = {}) {
   if (position) freeAgents = freeAgents.filter((p) => p.position === position);
 
   const SORT_KEYS = { projection: 'projection', trend: 'trend', ownership: 'ownership', value: 'value' };
-  // Default sort: value in demo (we have values), projection in live (we don't).
-  const key = SORT_KEYS[sort] || (config.demoMode ? 'value' : 'projection');
+  // Default sort: dynasty value. It's meaningful year-round (waivers/free agents
+  // churn all offseason in dynasty), whereas weekly projection is empty between
+  // seasons. Now that the enrichment layer supplies values in live too, value is
+  // the right default for both modes.
+  const key = SORT_KEYS[sort] || 'value';
   freeAgents.sort((a, b) => (b[key] || 0) - (a[key] || 0));
 
   const pending = store.list(token, leagueId, config.demoMode ? demo.pendingClaims(leagueId) : []).map((c) => claimView(c, byId));

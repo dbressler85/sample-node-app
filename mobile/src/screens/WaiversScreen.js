@@ -27,7 +27,10 @@ export default function WaiversScreen({ initialLeagueId, initialPosition }) {
   const [leagueId, setLeagueId] = useState(initialLeagueId || null);
   const [segment, setSegment] = useState('board'); // 'board' | 'best' | 'pending'
   const [position, setPosition] = useState(initialPosition || null);
-  const [sort, setSort] = useState('projection');
+  // Default to dynasty value: it's meaningful year-round (esp. the offseason),
+  // unlike weekly projection which is empty between seasons. Toggle to Proj for
+  // in-season streaming.
+  const [sort, setSort] = useState('value');
   const [board, setBoard] = useState(null);
   const [best, setBest] = useState(null);
   const [pending, setPending] = useState(null);
