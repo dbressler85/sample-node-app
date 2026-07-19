@@ -21,6 +21,7 @@ const TESTS = [
   'offseason-test',
   'news-test',
   'week-detect-test',
+  'scoring-format-test',
 ];
 
 let failed = 0;

@@ -332,6 +332,20 @@ async function viewForLeague(cookie, token, league, requestedMode, { light = fal
   if (config.demoMode) matchup = demo.matchupProjection(league.leagueId);
   else if (!light) matchup = await resolveMatchupLive({ cookie, league, week, requirements, projMap, statusMap, byeMap });
 
+  // Format label: demo describes its scoring; live now derives it from the
+  // parsed scoring rules (superflex + PPR) when detectable — and stays null
+  // rather than fabricating a label when the rules can't be parsed. Only the
+  // full view needs it, so the light Home rollup skips the extra rules call.
+  let format = null;
+  if (config.demoMode) {
+    format = scoringLib.describe(scoring);
+  } else if (!light) {
+    const rules = await leagueFormat.scoringRules(cookie, league);
+    if (rules.detected) {
+      format = leagueFormat.label({ numQbs: leagueFormat.numQbs(requirements), ppr: rules.ppr, tePpr: rules.tePpr });
+    }
+  }
+
   return buildView({
     league,
     week,
@@ -339,10 +353,7 @@ async function viewForLeague(cookie, token, league, requestedMode, { light = fal
     pool,
     starterIds: currentStarterIds(token, league, rosterStarterIds),
     franchiseName: roster.franchiseName,
-    // Only show a scoring label when we actually parsed the scoring (demo). In
-    // live we rely on MFL's already-format-aware projectedScores, so don't
-    // fabricate a "Standard · 4pt PaTD" label.
-    format: config.demoMode ? scoringLib.describe(scoring) : null,
+    format,
     matchup,
     requestedMode,
   });

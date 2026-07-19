@@ -8,6 +8,7 @@
 const config = require('../config');
 const demo = require('../demo/fixtures');
 const mfl = require('../lib/mfl');
+const nflLib = require('../lib/nfl');
 const leaguesService = require('./leagues');
 
 // Win probability from the projected-final margin, with uncertainty that grows
@@ -84,7 +85,7 @@ async function getScoreboard(cookie) {
 
   const live = cards.filter((c) => !c.locked);
   return {
-    week: config.demoMode ? demo.week() : null,
+    week: config.demoMode ? demo.week() : await nflLib.currentWeek(cookie),
     games: cards,
     summary: {
       total: cards.length,
