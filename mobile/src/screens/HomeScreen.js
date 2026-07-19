@@ -103,19 +103,30 @@ export default function HomeScreen({ onOpenLineup, onOpenLeague, onOpenWaivers, 
   }
 
   // Derive everything from the (current) leagues + their statuses.
-  const { portfolio, allItems } = useMemo(() => {
+  const { portfolio, allItems, phase } = useMemo(() => {
     const vals = leagues.map((l) => statuses[l.leagueId]).filter(Boolean);
     const items = vals.flatMap((v) => v.items || []);
+    const ph = (vals.find((v) => v.phase) || {}).phase || 'in_season';
+    const dyn = vals.map((v) => v.dynasty).filter(Boolean);
+    const coreAges = dyn.map((d) => d.coreAge).filter((a) => a != null);
     return {
+      phase: ph,
       allItems: items,
       portfolio: {
         leagues: leagues.length,
-        needAttention: vals.filter((v) => v.status && v.status !== 'optimal' && v.status !== 'error').length,
+        needAttention:
+          ph === 'in_season'
+            ? vals.filter((v) => v.status && v.status !== 'optimal' && v.status !== 'error' && v.status !== 'offseason').length
+            : vals.filter((v) => (v.items || []).length > 0).length,
         injuries: vals.filter((v) => v.status === 'risk').length,
         holes: vals.filter((v) => v.status === 'incomplete').length,
         lineupsToSet: vals.filter((v) => v.status === 'unset').length,
         tradeOffers: items.filter((i) => i.type === 'trade_offer').length,
         waiversPending: items.filter((i) => i.type === 'waiver_pending').length,
+        rosterValue: dyn.reduce((s, d) => s + (d.value || 0), 0),
+        avgCoreAge: coreAges.length ? Math.round((coreAges.reduce((s, a) => s + a, 0) / coreAges.length) * 10) / 10 : null,
+        contenders: dyn.filter((d) => d.outlook === 'Win-now window').length,
+        ascending: dyn.filter((d) => d.outlook === 'Ascending').length,
         actionItems: items.length,
       },
     };
@@ -150,7 +161,9 @@ export default function HomeScreen({ onOpenLineup, onOpenLeague, onOpenWaivers, 
         <View>
           <Text style={styles.title}>Command Center</Text>
           <Text style={styles.subtitle}>
-            {loading ? `Updating ${progress.done}/${progress.total}…` : `${portfolio.leagues} leagues`}
+            {loading
+              ? `Updating ${progress.done}/${progress.total}…`
+              : `${portfolio.leagues} leagues${phase === 'offseason' ? ' · Offseason' : ''}`}
           </Text>
         </View>
         <Pressable onPress={onLogout} hitSlop={10}>
@@ -165,7 +178,7 @@ export default function HomeScreen({ onOpenLineup, onOpenLeague, onOpenWaivers, 
         refreshControl={<RefreshControl refreshing={false} onRefresh={refresh} tintColor={colors.accent} />}
         ListHeaderComponent={
           <View>
-            <Portfolio p={portfolio} />
+            <Portfolio p={portfolio} phase={phase} />
             {error ? <Text style={styles.error}>{error}</Text> : null}
             <Text style={styles.section}>
               Needs attention · {portfolio.actionItems}
@@ -191,12 +204,22 @@ export default function HomeScreen({ onOpenLineup, onOpenLeague, onOpenWaivers, 
           leagues.length ? (
             <View>
               <Text style={styles.section}>Your teams · {leagues.length}</Text>
-              {leagues.map((t) => (
-                <Pressable key={t.leagueId} style={({ pressed }) => [styles.teamRow, pressed && { opacity: 0.7 }]} onPress={() => onOpenLeague({ leagueId: t.leagueId, name: t.name })}>
-                  <Text style={styles.teamName} numberOfLines={1}>{t.name}</Text>
-                  <Text style={styles.teamChev}>›</Text>
-                </Pressable>
-              ))}
+              {leagues.map((t) => {
+                const d = (statuses[t.leagueId] || {}).dynasty;
+                return (
+                  <Pressable key={t.leagueId} style={({ pressed }) => [styles.teamRow, pressed && { opacity: 0.7 }]} onPress={() => onOpenLeague({ leagueId: t.leagueId, name: t.name })}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.teamName} numberOfLines={1}>{t.name}</Text>
+                      {d ? (
+                        <Text style={styles.teamSub} numberOfLines={1}>
+                          {d.value != null ? `${d.value} value` : ''}{d.coreAge != null ? ` · core ${d.coreAge}y` : ''}{d.outlook ? ` · ${d.outlook}` : ''}
+                        </Text>
+                      ) : null}
+                    </View>
+                    <Text style={styles.teamChev}>›</Text>
+                  </Pressable>
+                );
+              })}
             </View>
           ) : null
         }
@@ -205,19 +228,36 @@ export default function HomeScreen({ onOpenLineup, onOpenLeague, onOpenWaivers, 
   );
 }
 
-function Portfolio({ p }) {
+function Portfolio({ p, phase }) {
+  const offseason = phase === 'offseason';
   return (
     <View style={styles.portfolio}>
       <View style={styles.tileRow}>
         <Tile label="Leagues" value={String(p.leagues)} />
-        <Tile label="Needs attention" value={String(p.needAttention)} accent={p.needAttention > 0} />
+        {offseason ? (
+          <Tile label="Total roster value" value={p.rosterValue ? String(p.rosterValue) : '—'} />
+        ) : (
+          <Tile label="Needs attention" value={String(p.needAttention)} accent={p.needAttention > 0} />
+        )}
       </View>
       <View style={styles.chips}>
-        <Chip label="Lineups to set" value={p.lineupsToSet} warn={p.lineupsToSet > 0} />
-        <Chip label="Holes" value={p.holes} bad={p.holes > 0} />
-        <Chip label="Injuries" value={p.injuries} bad={p.injuries > 0} />
-        <Chip label="Trades" value={p.tradeOffers} bad={p.tradeOffers > 0} />
-        <Chip label="Waivers" value={p.waiversPending} />
+        {offseason ? (
+          <>
+            <Chip label="Avg core age" value={p.avgCoreAge != null ? `${p.avgCoreAge}y` : '—'} />
+            <Chip label="Win-now" value={p.contenders} />
+            <Chip label="Ascending" value={p.ascending} />
+            <Chip label="Trades" value={p.tradeOffers} bad={p.tradeOffers > 0} />
+            <Chip label="Waivers" value={p.waiversPending} />
+          </>
+        ) : (
+          <>
+            <Chip label="Lineups to set" value={p.lineupsToSet} warn={p.lineupsToSet > 0} />
+            <Chip label="Holes" value={p.holes} bad={p.holes > 0} />
+            <Chip label="Injuries" value={p.injuries} bad={p.injuries > 0} />
+            <Chip label="Trades" value={p.tradeOffers} bad={p.tradeOffers > 0} />
+            <Chip label="Waivers" value={p.waiversPending} />
+          </>
+        )}
       </View>
     </View>
   );
@@ -293,6 +333,7 @@ const styles = StyleSheet.create({
   error: { color: colors.bad, marginVertical: 8 },
   clear: { color: colors.textDim, textAlign: 'center', marginTop: 30, fontSize: 15 },
   teamRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: 10 },
-  teamName: { color: colors.text, fontSize: 15, fontWeight: '700', flex: 1, marginRight: 10 },
-  teamChev: { color: colors.textDim, fontSize: 20, fontWeight: '700' },
+  teamName: { color: colors.text, fontSize: 15, fontWeight: '700', marginRight: 10 },
+  teamSub: { color: colors.textDim, fontSize: 12, marginTop: 3 },
+  teamChev: { color: colors.textDim, fontSize: 20, fontWeight: '700', marginLeft: 8 },
 });
