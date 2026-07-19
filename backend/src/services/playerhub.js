@@ -13,6 +13,7 @@ const scoringLib = require('../lib/scoring');
 const availabilityLib = require('../lib/availability');
 const playersLib = require('../lib/players');
 const nflLib = require('../lib/nfl');
+const enrichmentLib = require('../lib/enrichment');
 const leaguesService = require('./leagues');
 const rosterService = require('./roster');
 const waiversService = require('./waivers');
@@ -30,14 +31,10 @@ function ctxFor() {
   };
 }
 
-function dyn(id) {
-  return config.demoMode ? demo.dynasty(id) : null;
-}
-
 // Overall + positional rank by dynasty value across the whole player pool.
-function computeRanks(byId) {
+function computeRanks(byId, enr) {
   const arr = [...byId.values()]
-    .map((p) => ({ id: p.id, position: p.position, value: (dyn(p.id) || {}).value || 0 }))
+    .map((p) => ({ id: p.id, position: p.position, value: enr.value(p.id) || 0 }))
     .sort((a, b) => b.value - a.value);
   const overall = new Map();
   const pos = new Map();
@@ -66,18 +63,18 @@ async function gather(cookie) {
   return { leagues, data: data.filter((d) => d.roster) };
 }
 
-function annotate(player, byId, ranks, myRostered, freeBy) {
-  const d = dyn(player.id) || {};
+function annotate(player, byId, ranks, myRostered, freeBy, enr) {
+  const ctx = ctxFor();
   return {
     id: player.id,
     name: player.name,
     position: player.position,
     team: player.team,
-    age: d.age != null ? d.age : null,
-    value: d.value != null ? d.value : null,
+    age: enr.age(player.id),
+    value: enr.value(player.id),
     posRank: ranks.pos.get(player.id) || null,
-    ownership: config.demoMode ? demo.ownership(player.id) : null,
-    availability: availabilityLib.resolve(player, ctxFor().statusMap, ctxFor().byeMap, ctxFor().week),
+    ownership: enr.ownership(player.id),
+    availability: availabilityLib.resolve(player, ctx.statusMap, ctx.byeMap, ctx.week),
     mine: myRostered.has(player.id),
     freeInLeagues: (freeBy.get(player.id) || []).length,
   };
@@ -98,8 +95,8 @@ async function buildSets(cookie) {
 }
 
 async function search(cookie, token, { q, position, status } = {}) {
-  const byId = await playersLib.load(cookie);
-  const ranks = computeRanks(byId);
+  const [byId, enr] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot()]);
+  const ranks = computeRanks(byId, enr);
   const { myRostered, freeBy } = await buildSets(cookie);
 
   const term = (q || '').trim().toLowerCase();
@@ -107,7 +104,7 @@ async function search(cookie, token, { q, position, status } = {}) {
   if (term) players = players.filter((p) => p.name.toLowerCase().includes(term));
   if (position) players = players.filter((p) => p.position === position);
 
-  let list = players.map((p) => annotate(p, byId, ranks, myRostered, freeBy));
+  let list = players.map((p) => annotate(p, byId, ranks, myRostered, freeBy, enr));
   if (status === 'mine') list = list.filter((p) => p.mine);
   else if (status === 'free') list = list.filter((p) => p.freeInLeagues > 0);
   else if (status === 'available') list = list.filter((p) => !p.mine);
@@ -117,18 +114,16 @@ async function search(cookie, token, { q, position, status } = {}) {
 }
 
 async function rankings(cookie, token, { type = 'value', position } = {}) {
-  const byId = await playersLib.load(cookie);
-  const ranks = computeRanks(byId);
+  const [byId, enr] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot()]);
+  const ranks = computeRanks(byId, enr);
   const { myRostered, freeBy } = await buildSets(cookie);
 
-  let list = [...byId.values()].map((p) => annotate(p, byId, ranks, myRostered, freeBy));
+  let list = [...byId.values()].map((p) => annotate(p, byId, ranks, myRostered, freeBy, enr));
   if (type === 'position' && position) list = list.filter((p) => p.position === position);
 
-  // Only rank by data we actually have — otherwise team defenses float to the top
-  // of a value ranking with no values. Live has none of these sources yet.
+  // Only rank by data we actually have, so players with no signal don't float up.
   if (type === 'trending') {
-    list.sort((a, b) => (config.demoMode ? demo.trend(b.id) - demo.trend(a.id) : 0));
-    list = list.filter((p) => (config.demoMode ? demo.trend(p.id) : 0) > 0);
+    list = list.filter((p) => enr.trend(p.id) > 0).sort((a, b) => enr.trend(b.id) - enr.trend(a.id));
   } else if (type === 'rookies') {
     list = list.filter((p) => p.age != null && p.age <= 23).sort((a, b) => (b.value || 0) - (a.value || 0));
   } else {
@@ -137,12 +132,12 @@ async function rankings(cookie, token, { type = 'value', position } = {}) {
   }
 
   const note =
-    list.length === 0 && !config.demoMode
+    list.length === 0
       ? type === 'trending'
-        ? 'Waiver-trend data isn’t wired for live leagues yet.'
+        ? 'No trending players right now.'
         : type === 'rookies'
-        ? 'Age/rookie data isn’t wired for live leagues yet.'
-        : 'Dynasty values aren’t wired for live leagues yet — search or My Players still work.'
+        ? 'No rookie/age data available right now.'
+        : 'Dynasty values are unavailable right now — search and My Players still work.'
       : null;
   return { type, position: position || null, players: list.slice(0, 40), note };
 }
@@ -207,11 +202,10 @@ async function liveSeasonAndLog(cookie, league, playerId, week) {
 }
 
 async function profile(cookie, token, playerId) {
-  const byId = await playersLib.load(cookie);
+  const [byId, enr] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot()]);
   const base = playersLib.resolve(byId, playerId);
-  const ranks = computeRanks(byId);
+  const ranks = computeRanks(byId, enr);
   const ctx = ctxFor();
-  const d = dyn(playerId) || {};
   // Live bye weeks (so availability + the profile's byeWeek are real).
   const byeMap = config.demoMode ? demo.byes() : await nflLib.byeMap(cookie, ctx.week);
 
@@ -280,13 +274,13 @@ async function profile(cookie, token, playerId) {
     name: base.name,
     position: base.position,
     team: base.team,
-    age: d.age != null ? d.age : null,
+    age: enr.age(playerId),
     byeWeek: byeMap[base.team] || null,
-    value: d.value != null ? d.value : null,
+    value: enr.value(playerId),
     overallRank: ranks.overall.get(playerId) || null,
     posRank: ranks.pos.get(playerId) || null,
-    ownership: config.demoMode ? demo.ownership(playerId) : null,
-    trend: config.demoMode ? demo.trend(playerId) : 0,
+    ownership: enr.ownership(playerId),
+    trend: enr.trend(playerId),
     availability: availabilityLib.resolve(base, ctx.statusMap, byeMap, ctx.week),
     outlook,
     season,

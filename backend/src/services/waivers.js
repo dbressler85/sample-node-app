@@ -15,6 +15,7 @@ const demo = require('../demo/fixtures');
 const mfl = require('../lib/mfl');
 const scoringLib = require('../lib/scoring');
 const availabilityLib = require('../lib/availability');
+const enrichmentLib = require('../lib/enrichment');
 const leaguesService = require('./leagues');
 const rosterService = require('./roster');
 const playersLib = require('../lib/players');
@@ -68,9 +69,8 @@ async function loadSettings(league, cookie) {
 }
 
 // Enrich a free-agent id into a board entry (value, projection, trend, status).
-function makeFreeAgent(id, byId, scoring, statMap, ctx, system, settings, liveProj) {
+function makeFreeAgent(id, byId, scoring, statMap, ctx, system, settings, liveProj, enr) {
   const base = playersLib.resolve(byId, id);
-  const d = config.demoMode ? demo.dynasty(id) : null;
   const stat = statMap[id];
   const projection = liveProj && liveProj.has(id)
     ? liveProj.get(id)
@@ -82,11 +82,11 @@ function makeFreeAgent(id, byId, scoring, statMap, ctx, system, settings, livePr
     name: base.name,
     position: base.position,
     team: base.team,
-    value: d ? d.value : null,
-    age: d ? d.age : null,
+    value: enr.value(id),
+    age: enr.age(id),
     projection,
-    trend: config.demoMode ? demo.trend(id) : 0,
-    ownership: config.demoMode ? demo.ownership(id) : null,
+    trend: enr.trend(id),
+    ownership: enr.ownership(id),
     onWaivers: system !== 'free',
     clearTime: system !== 'free' ? settings.clearTime || null : null,
     availability: availabilityLib.resolve(base, ctx.statusMap, ctx.byeMap, ctx.week),
@@ -107,7 +107,7 @@ async function freeAgentIds(cookie, league) {
 }
 
 async function loadFreeAgents(cookie, league, settings) {
-  const byId = await playersLib.load(cookie);
+  const [byId, enr] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot()]);
   const ctx = ctxFor();
   const scoring = config.demoMode ? demo.scoring(league.leagueId) || {} : {};
   const statMap = config.demoMode ? demo.statProjections() : {};
@@ -137,7 +137,7 @@ async function loadFreeAgents(cookie, league, settings) {
       /* projections are optional */
     }
   }
-  return ids.map((id) => makeFreeAgent(id, byId, scoring, statMap, ctx, settings.system, settings, liveProj));
+  return ids.map((id) => makeFreeAgent(id, byId, scoring, statMap, ctx, settings.system, settings, liveProj, enr));
 }
 
 function activeCount(roster) {
@@ -225,13 +225,13 @@ async function getBoard(cookie, token, leagueId, { position, sort } = {}) {
 async function preview(cookie, token, leagueId, payload) {
   const league = await findLeague(cookie, leagueId);
   const settings = await loadSettings(league, cookie);
-  const [byId, roster] = await Promise.all([playersLib.load(cookie), rosterService.getRoster(cookie, leagueId)]);
+  const [byId, roster, enr] = await Promise.all([playersLib.load(cookie), rosterService.getRoster(cookie, leagueId), enrichmentLib.snapshot()]);
   const available = new Set(config.demoMode ? demo.freeAgents(leagueId) : []);
   const rosterIds = new Set([...roster.starters, ...roster.bench, ...roster.ir, ...roster.taxi].map((p) => p.id));
 
   const errors = [];
   const addId = String(payload.addId || '');
-  const add = addId ? { ...playersLib.resolve(byId, addId), ...(config.demoMode ? demo.dynasty(addId) : null), trend: config.demoMode ? demo.trend(addId) : 0 } : null;
+  const add = addId ? { ...playersLib.resolve(byId, addId), value: enr.value(addId), age: enr.age(addId), trend: enr.trend(addId) } : null;
   if (!add) errors.push('No player selected to add.');
   else if (rosterIds.has(addId)) errors.push(`${add.name} is already on your roster.`);
   else if (config.demoMode && !available.has(addId)) errors.push(`${add.name} is not available in this league.`);
@@ -266,7 +266,7 @@ async function preview(cookie, token, leagueId, payload) {
     system: settings.system,
     immediate: settings.system === 'free',
     add: add ? { id: add.id, name: add.name, position: add.position, team: add.team, value: add.value } : null,
-    drop: drop ? { id: drop.id, name: drop.name, position: drop.position, value: (config.demoMode && demo.dynasty(drop.id) || {}).value || null } : null,
+    drop: drop ? { id: drop.id, name: drop.name, position: drop.position, value: enr.value(drop.id) } : null,
     dropRequired: full,
     suggestedDrop: suggestedDrop ? { id: suggestedDrop.id, name: suggestedDrop.name, position: suggestedDrop.position, value: suggestedDrop.value } : null,
     bid,
@@ -329,7 +329,7 @@ async function cancel(cookie, token, leagueId, claimId) {
 // annotated with which leagues he's available in and under what system.
 async function getBestAvailable(cookie, token) {
   const leagues = await leaguesService.listLeagues(cookie);
-  const byId = await playersLib.load(cookie);
+  const [byId, enr] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot()]);
   const ctx = ctxFor();
   const map = new Map();
 
@@ -337,8 +337,8 @@ async function getBestAvailable(cookie, token) {
     const settings = await loadSettings(league, cookie);
     const scoring = config.demoMode ? demo.scoring(league.leagueId) || {} : {};
     const statMap = config.demoMode ? demo.statProjections() : {};
-    for (const id of config.demoMode ? demo.freeAgents(league.leagueId) : []) {
-      const fa = makeFreeAgent(id, byId, scoring, statMap, ctx, settings.system, settings);
+    for (const id of await freeAgentIds(cookie, league)) {
+      const fa = makeFreeAgent(id, byId, scoring, statMap, ctx, settings.system, settings, null, enr);
       if (!map.has(id)) map.set(id, { id: fa.id, name: fa.name, position: fa.position, team: fa.team, value: fa.value, age: fa.age, trend: fa.trend, ownership: fa.ownership, availability: fa.availability, leagues: [] });
       map.get(id).leagues.push({ leagueId: league.leagueId, name: league.name, system: settings.system });
     }
