@@ -15,6 +15,7 @@ import LineupsScreen from './src/screens/LineupsScreen';
 import LineupEditorScreen from './src/screens/LineupEditorScreen';
 import LineupWizardScreen from './src/screens/LineupWizardScreen';
 import TradesScreen from './src/screens/TradesScreen';
+import DraftScreen from './src/screens/DraftScreen';
 import { loadSession, clearSession } from './src/auth';
 import { colors } from './src/theme';
 
@@ -82,6 +83,7 @@ export default function App() {
   const openLineup = (league) => setOverlay({ type: 'lineupEditor', league });
   const openWizard = (leagues, mode) => setOverlay({ type: 'lineupWizard', leagues, mode });
   const openTrades = (league) => setOverlay({ type: 'trades', league });
+  const openDraft = (league) => setOverlay({ type: 'draft', league });
   const openPlayer = (playerId) => setOverlay({ type: 'playerProfile', playerId });
   const openWaivers = (target) => {
     setWaiversTarget(target || null);
@@ -112,6 +114,7 @@ export default function App() {
             onOpenLeague={openRoster}
             onOpenWaivers={(league) => openWaivers({ leagueId: league.leagueId, position: league.position })}
             onOpenTrades={openTrades}
+            onOpenDraft={openDraft}
             onLogout={handleLogout}
           />
         );
@@ -129,7 +132,7 @@ export default function App() {
     if (!authed) return <LoginScreen onLoggedIn={() => setAuthed(true)} />;
 
     if (overlay && overlay.type === 'roster') {
-      return <RosterScreen league={overlay.league} onBack={() => setOverlay(null)} onOpenTrades={openTrades} />;
+      return <RosterScreen league={overlay.league} onBack={() => setOverlay(null)} onOpenTrades={openTrades} onOpenDraft={openDraft} />;
     }
     if (overlay && overlay.type === 'lineupEditor') {
       return <LineupEditorScreen league={overlay.league} onBack={() => setOverlay(null)} />;
@@ -141,6 +144,9 @@ export default function App() {
     }
     if (overlay && overlay.type === 'trades') {
       return <TradesScreen league={overlay.league} onBack={() => setOverlay(null)} />;
+    }
+    if (overlay && overlay.type === 'draft') {
+      return <DraftScreen league={overlay.league} onBack={() => setOverlay(null)} />;
     }
     if (overlay && overlay.type === 'playerProfile') {
       return <PlayerProfileScreen playerId={overlay.playerId} onBack={() => setOverlay(null)} />;

@@ -28,9 +28,10 @@ async function runPool(items, limit, worker) {
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, next));
 }
 
-export default function HomeScreen({ onOpenLineup, onOpenLeague, onOpenWaivers, onOpenTrades, onLogout }) {
+export default function HomeScreen({ onOpenLineup, onOpenLeague, onOpenWaivers, onOpenTrades, onOpenDraft, onLogout }) {
   const [leagues, setLeagues] = useState([]);
   const [statuses, setStatuses] = useState({}); // leagueId -> { name, status, items }
+  const [drafts, setDrafts] = useState([]); // active/scheduled drafts across leagues
   const [expanded, setExpanded] = useState(new Set(GROUP_ORDER.filter((t) => GROUPS[t].open)));
   const [progress, setProgress] = useState(null); // { done, total }
   const [error, setError] = useState(null);
@@ -60,6 +61,9 @@ export default function HomeScreen({ onOpenLineup, onOpenLeague, onOpenWaivers, 
       const list = res.leagues.map((l) => ({ leagueId: l.leagueId, name: l.name }));
       setLeagues(list);
       setValue('leagues', list);
+
+      // Drafts are cross-league and seasonal — fetch once and surface if any are active.
+      api.drafts().then((d) => setDrafts((d.drafts || []).filter((x) => x.status && x.status !== 'none' && x.status !== 'complete'))).catch(() => {});
 
       setProgress({ done: 0, total: list.length });
       const collected = {};
@@ -179,6 +183,32 @@ export default function HomeScreen({ onOpenLineup, onOpenLeague, onOpenWaivers, 
         ListHeaderComponent={
           <View>
             <Portfolio p={portfolio} phase={phase} />
+            {drafts.length ? (
+              <View>
+                <Text style={styles.section}>Drafts · {drafts.length}</Text>
+                {drafts.map((d) => (
+                  <Pressable
+                    key={d.leagueId}
+                    style={({ pressed }) => [styles.draftRow, d.myOnClock && styles.draftRowLive, pressed && { opacity: 0.7 }]}
+                    onPress={() => onOpenDraft({ leagueId: d.leagueId, name: d.name })}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.draftName} numberOfLines={1}>{d.name}</Text>
+                      <Text style={styles.draftSub} numberOfLines={1}>
+                        {d.myOnClock
+                          ? "You're on the clock"
+                          : d.status === 'in_progress'
+                          ? `Live${d.myNextPick ? ` · your next: ${d.myNextPick.round}.${String(d.myNextPick.overall).padStart(2, '0')}` : ''}`
+                          : d.status === 'scheduled'
+                          ? `Scheduled${d.startTime ? ` · ${new Date(d.startTime).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` : ''}`
+                          : d.status}
+                      </Text>
+                    </View>
+                    {d.myOnClock ? <Text style={styles.draftPill}>PICK</Text> : <Text style={styles.teamChev}>›</Text>}
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
             {error ? <Text style={styles.error}>{error}</Text> : null}
             <Text style={styles.section}>
               Needs attention · {portfolio.actionItems}
@@ -335,5 +365,10 @@ const styles = StyleSheet.create({
   teamRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: 10 },
   teamName: { color: colors.text, fontSize: 15, fontWeight: '700', marginRight: 10 },
   teamSub: { color: colors.textDim, fontSize: 12, marginTop: 3 },
+  draftRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: 8 },
+  draftRowLive: { borderColor: colors.good },
+  draftName: { color: colors.text, fontSize: 15, fontWeight: '800' },
+  draftSub: { color: colors.textDim, fontSize: 12, marginTop: 3 },
+  draftPill: { color: '#fff', backgroundColor: colors.good, fontSize: 11, fontWeight: '900', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, overflow: 'hidden' },
   teamChev: { color: colors.textDim, fontSize: 20, fontWeight: '700', marginLeft: 8 },
 });

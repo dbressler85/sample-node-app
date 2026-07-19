@@ -90,6 +90,13 @@ export const api = {
   playerAdd: (id, leagues) => request(`/api/players/${id}/add`, { method: 'POST', body: { leagues } }),
   playerDrop: (id, leagues) => request(`/api/players/${id}/drop`, { method: 'POST', body: { leagues } }),
 
+  // Drafts (M6)
+  drafts: () => request('/api/drafts'),
+  leagueDraft: (leagueId, position) =>
+    request(`/api/leagues/${leagueId}/draft${position ? `?position=${position}` : ''}`),
+  makeDraftPick: (leagueId, playerId) =>
+    request(`/api/leagues/${leagueId}/draft/pick`, { method: 'POST', body: { playerId } }),
+
   // Trades (M5)
   trades: () => request('/api/trades'),
   leagueTrades: (leagueId) => request(`/api/leagues/${leagueId}/trades`),

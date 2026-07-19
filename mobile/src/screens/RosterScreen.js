@@ -4,7 +4,7 @@ import { api } from '../api';
 import PlayerRow from '../components/PlayerRow';
 import { colors } from '../theme';
 
-export default function RosterScreen({ league, onBack, onOpenTrades }) {
+export default function RosterScreen({ league, onBack, onOpenTrades, onOpenDraft }) {
   const [roster, setRoster] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -41,11 +41,18 @@ export default function RosterScreen({ league, onBack, onOpenTrades }) {
         <Pressable onPress={onBack} hitSlop={10}>
           <Text style={styles.back}>‹ Leagues</Text>
         </Pressable>
-        {onOpenTrades ? (
-          <Pressable onPress={() => onOpenTrades(league)} hitSlop={10}>
-            <Text style={styles.trades}>⇄ Trades</Text>
-          </Pressable>
-        ) : null}
+        <View style={styles.topActions}>
+          {onOpenDraft ? (
+            <Pressable onPress={() => onOpenDraft(league)} hitSlop={10}>
+              <Text style={styles.trades}>◆ Draft</Text>
+            </Pressable>
+          ) : null}
+          {onOpenTrades ? (
+            <Pressable onPress={() => onOpenTrades(league)} hitSlop={10}>
+              <Text style={styles.trades}>⇄ Trades</Text>
+            </Pressable>
+          ) : null}
+        </View>
       </View>
       <View style={styles.header}>
         <Text style={styles.title} numberOfLines={1}>
@@ -118,6 +125,7 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8 },
   back: { color: colors.accent, fontSize: 16, fontWeight: '600' },
+  topActions: { flexDirection: 'row', gap: 16 },
   trades: { color: colors.accent, fontSize: 15, fontWeight: '800' },
   header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8 },
   title: { color: colors.text, fontSize: 24, fontWeight: '900' },

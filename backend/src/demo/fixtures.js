@@ -27,6 +27,13 @@ const PLAYERS = [
   { id: '16003', name: 'Dowdle, Rico', position: 'RB', team: 'DAL' },
   { id: '16004', name: "Robinson, Wan'Dale", position: 'WR', team: 'NYG' },
   { id: '16005', name: 'Ferguson, Jake', position: 'TE', team: 'DAL' },
+  // Incoming rookie draft class (the pool for offseason rookie drafts).
+  { id: '19001', name: 'Marliss, Jayden', position: 'QB', team: 'NE' },
+  { id: '19002', name: 'Okafor, Terrence', position: 'RB', team: 'LAC' },
+  { id: '19003', name: 'Bellamy, Deion', position: 'WR', team: 'CLE' },
+  { id: '19004', name: 'Voss, Kaden', position: 'TE', team: 'GB' },
+  { id: '19005', name: 'Ridley, Amari', position: 'WR', team: 'SEA' },
+  { id: '19006', name: 'Cormier, Jaylen', position: 'RB', team: 'TEN' },
   // Kickers (position PK) — for leagues that start a kicker.
   { id: '17001', name: 'McPherson, Evan', position: 'PK', team: 'CIN' },
   { id: '17002', name: 'Bass, Tyler', position: 'PK', team: 'BUF' },
@@ -270,6 +277,54 @@ const DYNASTY = {
   '18002': { age: 26, value: 12 }, // Cowboys D/ST
   '18003': { age: 26, value: 13 }, // Ravens D/ST
   '18004': { age: 26, value: 10 }, // Falcons D/ST
+  // Rookie class (young, high dynasty value at the top of the draft).
+  '19001': { age: 22, value: 70 }, // Marliss QB
+  '19002': { age: 21, value: 78 }, // Okafor RB
+  '19003': { age: 21, value: 82 }, // Bellamy WR
+  '19004': { age: 22, value: 55 }, // Voss TE
+  '19005': { age: 22, value: 60 }, // Ridley WR
+  '19006': { age: 21, value: 58 }, // Cormier RB
+};
+
+// Rookie draft class (ids into PLAYERS) — the shared pool for rookie drafts.
+const DRAFT_CLASS = ['19003', '19002', '19001', '19005', '19006', '19004'];
+
+// Per-league drafts in different states: one scheduled (future), one live (with
+// me on the clock), one complete. franchiseId matches my team in each league.
+const DRAFTS = {
+  '64097': {
+    status: 'scheduled',
+    type: 'Rookie draft',
+    startTime: '2026-08-15T23:00:00Z',
+    rounds: 4,
+    snake: true,
+    order: ['0004', '0008', '0003', '0011'], // 0003 = me
+    picks: [],
+  },
+  '40750': {
+    status: 'in_progress',
+    type: 'Rookie draft',
+    startTime: '2026-08-10T23:00:00Z',
+    rounds: 2,
+    snake: true,
+    order: ['0002', '0009', '0007'], // 0007 = me; I'm on the clock at 1.03
+    picks: [
+      { round: 1, pick: 1, franchiseId: '0002', playerId: '19002' },
+      { round: 1, pick: 2, franchiseId: '0009', playerId: '19003' },
+    ],
+  },
+  '19622': {
+    status: 'complete',
+    type: 'Rookie draft',
+    startTime: '2026-07-01T23:00:00Z',
+    rounds: 1,
+    snake: true,
+    order: ['0005', '0011'], // 0011 = me
+    picks: [
+      { round: 1, pick: 1, franchiseId: '0005', playerId: '19001' },
+      { round: 1, pick: 2, franchiseId: '0011', playerId: '19004' },
+    ],
+  },
 };
 
 // Live matchup detail for the current week: live points, players yet to play,
@@ -446,5 +501,7 @@ module.exports = {
   gameLog: (playerId) => (GAME_LOG[playerId] || []).map((g) => ({ ...g })),
   schedule: (team) => (SCHEDULE[team] || []).map((s) => ({ ...s })),
   allPlayers: () => PLAYERS.map((p) => ({ ...p })),
+  draftClass: () => DRAFT_CLASS.slice(),
+  draft: (leagueId) => (DRAFTS[leagueId] ? JSON.parse(JSON.stringify(DRAFTS[leagueId])) : null),
   week: () => WEEK,
 };
