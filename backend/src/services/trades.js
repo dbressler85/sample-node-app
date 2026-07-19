@@ -311,36 +311,41 @@ async function crossLeaguePreview(cookie, token, targetId) {
   const leagues = await leaguesService.listLeagues(cookie);
   const byId = await playersLib.load(cookie);
   const target = playersLib.resolve(byId, tid);
-  const out = [];
-  for (const league of leagues) {
-    try {
-      const enr = await enrichmentLib.snapshot(await leagueFormat.format(cookie, league), cookie);
-      const [roster, rawPartners] = await Promise.all([
-        rosterService.getRoster(cookie, league.leagueId),
-        config.demoMode ? Promise.resolve(demo.tradePartners(league.leagueId)) : liveRosters(cookie, league),
-      ]);
-      const myIds = new Set([...roster.starters, ...roster.bench, ...roster.ir, ...roster.taxi].map((p) => p.id));
-      if (myIds.has(tid)) continue; // already yours
-      const owner = rawPartners.find((pt) => (pt.roster || []).map(String).includes(tid));
-      if (!owner) continue; // free agent / not on a partner roster -> not a trade target
-      const targetValue = enr.value(tid) || 0;
-      const mine = [...roster.starters, ...roster.bench]
-        .map((p) => ({ id: p.id, name: p.name, position: p.position, value: enr.value(p.id) || 0 }))
-        .sort((a, b) => b.value - a.value);
-      const give = suggestGive(mine, targetValue);
-      out.push({
-        leagueId: league.leagueId,
-        name: league.name,
-        partnerFranchiseId: owner.franchiseId,
-        partnerName: owner.name,
-        targetValue,
-        suggestedGive: give.map((g) => ({ id: g.id, name: g.name, position: g.position, value: g.value })),
-        giveValue: Math.round(give.reduce((s, g) => s + (g.value || 0), 0) * 10) / 10,
-      });
-    } catch (e) {
-      /* skip a league we couldn't read */
-    }
-  }
+  // Probe every league in parallel — sequential awaits here meant N round-trips
+  // back-to-back, the slow part of this endpoint. Leagues where he's not a trade
+  // target (already yours, or a free agent) resolve to null and drop out.
+  const probed = await Promise.all(
+    leagues.map(async (league) => {
+      try {
+        const enr = await enrichmentLib.snapshot(await leagueFormat.format(cookie, league), cookie);
+        const [roster, rawPartners] = await Promise.all([
+          rosterService.getRoster(cookie, league.leagueId),
+          config.demoMode ? Promise.resolve(demo.tradePartners(league.leagueId)) : liveRosters(cookie, league),
+        ]);
+        const myIds = new Set([...roster.starters, ...roster.bench, ...roster.ir, ...roster.taxi].map((p) => p.id));
+        if (myIds.has(tid)) return null; // already yours
+        const owner = rawPartners.find((pt) => (pt.roster || []).map(String).includes(tid));
+        if (!owner) return null; // free agent / not on a partner roster -> not a trade target
+        const targetValue = enr.value(tid) || 0;
+        const mine = [...roster.starters, ...roster.bench]
+          .map((p) => ({ id: p.id, name: p.name, position: p.position, value: enr.value(p.id) || 0 }))
+          .sort((a, b) => b.value - a.value);
+        const give = suggestGive(mine, targetValue);
+        return {
+          leagueId: league.leagueId,
+          name: league.name,
+          partnerFranchiseId: owner.franchiseId,
+          partnerName: owner.name,
+          targetValue,
+          suggestedGive: give.map((g) => ({ id: g.id, name: g.name, position: g.position, value: g.value })),
+          giveValue: Math.round(give.reduce((s, g) => s + (g.value || 0), 0) * 10) / 10,
+        };
+      } catch (e) {
+        return null; // skip a league we couldn't read
+      }
+    })
+  );
+  const out = probed.filter(Boolean);
   return { player: { id: target.id, name: target.name, position: target.position, team: target.team }, leagues: out };
 }
 

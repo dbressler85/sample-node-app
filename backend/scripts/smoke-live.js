@@ -30,6 +30,7 @@ const TESTS = [
   'ondeck-test',
   'notifications-test',
   'profile-format-test',
+  'leagues-cache-test',
 ];
 
 let failed = 0;
