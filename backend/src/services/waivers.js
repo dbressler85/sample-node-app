@@ -369,14 +369,22 @@ async function getBestAvailable(cookie, token) {
   const [byId, enr, ctx] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(undefined, cookie), ctxFor(cookie)]);
   const map = new Map();
 
-  for (const league of leagues) {
-    const settings = await loadSettings(league, cookie);
-    const scoring = config.demoMode ? demo.scoring(league.leagueId) || {} : {};
-    const statMap = config.demoMode ? demo.statProjections() : {};
-    for (const id of await freeAgentIds(cookie, league)) {
-      const fa = makeFreeAgent(id, byId, scoring, statMap, ctx, settings.system, settings, null, enr);
-      if (!map.has(id)) map.set(id, { id: fa.id, name: fa.name, position: fa.position, team: fa.team, value: fa.value, age: fa.age, trend: fa.trend, ownership: fa.ownership, availability: fa.availability, leagues: [] });
-      map.get(id).leagues.push({ leagueId: league.leagueId, name: league.name, system: settings.system });
+  // Read every league's settings + free agents in parallel, then merge the (sync)
+  // results in order — sequential per-league awaits were the bottleneck here.
+  const perLeague = await Promise.all(
+    leagues.map(async (league) => {
+      const settings = await loadSettings(league, cookie);
+      const scoring = config.demoMode ? demo.scoring(league.leagueId) || {} : {};
+      const statMap = config.demoMode ? demo.statProjections() : {};
+      const ids = await freeAgentIds(cookie, league);
+      const fas = ids.map((id) => makeFreeAgent(id, byId, scoring, statMap, ctx, settings.system, settings, null, enr));
+      return { league, settings, fas };
+    })
+  );
+  for (const { league, settings, fas } of perLeague) {
+    for (const fa of fas) {
+      if (!map.has(fa.id)) map.set(fa.id, { id: fa.id, name: fa.name, position: fa.position, team: fa.team, value: fa.value, age: fa.age, trend: fa.trend, ownership: fa.ownership, availability: fa.availability, leagues: [] });
+      map.get(fa.id).leagues.push({ leagueId: league.leagueId, name: league.name, system: settings.system });
     }
   }
 
@@ -392,36 +400,37 @@ async function getBestAvailable(cookie, token) {
 // free agents are worth a look, top available by value, and pending claims.
 async function getOverview(cookie, token) {
   const leagues = await leaguesService.listLeagues(cookie);
-  const out = [];
-  for (const league of leagues) {
-    try {
-      const settings = await loadSettings(league, cookie);
-      const [roster, fas] = await Promise.all([
-        rosterService.getRoster(cookie, league.leagueId),
-        loadFreeAgents(cookie, league, settings),
-      ]);
-      let freeAgents = fas;
-      if (!config.demoMode) freeAgents = freeAgents.filter((p) => p.name && !/^Player \d+$/.test(p.name));
-      freeAgents.sort((a, b) => (b.value || 0) - (a.value || 0));
-      const pending = store.list(token, league.leagueId, config.demoMode ? demo.pendingClaims(league.leagueId) : []);
-      const pendingCount = pending.filter((c) => (c.status || 'pending') === 'pending').length;
-      out.push({
-        leagueId: league.leagueId,
-        name: league.name,
-        system: settings.system,
-        faabRemaining: settings.faabRemaining != null ? settings.faabRemaining : null,
-        waiverPriority: settings.waiverPriority || null,
-        rosterSize: settings.rosterSize || null,
-        rosterCount: activeCount(roster),
-        rosterFull: rosterIsFull(roster, settings),
-        faCount: freeAgents.length,
-        pendingCount,
-        topAvailable: freeAgents.slice(0, 3).map((p) => ({ id: p.id, name: p.name, position: p.position, value: p.value })),
-      });
-    } catch (e) {
-      out.push({ leagueId: league.leagueId, name: league.name, error: e.message });
-    }
-  }
+  const out = await Promise.all(
+    leagues.map(async (league) => {
+      try {
+        const settings = await loadSettings(league, cookie);
+        const [roster, fas] = await Promise.all([
+          rosterService.getRoster(cookie, league.leagueId),
+          loadFreeAgents(cookie, league, settings),
+        ]);
+        let freeAgents = fas;
+        if (!config.demoMode) freeAgents = freeAgents.filter((p) => p.name && !/^Player \d+$/.test(p.name));
+        freeAgents.sort((a, b) => (b.value || 0) - (a.value || 0));
+        const pending = store.list(token, league.leagueId, config.demoMode ? demo.pendingClaims(league.leagueId) : []);
+        const pendingCount = pending.filter((c) => (c.status || 'pending') === 'pending').length;
+        return {
+          leagueId: league.leagueId,
+          name: league.name,
+          system: settings.system,
+          faabRemaining: settings.faabRemaining != null ? settings.faabRemaining : null,
+          waiverPriority: settings.waiverPriority || null,
+          rosterSize: settings.rosterSize || null,
+          rosterCount: activeCount(roster),
+          rosterFull: rosterIsFull(roster, settings),
+          faCount: freeAgents.length,
+          pendingCount,
+          topAvailable: freeAgents.slice(0, 3).map((p) => ({ id: p.id, name: p.name, position: p.position, value: p.value })),
+        };
+      } catch (e) {
+        return { leagueId: league.leagueId, name: league.name, error: e.message };
+      }
+    })
+  );
   const summary = {
     total: out.length,
     pending: out.reduce((s, l) => s + (l.pendingCount || 0), 0),
@@ -437,69 +446,70 @@ async function getOverview(cookie, token) {
 // wizard walks these, letting the owner tweak each before submitting.
 async function getSuggestions(cookie, token) {
   const leagues = await leaguesService.listLeagues(cookie);
-  const out = [];
-  for (const league of leagues) {
-    try {
-      const settings = await loadSettings(league, cookie);
-      const [roster, fas] = await Promise.all([
-        rosterService.getRoster(cookie, league.leagueId),
-        loadFreeAgents(cookie, league, settings),
-      ]);
-      let freeAgents = fas;
-      if (!config.demoMode) freeAgents = freeAgents.filter((p) => p.name && !/^Player \d+$/.test(p.name));
-      freeAgents.sort((a, b) => (b.value || 0) - (a.value || 0));
+  const out = await Promise.all(
+    leagues.map(async (league) => {
+      try {
+        const settings = await loadSettings(league, cookie);
+        const [roster, fas] = await Promise.all([
+          rosterService.getRoster(cookie, league.leagueId),
+          loadFreeAgents(cookie, league, settings),
+        ]);
+        let freeAgents = fas;
+        if (!config.demoMode) freeAgents = freeAgents.filter((p) => p.name && !/^Player \d+$/.test(p.name));
+        freeAgents.sort((a, b) => (b.value || 0) - (a.value || 0));
 
-      const full = rosterIsFull(roster, settings);
-      const drop = suggestDrop(roster);
-      const candidates = freeAgents.slice(0, 8).map((p) => ({
-        id: p.id, name: p.name, position: p.position, team: p.team,
-        value: p.value, projection: p.projection, trend: p.trend, ownership: p.ownership, availability: p.availability,
-      }));
-      const bench = roster.bench
-        .slice()
-        .sort((a, b) => (a.value || 0) - (b.value || 0))
-        .map((p) => ({ id: p.id, name: p.name, position: p.position, value: p.value }));
+        const full = rosterIsFull(roster, settings);
+        const drop = suggestDrop(roster);
+        const candidates = freeAgents.slice(0, 8).map((p) => ({
+          id: p.id, name: p.name, position: p.position, team: p.team,
+          value: p.value, projection: p.projection, trend: p.trend, ownership: p.ownership, availability: p.availability,
+        }));
+        const bench = roster.bench
+          .slice()
+          .sort((a, b) => (a.value || 0) - (b.value || 0))
+          .map((p) => ({ id: p.id, name: p.name, position: p.position, value: p.value }));
 
-      const top = candidates[0] || null;
-      let recommended = null;
-      if (top) {
-        // An "upgrade" means it's worth acting on: either you have an open spot,
-        // or the top FA out-values the bench player you'd drop.
-        const upgrade = !full || (drop ? (top.value || 0) > (drop.value || 0) : true);
-        const useDrop = full ? drop : null; // a drop is only required when full
-        const bid = settings.system === 'faab' ? suggestBid(settings, top) : null;
-        recommended = {
-          add: top,
-          drop: useDrop ? { id: useDrop.id, name: useDrop.name, position: useDrop.position, value: useDrop.value } : null,
-          bid,
-          budgetAfter: bid != null && settings.faabRemaining != null ? settings.faabRemaining - bid : null,
-          upgrade,
-          reason: !full
-            ? 'Open roster spot — top available by value'
-            : upgrade
-            ? `Upgrade over ${drop ? drop.name.split(',')[0] : 'your bench'}`
-            : 'Roster full — top FA doesn’t beat your bench',
+        const top = candidates[0] || null;
+        let recommended = null;
+        if (top) {
+          // An "upgrade" means it's worth acting on: either you have an open spot,
+          // or the top FA out-values the bench player you'd drop.
+          const upgrade = !full || (drop ? (top.value || 0) > (drop.value || 0) : true);
+          const useDrop = full ? drop : null; // a drop is only required when full
+          const bid = settings.system === 'faab' ? suggestBid(settings, top) : null;
+          recommended = {
+            add: top,
+            drop: useDrop ? { id: useDrop.id, name: useDrop.name, position: useDrop.position, value: useDrop.value } : null,
+            bid,
+            budgetAfter: bid != null && settings.faabRemaining != null ? settings.faabRemaining - bid : null,
+            upgrade,
+            reason: !full
+              ? 'Open roster spot — top available by value'
+              : upgrade
+              ? `Upgrade over ${drop ? drop.name.split(',')[0] : 'your bench'}`
+              : 'Roster full — top FA doesn’t beat your bench',
+          };
+        }
+
+        return {
+          leagueId: league.leagueId,
+          name: league.name,
+          system: settings.system,
+          faabRemaining: settings.faabRemaining != null ? settings.faabRemaining : null,
+          minBid: settings.minBid || 1,
+          rosterCount: activeCount(roster),
+          rosterSize: settings.rosterSize || null,
+          rosterFull: full,
+          clearTime: settings.clearTime || null,
+          recommended,
+          candidates,
+          bench,
         };
+      } catch (e) {
+        return { leagueId: league.leagueId, name: league.name, error: e.message };
       }
-
-      out.push({
-        leagueId: league.leagueId,
-        name: league.name,
-        system: settings.system,
-        faabRemaining: settings.faabRemaining != null ? settings.faabRemaining : null,
-        minBid: settings.minBid || 1,
-        rosterCount: activeCount(roster),
-        rosterSize: settings.rosterSize || null,
-        rosterFull: full,
-        clearTime: settings.clearTime || null,
-        recommended,
-        candidates,
-        bench,
-      });
-    } catch (e) {
-      out.push({ leagueId: league.leagueId, name: league.name, error: e.message });
-    }
-  }
+    })
+  );
   const summary = {
     total: out.length,
     withSuggestions: out.filter((l) => l.recommended && l.recommended.upgrade).length,
