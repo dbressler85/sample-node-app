@@ -36,6 +36,7 @@ export default function HomeScreen({ onOpenLineup, onOpenLeague, onOpenWaivers, 
   const [progress, setProgress] = useState(null); // { done, total }
   const [error, setError] = useState(null);
   const [booting, setBooting] = useState(true);
+  const [busy, setBusy] = useState(false); // a refresh cycle is in flight
   const running = useRef(false);
 
   // 1) Instant paint from disk cache.
@@ -54,6 +55,7 @@ export default function HomeScreen({ onOpenLineup, onOpenLeague, onOpenWaivers, 
   const refresh = useCallback(async () => {
     if (running.current) return;
     running.current = true;
+    setBusy(true);
     setError(null);
     try {
       const res = await api.leaguesList();
@@ -85,6 +87,7 @@ export default function HomeScreen({ onOpenLineup, onOpenLeague, onOpenWaivers, 
       setError(e.message);
     } finally {
       setProgress(null);
+      setBusy(false);
       running.current = false;
     }
   }, []);
@@ -157,6 +160,11 @@ export default function HomeScreen({ onOpenLineup, onOpenLeague, onOpenWaivers, 
   }
 
   const loading = !!progress && progress.done < progress.total;
+  // The portfolio summary is only trustworthy once every current league has
+  // reported. Until then (a fresh load with no cache), show a spinner in place
+  // of the aggregate counts rather than a misleading run of zeroes. When we have
+  // cached data, statuses are already complete, so numbers update in place.
+  const summaryLoading = busy && !(leagues.length > 0 && leagues.every((l) => statuses[l.leagueId]));
 
   return (
     <View style={styles.container}>
@@ -181,7 +189,7 @@ export default function HomeScreen({ onOpenLineup, onOpenLeague, onOpenWaivers, 
         refreshControl={<RefreshControl refreshing={false} onRefresh={refresh} tintColor={colors.accent} />}
         ListHeaderComponent={
           <View>
-            <Portfolio p={portfolio} phase={phase} />
+            <Portfolio p={portfolio} phase={phase} loading={summaryLoading} />
             {drafts.length ? (
               <View>
                 <Text style={styles.section}>Drafts · {drafts.length}</Text>
@@ -210,8 +218,7 @@ export default function HomeScreen({ onOpenLineup, onOpenLeague, onOpenWaivers, 
             ) : null}
             {error ? <Text style={styles.error}>{error}</Text> : null}
             <Text style={styles.section}>
-              Needs attention · {portfolio.actionItems}
-              {loading ? '  ·  updating…' : ''}
+              Needs attention{summaryLoading ? '  ·  updating…' : ` · ${portfolio.actionItems}`}
             </Text>
           </View>
         }
@@ -257,34 +264,35 @@ export default function HomeScreen({ onOpenLineup, onOpenLeague, onOpenWaivers, 
   );
 }
 
-function Portfolio({ p, phase }) {
+function Portfolio({ p, phase, loading }) {
   const offseason = phase === 'offseason';
+  // The Leagues count is known as soon as the league list loads, so keep it live.
   return (
     <View style={styles.portfolio}>
       <View style={styles.tileRow}>
-        <Tile label="Leagues" value={String(p.leagues)} />
+        <Tile label="Leagues" value={String(p.leagues)} loading={loading && !p.leagues} />
         {offseason ? (
-          <Tile label="Total roster value" value={p.rosterValue ? String(p.rosterValue) : '—'} gold />
+          <Tile label="Total roster value" value={p.rosterValue ? String(p.rosterValue) : '—'} gold loading={loading} />
         ) : (
-          <Tile label="Needs attention" value={String(p.needAttention)} accent={p.needAttention > 0} />
+          <Tile label="Needs attention" value={String(p.needAttention)} accent={p.needAttention > 0} loading={loading} />
         )}
       </View>
       <View style={styles.chips}>
         {offseason ? (
           <>
-            <Chip label="Avg core age" value={p.avgCoreAge != null ? `${p.avgCoreAge}y` : '—'} />
-            <Chip label="Win-now" value={p.contenders} />
-            <Chip label="Ascending" value={p.ascending} />
-            <Chip label="Trades" value={p.tradeOffers} bad={p.tradeOffers > 0} />
-            <Chip label="Waivers" value={p.waiversPending} />
+            <Chip label="Avg core age" value={p.avgCoreAge != null ? `${p.avgCoreAge}y` : '—'} loading={loading} />
+            <Chip label="Win-now" value={p.contenders} loading={loading} />
+            <Chip label="Ascending" value={p.ascending} loading={loading} />
+            <Chip label="Trades" value={p.tradeOffers} bad={p.tradeOffers > 0} loading={loading} />
+            <Chip label="Waivers" value={p.waiversPending} loading={loading} />
           </>
         ) : (
           <>
-            <Chip label="Lineups to set" value={p.lineupsToSet} warn={p.lineupsToSet > 0} />
-            <Chip label="Holes" value={p.holes} bad={p.holes > 0} />
-            <Chip label="Injuries" value={p.injuries} bad={p.injuries > 0} />
-            <Chip label="Trades" value={p.tradeOffers} bad={p.tradeOffers > 0} />
-            <Chip label="Waivers" value={p.waiversPending} />
+            <Chip label="Lineups to set" value={p.lineupsToSet} warn={p.lineupsToSet > 0} loading={loading} />
+            <Chip label="Holes" value={p.holes} bad={p.holes > 0} loading={loading} />
+            <Chip label="Injuries" value={p.injuries} bad={p.injuries > 0} loading={loading} />
+            <Chip label="Trades" value={p.tradeOffers} bad={p.tradeOffers > 0} loading={loading} />
+            <Chip label="Waivers" value={p.waiversPending} loading={loading} />
           </>
         )}
       </View>
@@ -292,20 +300,32 @@ function Portfolio({ p, phase }) {
   );
 }
 
-function Tile({ label, value, accent, gold }) {
+function Tile({ label, value, accent, gold, loading }) {
   return (
     <View style={styles.tile}>
       <Text style={styles.tileLabel}>{label}</Text>
-      <Text style={[styles.tileValue, accent && { color: colors.accent }, gold && { color: colors.gold }]}>{value}</Text>
+      {loading ? (
+        <View style={styles.tileSpinner}>
+          <ActivityIndicator size="small" color={colors.textDim} />
+        </View>
+      ) : (
+        <Text style={[styles.tileValue, accent && { color: colors.accent }, gold && { color: colors.gold }]}>{value}</Text>
+      )}
     </View>
   );
 }
 
-function Chip({ label, value, bad, warn }) {
+function Chip({ label, value, bad, warn, loading }) {
   const c = bad ? colors.bad : warn ? colors.warn : colors.textDim;
   return (
     <View style={styles.chip}>
-      <Text style={[styles.chipValue, { color: c }]}>{value}</Text>
+      {loading ? (
+        <View style={styles.chipSpinner}>
+          <ActivityIndicator size="small" color={colors.textDim} />
+        </View>
+      ) : (
+        <Text style={[styles.chipValue, { color: c }]}>{value}</Text>
+      )}
       <Text style={styles.chipLabel}>{label}</Text>
     </View>
   );
@@ -345,9 +365,11 @@ const styles = StyleSheet.create({
   tile: { flex: 1, backgroundColor: colors.card, borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 16 },
   tileLabel: { color: colors.textDim, fontSize: 12, fontWeight: '700' },
   tileValue: { color: colors.text, fontSize: 30, fontWeight: '900', marginTop: 4 },
+  tileSpinner: { height: 40, justifyContent: 'center', alignItems: 'flex-start', marginTop: 4 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
   chip: { backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 8, alignItems: 'center', minWidth: 64 },
   chipValue: { fontSize: 18, fontWeight: '900' },
+  chipSpinner: { height: 22, justifyContent: 'center' },
   chipLabel: { color: colors.textDim, fontSize: 11, fontWeight: '600', marginTop: 2 },
   section: { color: colors.text, fontSize: 15, fontWeight: '800', marginTop: 20, marginBottom: 10 },
   groupHeader: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 14, marginBottom: 8 },

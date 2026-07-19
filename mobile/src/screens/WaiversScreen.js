@@ -8,6 +8,7 @@ import {
   Pressable,
   TextInput,
   ActivityIndicator,
+  RefreshControl,
   Alert,
 } from 'react-native';
 import { api } from '../api';
@@ -23,9 +24,13 @@ const SORTS = [
 ];
 
 export default function WaiversScreen({ initialLeagueId, initialPosition }) {
-  const [leagues, setLeagues] = useState([]);
-  const [leagueId, setLeagueId] = useState(initialLeagueId || null);
-  const [segment, setSegment] = useState('board'); // 'board' | 'best' | 'pending'
+  const [overview, setOverview] = useState(null);
+  const [ovLoading, setOvLoading] = useState(true);
+  const [ovRefreshing, setOvRefreshing] = useState(false);
+  const [segment, setSegment] = useState('leagues'); // 'leagues' | 'best' | 'pending'
+  // A league drill-in: the per-league board. Set from a card tap or a Home
+  // deep-link (initialLeagueId), which lands the user straight on that board.
+  const [openLeagueId, setOpenLeagueId] = useState(initialLeagueId || null);
   const [position, setPosition] = useState(initialPosition || null);
   // Default to dynasty value: it's meaningful year-round (esp. the offseason),
   // unlike weekly projection which is empty between seasons. Toggle to Proj for
@@ -34,115 +39,148 @@ export default function WaiversScreen({ initialLeagueId, initialPosition }) {
   const [board, setBoard] = useState(null);
   const [best, setBest] = useState(null);
   const [pending, setPending] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false); // board (drill-in) loading
   const [error, setError] = useState(null);
   const [claim, setClaim] = useState(null); // {leagueId, addId}
 
-  // Back closes the claim sheet first.
+  function closeBoard() {
+    setOpenLeagueId(null);
+    setBoard(null);
+    setPosition(null);
+  }
+
+  // Back: claim sheet first, then the board drill-in (returns to the overview).
   useAndroidBack(useCallback(() => {
     if (claim) {
       setClaim(null);
       return true;
     }
+    if (openLeagueId) {
+      closeBoard();
+      return true;
+    }
     return false;
-  }, [claim]));
+  }, [claim, openLeagueId]));
 
-  // Bootstrap league list.
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await api.leaguesList();
-        setLeagues(res.leagues);
-        setLeagueId((prev) => prev || (res.leagues[0] && res.leagues[0].leagueId));
-        if (!res.leagues || res.leagues.length === 0) setLoading(false); // nothing to load a board for
-      } catch (e) {
-        setError(e.message);
-        setLoading(false);
-      }
-    })();
+  // Landing list: one card per league.
+  const loadOverview = useCallback(async () => {
+    setError(null);
+    try {
+      setOverview(await api.waiversOverview());
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setOvLoading(false);
+      setOvRefreshing(false);
+    }
   }, []);
 
+  useEffect(() => {
+    loadOverview();
+  }, [loadOverview]);
+
+  // Board for the drilled-in league.
   const loadBoard = useCallback(async () => {
-    if (!leagueId) return;
+    if (!openLeagueId) return;
     setLoading(true);
     setError(null);
     try {
-      setBoard(await api.waiverBoard(leagueId, { position, sort }));
+      setBoard(await api.waiverBoard(openLeagueId, { position, sort }));
     } catch (e) {
       setError(e.message);
     } finally {
       setLoading(false);
     }
-  }, [leagueId, position, sort]);
+  }, [openLeagueId, position, sort]);
 
   useEffect(() => {
-    if (segment === 'board') loadBoard();
-  }, [segment, loadBoard]);
+    if (openLeagueId) loadBoard();
+  }, [openLeagueId, loadBoard]);
 
+  // Cross-league segments load lazily when shown (and not while drilled in).
   useEffect(() => {
+    if (openLeagueId) return;
     if (segment === 'best' && !best) api.bestAvailable().then(setBest).catch((e) => setError(e.message));
     if (segment === 'pending') api.waiverPending().then(setPending).catch((e) => setError(e.message));
-  }, [segment, best]);
+  }, [segment, best, openLeagueId]);
 
   function refreshAll() {
     setBest(null);
-    if (segment === 'board') loadBoard();
-    if (segment === 'pending') api.waiverPending().then(setPending);
+    if (openLeagueId) loadBoard();
+    loadOverview();
+    api.waiverPending().then(setPending).catch(() => {});
   }
 
   async function cancelClaim(cid, lid) {
     try {
       await api.cancelClaim(lid, cid);
       api.waiverPending().then(setPending);
+      loadOverview();
     } catch (e) {
       Alert.alert('Could not cancel', e.message);
     }
   }
 
+  const summary = overview && overview.summary;
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Waivers</Text>
+        {summary && !openLeagueId ? (
+          <Text style={styles.subtitle}>
+            {summary.total} league{summary.total === 1 ? '' : 's'}
+            {summary.pending ? ` · ${summary.pending} pending` : ''}
+            {summary.rostersFull ? ` · ${summary.rostersFull} roster${summary.rostersFull === 1 ? '' : 's'} full` : ''}
+          </Text>
+        ) : null}
       </View>
 
-      <View style={styles.segment}>
-        {[
-          ['board', 'Board'],
-          ['best', 'Best Available'],
-          ['pending', 'Pending'],
-        ].map(([k, label]) => (
-          <Pressable key={k} style={[styles.seg, segment === k && styles.segActive]} onPress={() => setSegment(k)}>
-            <Text style={[styles.segText, segment === k && styles.segTextActive]}>{label}</Text>
-          </Pressable>
-        ))}
-      </View>
-
-      {segment === 'board' ? (
+      {openLeagueId ? (
+        <BoardView
+          leagueName={board ? board.name : ''}
+          onBack={closeBoard}
+          board={board}
+          loading={loading}
+          error={error}
+          position={position}
+          setPosition={setPosition}
+          sort={sort}
+          setSort={setSort}
+          onPick={(addId) => setClaim({ leagueId: openLeagueId, addId })}
+        />
+      ) : (
         <>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.leagueRow} contentContainerStyle={styles.leagueRowInner}>
-            {leagues.map((l) => (
-              <Pressable key={l.leagueId} style={[styles.leaguePill, leagueId === l.leagueId && styles.leaguePillActive]} onPress={() => setLeagueId(l.leagueId)}>
-                <Text style={[styles.leaguePillText, leagueId === l.leagueId && { color: colors.text }]} numberOfLines={1}>
-                  {l.name}
-                </Text>
+          <View style={styles.segment}>
+            {[
+              ['leagues', 'Leagues'],
+              ['best', 'Best Available'],
+              ['pending', 'Pending'],
+            ].map(([k, label]) => (
+              <Pressable key={k} style={[styles.seg, segment === k && styles.segActive]} onPress={() => setSegment(k)}>
+                <Text style={[styles.segText, segment === k && styles.segTextActive]}>{label}</Text>
               </Pressable>
             ))}
-          </ScrollView>
-          <BoardView
-            board={board}
-            loading={loading}
-            error={error}
-            position={position}
-            setPosition={setPosition}
-            sort={sort}
-            setSort={setSort}
-            onPick={(addId) => setClaim({ leagueId, addId })}
-          />
+          </View>
+
+          {segment === 'leagues' ? (
+            <OverviewView
+              overview={overview}
+              loading={ovLoading}
+              refreshing={ovRefreshing}
+              error={error}
+              onOpen={setOpenLeagueId}
+              onRefresh={() => {
+                setOvRefreshing(true);
+                loadOverview();
+              }}
+            />
+          ) : segment === 'best' ? (
+            <BestView best={best} onPick={(lid, addId) => setClaim({ leagueId: lid, addId })} />
+          ) : (
+            <PendingView pending={pending} onCancel={cancelClaim} />
+          )}
         </>
-      ) : segment === 'best' ? (
-        <BestView best={best} onPick={(lid, addId) => setClaim({ leagueId: lid, addId })} />
-      ) : (
-        <PendingView pending={pending} onCancel={cancelClaim} />
       )}
 
       {claim ? (
@@ -160,13 +198,84 @@ export default function WaiversScreen({ initialLeagueId, initialPosition }) {
   );
 }
 
-function BoardView({ board, loading, error, position, setPosition, sort, setSort, onPick }) {
-  if (loading) return <Center><ActivityIndicator color={colors.accent} size="large" /></Center>;
-  if (error) return <Center><Text style={styles.error}>{error}</Text></Center>;
-  if (!board) return null;
+// The per-league landing list — mirrors the Lineups overview. Each card shows
+// the league's pickup system, budget/priority, roster space, how many free
+// agents are worth a look, and pending claims; tapping drills into its board.
+function OverviewView({ overview, loading, refreshing, error, onOpen, onRefresh }) {
+  if (loading && !overview) return <Center><ActivityIndicator color={colors.accent} size="large" /></Center>;
+  if (error && !overview) return <Center><Text style={styles.error}>{error}</Text></Center>;
+  return (
+    <FlatList
+      data={overview ? overview.leagues : []}
+      keyExtractor={(l) => l.leagueId}
+      contentContainerStyle={styles.list}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />}
+      renderItem={({ item }) => <LeagueCard item={item} onPress={() => onOpen(item.leagueId)} />}
+      ListEmptyComponent={<Text style={styles.empty}>No leagues found.</Text>}
+    />
+  );
+}
+
+function LeagueCard({ item, onPress }) {
+  if (item.error) {
+    return (
+      <View style={styles.ovCard}>
+        <Text style={styles.ovName}>{item.name}</Text>
+        <Text style={styles.rowError}>{item.error}</Text>
+      </View>
+    );
+  }
+  const budget =
+    item.system === 'faab' && item.faabRemaining != null
+      ? `$${item.faabRemaining} FAAB`
+      : item.system === 'fcfs' && item.waiverPriority
+      ? `Priority #${item.waiverPriority}`
+      : null;
+  return (
+    <Pressable style={({ pressed }) => [styles.ovCard, pressed && { opacity: 0.7 }]} onPress={onPress}>
+      <View style={styles.ovTop}>
+        <Text style={styles.ovName} numberOfLines={1}>{item.name}</Text>
+        <SystemBadge system={item.system} />
+      </View>
+      <Text style={styles.ovMeta}>
+        {[
+          budget,
+          `Roster ${item.rosterCount}/${item.rosterSize}${item.rosterFull ? ' · FULL' : ''}`,
+        ]
+          .filter(Boolean)
+          .join('  ·  ')}
+      </Text>
+      {item.topAvailable && item.topAvailable.length ? (
+        <Text style={styles.ovTop3} numberOfLines={1}>
+          Top: {item.topAvailable.map((p) => `${p.name.split(',')[0]}${p.value != null ? ` (${p.value})` : ''}`).join(', ')}
+        </Text>
+      ) : null}
+      <View style={styles.ovBottom}>
+        <Text style={styles.ovCount}>
+          {item.faCount} available
+          {item.pendingCount ? <Text style={styles.ovPending}>  ·  {item.pendingCount} pending</Text> : null}
+        </Text>
+        <Text style={styles.chev}>›</Text>
+      </View>
+    </Pressable>
+  );
+}
+
+function BoardView({ board, loading, error, position, setPosition, sort, setSort, onPick, onBack, leagueName }) {
+  const header = onBack ? (
+    <Pressable style={styles.backRow} onPress={onBack} hitSlop={8}>
+      <Text style={styles.backChev}>‹</Text>
+      <Text style={styles.backText} numberOfLines={1}>{leagueName || 'Leagues'}</Text>
+    </Pressable>
+  ) : null;
+
+  if (loading) return <View style={{ flex: 1 }}>{header}<Center><ActivityIndicator color={colors.accent} size="large" /></Center></View>;
+  if (error) return <View style={{ flex: 1 }}>{header}<Center><Text style={styles.error}>{error}</Text></Center></View>;
+  if (!board) return <View style={{ flex: 1 }}>{header}</View>;
 
   return (
     <View style={{ flex: 1 }}>
+      {header}
       <View style={styles.boardMeta}>
         <SystemBadge system={board.system} />
         {board.system === 'faab' && board.settings.faabRemaining != null ? (
@@ -249,8 +358,8 @@ function BestView({ best, onPick }) {
         <View style={styles.emptyWrap}>
           <Text style={styles.emptyTitle}>Nothing to show yet</Text>
           <Text style={styles.emptyText}>
-            The cross-league “best available” view isn’t wired for live leagues yet. Use the Board tab
-            per league for now.
+            The cross-league “best available” view isn’t wired for live leagues yet. Open a league
+            from the Leagues tab for now.
           </Text>
         </View>
       }
@@ -487,16 +596,27 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 6 },
   title: { color: colors.text, fontSize: 26, fontWeight: '900' },
+  subtitle: { color: colors.textDim, fontSize: 13, marginTop: 2 },
+  // Landing list — league cards (mirrors Lineups).
+  ovCard: { backgroundColor: colors.card, borderRadius: 14, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: colors.border },
+  ovTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  ovName: { color: colors.text, fontSize: 16, fontWeight: '700', flex: 1, marginRight: 10 },
+  ovMeta: { color: colors.textDim, fontSize: 12, fontWeight: '700', marginTop: 8 },
+  ovTop3: { color: colors.textDim, fontSize: 12, marginTop: 6 },
+  ovBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 },
+  ovCount: { color: colors.text, fontSize: 13, fontWeight: '700' },
+  ovPending: { color: colors.accent, fontWeight: '800' },
+  chev: { color: colors.textDim, fontSize: 22, fontWeight: '700' },
+  rowError: { color: colors.bad, marginTop: 6, fontSize: 13 },
+  // Board drill-in back header.
+  backRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 6, paddingTop: 2 },
+  backChev: { color: colors.accent, fontSize: 26, fontWeight: '800', marginRight: 6, marginTop: -2 },
+  backText: { color: colors.accent, fontSize: 15, fontWeight: '700', flex: 1 },
   segment: { flexDirection: 'row', marginHorizontal: 16, backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 3, marginBottom: 8 },
   seg: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
   segActive: { backgroundColor: colors.cardAlt },
   segText: { color: colors.textDim, fontSize: 13, fontWeight: '700' },
   segTextActive: { color: colors.text },
-  leagueRow: { maxHeight: 44, marginBottom: 4 },
-  leagueRowInner: { paddingHorizontal: 16, gap: 8, alignItems: 'center' },
-  leaguePill: { backgroundColor: colors.card, borderRadius: 18, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 8, maxWidth: 180 },
-  leaguePillActive: { backgroundColor: colors.cardAlt, borderColor: colors.accent },
-  leaguePillText: { color: colors.textDim, fontSize: 13, fontWeight: '700' },
   boardMeta: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingVertical: 8 },
   metaText: { color: colors.textDim, fontSize: 12, fontWeight: '700' },
   filterRow: { paddingLeft: 16, paddingVertical: 6 },

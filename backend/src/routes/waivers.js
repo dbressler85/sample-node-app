@@ -7,6 +7,15 @@ const waivers = require('../services/waivers');
 const router = express.Router();
 router.use(requireSession);
 
+// GET /api/waivers/overview — per-league waiver summary for the landing list.
+router.get('/waivers/overview', async (req, res, next) => {
+  try {
+    res.json(await waivers.getOverview(req.mflCookie, req.token));
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/waivers/best-available — top free agents across all your leagues.
 router.get('/waivers/best-available', async (req, res, next) => {
   try {
