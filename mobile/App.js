@@ -129,7 +129,7 @@ export default function App() {
     if (!authed) return <LoginScreen onLoggedIn={() => setAuthed(true)} />;
 
     if (overlay && overlay.type === 'roster') {
-      return <RosterScreen league={overlay.league} onBack={() => setOverlay(null)} />;
+      return <RosterScreen league={overlay.league} onBack={() => setOverlay(null)} onOpenTrades={openTrades} />;
     }
     if (overlay && overlay.type === 'lineupEditor') {
       return <LineupEditorScreen league={overlay.league} onBack={() => setOverlay(null)} />;
