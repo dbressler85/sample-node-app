@@ -16,6 +16,7 @@ import LineupEditorScreen from './src/screens/LineupEditorScreen';
 import LineupWizardScreen from './src/screens/LineupWizardScreen';
 import WaiverWizardScreen from './src/screens/WaiverWizardScreen';
 import TradesScreen from './src/screens/TradesScreen';
+import TradeInboxScreen from './src/screens/TradeInboxScreen';
 import DraftScreen from './src/screens/DraftScreen';
 import { loadSession, clearSession } from './src/auth';
 import { colors } from './src/theme';
@@ -93,6 +94,7 @@ export default function App() {
   const openWizard = (leagues, mode) => pushOverlay({ type: 'lineupWizard', leagues, mode });
   const openWaiverWizard = (leagues) => pushOverlay({ type: 'waiverWizard', leagues });
   const openTrades = (league) => pushOverlay({ type: 'trades', league });
+  const openTradeInbox = () => pushOverlay({ type: 'tradeInbox' });
   const openDraft = (league) => pushOverlay({ type: 'draft', league });
   const openPlayer = (playerId) => pushOverlay({ type: 'playerProfile', playerId });
   const openWaivers = (target) => {
@@ -126,6 +128,7 @@ export default function App() {
             onOpenLeague={openRoster}
             onOpenWaivers={(league) => openWaivers({ leagueId: league.leagueId, position: league.position })}
             onOpenTrades={openTrades}
+            onOpenTradeInbox={openTradeInbox}
             onOpenDraft={openDraft}
             onLogout={handleLogout}
           />
@@ -168,6 +171,9 @@ export default function App() {
     }
     if (overlay && overlay.type === 'trades') {
       return <TradesScreen league={overlay.league} onBack={popOverlay} />;
+    }
+    if (overlay && overlay.type === 'tradeInbox') {
+      return <TradeInboxScreen onBack={popOverlay} onOpenLeague={openTrades} />;
     }
     if (overlay && overlay.type === 'draft') {
       return <DraftScreen league={overlay.league} onBack={popOverlay} />;

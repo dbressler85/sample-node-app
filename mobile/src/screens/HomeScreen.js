@@ -28,7 +28,7 @@ async function runPool(items, limit, worker) {
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, next));
 }
 
-export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpenWaivers, onOpenTrades, onOpenDraft, onLogout }) {
+export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpenWaivers, onOpenTrades, onOpenTradeInbox, onOpenDraft, onLogout }) {
   const [leagues, setLeagues] = useState([]);
   const [statuses, setStatuses] = useState({}); // leagueId -> { name, status, items }
   const [drafts, setDrafts] = useState([]); // active/scheduled drafts across leagues
@@ -216,6 +216,20 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
                 ))}
               </View>
             ) : null}
+            {portfolio.tradeOffers ? (
+              <Pressable
+                style={({ pressed }) => [styles.inboxRow, pressed && { opacity: 0.7 }]}
+                onPress={onOpenTradeInbox}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.inboxName}>📥 Trade inbox</Text>
+                  <Text style={styles.inboxSub} numberOfLines={1}>
+                    {portfolio.tradeOffers} offer{portfolio.tradeOffers === 1 ? '' : 's'} across your leagues
+                  </Text>
+                </View>
+                <Text style={styles.teamChev}>›</Text>
+              </Pressable>
+            ) : null}
             {error ? <Text style={styles.error}>{error}</Text> : null}
             <Text style={styles.section}>
               Needs attention{summaryLoading ? '  ·  updating…' : ` · ${portfolio.actionItems}`}
@@ -386,6 +400,9 @@ const styles = StyleSheet.create({
   teamRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: 10 },
   teamName: { color: colors.text, fontSize: 15, fontWeight: '700', marginRight: 10 },
   teamSub: { color: colors.textDim, fontSize: 12, marginTop: 3 },
+  inboxRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 14, marginTop: 12 },
+  inboxName: { color: colors.text, fontSize: 15, fontWeight: '800' },
+  inboxSub: { color: colors.textDim, fontSize: 12, marginTop: 3 },
   draftRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: 8 },
   draftRowLive: { borderColor: colors.gold },
   draftName: { color: colors.text, fontSize: 15, fontWeight: '800' },
