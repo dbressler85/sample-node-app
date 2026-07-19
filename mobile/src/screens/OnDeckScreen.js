@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Pressable, FlatList, RefreshControl, ActivityIn
 import { api } from '../api';
 import { colors } from '../theme';
 import useAndroidBack from '../useAndroidBack';
+import usePoll from '../usePoll';
 
 // On Deck — the proactive, time-sorted view of what needs you next across every
 // league. Draft clocks (now), lineup locks (next kickoff), scheduled drafts, and
@@ -52,11 +53,13 @@ export default function OnDeckScreen({ onBack, onOpenLineup, onOpenDraft, onOpen
   }, []);
 
   useEffect(() => { load(); }, [load]);
-  // Tick the relative-time labels once a minute (no refetch).
+  // Tick the relative-time labels every 20s so countdowns stay fresh between fetches.
   useEffect(() => {
-    const id = setInterval(() => force((n) => n + 1), 60000);
+    const id = setInterval(() => force((n) => n + 1), 20000);
     return () => clearInterval(id);
   }, []);
+  // Re-fetch every minute so a newly-on-the-clock draft or a new deadline appears.
+  usePoll(load, 60000, true);
 
   function act(item) {
     const league = { leagueId: item.leagueId, name: item.leagueName };

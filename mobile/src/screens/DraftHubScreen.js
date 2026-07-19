@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Pressable, ScrollView, RefreshControl, Activity
 import { api } from '../api';
 import { colors } from '../theme';
 import useAndroidBack from '../useAndroidBack';
+import usePoll from '../usePoll';
 
 // Cross-league draft hub: every league's draft in one place, grouped by what needs
 // you now — on the clock first, then live, then scheduled, then done. During draft
@@ -41,6 +42,9 @@ export default function DraftHubScreen({ onBack, onOpenDraft }) {
   useEffect(() => { load(); }, [load]);
 
   const drafts = (data && data.drafts) || [];
+  // Poll while any draft is live or on the clock, so a new "your turn" appears
+  // across leagues without a manual refresh.
+  usePoll(load, 15000, drafts.some((d) => d.myOnClock || d.status === 'in_progress'));
   const onClock = drafts.filter((d) => d.myOnClock);
   const live = drafts.filter((d) => !d.myOnClock && d.status === 'in_progress');
   const scheduled = drafts.filter((d) => d.status === 'scheduled')
