@@ -59,6 +59,7 @@ export const api = {
 
   // Command center (M1.5)
   home: () => request('/api/home'),
+  leagueTriage: (leagueId) => request(`/api/home/league/${leagueId}`),
   scoreboard: () => request('/api/scoreboard'),
   exposure: () => request('/api/players/exposure'),
   news: () => request('/api/news'),
