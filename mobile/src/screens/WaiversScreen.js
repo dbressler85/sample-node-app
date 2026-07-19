@@ -14,6 +14,7 @@ import {
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import AvailabilityBadge from '../components/AvailabilityBadge';
+import AddAcrossSheet from '../components/AddAcrossSheet';
 import useAndroidBack from '../useAndroidBack';
 
 const SORTS = [
@@ -43,6 +44,7 @@ export default function WaiversScreen({ initialLeagueId, initialPosition, onStar
   const [loading, setLoading] = useState(false); // board (drill-in) loading
   const [error, setError] = useState(null);
   const [claim, setClaim] = useState(null); // {leagueId, addId}
+  const [addPlayer, setAddPlayer] = useState(null); // batch "claim across N leagues"
 
   function closeBoard() {
     setOpenLeagueId(null);
@@ -50,8 +52,12 @@ export default function WaiversScreen({ initialLeagueId, initialPosition, onStar
     setPosition(null);
   }
 
-  // Back: claim sheet first, then the board drill-in (returns to the overview).
+  // Back: claim / batch sheet first, then the board drill-in (returns to overview).
   useAndroidBack(useCallback(() => {
+    if (addPlayer) {
+      setAddPlayer(null);
+      return true;
+    }
     if (claim) {
       setClaim(null);
       return true;
@@ -61,7 +67,7 @@ export default function WaiversScreen({ initialLeagueId, initialPosition, onStar
       return true;
     }
     return false;
-  }, [claim, openLeagueId]));
+  }, [addPlayer, claim, openLeagueId]));
 
   // Landing list: one card per league.
   const loadOverview = useCallback(async () => {
@@ -212,7 +218,7 @@ export default function WaiversScreen({ initialLeagueId, initialPosition, onStar
               />
             </>
           ) : segment === 'best' ? (
-            <BestView best={best} onPick={(lid, addId) => setClaim({ leagueId: lid, addId })} />
+            <BestView best={best} onClaimAll={setAddPlayer} />
           ) : (
             <PendingView pending={pending} onCancel={cancelClaim} />
           )}
@@ -226,6 +232,17 @@ export default function WaiversScreen({ initialLeagueId, initialPosition, onStar
           onClose={() => setClaim(null)}
           onDone={() => {
             setClaim(null);
+            refreshAll();
+          }}
+        />
+      ) : null}
+
+      {addPlayer ? (
+        <AddAcrossSheet
+          player={addPlayer}
+          onClose={() => setAddPlayer(null)}
+          onDone={() => {
+            setAddPlayer(null);
             refreshAll();
           }}
         />
@@ -382,8 +399,7 @@ function FaRow({ p, onPress }) {
   );
 }
 
-function BestView({ best, onPick }) {
-  const [openId, setOpenId] = useState(null);
+function BestView({ best, onClaimAll }) {
   if (!best) return <Center><ActivityIndicator color={colors.accent} size="large" /></Center>;
   return (
     <FlatList
@@ -401,35 +417,21 @@ function BestView({ best, onPick }) {
       }
       renderItem={({ item }) => {
         const posColor = positionColors[item.position] || colors.textDim;
-        const open = openId === item.id;
         return (
-          <View style={styles.faRowWrap}>
-            <Pressable style={styles.faRow} onPress={() => setOpenId(open ? null : item.id)}>
-              <View style={[styles.posBadge, { backgroundColor: posColor + '22', borderColor: posColor }]}>
-                <Text style={[styles.pos, { color: posColor }]}>{item.position}</Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.faName} numberOfLines={1}>
-                  {item.name}
-                </Text>
-                <Text style={styles.faMeta}>
-                  {item.team} · free in {item.leagueCount} league{item.leagueCount === 1 ? '' : 's'}
-                  {item.trend ? ` · +${(item.trend / 1000).toFixed(1)}k adds` : ''}
-                </Text>
-              </View>
-              {item.value != null ? <Text style={styles.faValue}>{item.value}</Text> : null}
-            </Pressable>
-            {open ? (
-              <View style={styles.leagueChoices}>
-                {item.leagues.map((l) => (
-                  <Pressable key={l.leagueId} style={styles.leagueChoice} onPress={() => onPick(l.leagueId, item.id)}>
-                    <Text style={styles.leagueChoiceText}>{l.name}</Text>
-                    <SystemBadge system={l.system} small />
-                  </Pressable>
-                ))}
-              </View>
-            ) : null}
-          </View>
+          <Pressable style={({ pressed }) => [styles.faRow, pressed && { opacity: 0.7 }]} onPress={() => onClaimAll({ id: item.id, name: item.name })}>
+            <View style={[styles.posBadge, { backgroundColor: posColor + '22', borderColor: posColor }]}>
+              <Text style={[styles.pos, { color: posColor }]}>{item.position}</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.faName} numberOfLines={1}>{item.name}</Text>
+              <Text style={styles.faMeta}>
+                {item.team} · free in {item.leagueCount} league{item.leagueCount === 1 ? '' : 's'}
+                {item.trend ? ` · +${(item.trend / 1000).toFixed(1)}k adds` : ''}
+              </Text>
+            </View>
+            {item.value != null ? <Text style={styles.faValue}>{item.value}</Text> : null}
+            <Text style={styles.addBtn}>+ Claim {item.leagueCount}</Text>
+          </Pressable>
         );
       }}
     />
