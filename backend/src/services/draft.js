@@ -17,6 +17,7 @@ const leagueFormat = require('../lib/leagueformat');
 const playersLib = require('../lib/players');
 const leaguesService = require('./leagues');
 const waiversService = require('./waivers');
+const rosterService = require('./roster');
 const draftStore = require('../store/draft');
 
 function resolvePlayer(byId, id, enr) {
@@ -276,6 +277,9 @@ async function makePick(cookie, token, leagueId, playerId) {
     franchiseId: league.franchiseId,
     playerId: String(playerId),
   });
+  // The pick lands on my roster and updates the draft board — drop this league's
+  // cached roster + reads so the board and roster reflect it immediately.
+  if (!config.demoMode) rosterService.invalidate(cookie, leagueId);
   return getLeague(cookie, token, leagueId);
 }
 

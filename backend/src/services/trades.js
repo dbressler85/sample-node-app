@@ -219,6 +219,9 @@ async function respond(cookie, token, leagueId, tradeId, action) {
   }
   const seed = config.demoMode ? demo.tradeOffers(leagueId) : [];
   tradeStore.resolve(token, leagueId, seed, tradeId, act === 'accept' ? 'accepted' : 'rejected');
+  // Accepting a trade changes my roster on MFL — drop the cached roster so the next
+  // read reflects it. (Rejecting changes nothing.)
+  if (act === 'accept') rosterService.invalidate(cookie, leagueId);
   return { ok: true, tradeId: String(tradeId), action: act };
 }
 

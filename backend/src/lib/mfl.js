@@ -116,13 +116,19 @@ async function rawRequest({ host, command, params, cookie, method = 'GET', body 
 // one network request instead of each firing their own.
 const readCache = new Map(); // key -> { at, promise }
 
-// Slow-changing data gets a long TTL; everything else a short one.
+// Slow-changing data gets a long TTL; live-polled data a very short one so it
+// keeps up with its poll cadence; everything else a moderate short one.
 const STATIC_TYPES = new Set(['league', 'rules', 'myleagues', 'players', 'nflSchedule']);
+const LIVE_TYPES = new Set(['liveScoring', 'draftResults']);
 
 // Read data via the export command (cached, TTL depends on how volatile it is).
 async function exportRequest(type, { host = config.apiHost, cookie = null, ...params } = {}) {
   const key = `${cookie || ''}|${host}|${type}|${JSON.stringify(params)}`;
-  const ttl = STATIC_TYPES.has(type) ? config.mflStaticTtlMs : config.mflCacheTtlMs;
+  const ttl = STATIC_TYPES.has(type)
+    ? config.mflStaticTtlMs
+    : LIVE_TYPES.has(type)
+    ? config.mflLiveTtlMs
+    : config.mflCacheTtlMs;
   const hit = readCache.get(key);
   if (hit && Date.now() - hit.at < ttl) return hit.promise;
 
