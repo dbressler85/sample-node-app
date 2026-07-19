@@ -355,6 +355,49 @@ async function getBestAvailable(cookie, token) {
   return { totalLeagues: leagues.length, players };
 }
 
+// Per-league waiver summary for the landing list (mirrors the Lineups overview):
+// one card per league showing system, budget/priority, roster space, how many
+// free agents are worth a look, top available by value, and pending claims.
+async function getOverview(cookie, token) {
+  const leagues = await leaguesService.listLeagues(cookie);
+  const out = [];
+  for (const league of leagues) {
+    try {
+      const settings = await loadSettings(league, cookie);
+      const [roster, fas] = await Promise.all([
+        rosterService.getRoster(cookie, league.leagueId),
+        loadFreeAgents(cookie, league, settings),
+      ]);
+      let freeAgents = fas;
+      if (!config.demoMode) freeAgents = freeAgents.filter((p) => p.name && !/^Player \d+$/.test(p.name));
+      freeAgents.sort((a, b) => (b.value || 0) - (a.value || 0));
+      const pending = store.list(token, league.leagueId, config.demoMode ? demo.pendingClaims(league.leagueId) : []);
+      const pendingCount = pending.filter((c) => (c.status || 'pending') === 'pending').length;
+      out.push({
+        leagueId: league.leagueId,
+        name: league.name,
+        system: settings.system,
+        faabRemaining: settings.faabRemaining != null ? settings.faabRemaining : null,
+        waiverPriority: settings.waiverPriority || null,
+        rosterSize: settings.rosterSize || null,
+        rosterCount: activeCount(roster),
+        rosterFull: rosterIsFull(roster, settings),
+        faCount: freeAgents.length,
+        pendingCount,
+        topAvailable: freeAgents.slice(0, 3).map((p) => ({ id: p.id, name: p.name, position: p.position, value: p.value })),
+      });
+    } catch (e) {
+      out.push({ leagueId: league.leagueId, name: league.name, error: e.message });
+    }
+  }
+  const summary = {
+    total: out.length,
+    pending: out.reduce((s, l) => s + (l.pendingCount || 0), 0),
+    rostersFull: out.filter((l) => l.rosterFull).length,
+  };
+  return { leagues: out, summary };
+}
+
 // All pending claims + recent results across leagues, for one activity view.
 async function getPending(cookie, token) {
   const leagues = await leaguesService.listLeagues(cookie);
@@ -372,4 +415,4 @@ async function getPending(cookie, token) {
   return { pending, results, summary: { pending: pending.length, results: results.length } };
 }
 
-module.exports = { getBoard, preview, submit, cancel, getBestAvailable, getPending, freeAgentIds };
+module.exports = { getBoard, getOverview, preview, submit, cancel, getBestAvailable, getPending, freeAgentIds };
