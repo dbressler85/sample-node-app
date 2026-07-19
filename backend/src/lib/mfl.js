@@ -108,28 +108,50 @@ function importRequest(type, { host = config.apiHost, cookie = null, ...params }
   return rawRequest({ host, command: 'import', params: { TYPE: type }, cookie, method: 'POST', body: form.toString() });
 }
 
+// Pull the MFL_USER_ID token out of a Set-Cookie header or a JSON/XML body.
+// Handles: "MFL_USER_ID=abc; ...", '"MFL_USER_ID":"abc"', 'MFL_USER_ID="abc"'.
+function extractMflUserId(str) {
+  if (!str) return null;
+  const m = /MFL_USER_ID["'=:\s]+([A-Za-z0-9%._-]{6,})/i.exec(str);
+  return m ? decodeURIComponent(m[1]) : null;
+}
+
 // Authenticate once and return the MFL_USER_ID cookie value, reusable across leagues.
 async function login(username, password) {
-  const url = buildUrl(config.apiHost, 'login', { USERNAME: username, PASSWORD: password });
+  // The login endpoint is special: XML=1 (not JSON), and no APIKEY needed here.
+  const url = new URL(`https://${config.apiHost}/${config.season}/login`);
+  url.searchParams.set('USERNAME', username);
+  url.searchParams.set('PASSWORD', password);
+  url.searchParams.set('XML', '1');
+  if (config.apiKey) url.searchParams.set('APIKEY', config.apiKey);
+
   const res = await throttle(() =>
-    fetch(url, {
-      headers: { 'User-Agent': config.userAgent, Accept: 'application/json' },
-      redirect: 'manual',
-    })
+    fetch(url.toString(), { headers: { 'User-Agent': config.userAgent, Accept: '*/*' }, redirect: 'manual' })
   );
 
-  // MFL returns the cookie in a Set-Cookie header and echoes it in the body.
   const setCookie = res.headers.get('set-cookie') || '';
-  const fromHeader = /MFL_USER_ID=([^;]+)/.exec(setCookie);
-  if (fromHeader) return decodeURIComponent(fromHeader[1]);
+  let text = '';
+  try {
+    text = await res.text();
+  } catch (e) {
+    /* ignore */
+  }
+  const snippet = text.slice(0, 200).replace(/\s+/g, ' ').trim();
+  // Logged to the server console (Render logs). Never logs the password.
+  console.log(`[MFL login] status=${res.status} setCookie=${setCookie ? 'present' : 'none'} bodyLen=${text.length} body="${snippet}"`);
 
-  const text = await res.text();
-  const fromBody = /MFL_USER_ID=?["']?\s*([A-Za-z0-9%._-]+)/.exec(text);
-  if (fromBody) return decodeURIComponent(fromBody[1]);
+  const cookie = extractMflUserId(setCookie) || extractMflUserId(text);
+  if (cookie) return cookie;
 
-  const err = new Error('MFL login failed: no session cookie returned (check username/password)');
+  let hint;
+  if (/invalid|incorrect|wrong|denied|password/i.test(text)) hint = 'MFL rejected the username/password.';
+  else if (/<html|<!doctype/i.test(text)) hint = 'MFL returned a web page, not an API response — this server IP may be blocked, or an MFL API key is required.';
+  else if (res.status >= 500) hint = 'MFL had a server error; try again shortly.';
+  else hint = 'No session cookie was returned.';
+
+  const err = new Error(`MFL login failed (HTTP ${res.status}). ${hint}`);
   err.status = 401;
-  err.body = text.slice(0, 300);
+  err.detail = snippet;
   throw err;
 }
 

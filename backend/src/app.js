@@ -37,7 +37,9 @@ app.use((req, res) => res.status(404).json({ error: 'Not found' }));
 app.use((err, req, res, next) => {
   const status = err.status || (err.mflError ? 502 : 500);
   if (status >= 500) console.error(err);
-  res.status(status).json({ error: err.message || 'Internal error' });
+  const payload = { error: err.message || 'Internal error' };
+  if (err.detail) payload.detail = err.detail; // e.g. MFL's raw login reply
+  res.status(status).json(payload);
 });
 
 module.exports = app;
