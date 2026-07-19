@@ -64,6 +64,18 @@ Two things must be online: the backend (a public URL) and the app (an installed 
 
 Every step is doable from the phone's browser.
 
+### Going live (demo → real MFL data)
+
+The backend defaults to **demo mode**, so a fresh deploy works with zero config. To
+serve real MFL data, set the service's **`MFL_DEMO_MODE = false`** in the Render
+dashboard and redeploy; confirm at `<url>/api/health` (`"demoMode":false`). This
+var is **dashboard-managed** (`sync: false` in [`render.yaml`](render.yaml)), so it
+persists across deploys and blueprint syncs and won't silently revert to demo.
+(It used to be pinned to `"true"` in the blueprint, which reset a dashboard `false`
+back to demo on every deploy — that's fixed.) No MFL credentials go in the
+environment: you log in with your MFL username/password through the app, and only
+the resulting session cookie is held server-side.
+
 ### Staying logged in (Render notes)
 
 Render's **free** plan sleeps after ~15 min idle and wipes its filesystem on every

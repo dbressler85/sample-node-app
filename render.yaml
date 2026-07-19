@@ -8,6 +8,11 @@
 # Verify it at  <url>/api/health  → {"ok":true,"demoMode":true,...}
 # Then point the mobile app at that URL (see mobile/README.md / the workflow).
 #
+# GOING LIVE (real MFL data): in the Render dashboard, set the service's
+# MFL_DEMO_MODE env var to `false`, then redeploy. `/api/health` should then show
+# "demoMode":false. This value is dashboard-managed (see `sync: false` below), so
+# it persists across deploys and blueprint syncs — it will NOT revert to demo.
+#
 # ─────────────────────────────────────────────────────────────────────────────
 # STAYING LOGGED IN / PRODUCTION NOTES
 #
@@ -47,8 +52,14 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "20"
+      # DEMO vs LIVE is managed in the Render dashboard, NOT pinned here. `sync:
+      # false` tells Render to keep whatever the dashboard says and NOT overwrite it
+      # on a blueprint sync. (It used to be hard-coded `value: "true"`, which reset
+      # a dashboard `false` back to demo on every deploy.) Unset still defaults to
+      # demo via the app's own config default, so a fresh deploy is demo with zero
+      # config. To go LIVE: in the dashboard set MFL_DEMO_MODE = false (it sticks).
       - key: MFL_DEMO_MODE
-        value: "true"
+        sync: false
       # Encrypts persisted sessions at rest. Auto-generated & kept stable by Render;
       # needed (with DATA_DIR on a disk) to keep users logged in across restarts.
       - key: SESSION_SECRET
