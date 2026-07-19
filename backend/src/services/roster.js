@@ -10,27 +10,8 @@ const availabilityLib = require('../lib/availability');
 const nflLib = require('../lib/nfl');
 const enrichmentLib = require('../lib/enrichment');
 const leagueFormat = require('../lib/leagueformat');
+const picksLib = require('../lib/picks');
 const leaguesService = require('./leagues');
-
-// Future draft picks a franchise owns (dynasty currency). Live: MFL
-// futureDraftPicks; formatted like "2027 1st".
-async function livePicks(cookie, league) {
-  try {
-    const res = await mfl.exportRequest('futureDraftPicks', { host: league.host, cookie, L: league.leagueId, FRANCHISE: league.franchiseId });
-    const arr = mfl.toArray(res && res.futureDraftPicks && res.futureDraftPicks.franchise);
-    const fr = arr.find((f) => String(f.id) === league.franchiseId) || arr[0];
-    if (!fr) return [];
-    const ord = (r) => {
-      const n = parseInt(r, 10);
-      return n === 1 ? '1st' : n === 2 ? '2nd' : n === 3 ? '3rd' : `${n}th`;
-    };
-    return mfl.toArray(fr.futureDraftPick)
-      .map((p) => `${p.year || ''} ${ord(p.round)}`.trim())
-      .filter(Boolean);
-  } catch (e) {
-    return [];
-  }
-}
 
 // Attach dynasty context (age, value) and availability to a resolved player.
 function enrich(player, ctx) {
@@ -102,7 +83,7 @@ async function getRoster(cookie, leagueId) {
     players.load(cookie),
     config.demoMode ? Promise.resolve(demo.playerStatus()) : nflLib.injuryMap(cookie, week),
     config.demoMode ? Promise.resolve(demo.byes()) : nflLib.byeMap(cookie, week),
-    config.demoMode ? Promise.resolve(demo.picks(league.leagueId)) : livePicks(cookie, league),
+    picksLib.franchisePicks(cookie, league).then((list) => list.map((p) => p.label)),
     enrichmentLib.snapshot(fmt),
   ]);
   const empty = { starters: [], bench: [], ir: [], taxi: [] };
