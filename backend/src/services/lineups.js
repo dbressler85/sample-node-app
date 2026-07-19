@@ -156,9 +156,13 @@ function buildView({ league, week, requirements, pool, starterIds, franchiseName
     warnings.push({ playerId: null, name: `No healthy player for ${optimalEmpty} slot(s)`, position: null, status: 'INCOMPLETE' });
   }
 
+  // Distinguish a genuine hole (no eligible player can fill a slot -> waivers)
+  // from a lineup that's simply not set yet (roster can fill it -> just set it).
+  const realHole = optimalEmpty > 0;
   let status;
   if (warnings.some((w) => w.playerId)) status = 'risk';
-  else if (currentEmpty > 0) status = 'incomplete';
+  else if (realHole) status = 'incomplete'; // needs a pickup
+  else if (currentEmpty > 0) status = 'unset'; // fillable; lineup just isn't set
   else if (delta > 0.05) status = 'suboptimal';
   else status = 'optimal';
 
@@ -201,7 +205,9 @@ function buildView({ league, week, requirements, pool, starterIds, franchiseName
   };
 }
 
-async function viewForLeague(cookie, token, league, requestedMode) {
+// `light` skips the per-league projectedScores call (used by the Home rollup,
+// which only needs availability + empty-slot detection, not point projections).
+async function viewForLeague(cookie, token, league, requestedMode, { light = false } = {}) {
   const [requirements, scoring, roster, statusMap, byeMap] = await Promise.all([
     loadRequirements(cookie, league),
     loadScoring(cookie, league),
@@ -218,7 +224,7 @@ async function viewForLeague(cookie, token, league, requestedMode) {
     team: p.team,
   }));
 
-  const projMap = await leagueProjection(cookie, league, basePool, scoring);
+  const projMap = light ? new Map() : await leagueProjection(cookie, league, basePool, scoring);
 
   const pool = basePool.map((p) => {
     const median = projMap.get(p.id) || 0;
@@ -254,7 +260,7 @@ async function viewForLeague(cookie, token, league, requestedMode) {
 
 // --- public API -------------------------------------------------------------
 
-const STATUS_RANK = { risk: 3, incomplete: 2, suboptimal: 1, optimal: 0 };
+const STATUS_RANK = { risk: 4, incomplete: 3, unset: 2, suboptimal: 1, optimal: 0 };
 
 function summarize(view) {
   return {
@@ -275,13 +281,13 @@ function summarize(view) {
   };
 }
 
-async function getOverview(cookie, token, mode) {
+async function getOverview(cookie, token, mode, { light = false } = {}) {
   const requested = normalizeMode(mode);
   const leagues = await leaguesService.listLeagues(cookie);
   const views = await Promise.all(
     leagues.map(async (league) => {
       try {
-        return summarize(await viewForLeague(cookie, token, league, requested));
+        return summarize(await viewForLeague(cookie, token, league, requested, { light }));
       } catch (e) {
         return { leagueId: league.leagueId, name: league.name, error: e.message };
       }
