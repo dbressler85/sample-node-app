@@ -281,6 +281,19 @@ function assert(cond, msg) {
     assert(kTep.median > kStd.median, 'TE premium + PPR raises Kelce vs standard');
     console.log(`✓ format-aware: Kelce ${kStd.median} ("${std.format}") vs ${kTep.median} ("${tep.format}")`);
 
+    // Kicker & defense scoring is ALSO per-league: the same free-agent kicker
+    // (Bass) and D/ST (Cowboys) are worth more in Keeper Kings (long-FG + big-play
+    // defense scoring) than in Dynasty Warlords (plain scale).
+    const kdStd = (await j(await fetch(`${base}/api/leagues/64097/waivers`, authed))).body; // Warlords
+    const kdBig = (await j(await fetch(`${base}/api/leagues/19622/waivers`, authed))).body; // Keeper Kings
+    const proj = (board, id) => board.freeAgents.find((p) => p.id === id).projection;
+    assert(proj(kdBig, '17002') > proj(kdStd, '17002'), 'kicker scores higher under distance-weighted FG scoring');
+    assert(proj(kdBig, '18002') > proj(kdStd, '18002'), 'defense scores higher under big-play scoring');
+    console.log(
+      `✓ per-league K/DEF scoring: Bass ${proj(kdStd, '17002')}→${proj(kdBig, '17002')}, ` +
+        `Cowboys D/ST ${proj(kdStd, '18002')}→${proj(kdBig, '18002')} (Warlords→Keeper Kings)`
+    );
+
     // Availability: no OUT/bye/injured player is ever in an optimal lineup, and
     // every player has a sane floor <= median <= ceiling band.
     for (const lg of ['64097', '40750', '19622']) {

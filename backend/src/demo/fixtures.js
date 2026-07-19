@@ -167,10 +167,24 @@ const STAT_PROJECTIONS = {
 // Per-league scoring settings — deliberately different formats so the optimizer
 // has to account for each: standard, superflex + 6pt passing TDs, and PPR with a
 // tight-end premium.
+// Per-league scoring settings. Note kicker/defense scoring also varies by league:
+// Dynasty Warlords uses a plain kicker/defense scale, while Keeper Kings rewards
+// long field goals and "big-play" defenses (double sacks, richer turnovers) — so
+// the SAME kicker or D/ST is worth different points in each, just like skill
+// players under PPR. (Live leagues get this for free from MFL's projectedScores.)
 const SCORING = {
-  '64097': { ppr: 0, tePremium: 0, passTd: 4 }, // Dynasty Warlords — standard, 4pt PaTD
-  '40750': { ppr: 1, tePremium: 0, passTd: 6 }, // Superflex Society — full PPR, 6pt PaTD
-  '19622': { ppr: 1, tePremium: 0.5, passTd: 4 }, // Keeper Kings — full PPR + TE premium
+  '64097': { ppr: 0, tePremium: 0, passTd: 4 }, // Dynasty Warlords — standard, 4pt PaTD, default K/DEF
+  '40750': { ppr: 1, tePremium: 0, passTd: 6 }, // Superflex Society — full PPR, 6pt PaTD (no K/DEF slots)
+  '19622': {
+    ppr: 1,
+    tePremium: 0.5,
+    passTd: 4, // Keeper Kings — full PPR + TE premium
+    // Distance-weighted kicker + big-play defense scoring (differs from Warlords):
+    fg50: 6, // long FGs worth more (vs 5 default)
+    sack: 2, // double sacks (vs 1 default)
+    defInt: 3, // richer turnovers (vs 2 default)
+    fumRec: 3, // richer turnovers (vs 2 default)
+  },
 };
 
 // Starting lineup requirements per league. Deliberately varied to exercise the
