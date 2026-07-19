@@ -7,8 +7,10 @@
 //   * FantasyCalc  -> community dynasty values + age. Its player objects carry
 //                     BOTH mflId and sleeperId, so it joins directly to our MFL
 //                     ids AND gives us a Sleeper->MFL crosswalk for free.
+//                     Values are FORMAT-AWARE: fetched per {numQbs, ppr}, since a
+//                     QB is worth far more in superflex than 1QB.
 //   * Sleeper      -> trending adds (waiver heat), keyed by sleeperId, mapped to
-//                     MFL via that crosswalk.
+//                     MFL via that crosswalk (format-independent).
 //
 // Everything is fetched on a long in-memory TTL (these move slowly) and never
 // blocks an MFL call. On any provider failure we degrade to nulls, so the app
@@ -18,10 +20,13 @@ const config = require('../config');
 const demo = require('../demo/fixtures');
 
 const TTL_MS = 6 * 60 * 60 * 1000; // 6h — dynasty values/trends change slowly
-const FANTASYCALC_URL = 'https://api.fantasycalc.com/values/current?isDynasty=true&numQbs=1&ppr=1';
 const SLEEPER_TREND_URL = 'https://api.sleeper.app/v1/players/nfl/trending/add?lookback_hours=48&limit=300';
 
-let cache = { at: 0, snap: null };
+const DEFAULT_FORMAT = { numQbs: 1, ppr: 1 };
+
+// FantasyCalc value map cache, keyed by format; Sleeper trending cached once.
+const fcCache = new Map(); // "numQbs|ppr" -> { at, value, age, rank, sleeperToMfl }
+let sleeperCache = { at: 0, raw: new Map() }; // sleeperId -> count
 
 async function fetchJson(url, ms = 10000) {
   const ctrl = new AbortController();
@@ -35,21 +40,34 @@ async function fetchJson(url, ms = 10000) {
   }
 }
 
-// Build the live snapshot from the external providers. Pure of our own I/O.
-async function buildLive() {
-  const value = new Map(); // mflId -> 0..100 dynasty value
-  const age = new Map(); // mflId -> years
-  const rank = new Map(); // mflId -> overall dynasty rank
-  const trend = new Map(); // mflId -> waiver-add heat
-  const sleeperToMfl = new Map();
+function normalizeFormat(f) {
+  const numQbs = Number(f && f.numQbs) === 2 ? 2 : 1;
+  const raw = Number(f && f.ppr);
+  const ppr = raw >= 1 ? 1 : raw >= 0.5 ? 0.5 : 0; // FantasyCalc accepts 0 / 0.5 / 1
+  return { numQbs, ppr };
+}
+function formatKey(f) {
+  return `${f.numQbs}|${f.ppr}`;
+}
 
-  // FantasyCalc: dynasty values (normalized to 0-100), age, and the crosswalk.
+// FantasyCalc values for one format (values normalized to 0-100), plus age, rank,
+// and the Sleeper->MFL crosswalk (crosswalk is identical across formats).
+async function getFantasyCalc(format) {
+  const key = formatKey(format);
+  const hit = fcCache.get(key);
+  if (hit && Date.now() - hit.at < TTL_MS) return hit;
+
+  const value = new Map();
+  const age = new Map();
+  const rank = new Map();
+  const sleeperToMfl = new Map();
   try {
-    const list = await fetchJson(FANTASYCALC_URL);
-    const rows = Array.isArray(list) ? list : [];
+    const url = `https://api.fantasycalc.com/values/current?isDynasty=true&numQbs=${format.numQbs}&ppr=${format.ppr}`;
+    const rows = await fetchJson(url);
+    const list = Array.isArray(rows) ? rows : [];
     let maxVal = 0;
-    for (const r of rows) maxVal = Math.max(maxVal, Number(r.value) || 0);
-    for (const r of rows) {
+    for (const r of list) maxVal = Math.max(maxVal, Number(r.value) || 0);
+    for (const r of list) {
       const p = r.player || {};
       const mflId = p.mflId != null && p.mflId !== '' ? String(p.mflId) : null;
       const sleeperId = p.sleeperId != null && p.sleeperId !== '' ? String(p.sleeperId) : null;
@@ -60,33 +78,45 @@ async function buildLive() {
       const a = p.maybeAge != null ? Number(p.maybeAge) : NaN;
       if (Number.isFinite(a) && a > 0) age.set(mflId, Math.round(a * 10) / 10);
     }
-    console.log(`[enrichment] fantasycalc rows=${rows.length} values=${value.size} crosswalk=${sleeperToMfl.size}`);
+    console.log(`[enrichment] fantasycalc format=${key} rows=${list.length} values=${value.size}`);
   } catch (e) {
-    console.log(`[enrichment] fantasycalc error=${e.message}`);
+    console.log(`[enrichment] fantasycalc format=${key} error=${e.message}`);
   }
+  const entry = { at: Date.now(), value, age, rank, sleeperToMfl };
+  fcCache.set(key, entry);
+  return entry;
+}
 
-  // Sleeper trending adds -> waiver heat, mapped to MFL via the crosswalk.
+// Sleeper trending adds (sleeperId -> count), fetched once and cached.
+async function getSleeperTrending() {
+  if (sleeperCache.raw.size && Date.now() - sleeperCache.at < TTL_MS) return sleeperCache.raw;
+  const raw = new Map();
   try {
     const rows = await fetchJson(SLEEPER_TREND_URL);
-    let mapped = 0;
-    for (const r of Array.isArray(rows) ? rows : []) {
-      const mflId = sleeperToMfl.get(String(r.player_id));
-      if (mflId) {
-        trend.set(mflId, Number(r.count) || 0);
-        mapped += 1;
-      }
-    }
-    console.log(`[enrichment] sleeper trending mapped=${mapped}`);
+    for (const r of Array.isArray(rows) ? rows : []) raw.set(String(r.player_id), Number(r.count) || 0);
+    console.log(`[enrichment] sleeper trending=${raw.size}`);
   } catch (e) {
     console.log(`[enrichment] sleeper error=${e.message}`);
   }
+  sleeperCache = { at: Date.now(), raw };
+  return raw;
+}
 
+async function buildLive(format) {
+  const fc = await getFantasyCalc(format);
+  const sleeperRaw = await getSleeperTrending();
+  // Map trending counts onto MFL ids via the crosswalk.
+  const trend = new Map();
+  for (const [sleeperId, count] of sleeperRaw) {
+    const mflId = fc.sleeperToMfl.get(sleeperId);
+    if (mflId) trend.set(mflId, count);
+  }
   return {
-    value: (id) => (value.has(String(id)) ? value.get(String(id)) : null),
-    age: (id) => (age.has(String(id)) ? age.get(String(id)) : null),
+    value: (id) => (fc.value.has(String(id)) ? fc.value.get(String(id)) : null),
+    age: (id) => (fc.age.has(String(id)) ? fc.age.get(String(id)) : null),
     trend: (id) => trend.get(String(id)) || 0,
     ownership: () => null, // no free site-wide ownership source; trend is the heat signal
-    rank: (id) => rank.get(String(id)) || null,
+    rank: (id) => fc.rank.get(String(id)) || null,
   };
 }
 
@@ -107,14 +137,12 @@ function demoSnapshot() {
   };
 }
 
-// A cached snapshot with synchronous accessors. Callers `await snapshot()` once
-// per request, then look players up synchronously.
-async function snapshot() {
+// A snapshot with synchronous accessors, for a given league format. Callers
+// `await snapshot(format)` once per request, then look players up synchronously.
+// Omit `format` for the neutral default (1QB, full PPR) used by global views.
+async function snapshot(format) {
   if (config.demoMode) return demoSnapshot();
-  if (cache.snap && Date.now() - cache.at < TTL_MS) return cache.snap;
-  const snap = await buildLive();
-  cache = { at: Date.now(), snap };
-  return snap;
+  return buildLive(normalizeFormat(format || DEFAULT_FORMAT));
 }
 
-module.exports = { snapshot, _buildLive: buildLive };
+module.exports = { snapshot, DEFAULT_FORMAT };

@@ -9,6 +9,7 @@ const players = require('../lib/players');
 const availabilityLib = require('../lib/availability');
 const nflLib = require('../lib/nfl');
 const enrichmentLib = require('../lib/enrichment');
+const leagueFormat = require('../lib/leagueformat');
 const leaguesService = require('./leagues');
 
 // Future draft picks a franchise owns (dynasty currency). Live: MFL
@@ -95,13 +96,14 @@ async function getRoster(cookie, leagueId) {
   }
 
   const week = config.demoMode ? demo.week() : Number(process.env.MFL_WEEK) || null;
+  const fmt = await leagueFormat.format(cookie, league);
   const [raw, byId, statusMap, byeMap, picks, enr] = await Promise.all([
     rawRoster(league, cookie),
     players.load(cookie),
     config.demoMode ? Promise.resolve(demo.playerStatus()) : nflLib.injuryMap(cookie, week),
     config.demoMode ? Promise.resolve(demo.byes()) : nflLib.byeMap(cookie, week),
     config.demoMode ? Promise.resolve(demo.picks(league.leagueId)) : livePicks(cookie, league),
-    enrichmentLib.snapshot(),
+    enrichmentLib.snapshot(fmt),
   ]);
   const empty = { starters: [], bench: [], ir: [], taxi: [] };
   const src = raw || empty;
