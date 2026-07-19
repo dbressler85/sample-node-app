@@ -108,6 +108,11 @@ export const api = {
   playerTrade: (id, leagues) => request(`/api/players/${id}/trade`, { method: 'POST', body: { leagues } }),
   playerDrop: (id, leagues) => request(`/api/players/${id}/drop`, { method: 'POST', body: { leagues } }),
 
+  // Cross-league watchlist
+  watchlist: () => request('/api/watchlist'),
+  watchAdd: (id) => request(`/api/watchlist/${id}`, { method: 'POST' }),
+  watchRemove: (id) => request(`/api/watchlist/${id}`, { method: 'DELETE' }),
+
   // Drafts (M6)
   drafts: () => request('/api/drafts'),
   leagueDraft: (leagueId, position) =>

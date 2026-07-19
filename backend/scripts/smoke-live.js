@@ -32,6 +32,7 @@ const TESTS = [
   'profile-format-test',
   'leagues-cache-test',
   'cache-primitives-test',
+  'watchlist-test',
 ];
 
 let failed = 0;

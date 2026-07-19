@@ -25,13 +25,22 @@ export default function PlayerProfileScreen({ playerId, onBack }) {
   const [p, setP] = useState(null);
   const [error, setError] = useState(null);
   const [sheet, setSheet] = useState(null); // 'add' | 'drop' | 'trade'
+  const [watched, setWatched] = useState(false);
 
   const load = () => {
-    api.playerProfile(playerId).then(setP).catch((e) => setError(e.message));
+    api.playerProfile(playerId).then((prof) => { setP(prof); setWatched(!!prof.watched); }).catch((e) => setError(e.message));
   };
   useEffect(() => {
     load();
   }, [playerId]);
+
+  // Star / unstar — optimistic, reverts on failure.
+  const toggleWatch = useCallback(() => {
+    const next = !watched;
+    setWatched(next);
+    const call = next ? api.watchAdd(playerId) : api.watchRemove(playerId);
+    call.catch((e) => { setWatched(!next); Alert.alert('Could not update watchlist', e.message); });
+  }, [watched, playerId]);
 
   // Back closes an open action sheet before leaving the profile.
   useAndroidBack(useCallback(() => {
@@ -69,6 +78,9 @@ export default function PlayerProfileScreen({ playerId, onBack }) {
     <View style={styles.container}>
       <View style={styles.topbar}>
         <Pressable onPress={onBack} hitSlop={10}><Text style={styles.back}>‹ Players</Text></Pressable>
+        <Pressable onPress={toggleWatch} hitSlop={12}>
+          <Text style={[styles.star, watched && styles.starOn]}>{watched ? '★ Watching' : '☆ Watch'}</Text>
+        </Pressable>
       </View>
 
       <ScrollView contentContainerStyle={styles.body}>
@@ -268,8 +280,10 @@ function DropSheet({ player, onClose, onDone }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  topbar: { paddingHorizontal: 16, paddingTop: 8 },
+  topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8 },
   back: { color: colors.accent, fontSize: 16, fontWeight: '600' },
+  star: { color: colors.textDim, fontSize: 14, fontWeight: '800' },
+  starOn: { color: colors.gold },
   body: { padding: 16 },
   idRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
   posBadge: { width: 48, paddingVertical: 4, borderRadius: 8, borderWidth: 1, alignItems: 'center', marginRight: 12 },

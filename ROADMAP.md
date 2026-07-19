@@ -13,9 +13,13 @@ Last reviewed: 2026-07-19.
 
 Cross-league management is the moat; these deepen it.
 
-- [ ] **Cross-league watchlist.** Star a player once and track his availability,
-  value, and news across every league from one list. Backend: a per-user watch
-  store + a `/api/watchlist` roll-up reusing the player-hub `gather()` sets.
+- [x] **Cross-league watchlist.** Star a player from his profile (☆ Watch); the
+  Players → **Watch** tab lists everyone you track with, per player, his value /
+  availability / news and where he stands in every league (rostered / free /
+  on another team). Backend: `store/watchlist.js` + `/api/watchlist` roll-up
+  reusing the roster + free-agent sets. *(Next: quick add/trade actions straight
+  from a watch row, and surfacing "your watched player is now a free agent" on
+  Home.)*
 - [ ] **Portfolio dynasty dashboard + value-at-risk.** A single view of total roster
   value across leagues, age curve, and "value at risk" (aging cores, injured
   starters, expiring contracts where applicable). Extends `services/portfolio.js`
