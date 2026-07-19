@@ -234,7 +234,7 @@ const styles = StyleSheet.create({
   name: { color: colors.text, fontSize: 15, fontWeight: '700', flexShrink: 1 },
   mine: { color: colors.good, fontSize: 9, fontWeight: '900', marginLeft: 6, borderWidth: 1, borderColor: colors.good, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1, overflow: 'hidden' },
   meta: { color: colors.textDim, fontSize: 12, marginTop: 2 },
-  value: { color: colors.accent, fontSize: 15, fontWeight: '900', marginLeft: 10 },
+  value: { color: colors.gold, fontSize: 15, fontWeight: '900', marginLeft: 10 },
   dot: { width: 10, height: 10, borderRadius: 5, marginRight: 10 },
   newsHead: { color: colors.text, fontSize: 14, fontWeight: '700' },
   chev: { color: colors.textDim, fontSize: 20, marginLeft: 8 },

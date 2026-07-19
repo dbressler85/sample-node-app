@@ -1,22 +1,25 @@
-// Small shared design token set — a dark, "command center" look.
+// Dynasty Central design tokens — a dark "command console" identity.
+// Navy console ground, Signal Blue for interaction, Championship Gold reserved
+// as the signature for meaning (dynasty value, on the clock, best asset).
 export const colors = {
-  bg: '#0b1220',
-  card: '#151d2e',
-  cardAlt: '#1b2540',
-  border: '#26314d',
-  text: '#e8edf7',
-  textDim: '#93a1bd',
-  accent: '#4f8cff',
-  good: '#33d69f',
-  bad: '#ff6b6b',
-  warn: '#ffcc66',
+  bg: '#0A0F1C', // Ink — app ground
+  card: '#131B2E', // Console surface
+  cardAlt: '#1B2540', // Console, raised/active
+  border: '#262F49', // Hairline
+  text: '#E8EDF7',
+  textDim: '#93A1BD',
+  accent: '#4F8CFF', // Signal Blue — primary / interactive
+  gold: '#F5C451', // Championship Gold — value / on the clock / signature
+  good: '#2FD196',
+  bad: '#FF6470',
+  warn: '#FFA23A', // orange, kept distinct from gold
 };
 
 export const positionColors = {
-  QB: '#ff6b8a',
-  RB: '#33d69f',
-  WR: '#4f8cff',
-  TE: '#ffcc66',
-  PK: '#c58cff',
-  DEF: '#8aa0c0',
+  QB: '#FF6E8E',
+  RB: '#3ED9A2',
+  WR: '#5C9BFF',
+  TE: '#F5C451',
+  PK: '#B98CFF',
+  DEF: '#8AA0C0',
 };

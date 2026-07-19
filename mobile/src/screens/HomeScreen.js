@@ -264,7 +264,7 @@ function Portfolio({ p, phase }) {
       <View style={styles.tileRow}>
         <Tile label="Leagues" value={String(p.leagues)} />
         {offseason ? (
-          <Tile label="Total roster value" value={p.rosterValue ? String(p.rosterValue) : '—'} />
+          <Tile label="Total roster value" value={p.rosterValue ? String(p.rosterValue) : '—'} gold />
         ) : (
           <Tile label="Needs attention" value={String(p.needAttention)} accent={p.needAttention > 0} />
         )}
@@ -292,11 +292,11 @@ function Portfolio({ p, phase }) {
   );
 }
 
-function Tile({ label, value, accent }) {
+function Tile({ label, value, accent, gold }) {
   return (
     <View style={styles.tile}>
       <Text style={styles.tileLabel}>{label}</Text>
-      <Text style={[styles.tileValue, accent && { color: colors.accent }]}>{value}</Text>
+      <Text style={[styles.tileValue, accent && { color: colors.accent }, gold && { color: colors.gold }]}>{value}</Text>
     </View>
   );
 }
@@ -365,9 +365,9 @@ const styles = StyleSheet.create({
   teamName: { color: colors.text, fontSize: 15, fontWeight: '700', marginRight: 10 },
   teamSub: { color: colors.textDim, fontSize: 12, marginTop: 3 },
   draftRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: 8 },
-  draftRowLive: { borderColor: colors.good },
+  draftRowLive: { borderColor: colors.gold },
   draftName: { color: colors.text, fontSize: 15, fontWeight: '800' },
   draftSub: { color: colors.textDim, fontSize: 12, marginTop: 3 },
-  draftPill: { color: '#fff', backgroundColor: colors.good, fontSize: 11, fontWeight: '900', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, overflow: 'hidden' },
+  draftPill: { color: '#20180a', backgroundColor: colors.gold, fontSize: 11, fontWeight: '900', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, overflow: 'hidden' },
   teamChev: { color: colors.textDim, fontSize: 20, fontWeight: '700', marginLeft: 8 },
 });

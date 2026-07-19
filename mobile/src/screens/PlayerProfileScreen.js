@@ -335,7 +335,7 @@ const styles = StyleSheet.create({
   name: { color: colors.text, fontSize: 22, fontWeight: '900', flexShrink: 1 },
   sub: { color: colors.textDim, fontSize: 13, marginTop: 3 },
   valueBox: { alignItems: 'center', marginLeft: 10 },
-  valueNum: { color: colors.accent, fontSize: 24, fontWeight: '900' },
+  valueNum: { color: colors.gold, fontSize: 24, fontWeight: '900' },
   valueLabel: { color: colors.textDim, fontSize: 10, fontWeight: '700' },
   card: { backgroundColor: colors.card, borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 14, marginTop: 12 },
   cardTitle: { color: colors.textDim, fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 },

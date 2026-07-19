@@ -12,6 +12,7 @@ import {
 import { api } from '../api';
 import { saveSession } from '../auth';
 import { colors } from '../theme';
+import HubMark from '../components/HubMark';
 
 export default function LoginScreen({ onLoggedIn }) {
   const [username, setUsername] = useState('');
@@ -39,8 +40,12 @@ export default function LoginScreen({ onLoggedIn }) {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <View style={styles.inner}>
-        <Text style={styles.brand}>Dynasty Central</Text>
-        <Text style={styles.tagline}>All your MyFantasyLeague teams, one screen.</Text>
+        <View style={styles.lockup}>
+          <HubMark size={72} />
+        </View>
+        <Text style={styles.brandTop}>DYNASTY</Text>
+        <Text style={styles.brandMain}>Central</Text>
+        <Text style={styles.tagline}>Many leagues, one hub.</Text>
 
         <TextInput
           style={styles.input}
@@ -82,8 +87,10 @@ export default function LoginScreen({ onLoggedIn }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg, justifyContent: 'center' },
   inner: { padding: 28 },
-  brand: { color: colors.text, fontSize: 30, fontWeight: '900', textAlign: 'center' },
-  tagline: { color: colors.textDim, fontSize: 14, textAlign: 'center', marginTop: 6, marginBottom: 32 },
+  lockup: { alignItems: 'center', marginBottom: 18 },
+  brandTop: { color: colors.textDim, fontSize: 13, fontWeight: '700', letterSpacing: 5, textAlign: 'center', marginLeft: 5 },
+  brandMain: { color: colors.text, fontSize: 40, fontWeight: '900', textAlign: 'center', letterSpacing: -1, marginTop: 2 },
+  tagline: { color: colors.textDim, fontSize: 14, textAlign: 'center', marginTop: 8, marginBottom: 32 },
   input: {
     backgroundColor: colors.card,
     borderColor: colors.border,
