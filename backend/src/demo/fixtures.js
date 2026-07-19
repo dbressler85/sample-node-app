@@ -289,15 +289,39 @@ const LIVE = {
   },
 };
 
-// Pending trade offers awaiting my response, per league.
-const TRADES = {
+// Pending trade offers awaiting my response, per league. Assets are player ids
+// (into PLAYERS) or 'pick:LABEL' tokens. `acquire` = what I'd receive, `send` =
+// what I'd give up.
+const TRADE_OFFERS = {
   '40750': [
-    { id: 't1', from: 'Superflex Savants', gives: ['Nix, Bo'], gets: ['Nabers, Malik'] },
+    { id: 't1', withFranchiseId: '0002', withName: 'Superflex Savants', acquire: ['13649'], send: ['15870'] }, // Gibbs for my Nix
   ],
   '19622': [
-    { id: 't2', from: 'Rebuild Rangers', gives: ['2027 1st', '2027 2nd'], gets: ['Gibbs, Jahmyr'] },
+    { id: 't2', withFranchiseId: '0005', withName: 'Rebuild Rangers', acquire: ['pick:2027 1st', 'pick:2027 2nd'], send: ['13649'] }, // picks for my Gibbs
   ],
 };
+
+// Other franchises in each league + their (tradeable) rosters, for proposing.
+const TRADE_PARTNERS = {
+  '64097': [
+    { franchiseId: '0004', name: 'Waiver Wire Wolves', roster: ['14990', '15264', '16002'] },
+    { franchiseId: '0008', name: 'Rebuild Raccoons', roster: ['15870', '14106', '16005'] },
+  ],
+  '40750': [
+    { franchiseId: '0002', name: 'Superflex Savants', roster: ['13649', '14802', '12171', '16005'] },
+    { franchiseId: '0009', name: 'Dynasty Sharks', roster: ['15267', '13116', '14106'] },
+  ],
+  '19622': [
+    { franchiseId: '0005', name: 'Rebuild Rangers', roster: ['13593', '15859', '16005'] },
+  ],
+};
+
+function assetLabel(tok) {
+  const t = String(tok);
+  if (t.startsWith('pick:')) return t.slice(5);
+  const p = PLAYERS.find((x) => x.id === t);
+  return p ? p.name.split(',')[0] : `Player ${t}`;
+}
 
 // Pending waiver / FAAB claims I've queued, per league.
 const WAIVERS = {
@@ -405,7 +429,11 @@ module.exports = {
   lineupRequirements: (leagueId) => LINEUP_REQS[leagueId] || null,
   dynasty: (playerId) => DYNASTY[playerId] || null,
   live: (leagueId) => (LIVE[leagueId] ? JSON.parse(JSON.stringify(LIVE[leagueId])) : null),
-  trades: (leagueId) => (TRADES[leagueId] || []).map((t) => ({ ...t })),
+  // Portfolio-friendly view (resolved names) for the Home triage.
+  trades: (leagueId) =>
+    (TRADE_OFFERS[leagueId] || []).map((o) => ({ id: o.id, from: o.withName, gives: o.acquire.map(assetLabel), gets: o.send.map(assetLabel) })),
+  tradeOffers: (leagueId) => JSON.parse(JSON.stringify(TRADE_OFFERS[leagueId] || [])),
+  tradePartners: (leagueId) => JSON.parse(JSON.stringify(TRADE_PARTNERS[leagueId] || [])),
   waivers: (leagueId) => (WAIVERS[leagueId] || []).map((w) => ({ ...w })),
   news: () => NEWS.map((n) => ({ ...n })),
   picks: (leagueId) => (PICKS[leagueId] || []).slice(),

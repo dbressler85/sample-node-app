@@ -28,7 +28,7 @@ async function runPool(items, limit, worker) {
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, next));
 }
 
-export default function HomeScreen({ onOpenLineup, onOpenLeague, onOpenWaivers, onLogout }) {
+export default function HomeScreen({ onOpenLineup, onOpenLeague, onOpenWaivers, onOpenTrades, onLogout }) {
   const [leagues, setLeagues] = useState([]);
   const [statuses, setStatuses] = useState({}); // leagueId -> { name, status, items }
   const [expanded, setExpanded] = useState(new Set(GROUP_ORDER.filter((t) => GROUPS[t].open)));
@@ -90,6 +90,7 @@ export default function HomeScreen({ onOpenLineup, onOpenLeague, onOpenWaivers, 
     const league = { leagueId: item.leagueId, name: item.leagueName };
     if (item.action === 'lineup') onOpenLineup(league);
     else if (item.action === 'waiver') onOpenWaivers(league);
+    else if (item.action === 'trade') onOpenTrades(league);
     else onOpenLeague(league);
   }
 
