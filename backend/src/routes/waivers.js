@@ -16,6 +16,15 @@ router.get('/waivers/overview', async (req, res, next) => {
   }
 });
 
+// GET /api/waivers/suggestions — league-by-league pickup suggestions (wizard).
+router.get('/waivers/suggestions', async (req, res, next) => {
+  try {
+    res.json(await waivers.getSuggestions(req.mflCookie, req.token));
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/waivers/best-available — top free agents across all your leagues.
 router.get('/waivers/best-available', async (req, res, next) => {
   try {

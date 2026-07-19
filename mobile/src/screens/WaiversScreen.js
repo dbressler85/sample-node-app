@@ -23,10 +23,11 @@ const SORTS = [
   { key: 'trend', label: 'Trend' },
 ];
 
-export default function WaiversScreen({ initialLeagueId, initialPosition }) {
+export default function WaiversScreen({ initialLeagueId, initialPosition, onStartWizard }) {
   const [overview, setOverview] = useState(null);
   const [ovLoading, setOvLoading] = useState(true);
   const [ovRefreshing, setOvRefreshing] = useState(false);
+  const [wizardLoading, setWizardLoading] = useState(false);
   const [segment, setSegment] = useState('leagues'); // 'leagues' | 'best' | 'pending'
   // A league drill-in: the per-league board. Set from a card tap or a Home
   // deep-link (initialLeagueId), which lands the user straight on that board.
@@ -111,6 +112,26 @@ export default function WaiversScreen({ initialLeagueId, initialPosition }) {
     api.waiverPending().then(setPending).catch(() => {});
   }
 
+  // Fetch per-league pickup suggestions, then hand the wizard a queue of the
+  // leagues that actually have free agents to consider.
+  async function startWizard() {
+    if (!onStartWizard) return;
+    setWizardLoading(true);
+    try {
+      const res = await api.waiverSuggestions();
+      const queue = (res.leagues || []).filter((l) => !l.error && l.candidates && l.candidates.length);
+      if (!queue.length) {
+        Alert.alert('Nothing to pick up', 'No free agents worth a claim across your leagues right now.');
+        return;
+      }
+      onStartWizard(queue);
+    } catch (e) {
+      Alert.alert('Could not build suggestions', e.message);
+    } finally {
+      setWizardLoading(false);
+    }
+  }
+
   async function cancelClaim(cid, lid) {
     try {
       await api.cancelClaim(lid, cid);
@@ -164,17 +185,32 @@ export default function WaiversScreen({ initialLeagueId, initialPosition }) {
           </View>
 
           {segment === 'leagues' ? (
-            <OverviewView
-              overview={overview}
-              loading={ovLoading}
-              refreshing={ovRefreshing}
-              error={error}
-              onOpen={setOpenLeagueId}
-              onRefresh={() => {
-                setOvRefreshing(true);
-                loadOverview();
-              }}
-            />
+            <>
+              {overview && overview.leagues && overview.leagues.length ? (
+                <Pressable
+                  style={({ pressed }) => [styles.wizardBtn, pressed && { opacity: 0.85 }]}
+                  onPress={startWizard}
+                  disabled={wizardLoading}
+                >
+                  {wizardLoading ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={styles.wizardBtnText}>Waiver Wizard — pick up across leagues</Text>
+                  )}
+                </Pressable>
+              ) : null}
+              <OverviewView
+                overview={overview}
+                loading={ovLoading}
+                refreshing={ovRefreshing}
+                error={error}
+                onOpen={setOpenLeagueId}
+                onRefresh={() => {
+                  setOvRefreshing(true);
+                  loadOverview();
+                }}
+              />
+            </>
           ) : segment === 'best' ? (
             <BestView best={best} onPick={(lid, addId) => setClaim({ leagueId: lid, addId })} />
           ) : (
@@ -597,6 +633,8 @@ const styles = StyleSheet.create({
   header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 6 },
   title: { color: colors.text, fontSize: 26, fontWeight: '900' },
   subtitle: { color: colors.textDim, fontSize: 13, marginTop: 2 },
+  wizardBtn: { backgroundColor: colors.accent, marginHorizontal: 16, marginBottom: 10, borderRadius: 14, paddingVertical: 15, alignItems: 'center' },
+  wizardBtnText: { color: '#fff', fontSize: 15, fontWeight: '800' },
   // Landing list — league cards (mirrors Lineups).
   ovCard: { backgroundColor: colors.card, borderRadius: 14, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: colors.border },
   ovTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
