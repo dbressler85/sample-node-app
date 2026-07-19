@@ -6,6 +6,7 @@ import AvailabilityBadge from '../components/AvailabilityBadge';
 
 const TABS = [
   ['rankings', 'Rankings'],
+  ['watch', 'Watch'],
   ['mine', 'My Players'],
   ['news', 'News'],
 ];
@@ -23,6 +24,7 @@ export default function PlayersScreen({ onOpenPlayer }) {
   const [rankings, setRankings] = useState(null);
   const [mine, setMine] = useState(null);
   const [news, setNews] = useState(null);
+  const [watch, setWatch] = useState(null);
   const [error, setError] = useState(null);
 
   // Debounced search on query change — wait ~300ms after the last keystroke so a
@@ -51,6 +53,9 @@ export default function PlayersScreen({ onOpenPlayer }) {
     if (tab === 'rankings') loadRankings();
     if (tab === 'mine' && !mine) api.exposure().then(setMine).catch((e) => setError(e.message));
     if (tab === 'news' && !news) api.news().then(setNews).catch((e) => setError(e.message));
+    // Watchlist changes as you star players elsewhere, so refetch each time the
+    // tab is opened rather than caching it.
+    if (tab === 'watch') { setWatch(null); api.watchlist().then(setWatch).catch((e) => setError(e.message)); }
   }, [tab, loadRankings, mine, news]);
 
   const searching = query.trim().length >= 2;
@@ -129,6 +134,20 @@ export default function PlayersScreen({ onOpenPlayer }) {
                 }
               />
             </>
+          ) : tab === 'watch' ? (
+            <FlatList
+              data={watch ? watch.players : []}
+              keyExtractor={(p) => p.id}
+              contentContainerStyle={styles.list}
+              renderItem={({ item }) => <WatchRow p={item} onPress={() => onOpenPlayer(item.id)} />}
+              ListEmptyComponent={
+                !watch ? (
+                  <Center><ActivityIndicator color={colors.accent} /></Center>
+                ) : (
+                  <Text style={styles.note}>No players on your watchlist yet. Open a player and tap ☆ Watch to track him across your leagues.</Text>
+                )
+              }
+            />
           ) : tab === 'mine' ? (
             <FlatList
               data={mine ? mine.players : []}
@@ -192,6 +211,31 @@ function PlayerRow({ p, rank, sub, onPress }) {
   );
 }
 
+function WatchRow({ p, onPress }) {
+  const posColor = positionColors[p.position] || colors.textDim;
+  const s = p.summary;
+  return (
+    <Pressable style={({ pressed }) => [styles.row, pressed && { opacity: 0.7 }]} onPress={onPress}>
+      <View style={[styles.posBadge, { backgroundColor: posColor + '22', borderColor: posColor }]}>
+        <Text style={[styles.pos, { color: posColor }]}>{p.position}</Text>
+      </View>
+      <View style={{ flex: 1 }}>
+        <View style={styles.nameRow}>
+          <Text style={styles.name} numberOfLines={1}>{p.name}</Text>
+          <AvailabilityBadge availability={p.availability} style={{ marginLeft: 6 }} />
+        </View>
+        <View style={styles.chipRow}>
+          {s.mine > 0 ? <Text style={[styles.chip, styles.chipMine]}>{s.mine} rostered</Text> : null}
+          {s.free > 0 ? <Text style={[styles.chip, styles.chipFree]}>{s.free} free</Text> : null}
+          {s.tradeTarget > 0 ? <Text style={[styles.chip, styles.chipTrade]}>{s.tradeTarget} on other teams</Text> : null}
+          {p.news && p.news.length ? <Text style={[styles.chip, styles.chipNews]}>news</Text> : null}
+        </View>
+      </View>
+      {p.value != null ? <Text style={styles.value}>{p.value}</Text> : null}
+    </Pressable>
+  );
+}
+
 function NewsRow({ n, onPress }) {
   const sev = n.severity === 'high' ? colors.bad : n.severity === 'medium' ? colors.warn : colors.textDim;
   return (
@@ -236,6 +280,12 @@ const styles = StyleSheet.create({
   pos: { fontSize: 11, fontWeight: '800' },
   nameRow: { flexDirection: 'row', alignItems: 'center' },
   name: { color: colors.text, fontSize: 15, fontWeight: '700', flexShrink: 1 },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 5 },
+  chip: { fontSize: 11, fontWeight: '800', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, overflow: 'hidden' },
+  chipMine: { color: colors.good, backgroundColor: colors.good + '22' },
+  chipFree: { color: colors.accent, backgroundColor: colors.accent + '22' },
+  chipTrade: { color: colors.gold, backgroundColor: colors.gold + '22' },
+  chipNews: { color: colors.bad, backgroundColor: colors.bad + '22' },
   mine: { color: colors.good, fontSize: 9, fontWeight: '900', marginLeft: 6, borderWidth: 1, borderColor: colors.good, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1, overflow: 'hidden' },
   meta: { color: colors.textDim, fontSize: 12, marginTop: 2 },
   value: { color: colors.gold, fontSize: 15, fontWeight: '900', marginLeft: 10 },
