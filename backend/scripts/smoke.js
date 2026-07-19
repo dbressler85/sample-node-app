@@ -396,6 +396,47 @@ function assert(cond, msg) {
     assert(!after.offers.some((o) => o.id === 't1'), 'rejected offer removed from pending');
     console.log(`✓ respond: rejected t1; pending now ${after.offers.length}`);
 
+    // --- M6: drafts ---
+    const drafts = (await j(await fetch(`${base}/api/drafts`, authed))).body;
+    assert(drafts.drafts.length === 3, 'draft state for all leagues');
+    assert(drafts.summary.scheduled >= 1 && drafts.summary.live >= 1, 'detects scheduled + in-progress drafts');
+    assert(drafts.summary.onClock === 1, 'flags the one league where I am on the clock');
+    console.log(
+      `✓ drafts overview: ${drafts.summary.live} live, ${drafts.summary.scheduled} scheduled, ${drafts.summary.onClock} on the clock` +
+        `\n    ${drafts.drafts.map((d) => `${d.name.split(' ')[0]}:${d.status}${d.myOnClock ? ' (MY PICK)' : ''}`).join(', ')}`
+    );
+
+    // The live draft where I'm on the clock.
+    const live = drafts.drafts.find((d) => d.myOnClock);
+    const dl = (await j(await fetch(`${base}/api/leagues/${live.leagueId}/draft`, authed))).body;
+    assert(dl.status === 'in_progress' && dl.onClock && dl.onClock.mine, 'my league draft is live and on my pick');
+    assert(dl.board.some((s) => s.player) && dl.board.some((s) => !s.playerId), 'board shows made + upcoming picks');
+    assert(dl.available.length > 0 && dl.available[0].value >= (dl.available[1] || {}).value, 'available pool ranked by dynasty value');
+    console.log(
+      `✓ draft board (${dl.name}): on the clock 1.${String(dl.onClock.pick).padStart(2, '0')}; ` +
+        `top available ${dl.available[0].name.split(',')[0]} (${dl.available[0].value})`
+    );
+
+    // Make the pick; it lands on the board and I'm no longer on the clock.
+    const topPick = dl.available[0];
+    const afterPick = (await j(
+      await fetch(`${base}/api/leagues/${live.leagueId}/draft/pick`, {
+        method: 'POST',
+        headers: { ...authed.headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ playerId: topPick.id }),
+      })
+    )).body;
+    assert(afterPick.board.some((s) => s.player && s.player.id === topPick.id), 'pick recorded on the board');
+    // Clock advances to the next slot (may still be me on a snake wrap).
+    assert(!afterPick.onClock || afterPick.onClock.overall > dl.onClock.overall, 'clock advances after picking');
+    assert(!afterPick.available.some((p) => p.id === topPick.id), 'drafted player leaves the available pool');
+    console.log(`✓ make pick: drafted ${topPick.name.split(',')[0]}; ${afterPick.myPicks.filter((p) => p.player).length} of my picks made`);
+
+    // Scheduled draft carries a start time and no picks yet.
+    const sched = drafts.drafts.find((d) => d.status === 'scheduled');
+    assert(sched && sched.startTime, 'scheduled draft has a start time');
+    console.log(`✓ scheduled: ${sched.name} draft at ${sched.startTime}`);
+
     r = await j(await fetch(`${base}/api/dashboard`));
     assert(r.status === 401, 'dashboard without token is 401');
     console.log('✓ auth required (401 without token)');
