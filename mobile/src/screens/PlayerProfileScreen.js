@@ -86,6 +86,9 @@ export default function PlayerProfileScreen({ playerId, onBack }) {
             <View style={styles.valueBox}>
               <Text style={styles.valueNum}>{p.value}</Text>
               <Text style={styles.valueLabel}>value</Text>
+              {p.valueRange && p.valueRange.min !== p.valueRange.max ? (
+                <Text style={styles.valueSpread}>{p.valueRange.min}–{p.valueRange.max} in leagues</Text>
+              ) : null}
             </View>
           ) : null}
         </View>
@@ -153,6 +156,7 @@ export default function PlayerProfileScreen({ playerId, onBack }) {
                 <Text style={[styles.clRel, { color: r.color }]}>
                   {r.label}{c.bucket ? ` (${c.bucket})` : ''}
                 </Text>
+                {c.value != null ? <Text style={styles.clValue}>{c.value}</Text> : null}
                 {c.leagueProjection != null ? <Text style={styles.clProj}>{c.leagueProjection}</Text> : null}
               </View>
             );
@@ -339,6 +343,7 @@ const styles = StyleSheet.create({
   valueBox: { alignItems: 'center', marginLeft: 10 },
   valueNum: { color: colors.gold, fontSize: 24, fontWeight: '900' },
   valueLabel: { color: colors.textDim, fontSize: 10, fontWeight: '700' },
+  valueSpread: { color: colors.gold, fontSize: 10, fontWeight: '700', marginTop: 2, maxWidth: 92, textAlign: 'center' },
   card: { backgroundColor: colors.card, borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 14, marginTop: 12 },
   cardTitle: { color: colors.textDim, fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 },
   bandRow: { flexDirection: 'row', justifyContent: 'space-around' },
@@ -360,6 +365,7 @@ const styles = StyleSheet.create({
   dot: { width: 8, height: 8, borderRadius: 4, marginRight: 10 },
   clName: { color: colors.text, fontSize: 14, flex: 1 },
   clRel: { fontSize: 12, fontWeight: '700', marginRight: 10 },
+  clValue: { color: colors.gold, fontSize: 13, fontWeight: '900', width: 34, textAlign: 'right' },
   clProj: { color: colors.textDim, fontSize: 13, fontWeight: '800', width: 40, textAlign: 'right' },
   actionBar: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', gap: 10, padding: 14, backgroundColor: colors.bg, borderTopWidth: 1, borderTopColor: colors.border },
   actionBtn: { flex: 1, borderRadius: 12, paddingVertical: 15, alignItems: 'center' },
