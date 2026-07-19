@@ -1,27 +1,29 @@
 'use strict';
 
-// In-memory trade offers per session token + league. Seeded lazily from demo
-// fixtures so the app starts with realistic incoming offers, then reflects
-// responds (accept/reject remove the offer) and proposals (add an outgoing one).
-// Swap for a real store before hosting (like sessions/waivers).
+// Trade offers per session token + league, seeded lazily from demo fixtures, then
+// reflecting responds (accept/reject) and proposals (outgoing offers). Durable via
+// store/persist so offers survive a restart (in live it mirrors MFL pendingTrades).
 
-let counter = 5000;
-const store = new Map(); // token -> Map(leagueId -> offer[])
+const persist = require('./persist');
 
-function leagueMap(token) {
-  if (!store.has(token)) store.set(token, new Map());
-  return store.get(token);
+const db = () => persist.ns('trades'); // token -> { leagueId -> offer[] }
+const meta = () => persist.ns('meta');
+
+function nextId(key, start) {
+  const m = meta();
+  const cur = m[key] != null ? m[key] : start;
+  m[key] = cur + 1;
+  return cur;
 }
 
 function ensure(token, leagueId, seed) {
-  const m = leagueMap(token);
-  if (!m.has(leagueId)) {
-    m.set(
-      leagueId,
-      (seed || []).map((o, i) => ({ id: o.id || `seed-${leagueId}-${i}`, direction: 'incoming', status: 'pending', ...o }))
-    );
+  const d = db();
+  if (!d[token]) d[token] = {};
+  if (!d[token][leagueId]) {
+    d[token][leagueId] = (seed || []).map((o, i) => ({ id: o.id || `seed-${leagueId}-${i}`, direction: 'incoming', status: 'pending', ...o }));
+    persist.touch();
   }
-  return m.get(leagueId);
+  return d[token][leagueId];
 }
 
 function list(token, leagueId, seed) {
@@ -30,8 +32,9 @@ function list(token, leagueId, seed) {
 
 function add(token, leagueId, seed, offer) {
   const arr = ensure(token, leagueId, seed);
-  const withId = { id: `t${counter++}`, status: 'pending', ...offer };
+  const withId = { id: `t${nextId('tradeCounter', 5000)}`, status: 'pending', ...offer };
   arr.push(withId);
+  persist.touch();
   return withId;
 }
 
@@ -41,6 +44,7 @@ function resolve(token, leagueId, seed, offerId, status) {
   const offer = arr.find((o) => String(o.id) === String(offerId));
   if (!offer) return null;
   offer.status = status;
+  persist.touch();
   return offer;
 }
 
