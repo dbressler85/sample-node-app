@@ -16,6 +16,7 @@ const mfl = require('../lib/mfl');
 const scoringLib = require('../lib/scoring');
 const availabilityLib = require('../lib/availability');
 const enrichmentLib = require('../lib/enrichment');
+const leagueFormat = require('../lib/leagueformat');
 const leaguesService = require('./leagues');
 const rosterService = require('./roster');
 const playersLib = require('../lib/players');
@@ -107,7 +108,7 @@ async function freeAgentIds(cookie, league) {
 }
 
 async function loadFreeAgents(cookie, league, settings) {
-  const [byId, enr] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot()]);
+  const [byId, enr] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(await leagueFormat.format(cookie, league))]);
   const ctx = ctxFor();
   const scoring = config.demoMode ? demo.scoring(league.leagueId) || {} : {};
   const statMap = config.demoMode ? demo.statProjections() : {};
@@ -225,7 +226,7 @@ async function getBoard(cookie, token, leagueId, { position, sort } = {}) {
 async function preview(cookie, token, leagueId, payload) {
   const league = await findLeague(cookie, leagueId);
   const settings = await loadSettings(league, cookie);
-  const [byId, roster, enr] = await Promise.all([playersLib.load(cookie), rosterService.getRoster(cookie, leagueId), enrichmentLib.snapshot()]);
+  const [byId, roster, enr] = await Promise.all([playersLib.load(cookie), rosterService.getRoster(cookie, leagueId), enrichmentLib.snapshot(await leagueFormat.format(cookie, league))]);
   const available = new Set(config.demoMode ? demo.freeAgents(leagueId) : []);
   const rosterIds = new Set([...roster.starters, ...roster.bench, ...roster.ir, ...roster.taxi].map((p) => p.id));
 

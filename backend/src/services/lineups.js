@@ -18,6 +18,7 @@ const rosterService = require('./roster');
 const leaguesService = require('./leagues');
 const playersLib = require('../lib/players');
 const nflLib = require('../lib/nfl');
+const leagueFormat = require('../lib/leagueformat');
 const lineupStore = require('../store/lineups');
 
 const MODES = new Set(['auto', 'safe', 'balanced', 'aggressive']);
@@ -40,19 +41,7 @@ function currentWeek() {
 }
 
 async function loadRequirements(cookie, league) {
-  if (config.demoMode) return demo.lineupRequirements(league.leagueId) || [];
-  const res = await mfl.exportRequest('league', { host: league.host, cookie, L: league.leagueId });
-  const starters = res && res.league && res.league.starters;
-  const positions = mfl.toArray(starters && starters.position);
-  return positions.map((p) => {
-    const eligible = String(p.name || '')
-      .split('|')
-      .map((s) => s.trim())
-      .filter(Boolean)
-      .map((s) => playersLib.normalizePosition(s));
-    const max = parseInt(String(p.limit || '1').split('-').pop(), 10) || 1;
-    return { name: eligible.length > 1 ? 'FLEX' : eligible[0] || 'FLEX', eligible, count: max };
-  });
+  return leagueFormat.requirements(cookie, league);
 }
 
 async function loadScoring(cookie, league) {
