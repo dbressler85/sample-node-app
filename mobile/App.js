@@ -14,6 +14,7 @@ import RosterScreen from './src/screens/RosterScreen';
 import LineupsScreen from './src/screens/LineupsScreen';
 import LineupEditorScreen from './src/screens/LineupEditorScreen';
 import LineupWizardScreen from './src/screens/LineupWizardScreen';
+import TradesScreen from './src/screens/TradesScreen';
 import { loadSession, clearSession } from './src/auth';
 import { colors } from './src/theme';
 
@@ -80,6 +81,7 @@ export default function App() {
   const openRoster = (league) => setOverlay({ type: 'roster', league });
   const openLineup = (league) => setOverlay({ type: 'lineupEditor', league });
   const openWizard = (leagues, mode) => setOverlay({ type: 'lineupWizard', leagues, mode });
+  const openTrades = (league) => setOverlay({ type: 'trades', league });
   const openPlayer = (playerId) => setOverlay({ type: 'playerProfile', playerId });
   const openWaivers = (target) => {
     setWaiversTarget(target || null);
@@ -109,6 +111,7 @@ export default function App() {
             onOpenLineup={openLineup}
             onOpenLeague={openRoster}
             onOpenWaivers={(league) => openWaivers({ leagueId: league.leagueId, position: league.position })}
+            onOpenTrades={openTrades}
             onLogout={handleLogout}
           />
         );
@@ -135,6 +138,9 @@ export default function App() {
       return (
         <LineupWizardScreen leagues={overlay.leagues} initialMode={overlay.mode} onBack={() => setOverlay(null)} />
       );
+    }
+    if (overlay && overlay.type === 'trades') {
+      return <TradesScreen league={overlay.league} onBack={() => setOverlay(null)} />;
     }
     if (overlay && overlay.type === 'playerProfile') {
       return <PlayerProfileScreen playerId={overlay.playerId} onBack={() => setOverlay(null)} />;

@@ -11,6 +11,7 @@ const lineupRoutes = require('./routes/lineups');
 const commandRoutes = require('./routes/command');
 const waiverRoutes = require('./routes/waivers');
 const playerHubRoutes = require('./routes/playerhub');
+const tradeRoutes = require('./routes/trades');
 
 const app = express();
 
@@ -26,6 +27,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api', commandRoutes);
 app.use('/api', playerHubRoutes);
 app.use('/api', waiverRoutes);
+app.use('/api', tradeRoutes);
 app.use('/api', lineupRoutes);
 app.use('/api', apiRoutes);
 

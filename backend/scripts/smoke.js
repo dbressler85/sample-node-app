@@ -358,6 +358,44 @@ function assert(cond, msg) {
         `league(s) need a waiver pickup (bye-week hole)`
     );
 
+    // --- M5: trades ---
+    const trOverview = (await j(await fetch(`${base}/api/trades`, authed))).body;
+    assert(trOverview.offers.length === 2, 'two pending trade offers across leagues');
+    const t1 = trOverview.offers.find((o) => o.id === 't1');
+    assert(t1 && t1.acquire[0].name.includes('Gibbs') && t1.send[0].name.includes('Nix'), 'offer resolves players on both sides');
+    assert(t1.analysis.acquireValue > t1.analysis.sendValue && t1.analysis.verdict === 'favorable', 'value analysis flags a favorable offer');
+    console.log(`✓ trade offers: ${trOverview.offers.length} pending; t1 IN ${t1.acquire.map((a) => a.name.split(',')[0])} (${t1.analysis.acquireValue}) OUT ${t1.send.map((a) => a.name.split(',')[0])} (${t1.analysis.sendValue}) → ${t1.analysis.verdict}`);
+
+    // League detail: offers + my players + partners to build a proposal.
+    const trLeague = (await j(await fetch(`${base}/api/leagues/40750/trades`, authed))).body;
+    assert(trLeague.myPlayers.length > 0 && trLeague.partners.length > 0, 'league trade view has my players + partners');
+    assert(trLeague.partners[0].players.every((p) => 'value' in p), 'partner rosters carry value');
+    console.log(`✓ trade builder: ${trLeague.myPlayers.length} of my players, ${trLeague.partners.length} partners (${trLeague.partners.map((p) => p.name).join(', ')})`);
+
+    // Propose a trade.
+    const proposal = (await j(
+      await fetch(`${base}/api/leagues/40750/trades`, {
+        method: 'POST',
+        headers: { ...authed.headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ toFranchiseId: '0002', give: ['15870'], receive: ['14802'] }),
+      })
+    )).body;
+    assert(proposal.ok && proposal.offer.direction === 'outgoing', 'proposal submitted as an outgoing offer');
+    console.log(`✓ propose: sent ${proposal.offer.send.map((a) => a.name.split(',')[0])} for ${proposal.offer.acquire.map((a) => a.name.split(',')[0])} → ${proposal.offer.withName}`);
+
+    // Reject an incoming offer; it disappears from the overview.
+    const rej = (await j(
+      await fetch(`${base}/api/leagues/40750/trades/t1/respond`, {
+        method: 'POST',
+        headers: { ...authed.headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'reject' }),
+      })
+    )).body;
+    assert(rej.ok && rej.action === 'reject', 'reject recorded');
+    const after = (await j(await fetch(`${base}/api/trades`, authed))).body;
+    assert(!after.offers.some((o) => o.id === 't1'), 'rejected offer removed from pending');
+    console.log(`✓ respond: rejected t1; pending now ${after.offers.length}`);
+
     r = await j(await fetch(`${base}/api/dashboard`));
     assert(r.status === 401, 'dashboard without token is 401');
     console.log('✓ auth required (401 without token)');
