@@ -194,7 +194,7 @@ async function getLeague(cookie, token, leagueId, { position } = {}) {
   const draft = await loadDraft(cookie, token, league);
   if (!draft) return { leagueId: league.leagueId, name: league.name, status: 'none' };
 
-  const [byId, enr] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(await leagueFormat.format(cookie, league))]);
+  const [byId, enr] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(await leagueFormat.format(cookie, league), cookie)]);
   const slots = slotsFor(draft).map((s) => ({ ...s, player: s.playerId ? resolvePlayer(byId, s.playerId, enr) : null }));
   const status = statusOf(draft, slots);
   const clock = onClockSlot(status, slots);

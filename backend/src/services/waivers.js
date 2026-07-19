@@ -108,7 +108,7 @@ async function freeAgentIds(cookie, league) {
 }
 
 async function loadFreeAgents(cookie, league, settings) {
-  const [byId, enr] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(await leagueFormat.format(cookie, league))]);
+  const [byId, enr] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(await leagueFormat.format(cookie, league), cookie)]);
   const ctx = ctxFor();
   const scoring = config.demoMode ? demo.scoring(league.leagueId) || {} : {};
   const statMap = config.demoMode ? demo.statProjections() : {};
@@ -229,7 +229,7 @@ async function getBoard(cookie, token, leagueId, { position, sort } = {}) {
 async function preview(cookie, token, leagueId, payload) {
   const league = await findLeague(cookie, leagueId);
   const settings = await loadSettings(league, cookie);
-  const [byId, roster, enr] = await Promise.all([playersLib.load(cookie), rosterService.getRoster(cookie, leagueId), enrichmentLib.snapshot(await leagueFormat.format(cookie, league))]);
+  const [byId, roster, enr] = await Promise.all([playersLib.load(cookie), rosterService.getRoster(cookie, leagueId), enrichmentLib.snapshot(await leagueFormat.format(cookie, league), cookie)]);
   const available = new Set(config.demoMode ? demo.freeAgents(leagueId) : []);
   const rosterIds = new Set([...roster.starters, ...roster.bench, ...roster.ir, ...roster.taxi].map((p) => p.id));
 
@@ -333,7 +333,7 @@ async function cancel(cookie, token, leagueId, claimId) {
 // annotated with which leagues he's available in and under what system.
 async function getBestAvailable(cookie, token) {
   const leagues = await leaguesService.listLeagues(cookie);
-  const [byId, enr] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot()]);
+  const [byId, enr] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(undefined, cookie)]);
   const ctx = ctxFor();
   const map = new Map();
 

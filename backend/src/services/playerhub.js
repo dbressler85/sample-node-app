@@ -95,7 +95,7 @@ async function buildSets(cookie) {
 }
 
 async function search(cookie, token, { q, position, status } = {}) {
-  const [byId, enr] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot()]);
+  const [byId, enr] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(undefined, cookie)]);
   const ranks = computeRanks(byId, enr);
   const { myRostered, freeBy } = await buildSets(cookie);
 
@@ -114,7 +114,7 @@ async function search(cookie, token, { q, position, status } = {}) {
 }
 
 async function rankings(cookie, token, { type = 'value', position } = {}) {
-  const [byId, enr] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot()]);
+  const [byId, enr] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(undefined, cookie)]);
   const ranks = computeRanks(byId, enr);
   const { myRostered, freeBy } = await buildSets(cookie);
 
@@ -202,7 +202,7 @@ async function liveSeasonAndLog(cookie, league, playerId, week) {
 }
 
 async function profile(cookie, token, playerId) {
-  const [byId, enr] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot()]);
+  const [byId, enr] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(undefined, cookie)]);
   const base = playersLib.resolve(byId, playerId);
   const ranks = computeRanks(byId, enr);
   const ctx = ctxFor();
