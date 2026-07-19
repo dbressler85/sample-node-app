@@ -271,10 +271,101 @@ async function propose(cookie, token, leagueId, payload) {
   return { ok: true, offer: buildOffer(stored, league, byId, enr) };
 }
 
+// Suggest a fair give-package from `mine` (my players, value-desc) to acquire a
+// target worth `targetValue`. Prefers a single close-value player, else a small
+// package. Advisory — the user reviews it before sending.
+function suggestGive(mine, targetValue) {
+  if (!mine.length) return [];
+  if (!targetValue) return mine.slice(0, 1);
+  // Closest single that isn't a gross overpay (>25% over).
+  let best = null;
+  let bestDiff = Infinity;
+  for (const p of mine) {
+    const v = p.value || 0;
+    if (v > targetValue * 1.25) continue;
+    const d = Math.abs(v - targetValue);
+    if (d < bestDiff) { bestDiff = d; best = p; }
+  }
+  if (best && (best.value || 0) >= targetValue * 0.85) return [best]; // fair 1-for-1
+  // Otherwise assemble a package from players at/under ~target until it's fair.
+  const pkg = [];
+  let sum = 0;
+  for (const p of mine) {
+    if ((p.value || 0) <= targetValue * 1.1) {
+      pkg.push(p);
+      sum += p.value || 0;
+      if (pkg.length >= 3 || sum >= targetValue * 0.9) break;
+    }
+  }
+  if (pkg.length) return pkg;
+  // Everyone's well above target (a stacked roster) — offer the smallest single.
+  return best ? [best] : [mine[mine.length - 1]];
+}
+
+// Cross-league trade targeting: for ONE target player, find every league where
+// he's on another team's roster, and for each surface the owner + a suggested
+// fair give-package from your roster there. The trade equivalent of "add across
+// leagues" — you shop the same player across your portfolio in one flow.
+async function crossLeaguePreview(cookie, token, targetId) {
+  const tid = String(targetId);
+  const leagues = await leaguesService.listLeagues(cookie);
+  const byId = await playersLib.load(cookie);
+  const target = playersLib.resolve(byId, tid);
+  const out = [];
+  for (const league of leagues) {
+    try {
+      const enr = await enrichmentLib.snapshot(await leagueFormat.format(cookie, league), cookie);
+      const [roster, rawPartners] = await Promise.all([
+        rosterService.getRoster(cookie, league.leagueId),
+        config.demoMode ? Promise.resolve(demo.tradePartners(league.leagueId)) : liveRosters(cookie, league),
+      ]);
+      const myIds = new Set([...roster.starters, ...roster.bench, ...roster.ir, ...roster.taxi].map((p) => p.id));
+      if (myIds.has(tid)) continue; // already yours
+      const owner = rawPartners.find((pt) => (pt.roster || []).map(String).includes(tid));
+      if (!owner) continue; // free agent / not on a partner roster -> not a trade target
+      const targetValue = enr.value(tid) || 0;
+      const mine = [...roster.starters, ...roster.bench]
+        .map((p) => ({ id: p.id, name: p.name, position: p.position, value: enr.value(p.id) || 0 }))
+        .sort((a, b) => b.value - a.value);
+      const give = suggestGive(mine, targetValue);
+      out.push({
+        leagueId: league.leagueId,
+        name: league.name,
+        partnerFranchiseId: owner.franchiseId,
+        partnerName: owner.name,
+        targetValue,
+        suggestedGive: give.map((g) => ({ id: g.id, name: g.name, position: g.position, value: g.value })),
+        giveValue: Math.round(give.reduce((s, g) => s + (g.value || 0), 0) * 10) / 10,
+      });
+    } catch (e) {
+      /* skip a league we couldn't read */
+    }
+  }
+  return { player: { id: target.id, name: target.name, position: target.position, team: target.team }, leagues: out };
+}
+
+// Send the target-player trade offer in each selected league. Each selection
+// carries { leagueId, partnerFranchiseId, giveIds }.
+async function crossLeaguePropose(cookie, token, targetId, selections) {
+  const tid = String(targetId);
+  const results = await Promise.all(
+    (selections || []).map(async (s) => {
+      try {
+        if (!s.giveIds || !s.giveIds.length) throwBad('Nothing to offer in this league.');
+        const res = await propose(cookie, token, s.leagueId, { toFranchiseId: s.partnerFranchiseId, give: s.giveIds, receive: [tid] });
+        return { leagueId: s.leagueId, ok: true, offer: res.offer };
+      } catch (e) {
+        return { leagueId: s.leagueId, ok: false, error: e.message };
+      }
+    })
+  );
+  return { results, summary: { requested: results.length, submitted: results.filter((r) => r.ok).length } };
+}
+
 function throwBad(msg) {
   const err = new Error(msg);
   err.status = 400;
   throw err;
 }
 
-module.exports = { getOverview, getLeague, respond, propose, analyze };
+module.exports = { getOverview, getLeague, respond, propose, analyze, crossLeaguePreview, crossLeaguePropose };

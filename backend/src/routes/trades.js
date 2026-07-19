@@ -16,6 +16,26 @@ router.get('/trades', async (req, res, next) => {
   }
 });
 
+// GET /api/players/:id/trade/preview — leagues where this player is a trade target
+// (on another team), with the owner + a suggested give-package per league.
+router.get('/players/:id/trade/preview', async (req, res, next) => {
+  try {
+    res.json(await trades.crossLeaguePreview(req.mflCookie, req.token, req.params.id));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/players/:id/trade — send the offer for this player in each selected
+// league. Body: { leagues: [{ leagueId, partnerFranchiseId, giveIds }] }.
+router.post('/players/:id/trade', async (req, res, next) => {
+  try {
+    res.json(await trades.crossLeaguePropose(req.mflCookie, req.token, req.params.id, (req.body || {}).leagues));
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/leagues/:leagueId/trades — one league's offers + partners for proposing.
 router.get('/leagues/:leagueId/trades', async (req, res, next) => {
   try {
