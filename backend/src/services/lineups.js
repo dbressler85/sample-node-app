@@ -114,17 +114,23 @@ async function opponentFranchiseId(cookie, league, week) {
   return null;
 }
 
-// The opponent's active (non-IR/taxi) player ids for this league.
-async function opponentRosterIds(cookie, league, oppId) {
+// The opponent's active players, split into the starters they've SET (MFL marks
+// the weekly lineup with status "starter") and the full active pool. If they
+// haven't set a lineup yet, `starters` comes back empty.
+async function opponentRoster(cookie, league, oppId) {
   const res = await mfl.exportRequest('rosters', { host: league.host, cookie, L: league.leagueId, FRANCHISE: oppId });
   const opp = mfl.toArray(res && res.rosters && res.rosters.franchise).find((f) => String(f.id) === String(oppId));
-  if (!opp) return [];
-  return mfl.toArray(opp.player)
-    .filter((p) => {
-      const s = p.status || p.roster_status;
-      return s !== 'INJURED_RESERVE' && s !== 'TAXI_SQUAD';
-    })
-    .map((p) => String(p.id));
+  if (!opp) return { all: [], starters: [] };
+  const all = [];
+  const starters = [];
+  for (const p of mfl.toArray(opp.player)) {
+    const s = p.status || p.roster_status;
+    if (s === 'INJURED_RESERVE' || s === 'TAXI_SQUAD') continue;
+    const id = String(p.id);
+    all.push(id);
+    if (p.status === 'starter') starters.push(id);
+  }
+  return { all, starters };
 }
 
 async function opponentName(cookie, league, oppId) {
@@ -138,29 +144,48 @@ async function opponentName(cookie, league, oppId) {
   }
 }
 
-// Live matchup projection: field the opponent's OPTIMAL lineup under this league's
-// slot rules, projecting each of their players with the same league-wide
-// projectedScores map we already fetched (it covers every player in the league,
-// not just mine) and respecting their injuries/byes. Returns null (no matchup
-// shown) on any missing data, so a schedule gap degrades gracefully.
+// Live matchup projection. We can only guess an opponent's output from the
+// lineup they'll actually field:
+//   * If they've SET their lineup, project exactly those starters (an injured or
+//     benched-by-mistake player counts against them — that's real).
+//   * If they haven't set it yet, assume their BEST case (optimal lineup), since
+//     they still can, and planning against their ceiling is the safe read.
+// Either way we use the same league-wide projectedScores map already fetched (it
+// covers every player in the league) and respect injuries/byes. Returns null on
+// any missing data, so a schedule gap degrades gracefully. `basis` tells the UI
+// which read it is: 'submitted' vs 'projected'.
 async function resolveMatchupLive({ cookie, league, week, requirements, projMap, statusMap, byeMap }) {
   if (!week || !league.franchiseId || !projMap || projMap.size === 0) return null;
   try {
     const oppId = await opponentFranchiseId(cookie, league, week);
     if (!oppId) return null; // bye week or unscheduled
-    const [ids, byId, name] = await Promise.all([
-      opponentRosterIds(cookie, league, oppId),
+    const [roster, byId, name] = await Promise.all([
+      opponentRoster(cookie, league, oppId),
       playersLib.load(cookie),
       opponentName(cookie, league, oppId),
     ]);
-    if (!ids.length) return null;
-    const pool = ids.map((id) => {
+    if (!roster.all.length) return null;
+
+    const scoreOf = (id) => {
       const base = playersLib.resolve(byId, id);
       const startable = availabilityLib.resolve(base, statusMap, byeMap, week).startable;
       return { id, position: base.position, projection: startable ? projMap.get(id) || 0 : 0 };
-    });
-    const opt = optimizer.optimize(requirements, pool);
-    return { opponent: name, projected: opt.total };
+    };
+
+    const slotCount = requirements.reduce((s, r) => s + (Number(r.count) || 0), 0);
+    const hasSetLineup = roster.starters.length >= slotCount && slotCount > 0;
+
+    let projected;
+    let basis;
+    if (hasSetLineup) {
+      // Their submitted starters, as-fielded (unavailable ones score ~0).
+      projected = optimizer.round1(roster.starters.reduce((s, id) => s + scoreOf(id).projection, 0));
+      basis = 'submitted';
+    } else {
+      projected = optimizer.optimize(requirements, roster.all.map(scoreOf)).total;
+      basis = 'projected';
+    }
+    return { opponent: name, projected, basis };
   } catch (e) {
     return null;
   }
@@ -273,7 +298,14 @@ function buildView({ league, week, requirements, pool, starterIds, franchiseName
     mode: effectiveMode,
     recommendedMode,
     matchup: matchup
-      ? { opponent: matchup.opponent, opponentProjected: matchup.projected, myProjected: currentMedian, winProb }
+      ? {
+          opponent: matchup.opponent,
+          opponentProjected: matchup.projected,
+          myProjected: currentMedian,
+          winProb,
+          // 'submitted' = their set lineup; 'projected' = assumed best (not set yet).
+          basis: matchup.basis || 'projected',
+        }
       : null,
     slots,
     players,

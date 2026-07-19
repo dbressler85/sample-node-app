@@ -105,13 +105,20 @@ export default function LineupEditorScreen({ league, onBack }) {
         </Text>
         {detail.format ? <Text style={styles.format}>{detail.format}</Text> : null}
         {detail.matchup ? (
-          <Text style={styles.matchup}>
-            vs {detail.matchup.opponent} ·{' '}
-            <Text style={{ color: winColor(detail.matchup.winProb), fontWeight: '800' }}>
-              {Math.round(detail.matchup.winProb * 100)}% win
+          <>
+            <Text style={styles.matchup}>
+              vs {detail.matchup.opponent} ·{' '}
+              <Text style={{ color: winColor(detail.matchup.winProb), fontWeight: '800' }}>
+                {Math.round(detail.matchup.winProb * 100)}% win
+              </Text>
+              {detail.mode ? <Text style={styles.modeTag}>  ·  {detail.mode.toUpperCase()}</Text> : null}
             </Text>
-            {detail.mode ? <Text style={styles.modeTag}>  ·  {detail.mode.toUpperCase()}</Text> : null}
-          </Text>
+            <Text style={styles.basisTag}>
+              {detail.matchup.basis === 'submitted'
+                ? 'vs their set lineup'
+                : 'assumes their best lineup (not set yet)'}
+            </Text>
+          </>
         ) : null}
       </View>
 
@@ -145,6 +152,7 @@ const styles = StyleSheet.create({
   subtitle: { color: colors.textDim, fontSize: 14, marginTop: 2 },
   format: { color: colors.textDim, fontSize: 11, fontWeight: '700', marginTop: 4, letterSpacing: 0.3 },
   matchup: { color: colors.textDim, fontSize: 13, marginTop: 4 },
+  basisTag: { color: colors.textDim, fontSize: 11, marginTop: 2, fontStyle: 'italic', opacity: 0.8 },
   modeTag: { color: colors.accent, fontSize: 11, fontWeight: '800' },
   totalStrong: { color: colors.text, fontWeight: '800' },
   optHint: { color: colors.warn, fontWeight: '700' },

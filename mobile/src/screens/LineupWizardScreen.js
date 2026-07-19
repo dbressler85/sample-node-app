@@ -141,13 +141,20 @@ export default function LineupWizardScreen({ leagues, initialMode = 'auto', onBa
               {emptySlots > 0 ? <Text style={styles.emptyHint}>  · {emptySlots} empty</Text> : null}
             </Text>
             {detail.matchup ? (
-              <Text style={styles.matchup}>
-                vs {detail.matchup.opponent} ·{' '}
-                <Text style={{ color: winColor(detail.matchup.winProb), fontWeight: '800' }}>
-                  {Math.round(detail.matchup.winProb * 100)}% win
+              <>
+                <Text style={styles.matchup}>
+                  vs {detail.matchup.opponent} ·{' '}
+                  <Text style={{ color: winColor(detail.matchup.winProb), fontWeight: '800' }}>
+                    {Math.round(detail.matchup.winProb * 100)}% win
+                  </Text>
+                  {detail.mode ? <Text style={styles.modeTag}>  ·  suggested: {detail.mode.toUpperCase()}</Text> : null}
                 </Text>
-                {detail.mode ? <Text style={styles.modeTag}>  ·  suggested: {detail.mode.toUpperCase()}</Text> : null}
-              </Text>
+                <Text style={styles.basisTag}>
+                  {detail.matchup.basis === 'submitted'
+                    ? 'vs their set lineup'
+                    : 'assumes their best lineup (not set yet)'}
+                </Text>
+              </>
             ) : (
               <Text style={styles.matchup}>Suggested lineup pre-filled — tweak any slot below.</Text>
             )}
@@ -243,6 +250,7 @@ const styles = StyleSheet.create({
   totalStrong: { color: colors.text, fontWeight: '800' },
   emptyHint: { color: colors.bad, fontWeight: '700' },
   matchup: { color: colors.textDim, fontSize: 13, marginTop: 4 },
+  basisTag: { color: colors.textDim, fontSize: 11, marginTop: 2, fontStyle: 'italic', opacity: 0.8 },
   modeTag: { color: colors.accent, fontSize: 11, fontWeight: '800' },
   modeRow: { flexDirection: 'row', marginHorizontal: 16, marginTop: 4, marginBottom: 4, backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 3 },
   mode: { flex: 1, paddingVertical: 7, borderRadius: 8, alignItems: 'center' },
