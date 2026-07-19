@@ -27,7 +27,7 @@ export default function WaiversScreen({ initialLeagueId, initialPosition }) {
   const [leagueId, setLeagueId] = useState(initialLeagueId || null);
   const [segment, setSegment] = useState('board'); // 'board' | 'best' | 'pending'
   const [position, setPosition] = useState(initialPosition || null);
-  const [sort, setSort] = useState('value');
+  const [sort, setSort] = useState('projection');
   const [board, setBoard] = useState(null);
   const [best, setBest] = useState(null);
   const [pending, setPending] = useState(null);
@@ -216,11 +216,15 @@ function FaRow({ p, onPress }) {
           <AvailabilityBadge availability={p.availability} style={{ marginLeft: 6 }} />
         </View>
         <Text style={styles.faMeta}>
-          {p.team}
-          {p.projection != null ? ` · proj ${p.projection}` : ''}
-          {p.ownership != null ? ` · ${p.ownership}% rost` : ''}
-          {p.trend ? ` · +${(p.trend / 1000).toFixed(1)}k adds` : ''}
-          {p.onWaivers ? ` · waivers ${p.clearTime || ''}` : ' · free agent'}
+          {[
+            p.team,
+            p.projection != null ? `proj ${p.projection}` : null,
+            p.ownership != null ? `${p.ownership}% rost` : null,
+            p.trend ? `+${(p.trend / 1000).toFixed(1)}k adds` : null,
+            p.onWaivers ? `waivers${p.clearTime ? ` ${p.clearTime}` : ''}` : 'free agent',
+          ]
+            .filter(Boolean)
+            .join(' · ')}
         </Text>
       </View>
       {p.value != null ? <Text style={styles.faValue}>{p.value}</Text> : null}
@@ -237,6 +241,15 @@ function BestView({ best, onPick }) {
       data={best.players}
       keyExtractor={(p) => p.id}
       contentContainerStyle={styles.list}
+      ListEmptyComponent={
+        <View style={styles.emptyWrap}>
+          <Text style={styles.emptyTitle}>Nothing to show yet</Text>
+          <Text style={styles.emptyText}>
+            The cross-league “best available” view isn’t wired for live leagues yet. Use the Board tab
+            per league for now.
+          </Text>
+        </View>
+      }
       renderItem={({ item }) => {
         const posColor = positionColors[item.position] || colors.textDim;
         const open = openId === item.id;
@@ -511,6 +524,9 @@ const styles = StyleSheet.create({
   resultTag: { fontSize: 11, fontWeight: '900', width: 46 },
   resultText: { color: colors.textDim, fontSize: 13, flex: 1 },
   empty: { color: colors.textDim, textAlign: 'center', marginTop: 24 },
+  emptyWrap: { paddingHorizontal: 20, paddingTop: 50, alignItems: 'center' },
+  emptyTitle: { color: colors.text, fontSize: 16, fontWeight: '800', marginBottom: 8 },
+  emptyText: { color: colors.textDim, fontSize: 13, textAlign: 'center', lineHeight: 19 },
   error: { color: colors.bad, textAlign: 'center' },
   sysBadge: { fontSize: 10, fontWeight: '900', borderWidth: 1, borderRadius: 5, paddingHorizontal: 6, paddingVertical: 1, overflow: 'hidden' },
   // sheet

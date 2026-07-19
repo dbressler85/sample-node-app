@@ -17,6 +17,7 @@ import useAndroidBack from '../useAndroidBack';
 const STATUS = {
   risk: { label: 'Risk', color: colors.bad },
   incomplete: { label: 'Empty slot', color: '#ff9d5c' },
+  unset: { label: 'Not set', color: colors.warn },
   suboptimal: { label: 'Points available', color: colors.warn },
   optimal: { label: 'Optimal', color: colors.good },
 };
@@ -119,7 +120,8 @@ export default function LineupsScreen({ onOpenLineup }) {
               ? `All ${summary.total} lineups set · Week ${data.week}`
               : `${summary.needAttention} of ${summary.total} need attention` +
                 (summary.risky ? ` · ${summary.risky} risky` : '') +
-                ` · +${summary.pointsAvailable} pts`}
+                (summary.unset ? ` · ${summary.unset} not set` : '') +
+                (summary.pointsAvailable > 0 ? ` · +${summary.pointsAvailable} pts` : '')}
           </Text>
         ) : null}
       </View>
@@ -233,11 +235,19 @@ function Row({ item, onPress }) {
       ) : null}
 
       <View style={styles.rowBottom}>
-        <Text style={styles.pts}>
-          <Text style={styles.ptsStrong}>{item.currentTotal}</Text>
-          <Text style={styles.ptsDim}> / {item.optimalTotal} opt</Text>
-        </Text>
-        {item.delta > 0 ? <Text style={[styles.delta, { color: s.color }]}>+{item.delta}</Text> : <Text style={styles.chev}>›</Text>}
+        {item.status === 'unset' ? (
+          <Text style={styles.ptsDim}>Tap to set your starters</Text>
+        ) : (
+          <Text style={styles.pts}>
+            <Text style={styles.ptsStrong}>{item.currentTotal}</Text>
+            <Text style={styles.ptsDim}> / {item.optimalTotal} opt</Text>
+          </Text>
+        )}
+        {item.status !== 'unset' && item.delta > 0 ? (
+          <Text style={[styles.delta, { color: s.color }]}>+{item.delta}</Text>
+        ) : (
+          <Text style={styles.chev}>›</Text>
+        )}
       </View>
     </Pressable>
   );

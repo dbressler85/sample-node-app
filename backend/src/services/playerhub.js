@@ -118,13 +118,28 @@ async function rankings(cookie, token, { type = 'value', position } = {}) {
 
   let list = [...byId.values()].map((p) => annotate(p, byId, ranks, myRostered, freeBy));
   if (type === 'position' && position) list = list.filter((p) => p.position === position);
-  if (type === 'rookies') list = list.filter((p) => p.age != null && p.age <= 23); // age proxy for demo
 
-  if (type === 'trending') list.sort((a, b) => (config.demoMode ? demo.trend(b.id) - demo.trend(a.id) : 0));
-  else list.sort((a, b) => (b.value || 0) - (a.value || 0));
+  // Only rank by data we actually have — otherwise team defenses float to the top
+  // of a value ranking with no values. Live has none of these sources yet.
+  if (type === 'trending') {
+    list.sort((a, b) => (config.demoMode ? demo.trend(b.id) - demo.trend(a.id) : 0));
+    list = list.filter((p) => (config.demoMode ? demo.trend(p.id) : 0) > 0);
+  } else if (type === 'rookies') {
+    list = list.filter((p) => p.age != null && p.age <= 23).sort((a, b) => (b.value || 0) - (a.value || 0));
+  } else {
+    // value / position
+    list = list.filter((p) => p.value != null).sort((a, b) => (b.value || 0) - (a.value || 0));
+  }
 
-  if (type === 'trending') list = list.filter((p) => (config.demoMode ? demo.trend(p.id) : 0) > 0);
-  return { type, position: position || null, players: list.slice(0, 40) };
+  const note =
+    list.length === 0 && !config.demoMode
+      ? type === 'trending'
+        ? 'Waiver-trend data isn’t wired for live leagues yet.'
+        : type === 'rookies'
+        ? 'Age/rookie data isn’t wired for live leagues yet.'
+        : 'Dynasty values aren’t wired for live leagues yet — search or My Players still work.'
+      : null;
+  return { type, position: position || null, players: list.slice(0, 40), note };
 }
 
 function leagueProjection(playerId, position, leagueId) {
