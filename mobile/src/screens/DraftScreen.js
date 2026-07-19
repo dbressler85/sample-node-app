@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Alert
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import useAndroidBack from '../useAndroidBack';
+import usePoll from '../usePoll';
 
 const STATUS = {
   scheduled: { label: 'Scheduled', color: colors.warn },
@@ -42,6 +43,10 @@ export default function DraftScreen({ league, onBack }) {
   }, [league.leagueId]);
 
   useEffect(() => { load(); }, [load]);
+  // While the draft is live, poll so the board and "on the clock" update as other
+  // teams pick — without a manual pull. Not while picking (avoids clobbering) or
+  // when scheduled/complete.
+  usePoll(load, 15000, !!(data && data.status === 'in_progress') && !picking);
 
   const myTurn = !!(data && data.onClock && data.onClock.mine);
 

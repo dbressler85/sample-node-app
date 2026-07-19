@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, FlatList, StyleSheet, RefreshControl, ActivityIndicator } from 'react-native';
 import { api } from '../api';
 import { colors } from '../theme';
+import usePoll from '../usePoll';
 
 const STATUS = {
   favored: { label: 'Favored', color: colors.good },
@@ -32,6 +33,9 @@ export default function ScoresScreen() {
   useEffect(() => {
     load();
   }, [load]);
+  // Auto-refresh the Sunday board while games are in progress, so scores and win
+  // probabilities tick without a manual pull.
+  usePoll(load, 45000, !!(data && data.summary && data.summary.live > 0));
 
   if (loading) {
     return (
