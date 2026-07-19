@@ -24,12 +24,16 @@ const dropStore = require('../store/drops');
 // your leagues can differ — those per-league numbers appear in cross-league).
 const GENERIC_SCORING = { ppr: 1, tePremium: 0, passTd: 4 };
 
-function ctxFor() {
-  return {
-    week: config.demoMode ? demo.week() : Number(process.env.MFL_WEEK) || null,
-    statusMap: config.demoMode ? demo.playerStatus() : {},
-    byeMap: config.demoMode ? demo.byes() : {},
-  };
+// Availability context (current week + injury/bye maps). Live now really fetches
+// these from MFL so search / rankings / profiles badge OUT/injured/bye players
+// instead of showing everyone as ACTIVE.
+async function ctxFor(cookie) {
+  if (config.demoMode) {
+    return { week: demo.week(), statusMap: demo.playerStatus(), byeMap: demo.byes() };
+  }
+  const week = await nflLib.currentWeek(cookie);
+  const [statusMap, byeMap] = await Promise.all([nflLib.injuryMap(cookie, week), nflLib.byeMap(cookie, week)]);
+  return { week, statusMap, byeMap };
 }
 
 // Overall + positional rank by dynasty value across the whole player pool.
@@ -64,8 +68,7 @@ async function gather(cookie) {
   return { leagues, data: data.filter((d) => d.roster) };
 }
 
-function annotate(player, byId, ranks, myRostered, freeBy, enr) {
-  const ctx = ctxFor();
+function annotate(player, byId, ranks, myRostered, freeBy, enr, ctx) {
   return {
     id: player.id,
     name: player.name,
@@ -96,7 +99,7 @@ async function buildSets(cookie) {
 }
 
 async function search(cookie, token, { q, position, status } = {}) {
-  const [byId, enr] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(undefined, cookie)]);
+  const [byId, enr, ctx] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(undefined, cookie), ctxFor(cookie)]);
   const ranks = computeRanks(byId, enr);
   const { myRostered, freeBy } = await buildSets(cookie);
 
@@ -105,7 +108,7 @@ async function search(cookie, token, { q, position, status } = {}) {
   if (term) players = players.filter((p) => p.name.toLowerCase().includes(term));
   if (position) players = players.filter((p) => p.position === position);
 
-  let list = players.map((p) => annotate(p, byId, ranks, myRostered, freeBy, enr));
+  let list = players.map((p) => annotate(p, byId, ranks, myRostered, freeBy, enr, ctx));
   if (status === 'mine') list = list.filter((p) => p.mine);
   else if (status === 'free') list = list.filter((p) => p.freeInLeagues > 0);
   else if (status === 'available') list = list.filter((p) => !p.mine);
@@ -115,11 +118,11 @@ async function search(cookie, token, { q, position, status } = {}) {
 }
 
 async function rankings(cookie, token, { type = 'value', position } = {}) {
-  const [byId, enr] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(undefined, cookie)]);
+  const [byId, enr, ctx] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(undefined, cookie), ctxFor(cookie)]);
   const ranks = computeRanks(byId, enr);
   const { myRostered, freeBy } = await buildSets(cookie);
 
-  let list = [...byId.values()].map((p) => annotate(p, byId, ranks, myRostered, freeBy, enr));
+  let list = [...byId.values()].map((p) => annotate(p, byId, ranks, myRostered, freeBy, enr, ctx));
   if (type === 'position' && position) list = list.filter((p) => p.position === position);
 
   // Only rank by data we actually have, so players with no signal don't float up.
@@ -206,9 +209,10 @@ async function profile(cookie, token, playerId) {
   const [byId, enr] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(undefined, cookie)]);
   const base = playersLib.resolve(byId, playerId);
   const ranks = computeRanks(byId, enr);
-  const ctx = ctxFor();
-  // Live bye weeks (so availability + the profile's byeWeek are real).
-  const byeMap = config.demoMode ? demo.byes() : await nflLib.byeMap(cookie, ctx.week);
+  const ctx = await ctxFor(cookie);
+  // ctx already carries the (live-fetched) bye map, so availability + the
+  // profile's byeWeek are real.
+  const byeMap = ctx.byeMap;
 
   // Game log + season. Demo has a fixture; live pulls actual points from MFL
   // playerScores, scored under the owner's first league.

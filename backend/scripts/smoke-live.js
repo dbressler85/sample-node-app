@@ -20,6 +20,7 @@ const TESTS = [
   'draft-live-test',
   'offseason-test',
   'news-test',
+  'week-detect-test',
 ];
 
 let failed = 0;

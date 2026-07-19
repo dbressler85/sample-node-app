@@ -36,8 +36,8 @@ function winProbability(margin) {
 
 // --- data loaders (demo vs live) --------------------------------------------
 
-function currentWeek() {
-  return config.demoMode ? demo.week() : Number(process.env.MFL_WEEK) || null;
+async function currentWeek(cookie) {
+  return config.demoMode ? demo.week() : nflLib.currentWeek(cookie);
 }
 
 async function loadRequirements(cookie, league) {
@@ -49,14 +49,14 @@ async function loadScoring(cookie, league) {
   return {}; // live scoring-rule parsing is a follow-up; see leagueProjection
 }
 
-async function loadStatuses(cookie) {
+async function loadStatuses(cookie, week) {
   if (config.demoMode) return demo.playerStatus();
-  return nflLib.injuryMap(cookie, currentWeek());
+  return nflLib.injuryMap(cookie, week);
 }
 
-async function loadByes(cookie) {
+async function loadByes(cookie, week) {
   if (config.demoMode) return demo.byes();
-  return nflLib.byeMap(cookie, currentWeek());
+  return nflLib.byeMap(cookie, week);
 }
 
 // Find this week's opponent franchise id from the league schedule.
@@ -149,7 +149,7 @@ async function resolveMatchupLive({ cookie, league, week, requirements, projMap,
 }
 
 // Format-aware median projection per player (see M2 commit for rationale).
-async function leagueProjection(cookie, league, poolPlayers, scoring) {
+async function leagueProjection(cookie, league, poolPlayers, scoring, week) {
   if (config.demoMode) {
     const stats = demo.statProjections();
     const map = new Map();
@@ -161,7 +161,7 @@ async function leagueProjection(cookie, league, poolPlayers, scoring) {
       host: league.host,
       cookie,
       L: league.leagueId,
-      W: currentWeek(),
+      W: week,
     });
     const list = mfl.toArray(res && res.projectedScores && res.projectedScores.playerScore);
     return new Map(list.map((p) => [String(p.id), Number(p.score) || 0]));
@@ -288,14 +288,14 @@ function buildView({ league, week, requirements, pool, starterIds, franchiseName
 // `light` skips the per-league projectedScores call (used by the Home rollup,
 // which only needs availability + empty-slot detection, not point projections).
 async function viewForLeague(cookie, token, league, requestedMode, { light = false } = {}) {
+  const week = await currentWeek(cookie);
   const [requirements, scoring, roster, statusMap, byeMap] = await Promise.all([
     loadRequirements(cookie, league),
     loadScoring(cookie, league),
     rosterService.getRoster(cookie, league.leagueId),
-    loadStatuses(cookie),
-    loadByes(cookie),
+    loadStatuses(cookie, week),
+    loadByes(cookie, week),
   ]);
-  const week = currentWeek();
   const rosterStarterIds = roster.starters.map((p) => p.id);
   const basePool = [...roster.starters, ...roster.bench].map((p) => ({
     id: p.id,
@@ -304,7 +304,7 @@ async function viewForLeague(cookie, token, league, requestedMode, { light = fal
     team: p.team,
   }));
 
-  const projMap = light ? new Map() : await leagueProjection(cookie, league, basePool, scoring);
+  const projMap = light ? new Map() : await leagueProjection(cookie, league, basePool, scoring, week);
 
   const pool = basePool.map((p) => {
     const median = projMap.get(p.id) || 0;
@@ -388,7 +388,7 @@ async function getOverview(cookie, token, mode, { light = false } = {}) {
 
   const actionable = views.filter((v) => v.status && v.status !== 'optimal');
   return {
-    week: currentWeek(),
+    week: await currentWeek(cookie),
     mode: requested,
     leagues: views,
     summary: {
