@@ -13,6 +13,7 @@ import PlayerProfileScreen from './src/screens/PlayerProfileScreen';
 import RosterScreen from './src/screens/RosterScreen';
 import LineupsScreen from './src/screens/LineupsScreen';
 import LineupEditorScreen from './src/screens/LineupEditorScreen';
+import LineupWizardScreen from './src/screens/LineupWizardScreen';
 import { loadSession, clearSession } from './src/auth';
 import { colors } from './src/theme';
 
@@ -78,6 +79,7 @@ export default function App() {
 
   const openRoster = (league) => setOverlay({ type: 'roster', league });
   const openLineup = (league) => setOverlay({ type: 'lineupEditor', league });
+  const openWizard = (leagues, mode) => setOverlay({ type: 'lineupWizard', leagues, mode });
   const openPlayer = (playerId) => setOverlay({ type: 'playerProfile', playerId });
   const openWaivers = (target) => {
     setWaiversTarget(target || null);
@@ -99,7 +101,7 @@ export default function App() {
       case 'players':
         return <PlayersScreen onOpenPlayer={openPlayer} />;
       case 'lineups':
-        return <LineupsScreen onOpenLineup={openLineup} />;
+        return <LineupsScreen onOpenLineup={openLineup} onStartWizard={openWizard} />;
       case 'home':
       default:
         return (
@@ -128,6 +130,11 @@ export default function App() {
     }
     if (overlay && overlay.type === 'lineupEditor') {
       return <LineupEditorScreen league={overlay.league} onBack={() => setOverlay(null)} />;
+    }
+    if (overlay && overlay.type === 'lineupWizard') {
+      return (
+        <LineupWizardScreen leagues={overlay.leagues} initialMode={overlay.mode} onBack={() => setOverlay(null)} />
+      );
     }
     if (overlay && overlay.type === 'playerProfile') {
       return <PlayerProfileScreen playerId={overlay.playerId} onBack={() => setOverlay(null)} />;

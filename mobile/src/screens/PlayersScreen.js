@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, FlatList, StyleSheet, Pressable, TextInput, ActivityIndicator, ScrollView } from 'react-native';
+import { View, Text, FlatList, StyleSheet, Pressable, TextInput, ActivityIndicator } from 'react-native';
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import AvailabilityBadge from '../components/AvailabilityBadge';
@@ -98,13 +98,13 @@ export default function PlayersScreen({ onOpenPlayer }) {
 
           {tab === 'rankings' ? (
             <>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.typeRow}>
+              <View style={styles.typeRow}>
                 {RANK_TYPES.map(([k, label]) => (
                   <Pressable key={k} style={[styles.typeChip, rankType === k && styles.typeChipActive]} onPress={() => setRankType(k)}>
                     <Text style={[styles.typeText, rankType === k && { color: colors.text }]}>{label}</Text>
                   </Pressable>
                 ))}
-              </ScrollView>
+              </View>
               <FlatList
                 data={rankings ? rankings.players : []}
                 keyExtractor={(p) => p.id}
@@ -207,7 +207,7 @@ const styles = StyleSheet.create({
   segActive: { backgroundColor: colors.cardAlt },
   segText: { color: colors.textDim, fontSize: 13, fontWeight: '700' },
   segTextActive: { color: colors.text },
-  typeRow: { paddingHorizontal: 16, gap: 8, paddingVertical: 6 },
+  typeRow: { flexDirection: 'row', paddingHorizontal: 16, gap: 8, paddingVertical: 6 },
   typeChip: { backgroundColor: colors.card, borderRadius: 8, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 6 },
   typeChipActive: { backgroundColor: colors.cardAlt, borderColor: colors.accent },
   typeText: { color: colors.textDim, fontSize: 12, fontWeight: '700' },

@@ -29,7 +29,7 @@ const MODES = [
   { key: 'aggressive', label: 'Aggr' },
 ];
 
-export default function LineupsScreen({ onOpenLineup }) {
+export default function LineupsScreen({ onOpenLineup, onStartWizard }) {
   const [mode, setMode] = useState('auto');
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
@@ -64,6 +64,15 @@ export default function LineupsScreen({ onOpenLineup }) {
     setLoading(true);
     load();
   }, [load]);
+
+  function startWizard() {
+    const queue = (data ? data.leagues : []).filter((l) => !l.error && l.status !== 'optimal');
+    if (!queue.length) {
+      Alert.alert('All set', 'Every lineup is already optimal for this mode.');
+      return;
+    }
+    onStartWizard(queue.map((l) => ({ leagueId: l.leagueId, name: l.name })), mode);
+  }
 
   async function openReview() {
     setPlanning(true);
@@ -130,13 +139,18 @@ export default function LineupsScreen({ onOpenLineup }) {
 
       <Pressable
         style={({ pressed }) => [styles.setAll, pressed && { opacity: 0.85 }]}
-        onPress={openReview}
-        disabled={planning}
+        onPress={startWizard}
       >
+        <Text style={styles.setAllText}>
+          {summary && summary.needAttention > 0 ? `Set Lineups · ${summary.needAttention} to review` : 'Review Lineups'}
+        </Text>
+      </Pressable>
+
+      <Pressable style={styles.autoAll} onPress={openReview} disabled={planning}>
         {planning ? (
-          <ActivityIndicator color="#fff" />
+          <ActivityIndicator color={colors.textDim} />
         ) : (
-          <Text style={styles.setAllText}>Review &amp; Set All Lineups</Text>
+          <Text style={styles.autoAllText}>Auto-set all leagues</Text>
         )}
       </Pressable>
 
@@ -337,6 +351,8 @@ const styles = StyleSheet.create({
   modeTextActive: { color: colors.text },
   setAll: { backgroundColor: colors.accent, marginHorizontal: 16, marginTop: 10, marginBottom: 6, borderRadius: 14, paddingVertical: 15, alignItems: 'center' },
   setAllText: { color: '#fff', fontSize: 16, fontWeight: '800' },
+  autoAll: { marginHorizontal: 16, marginBottom: 6, paddingVertical: 8, alignItems: 'center' },
+  autoAllText: { color: colors.textDim, fontSize: 13, fontWeight: '700', textDecorationLine: 'underline' },
   list: { paddingHorizontal: 16, paddingBottom: 32, paddingTop: 6 },
   row: { backgroundColor: colors.card, borderRadius: 14, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: colors.border },
   rowTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
