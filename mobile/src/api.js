@@ -7,6 +7,13 @@ export function setToken(token) {
   authToken = token;
 }
 
+// Called when a request finds the session dead (401) or the backend unreachable,
+// so the app can bounce back to the login screen.
+let onAuthLost = null;
+export function setAuthLostHandler(fn) {
+  onAuthLost = fn;
+}
+
 async function request(path, { method = 'GET', body } = {}) {
   const headers = { Accept: 'application/json' };
   if (body) headers['Content-Type'] = 'application/json';
@@ -20,6 +27,8 @@ async function request(path, { method = 'GET', body } = {}) {
       body: body ? JSON.stringify(body) : undefined,
     });
   } catch (e) {
+    // Backend unreachable (down, cold-start timeout, wrong URL) → back to login.
+    if (onAuthLost) onAuthLost('unreachable');
     throw new Error(`Can't reach the backend at ${API_URL}. Is it running and is the URL correct?`);
   }
 
@@ -28,6 +37,11 @@ async function request(path, { method = 'GET', body } = {}) {
     data = await res.json();
   } catch (e) {
     /* non-JSON */
+  }
+  if (res.status === 401) {
+    // Session expired or the server restarted (in-memory sessions are lost) → login.
+    if (onAuthLost) onAuthLost('expired');
+    throw new Error((data && data.error) || 'Session expired. Please log in again.');
   }
   if (!res.ok) {
     throw new Error((data && data.error) || `Request failed (${res.status})`);

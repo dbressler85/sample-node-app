@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import AvailabilityBadge from '../components/AvailabilityBadge';
+import useAndroidBack from '../useAndroidBack';
 
 export default function LineupEditorScreen({ league, onBack }) {
   const [detail, setDetail] = useState(null);
@@ -20,6 +21,15 @@ export default function LineupEditorScreen({ league, onBack }) {
   const [saving, setSaving] = useState(false);
   const [assignments, setAssignments] = useState([]); // slot index -> player id | null
   const [picking, setPicking] = useState(null); // slot index being edited
+
+  // Back closes the player picker first.
+  useAndroidBack(useCallback(() => {
+    if (picking !== null) {
+      setPicking(null);
+      return true;
+    }
+    return false;
+  }, [picking]));
 
   useEffect(() => {
     let alive = true;

@@ -1,6 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, StatusBar, ActivityIndicator, SafeAreaView, Platform } from 'react-native';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
+import useAndroidBack from './src/useAndroidBack';
+import { setAuthLostHandler } from './src/api';
 import LoginScreen from './src/screens/LoginScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import ScoresScreen from './src/screens/ScoresScreen';
@@ -35,6 +37,34 @@ export default function App() {
       setBooting(false);
     })();
   }, []);
+
+  // If a request finds the session dead or the backend unreachable, drop to login.
+  useEffect(() => {
+    setAuthLostHandler(async () => {
+      await clearSession();
+      setAuthed(false);
+      setTab('home');
+      setOverlay(null);
+      setWaiversTarget(null);
+    });
+  }, []);
+
+  // Android hardware back / edge-swipe: close an overlay, else return to Home,
+  // else let the OS exit. (Screens with open sheets consume back first.)
+  useAndroidBack(
+    useCallback(() => {
+      if (!authed) return false;
+      if (overlay) {
+        setOverlay(null);
+        return true;
+      }
+      if (tab !== 'home') {
+        setTab('home');
+        return true;
+      }
+      return false;
+    }, [authed, overlay, tab])
+  );
 
   async function handleLogout() {
     await clearSession();
