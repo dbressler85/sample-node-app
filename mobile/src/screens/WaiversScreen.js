@@ -54,6 +54,7 @@ export default function WaiversScreen({ initialLeagueId, initialPosition }) {
         const res = await api.leaguesList();
         setLeagues(res.leagues);
         setLeagueId((prev) => prev || (res.leagues[0] && res.leagues[0].leagueId));
+        if (!res.leagues || res.leagues.length === 0) setLoading(false); // nothing to load a board for
       } catch (e) {
         setError(e.message);
         setLoading(false);

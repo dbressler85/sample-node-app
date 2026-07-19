@@ -119,7 +119,7 @@ const ROSTERS = {
     starters: ['14990', '15870', '14086', '15859', '15264', '14835'],
     bench: ['13593', '15266', '13138'],
     ir: [],
-    taxi: ['15264'],
+    taxi: [], // (previously duplicated a starter; taxi is demonstrated on 64097)
   },
   '19622': {
     starters: ['13116', '15267', '13649', '14802', '13138', '12171', '17003', '18003'],

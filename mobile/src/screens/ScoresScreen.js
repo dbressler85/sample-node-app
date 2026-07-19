@@ -127,9 +127,9 @@ function Side({ label, score, proj, ytp, alignEnd, highlight }) {
       <Text style={styles.sideLabel} numberOfLines={1}>
         {label}
       </Text>
-      <Text style={[styles.sideScore, highlight && { color: colors.good }]}>{score.toFixed(1)}</Text>
+      <Text style={[styles.sideScore, highlight && { color: colors.good }]}>{(score || 0).toFixed(1)}</Text>
       <Text style={styles.sideProj}>
-        proj {proj.toFixed(0)} · {ytp} left
+        proj {(proj || 0).toFixed(0)} · {ytp || 0} left
       </Text>
     </View>
   );

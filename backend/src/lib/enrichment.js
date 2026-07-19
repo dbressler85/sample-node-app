@@ -81,6 +81,9 @@ async function getFantasyCalc(format) {
     console.log(`[enrichment] fantasycalc format=${key} rows=${list.length} values=${value.size}`);
   } catch (e) {
     console.log(`[enrichment] fantasycalc format=${key} error=${e.message}`);
+    // Don't overwrite good data with an empty result on a transient failure —
+    // keep serving the last-good snapshot (even if a bit stale) and retry later.
+    if (hit) return hit;
   }
   const entry = { at: Date.now(), value, age, rank, sleeperToMfl };
   fcCache.set(key, entry);
@@ -97,14 +100,15 @@ async function getSleeperTrending() {
     console.log(`[enrichment] sleeper trending=${raw.size}`);
   } catch (e) {
     console.log(`[enrichment] sleeper error=${e.message}`);
+    if (sleeperCache.raw.size) return sleeperCache.raw; // keep last-good on failure
   }
   sleeperCache = { at: Date.now(), raw };
   return raw;
 }
 
 async function buildLive(format) {
-  const fc = await getFantasyCalc(format);
-  const sleeperRaw = await getSleeperTrending();
+  // Fetch both providers in parallel to halve cold-start latency.
+  const [fc, sleeperRaw] = await Promise.all([getFantasyCalc(format), getSleeperTrending()]);
   // Map trending counts onto MFL ids via the crosswalk.
   const trend = new Map();
   for (const [sleeperId, count] of sleeperRaw) {

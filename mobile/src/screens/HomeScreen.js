@@ -37,7 +37,6 @@ export default function HomeScreen({ onOpenLineup, onOpenLeague, onOpenWaivers, 
   const [error, setError] = useState(null);
   const [booting, setBooting] = useState(true);
   const running = useRef(false);
-  const week = useRef(null);
 
   // 1) Instant paint from disk cache.
   useEffect(() => {
@@ -70,7 +69,7 @@ export default function HomeScreen({ onOpenLineup, onOpenLeague, onOpenWaivers, 
       await runPool(list, CONCURRENCY, async (lg) => {
         try {
           const t = await api.leagueTriage(lg.leagueId);
-          collected[lg.leagueId] = { name: t.name, status: t.status, items: t.items };
+          collected[lg.leagueId] = { name: t.name, status: t.status, items: t.items, phase: t.phase, dynasty: t.dynasty };
         } catch (e) {
           collected[lg.leagueId] = { name: lg.name, status: 'error', items: [] };
         }

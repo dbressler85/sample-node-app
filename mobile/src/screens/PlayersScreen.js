@@ -74,6 +74,12 @@ export default function PlayersScreen({ onOpenPlayer }) {
         ) : null}
       </View>
 
+      {error ? (
+        <Pressable onPress={() => setError(null)}>
+          <Text style={styles.errorBanner}>{error} · tap to dismiss</Text>
+        </Pressable>
+      ) : null}
+
       {searching ? (
         !searchRes ? (
           <Center><ActivityIndicator color={colors.accent} /></Center>
@@ -125,7 +131,13 @@ export default function PlayersScreen({ onOpenPlayer }) {
               keyExtractor={(p) => p.id}
               contentContainerStyle={styles.list}
               renderItem={({ item }) => <PlayerRow p={item} sub={`${item.count} leagues · ${item.startingCount} starting`} onPress={() => onOpenPlayer(item.id)} />}
-              ListEmptyComponent={<Center><ActivityIndicator color={colors.accent} /></Center>}
+              ListEmptyComponent={
+                !mine ? (
+                  <Center><ActivityIndicator color={colors.accent} /></Center>
+                ) : (
+                  <Text style={styles.note}>You don’t roster any players yet.</Text>
+                )
+              }
             />
           ) : (
             <FlatList
@@ -226,4 +238,5 @@ const styles = StyleSheet.create({
   chev: { color: colors.textDim, fontSize: 20, marginLeft: 8 },
   empty: { color: colors.textDim, textAlign: 'center', marginTop: 24 },
   note: { color: colors.textDim, textAlign: 'center', marginTop: 40, marginHorizontal: 28, fontSize: 14, lineHeight: 20 },
+  errorBanner: { color: colors.bad, backgroundColor: colors.card, marginHorizontal: 16, marginBottom: 8, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, fontSize: 12, fontWeight: '600', textAlign: 'center' },
 });

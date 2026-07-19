@@ -36,6 +36,7 @@ async function byeMap(cookie, week) {
 
 // Injury/status map for a week: { [playerId]: 'OUT' | 'QUESTIONABLE' | ... }.
 async function injuryMap(cookie, week) {
+  if (!week) return {}; // no active week (offseason) -> nothing to fetch
   try {
     const res = await mfl.exportRequest('injuries', { cookie, W: week });
     const list = mfl.toArray(res && res.injuries && res.injuries.injury);
