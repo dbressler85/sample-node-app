@@ -4,7 +4,7 @@ import { api } from '../api';
 import PlayerRow from '../components/PlayerRow';
 import { colors } from '../theme';
 
-export default function RosterScreen({ league, onBack }) {
+export default function RosterScreen({ league, onBack, onOpenTrades }) {
   const [roster, setRoster] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -41,6 +41,11 @@ export default function RosterScreen({ league, onBack }) {
         <Pressable onPress={onBack} hitSlop={10}>
           <Text style={styles.back}>‹ Leagues</Text>
         </Pressable>
+        {onOpenTrades ? (
+          <Pressable onPress={() => onOpenTrades(league)} hitSlop={10}>
+            <Text style={styles.trades}>⇄ Trades</Text>
+          </Pressable>
+        ) : null}
       </View>
       <View style={styles.header}>
         <Text style={styles.title} numberOfLines={1}>
@@ -111,8 +116,9 @@ function Summary({ label, value, wide }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  topbar: { paddingHorizontal: 16, paddingTop: 8 },
+  topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8 },
   back: { color: colors.accent, fontSize: 16, fontWeight: '600' },
+  trades: { color: colors.accent, fontSize: 15, fontWeight: '800' },
   header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8 },
   title: { color: colors.text, fontSize: 24, fontWeight: '900' },
   summary: { flexDirection: 'row', marginHorizontal: 16, marginBottom: 4, backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 14, gap: 8 },
