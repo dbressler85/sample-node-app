@@ -12,6 +12,7 @@ const mfl = require('../lib/mfl');
 const enrichmentLib = require('../lib/enrichment');
 const leagueFormat = require('../lib/leagueformat');
 const playersLib = require('../lib/players');
+const picksLib = require('../lib/picks');
 const leaguesService = require('./leagues');
 const rosterService = require('./roster');
 const tradeStore = require('../store/trades');
@@ -22,11 +23,12 @@ function pickValue(label) {
   return { 1: 55, 2: 30, 3: 15 }[round] || 8;
 }
 
-// Resolve an asset token (player id or 'pick:LABEL') to a display object + value.
+// Resolve an asset token to a display object + value. A token is a player id, a
+// demo 'pick:LABEL', or a live MFL future-pick token 'FP_<orig>_<year>_<round>'.
 function asset(tok, byId, enr) {
   const t = String(tok);
-  if (t.startsWith('pick:')) {
-    const label = t.slice(5);
+  if (t.startsWith('pick:') || t.startsWith('FP_')) {
+    const label = t.startsWith('pick:') ? t.slice(5) : picksLib.labelForToken(t);
     return { kind: 'pick', id: t, name: label, position: 'PICK', team: null, value: pickValue(label) };
   }
   const p = playersLib.resolve(byId, t);
@@ -174,7 +176,8 @@ async function getLeague(cookie, token, leagueId) {
   const myPlayers = [...roster.starters, ...roster.bench]
     .map((p) => ({ id: p.id, name: p.name, position: p.position, team: p.team, value: enr.value(p.id) }))
     .sort((a, b) => (b.value || 0) - (a.value || 0));
-  const myPicks = (roster.picks || []).map((label) => asset(`pick:${label}`, byId, enr));
+  // Picks carry the real MFL trade token as their id, so a proposal can include them.
+  const myPicks = (await picksLib.franchisePicks(cookie, league)).map((p) => asset(p.token, byId, enr));
 
   const partners = rawPartners.map((pt) => ({
     franchiseId: pt.franchiseId,
@@ -215,11 +218,11 @@ async function propose(cookie, token, leagueId, payload) {
   if (!give.length || !receive.length) throwBad('Add at least one player or pick on each side.');
 
   if (!config.demoMode) {
-    // MFL trade ids for players are numeric; picks use MFL FP_ tokens we don't
-    // synthesize here, so live proposals currently support player-for-player.
-    const strip = (t) => (t.startsWith('pick:') ? null : t);
-    const giveIds = give.map(strip).filter(Boolean);
-    const recvIds = receive.map(strip).filter(Boolean);
+    // Players are numeric ids and future picks are real MFL FP_ tokens — both are
+    // valid in a proposal. Only demo 'pick:' labels (never present in live) drop.
+    const valid = (t) => !t.startsWith('pick:');
+    const giveIds = give.filter(valid);
+    const recvIds = receive.filter(valid);
     try {
       await mfl.importRequest('tradeProposal', {
         host: league.host,
