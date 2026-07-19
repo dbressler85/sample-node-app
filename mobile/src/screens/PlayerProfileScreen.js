@@ -3,6 +3,7 @@ import { View, Text, ScrollView, StyleSheet, Pressable, ActivityIndicator, Alert
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import AvailabilityBadge from '../components/AvailabilityBadge';
+import AddAcrossSheet from '../components/AddAcrossSheet';
 import useAndroidBack from '../useAndroidBack';
 
 const RELATION = {
@@ -182,7 +183,7 @@ export default function PlayerProfileScreen({ playerId, onBack }) {
         </View>
       ) : null}
 
-      {sheet === 'add' ? <AddSheet player={p} onClose={() => setSheet(null)} onDone={() => { setSheet(null); load(); }} /> : null}
+      {sheet === 'add' ? <AddAcrossSheet player={p} onClose={() => setSheet(null)} onDone={() => { setSheet(null); load(); }} /> : null}
       {sheet === 'drop' ? <DropSheet player={p} onClose={() => setSheet(null)} onDone={() => { setSheet(null); load(); }} /> : null}
     </View>
   );
@@ -202,80 +203,6 @@ function Band({ label, value, big }) {
       <Text style={[styles.bandValue, big && { fontSize: 26, color: colors.text }]}>{value}</Text>
       <Text style={styles.bandLabel}>{label}</Text>
     </View>
-  );
-}
-
-function AddSheet({ player, onClose, onDone }) {
-  const [preview, setPreview] = useState(null);
-  const [selected, setSelected] = useState(new Set());
-  const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    api.playerAddPreview(player.id).then((pv) => {
-      setPreview(pv);
-      setSelected(new Set(pv.leagues.map((l) => l.leagueId)));
-    }).catch(() => setPreview({ leagues: [] }));
-  }, [player.id]);
-
-  async function submit() {
-    setBusy(true);
-    try {
-      const leagues = preview.leagues.filter((l) => selected.has(l.leagueId)).map((l) => ({ leagueId: l.leagueId }));
-      const res = await api.playerAdd(player.id, leagues);
-      Alert.alert('Claims submitted', `${player.name} claimed in ${res.summary.submitted} of ${res.summary.requested} leagues.`);
-      onDone();
-    } catch (e) {
-      Alert.alert('Could not submit', e.message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <Pressable style={styles.backdrop} onPress={onClose}>
-      <Pressable style={styles.sheet} onPress={() => {}}>
-        <Text style={styles.sheetTitle}>Add {player.name} across leagues</Text>
-        {!preview ? (
-          <ActivityIndicator color={colors.accent} style={{ paddingVertical: 24 }} />
-        ) : (
-          <>
-            {preview.leagues.map((l) => {
-              const on = selected.has(l.leagueId);
-              return (
-                <Pressable
-                  key={l.leagueId}
-                  style={styles.addRow}
-                  onPress={() =>
-                    setSelected((s) => {
-                      const n = new Set(s);
-                      n.has(l.leagueId) ? n.delete(l.leagueId) : n.add(l.leagueId);
-                      return n;
-                    })
-                  }
-                >
-                  <View style={[styles.check, on && styles.checkOn]}>{on ? <Text style={styles.checkMark}>✓</Text> : null}</View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.addLeague}>{l.name}</Text>
-                    <Text style={styles.addMeta}>
-                      {l.system === 'faab' ? `bid $${l.suggestedBid}` : l.system === 'fcfs' ? 'waiver claim' : 'immediate'}
-                      {l.suggestedDrop ? ` · drop ${l.suggestedDrop.name.split(',')[0]}` : ''}
-                    </Text>
-                  </View>
-                </Pressable>
-              );
-            })}
-            <Pressable
-              style={({ pressed }) => [styles.confirm, (!selected.size || busy) && styles.confirmOff, pressed && selected.size && { opacity: 0.85 }]}
-              onPress={submit}
-              disabled={!selected.size || busy}
-            >
-              {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.confirmText}>Claim in {selected.size} league{selected.size === 1 ? '' : 's'}</Text>}
-            </Pressable>
-            <Text style={styles.tip}>Fine-tune each bid/drop in the Waivers tab.</Text>
-          </>
-        )}
-      </Pressable>
-    </Pressable>
   );
 }
 
