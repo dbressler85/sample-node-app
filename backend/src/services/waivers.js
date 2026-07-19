@@ -119,12 +119,12 @@ function makeFreeAgent(id, byId, scoring, statMap, ctx, system, settings, livePr
 
 // Just the free-agent ids for a league (no enrichment). Used by the player hub
 // to know, cross-league, where a player is available. Cached via the MFL client.
-async function freeAgentIds(cookie, league) {
+async function freeAgentIds(cookie, league, limit = 400) {
   if (config.demoMode) return demo.freeAgents(league.leagueId);
   try {
     const res = await mfl.exportRequest('freeAgents', { host: league.host, cookie, L: league.leagueId });
     const units = mfl.toArray(res && res.freeAgents && res.freeAgents.leagueUnit);
-    return units.flatMap((u) => mfl.toArray(u && u.player)).map((p) => String(p.id)).slice(0, 400);
+    return units.flatMap((u) => mfl.toArray(u && u.player)).map((p) => String(p.id)).slice(0, limit);
   } catch (e) {
     return [];
   }
