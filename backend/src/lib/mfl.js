@@ -110,8 +110,11 @@ async function rawRequest({ host, command, params, cookie, method = 'GET', body 
 
 // Short-lived cache for export (read) responses. Many services build a single
 // screen and would otherwise re-request the same league list / roster / scores;
-// this collapses those into one call and makes pull-to-refresh cheap.
-const readCache = new Map(); // key -> { at, value }
+// this collapses those into one call and makes pull-to-refresh cheap. We cache the
+// in-flight PROMISE, not just the resolved value, so concurrent identical reads
+// (e.g. Home fanning several endpoints at the same league's roster at once) share
+// one network request instead of each firing their own.
+const readCache = new Map(); // key -> { at, promise }
 
 // Slow-changing data gets a long TTL; everything else a short one.
 const STATIC_TYPES = new Set(['league', 'rules', 'myleagues', 'players', 'nflSchedule']);
@@ -121,11 +124,28 @@ async function exportRequest(type, { host = config.apiHost, cookie = null, ...pa
   const key = `${cookie || ''}|${host}|${type}|${JSON.stringify(params)}`;
   const ttl = STATIC_TYPES.has(type) ? config.mflStaticTtlMs : config.mflCacheTtlMs;
   const hit = readCache.get(key);
-  if (hit && Date.now() - hit.at < ttl) return hit.value;
+  if (hit && Date.now() - hit.at < ttl) return hit.promise;
 
-  const value = await rawRequest({ host, command: 'export', params: { TYPE: type, ...params }, cookie });
-  readCache.set(key, { at: Date.now(), value });
-  return value;
+  const promise = rawRequest({ host, command: 'export', params: { TYPE: type, ...params }, cookie });
+  const entry = { at: Date.now(), promise };
+  readCache.set(key, entry);
+  // A failed read must not be cached: drop it so the next call retries.
+  promise.catch(() => {
+    if (readCache.get(key) === entry) readCache.delete(key);
+  });
+  return promise;
+}
+
+// Drop cached reads for one league (all its export types) after a write to it, so
+// the next read reflects the change rather than serving a pre-write snapshot for
+// the rest of the TTL. Scoped to the given cookie so it never touches another
+// account's cache. `L` (leagueId) is part of every league-scoped export's params.
+function invalidateLeague(cookie, leagueId) {
+  const needleCookie = `${cookie || ''}|`;
+  const needleL = `"L":"${String(leagueId)}"`;
+  for (const k of readCache.keys()) {
+    if (k.startsWith(needleCookie) && k.includes(needleL)) readCache.delete(k);
+  }
 }
 
 // Write data via the import command (POST form-encoded).
@@ -198,6 +218,7 @@ module.exports = {
   login,
   exportRequest,
   importRequest,
+  invalidateLeague,
   toArray,
   hostFromLeagueUrl,
 };

@@ -31,6 +31,7 @@ const TESTS = [
   'notifications-test',
   'profile-format-test',
   'leagues-cache-test',
+  'cache-primitives-test',
 ];
 
 let failed = 0;

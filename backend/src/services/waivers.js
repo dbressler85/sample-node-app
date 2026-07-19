@@ -21,7 +21,22 @@ const leagueFormat = require('../lib/leagueformat');
 const leaguesService = require('./leagues');
 const rosterService = require('./roster');
 const playersLib = require('../lib/players');
+const { createMemo } = require('../lib/memo');
 const store = require('../store/waivers');
+
+// Free-agent reads are heavy (the freeAgents + projectedScores exports, then
+// enrichment/availability over up to ~300 players) and re-run across the waivers
+// landing, wizard, and best-available views. Memoize per (cookie, league) on the
+// short TTL, coalescing concurrent builds; a claim/add/drop invalidates the league.
+const faMemo = createMemo({ ttlMs: config.mflCacheTtlMs }); // loadFreeAgents (board entries)
+const faIdsMemo = createMemo({ ttlMs: config.mflCacheTtlMs }); // freeAgentIds (bare ids)
+
+// Clear this league's cached free-agent reads (and its roster) after a write.
+function invalidate(cookie, leagueId) {
+  faMemo.invalidate(`${cookie}|${leagueId}`);
+  faIdsMemo.invalidate(`${cookie}|${leagueId}`);
+  rosterService.invalidate(cookie, leagueId);
+}
 
 // Availability context (current week + injury/bye maps). In live these are now
 // really fetched from MFL so free agents are badged OUT/bye correctly, instead
@@ -121,16 +136,26 @@ function makeFreeAgent(id, byId, scoring, statMap, ctx, system, settings, livePr
 // to know, cross-league, where a player is available. Cached via the MFL client.
 async function freeAgentIds(cookie, league, limit = 400) {
   if (config.demoMode) return demo.freeAgents(league.leagueId);
+  // Memoize the full id list per (cookie, league) — so invalidation is a single
+  // key — and apply the caller's limit after.
+  const all = await faIdsMemo.get(`${cookie}|${league.leagueId}`, () => buildFreeAgentIds(cookie, league));
+  return all.slice(0, limit);
+}
+async function buildFreeAgentIds(cookie, league) {
   try {
     const res = await mfl.exportRequest('freeAgents', { host: league.host, cookie, L: league.leagueId });
     const units = mfl.toArray(res && res.freeAgents && res.freeAgents.leagueUnit);
-    return units.flatMap((u) => mfl.toArray(u && u.player)).map((p) => String(p.id)).slice(0, limit);
+    return units.flatMap((u) => mfl.toArray(u && u.player)).map((p) => String(p.id));
   } catch (e) {
     return [];
   }
 }
 
 async function loadFreeAgents(cookie, league, settings) {
+  if (config.demoMode) return buildFreeAgents(cookie, league, settings);
+  return faMemo.get(`${cookie}|${league.leagueId}`, () => buildFreeAgents(cookie, league, settings));
+}
+async function buildFreeAgents(cookie, league, settings) {
   const [byId, enr, ctx] = await Promise.all([
     playersLib.load(cookie),
     enrichmentLib.snapshot(await leagueFormat.format(cookie, league), cookie),
@@ -349,6 +374,10 @@ async function submit(cookie, token, leagueId, payload) {
     processTime: p.immediate ? 'immediate' : p.clearTime,
   });
 
+  // An immediate (free-agency) add/drop changes the roster and FA pool right away;
+  // a pending waiver claim doesn't until it processes. Refresh the reads so the
+  // board we return — and the next screen — reflect the new state.
+  if (p.immediate) invalidate(cookie, leagueId);
   return { submitted: claim, board: await getBoard(cookie, token, leagueId, {}) };
 }
 
@@ -535,4 +564,4 @@ async function getPending(cookie, token) {
   return { pending, results, summary: { pending: pending.length, results: results.length } };
 }
 
-module.exports = { getBoard, getOverview, getSuggestions, preview, submit, cancel, getBestAvailable, getPending, freeAgentIds };
+module.exports = { getBoard, getOverview, getSuggestions, preview, submit, cancel, getBestAvailable, getPending, freeAgentIds, invalidate };

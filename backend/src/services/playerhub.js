@@ -374,6 +374,8 @@ async function submitDrop(cookie, token, playerId, leagueIds) {
       try {
         if (!config.demoMode) {
           await mfl.importRequest('drop', { host: d.league.host, cookie, L: leagueId, FRANCHISE: d.league.franchiseId, DROP: playerId });
+          // Roster shrank and the player is now a free agent — refresh both reads.
+          waiversService.invalidate(cookie, leagueId);
         }
         dropStore.set(token, leagueId, playerId);
         return { leagueId, ok: true };
