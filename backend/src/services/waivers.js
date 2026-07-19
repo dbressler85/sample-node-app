@@ -46,32 +46,50 @@ async function findLeague(cookie, leagueId) {
   return league;
 }
 
+// First present, non-empty value among several candidate MFL field names.
+function firstNum(obj, ...keys) {
+  for (const k of keys) {
+    if (obj && obj[k] != null && obj[k] !== '') {
+      const n = Number(obj[k]);
+      if (!Number.isNaN(n)) return n;
+    }
+  }
+  return null;
+}
+
 async function loadSettings(league, cookie) {
   if (config.demoMode) return demo.waiverSettings(league.leagueId) || { system: 'free', rosterSize: 99 };
-  // Parse the live league settings (roster size, FAAB budget/system) best-effort.
+  // Parse the live league settings (roster size, FAAB budget/priority/system).
+  // A hard failure here throws rather than fabricating a board: the old fallback
+  // ({system:'free', rosterSize:99}) misrepresented a real FAAB league as
+  // unlimited free-agency, which is worse than surfacing the error.
+  let res;
   try {
-    const res = await mfl.exportRequest('league', { host: league.host, cookie, L: league.leagueId });
-    const lg = (res && res.league) || {};
-    const franchises = mfl.toArray(lg.franchises && lg.franchises.franchise);
-    const mine = franchises.find((f) => String(f.id) === league.franchiseId);
-    const faabRemaining = mine && mine.bbidAvailableBalance != null && mine.bbidAvailableBalance !== ''
-      ? Number(mine.bbidAvailableBalance)
-      : null;
-    const usesFaab = faabRemaining != null || lg.bbidSeasonWaivers === '1' || lg.bbidWaivers === '1';
-    const settings = {
-      system: usesFaab ? 'faab' : 'fcfs',
-      rosterSize: parseInt(lg.rosterSize, 10) || 99,
-      faabRemaining,
-      faabBudget: null,
-      minBid: parseInt(lg.minBid, 10) || 1,
-      clearTime: null,
-    };
-    console.log(`[waiverSettings] league=${league.leagueId} system=${settings.system} rosterSize=${settings.rosterSize} faab=${faabRemaining}`);
-    return settings;
+    res = await mfl.exportRequest('league', { host: league.host, cookie, L: league.leagueId });
   } catch (e) {
     console.log(`[waiverSettings] league=${league.leagueId} error=${e.message}`);
-    return { system: 'free', rosterSize: 99 };
+    const err = new Error(`Could not load waiver settings for ${league.name || league.leagueId}.`);
+    err.status = 502;
+    throw err;
   }
+  const lg = (res && res.league) || {};
+  const franchises = mfl.toArray(lg.franchises && lg.franchises.franchise);
+  const mine = franchises.find((f) => String(f.id) === league.franchiseId);
+  const faabRemaining = firstNum(mine, 'bbidAvailableBalance');
+  const usesFaab = faabRemaining != null || lg.bbidSeasonWaivers === '1' || lg.bbidWaivers === '1';
+  const settings = {
+    system: usesFaab ? 'faab' : 'fcfs',
+    rosterSize: parseInt(lg.rosterSize, 10) || 99,
+    faabRemaining,
+    // Total season FAAB budget, if MFL exposes it (field name varies by config).
+    faabBudget: firstNum(lg, 'bbidTotalBalance', 'bbidBudget', 'faabBudget'),
+    minBid: parseInt(lg.minBid, 10) || 1,
+    // Waiver order for priority (fcfs) leagues, when present on the franchise.
+    waiverPriority: firstNum(mine, 'waiverSortOrder', 'waiverOrder', 'waiver_order'),
+    clearTime: null,
+  };
+  console.log(`[waiverSettings] league=${league.leagueId} system=${settings.system} rosterSize=${settings.rosterSize} faab=${faabRemaining} budget=${settings.faabBudget} priority=${settings.waiverPriority}`);
+  return settings;
 }
 
 // Enrich a free-agent id into a board entry (value, projection, trend, status).
@@ -237,8 +255,15 @@ async function getBoard(cookie, token, leagueId, { position, sort } = {}) {
 async function preview(cookie, token, leagueId, payload) {
   const league = await findLeague(cookie, leagueId);
   const settings = await loadSettings(league, cookie);
-  const [byId, roster, enr] = await Promise.all([playersLib.load(cookie), rosterService.getRoster(cookie, leagueId), enrichmentLib.snapshot(await leagueFormat.format(cookie, league), cookie)]);
-  const available = new Set(config.demoMode ? demo.freeAgents(leagueId) : []);
+  const [byId, roster, enr, faIds] = await Promise.all([
+    playersLib.load(cookie),
+    rosterService.getRoster(cookie, leagueId),
+    enrichmentLib.snapshot(await leagueFormat.format(cookie, league), cookie),
+    freeAgentIds(cookie, league),
+  ]);
+  // Free-agent set is now validated in live too (from MFL freeAgents), not only
+  // in demo — so you can't submit a claim for a player who's on another roster.
+  const available = new Set(faIds);
   const rosterIds = new Set([...roster.starters, ...roster.bench, ...roster.ir, ...roster.taxi].map((p) => p.id));
 
   const errors = [];
@@ -246,7 +271,7 @@ async function preview(cookie, token, leagueId, payload) {
   const add = addId ? { ...playersLib.resolve(byId, addId), value: enr.value(addId), age: enr.age(addId), trend: enr.trend(addId) } : null;
   if (!add) errors.push('No player selected to add.');
   else if (rosterIds.has(addId)) errors.push(`${add.name} is already on your roster.`);
-  else if (config.demoMode && !available.has(addId)) errors.push(`${add.name} is not available in this league.`);
+  else if (!available.has(addId)) errors.push(`${add.name} is not available in this league.`);
 
   const full = rosterIsFull(roster, settings);
   const suggestedDrop = suggestDrop(roster);

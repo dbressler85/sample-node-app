@@ -229,9 +229,15 @@ async function profile(cookie, token, playerId) {
     season = res.season;
   }
 
-  // Upcoming schedule difficulty.
-  const upcoming = config.demoMode ? demo.schedule(base.team) : [];
-  const avgDifficulty = upcoming.length ? Math.round((upcoming.reduce((s, g) => s + g.difficulty, 0) / upcoming.length) * 10) / 10 : null;
+  // Upcoming schedule. Demo has difficulty ratings; live surfaces the real
+  // opponents from the NFL schedule (difficulty null — no strength-of-schedule
+  // source wired in live yet), so avgDifficulty is only computed when every
+  // game carries a rating.
+  const upcoming = config.demoMode ? demo.schedule(base.team) : await nflLib.upcomingOpponents(cookie, base.team, ctx.week);
+  const rated = upcoming.filter((g) => g.difficulty != null);
+  const avgDifficulty = rated.length === upcoming.length && upcoming.length
+    ? Math.round((upcoming.reduce((s, g) => s + g.difficulty, 0) / upcoming.length) * 10) / 10
+    : null;
 
   // News about this player (demo fixture, or ESPN mapped to MFL players in live).
   const rawNews = config.demoMode ? demo.news() : await newsLib.mflNews(cookie);

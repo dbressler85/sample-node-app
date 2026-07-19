@@ -22,6 +22,7 @@ const TESTS = [
   'news-test',
   'week-detect-test',
   'scoring-format-test',
+  'waivers-live-test',
 ];
 
 let failed = 0;

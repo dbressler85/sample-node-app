@@ -46,6 +46,19 @@ function _resetWeekCache() {
   weekCache = { week: null, at: 0 };
 }
 
+// One week's NFL matchups, cached (the schedule is static once set), shared by
+// byeMap and upcomingOpponents so a profile view doesn't refetch the same week.
+const scheduleCache = new Map(); // week -> { at, matchups }
+const SCHED_TTL_MS = 6 * 60 * 60 * 1000;
+async function scheduleMatchups(cookie, week) {
+  const c = scheduleCache.get(week);
+  if (c && Date.now() - c.at < SCHED_TTL_MS) return c.matchups;
+  const res = await mfl.exportRequest('nflSchedule', { cookie, W: week });
+  const matchups = mfl.toArray(res && res.nflSchedule && res.nflSchedule.matchup);
+  scheduleCache.set(week, { at: Date.now(), matchups });
+  return matchups;
+}
+
 // Team bye weeks for a given week: MFL's nflSchedule lists that week's matchups;
 // any NFL team not appearing is on bye. We compare against the full team set
 // derived from the loaded player pool (same MFL team codes), so a bye sidelines
@@ -53,8 +66,7 @@ function _resetWeekCache() {
 async function byeMap(cookie, week) {
   if (!week) return {};
   try {
-    const res = await mfl.exportRequest('nflSchedule', { cookie, W: week });
-    const matchups = mfl.toArray(res && res.nflSchedule && res.nflSchedule.matchup);
+    const matchups = await scheduleMatchups(cookie, week);
     const playing = new Set();
     for (const m of matchups) {
       for (const t of mfl.toArray(m && m.team)) {
@@ -90,4 +102,34 @@ async function injuryMap(cookie, week) {
   }
 }
 
-module.exports = { currentWeek, byeMap, injuryMap, _resetWeekCache };
+// A team's upcoming opponents over the next `count` weeks, from MFL's
+// nflSchedule. Returns [{ week, opp, difficulty }]. `difficulty` is null: we
+// don't wire a defense-strength source in live yet, so we surface the real
+// schedule (opponent + home/away) without fabricating a strength-of-schedule
+// rating. A bye week is simply absent from the list.
+async function upcomingOpponents(cookie, team, fromWeek, count = 4) {
+  if (!team || !fromWeek) return [];
+  const code = String(team).toUpperCase();
+  const out = [];
+  for (let w = fromWeek; w < fromWeek + count && w <= 18; w += 1) {
+    try {
+      const matchups = await scheduleMatchups(cookie, w);
+      for (const m of matchups) {
+        const teams = mfl.toArray(m && m.team);
+        const meIdx = teams.findIndex((t) => String(t && t.id).toUpperCase() === code);
+        if (meIdx === -1) continue;
+        const opp = teams[1 - meIdx];
+        if (!opp || !opp.id) break;
+        // MFL lists the away team first, home second (best-effort) — mark away games.
+        const away = meIdx === 0;
+        out.push({ week: w, opp: `${away ? '@' : ''}${String(opp.id).toUpperCase()}`, difficulty: null });
+        break;
+      }
+    } catch (e) {
+      /* skip a week we couldn't fetch */
+    }
+  }
+  return out;
+}
+
+module.exports = { currentWeek, byeMap, injuryMap, upcomingOpponents, _resetWeekCache };
