@@ -39,11 +39,12 @@ async function liveMatchup(league, cookie) {
     /* schedule is optional; fall through without an opponent */
   }
 
+  const names = await leaguesService.franchiseNames(cookie, league);
   return {
     week,
-    me: { name: league.franchiseName || `Team ${league.franchiseId}`, score: scoreById.get(league.franchiseId) || 0 },
+    me: { name: league.franchiseName || names.get(league.franchiseId) || `Team ${league.franchiseId}`, score: scoreById.get(league.franchiseId) || 0 },
     opponent: opponentId
-      ? { name: `Team ${opponentId}`, score: scoreById.get(opponentId) || 0 }
+      ? { name: names.get(opponentId) || `Team ${opponentId}`, score: scoreById.get(opponentId) || 0 }
       : null,
   };
 }

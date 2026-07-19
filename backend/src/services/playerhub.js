@@ -12,6 +12,7 @@ const mfl = require('../lib/mfl');
 const scoringLib = require('../lib/scoring');
 const availabilityLib = require('../lib/availability');
 const playersLib = require('../lib/players');
+const nflLib = require('../lib/nfl');
 const leaguesService = require('./leagues');
 const rosterService = require('./roster');
 const waiversService = require('./waivers');
@@ -49,13 +50,17 @@ function computeRanks(byId) {
   return { overall, pos };
 }
 
-// Gather my rosters + free-agent sets across all leagues once.
+// Gather my rosters + free-agent sets across all leagues once. Free agents come
+// from MFL's freeAgents export in live (the cross-league "available where" moat).
 async function gather(cookie) {
   const leagues = await leaguesService.listLeagues(cookie);
   const data = await Promise.all(
     leagues.map(async (league) => {
-      const roster = await rosterService.getRoster(cookie, league.leagueId).catch(() => null);
-      return { league, roster, faSet: new Set(config.demoMode ? demo.freeAgents(league.leagueId) : []) };
+      const [roster, faIds] = await Promise.all([
+        rosterService.getRoster(cookie, league.leagueId).catch(() => null),
+        waiversService.freeAgentIds(cookie, league).catch(() => []),
+      ]);
+      return { league, roster, faSet: new Set(faIds) };
     })
   );
   return { leagues, data: data.filter((d) => d.roster) };
@@ -149,17 +154,27 @@ function leagueProjection(playerId, position, leagueId) {
   return scoringLib.projectPoints(stat, position, demo.scoring(leagueId) || {});
 }
 
+// Live per-league projected points for one player, from MFL's (format-aware)
+// projectedScores for that league. Cached via the MFL client.
+async function liveLeagueProjection(cookie, league, playerId) {
+  try {
+    const res = await mfl.exportRequest('projectedScores', { host: league.host, cookie, L: league.leagueId });
+    const hit = mfl.toArray(res && res.projectedScores && res.projectedScores.playerScore)
+      .find((p) => String(p.id) === String(playerId));
+    return hit ? Math.round((Number(hit.score) || 0) * 10) / 10 : null;
+  } catch (e) {
+    return null;
+  }
+}
+
 async function profile(cookie, token, playerId) {
   const byId = await playersLib.load(cookie);
   const base = playersLib.resolve(byId, playerId);
   const ranks = computeRanks(byId);
   const ctx = ctxFor();
   const d = dyn(playerId) || {};
-
-  // Headline outlook (neutral PPR baseline) with floor/ceiling.
-  const stat = config.demoMode ? demo.statProjections()[playerId] : null;
-  const median = stat ? scoringLib.projectPoints(stat, base.position, GENERIC_SCORING) : null;
-  const outlook = median != null ? scoringLib.band(median, base.position) : null;
+  // Live bye weeks (so availability + the profile's byeWeek are real).
+  const byeMap = config.demoMode ? demo.byes() : await nflLib.byeMap(cookie, ctx.week);
 
   // Game log + season.
   const log = config.demoMode ? demo.gameLog(playerId) : [];
@@ -173,26 +188,43 @@ async function profile(cookie, token, playerId) {
   // News about this player.
   const news = (config.demoMode ? demo.news() : []).filter((n) => String(n.playerId) === String(playerId)).map((n) => ({ id: n.id, headline: n.headline, severity: n.severity }));
 
-  // Cross-league ownership.
+  // Cross-league ownership + per-league projection.
   const { data } = await gather(cookie);
-  const crossLeague = data.map(({ league, roster, faSet }) => {
-    let relation = 'unavailable';
-    let bucket = null;
-    if (dropStore.has(token, league.leagueId, playerId)) relation = 'dropped';
-    else if (roster.starters.some((p) => p.id === playerId)) { relation = 'rostered'; bucket = 'starter'; }
-    else if (roster.bench.some((p) => p.id === playerId)) { relation = 'rostered'; bucket = 'bench'; }
-    else if (roster.ir.some((p) => p.id === playerId)) { relation = 'rostered'; bucket = 'ir'; }
-    else if (roster.taxi.some((p) => p.id === playerId)) { relation = 'rostered'; bucket = 'taxi'; }
-    else if (faSet.has(playerId)) relation = 'free';
-    return {
-      leagueId: league.leagueId,
-      name: league.name,
-      relation,
-      bucket,
-      system: config.demoMode ? (demo.waiverSettings(league.leagueId) || {}).system : null,
-      leagueProjection: leagueProjection(playerId, base.position, league.leagueId),
-    };
-  });
+  const crossLeague = await Promise.all(
+    data.map(async ({ league, roster, faSet }) => {
+      let relation = 'unavailable';
+      let bucket = null;
+      if (dropStore.has(token, league.leagueId, playerId)) relation = 'dropped';
+      else if (roster.starters.some((p) => p.id === playerId)) { relation = 'rostered'; bucket = 'starter'; }
+      else if (roster.bench.some((p) => p.id === playerId)) { relation = 'rostered'; bucket = 'bench'; }
+      else if (roster.ir.some((p) => p.id === playerId)) { relation = 'rostered'; bucket = 'ir'; }
+      else if (roster.taxi.some((p) => p.id === playerId)) { relation = 'rostered'; bucket = 'taxi'; }
+      else if (faSet.has(playerId)) relation = 'free';
+      const proj = config.demoMode
+        ? leagueProjection(playerId, base.position, league.leagueId)
+        : await liveLeagueProjection(cookie, league, playerId);
+      return {
+        leagueId: league.leagueId,
+        name: league.name,
+        relation,
+        bucket,
+        system: config.demoMode ? (demo.waiverSettings(league.leagueId) || {}).system : null,
+        leagueProjection: proj,
+      };
+    })
+  );
+
+  // Headline outlook: demo uses a neutral baseline off raw stats; live has no raw
+  // stats, so use the best per-league projected points we found as the median.
+  let median = null;
+  if (config.demoMode) {
+    const stat = demo.statProjections()[playerId];
+    median = stat ? scoringLib.projectPoints(stat, base.position, GENERIC_SCORING) : null;
+  } else {
+    const projs = crossLeague.map((c) => c.leagueProjection).filter((n) => n != null);
+    median = projs.length ? Math.max(...projs) : null;
+  }
+  const outlook = median != null ? scoringLib.band(median, base.position) : null;
 
   return {
     id: base.id,
@@ -200,13 +232,13 @@ async function profile(cookie, token, playerId) {
     position: base.position,
     team: base.team,
     age: d.age != null ? d.age : null,
-    byeWeek: config.demoMode ? demo.byes()[base.team] || null : null,
+    byeWeek: byeMap[base.team] || null,
     value: d.value != null ? d.value : null,
     overallRank: ranks.overall.get(playerId) || null,
     posRank: ranks.pos.get(playerId) || null,
     ownership: config.demoMode ? demo.ownership(playerId) : null,
     trend: config.demoMode ? demo.trend(playerId) : 0,
-    availability: availabilityLib.resolve(base, ctx.statusMap, ctx.byeMap, ctx.week),
+    availability: availabilityLib.resolve(base, ctx.statusMap, byeMap, ctx.week),
     outlook,
     season,
     gameLog: log,

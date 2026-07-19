@@ -64,7 +64,9 @@ async function liveForLeague(cookie, league) {
       yetToPlay: Number(f && f.playersYetToPlay) || 0,
       projectedFinal: Number(f && f.projectedScore) || Number(f && f.score) || 0,
     });
-    return buildCard(league, { me: toCard(mine), opp: toCard(opp) }, opp ? `Team ${opp.id}` : 'Opponent');
+    const names = await leaguesService.franchiseNames(cookie, league);
+    const oppName = opp ? names.get(String(opp.id)) || `Team ${opp.id}` : 'Opponent';
+    return buildCard(league, { me: toCard(mine), opp: toCard(opp) }, oppName);
   } catch (e) {
     return null;
   }

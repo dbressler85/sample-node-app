@@ -13,16 +13,56 @@
 
 const config = require('../config');
 const demo = require('../demo/fixtures');
+const mfl = require('../lib/mfl');
+const playersLib = require('../lib/players');
 const leaguesService = require('./leagues');
 const lineupsService = require('./lineups');
+const waiverStore = require('../store/waivers');
 
 const SEV = { high: 3, medium: 2, low: 1 };
 
-function pendingTrades(leagueId) {
-  return config.demoMode ? demo.trades(leagueId) : [];
+// Pending trade offers awaiting my response. Live: MFL pendingTrades (best-effort
+// — field names vary, so it's defensive and resolves ids to names where it can).
+async function pendingTrades(cookie, league) {
+  if (config.demoMode) return demo.trades(league.leagueId);
+  try {
+    const res = await mfl.exportRequest('pendingTrades', { host: league.host, cookie, L: league.leagueId, FRANCHISE: league.franchiseId });
+    const list = mfl.toArray(res && res.pendingTrades && res.pendingTrades.pendingTrade);
+    if (!list.length) return [];
+    const [byId, names] = await Promise.all([playersLib.load(cookie), leaguesService.franchiseNames(cookie, league)]);
+    const label = (tok) => {
+      const t = String(tok).trim();
+      if (!t) return null;
+      if (/^\d+$/.test(t)) return playersLib.resolve(byId, t).name.split(',')[0];
+      const yr = t.match(/(20\d{2})/);
+      return yr ? `${yr[1]} pick` : 'pick';
+    };
+    const toks = (v) => String(v || '').split(/[,;|]/).map(label).filter(Boolean);
+    return list
+      .filter((tr) => String(tr.offeredto != null ? tr.offeredto : tr.offeredTo) === league.franchiseId)
+      .map((tr, i) => ({
+        id: String(tr.trade_id || tr.id || i),
+        from: names.get(String(tr.offeringteam != null ? tr.offeringteam : tr.offeringTeam)) || 'Another team',
+        gives: toks(tr.willGiveUp != null ? tr.willGiveUp : tr.will_give_up),
+        gets: toks(tr.willReceiveInReturn != null ? tr.willReceiveInReturn : tr.willReceive),
+      }));
+  } catch (e) {
+    return [];
+  }
 }
-function pendingWaivers(leagueId) {
-  return config.demoMode ? demo.waivers(leagueId) : [];
+
+// My pending waiver/FAAB claims. Live: from our claim store (what the app has
+// submitted). Demo keeps its fixture.
+function pendingWaivers(token, league) {
+  if (config.demoMode) return demo.waivers(league.leagueId);
+  return waiverStore
+    .list(token, league.leagueId, [])
+    .filter((c) => (c.status || 'pending') === 'pending')
+    .map((c) => ({
+      player: (c.add && c.add.name) || 'Player',
+      bid: c.bid != null ? c.bid : null,
+      runsAt: c.processTime || 'next run',
+    }));
 }
 
 // The single lineup-derived triage item for a league (or null if it's fine).
@@ -45,13 +85,14 @@ function lineupItem(l) {
 }
 
 // Trade + waiver items for one league.
-function extraItems(league) {
+async function extraItems(cookie, token, league) {
   const items = [];
-  for (const t of pendingTrades(league.leagueId)) {
-    items.push({ id: `trade-${league.leagueId}-${t.id}`, type: 'trade_offer', severity: 'high', action: 'trade', leagueId: league.leagueId, leagueName: league.name, title: `Trade offer from ${t.from}`, subtitle: `They give ${t.gives.join(', ')} for ${t.gets.join(', ')}` });
+  for (const t of await pendingTrades(cookie, league)) {
+    const detail = t.gives.length || t.gets.length ? `They give ${t.gives.join(', ') || '—'} for ${t.gets.join(', ') || '—'}` : 'Tap to review the offer';
+    items.push({ id: `trade-${league.leagueId}-${t.id}`, type: 'trade_offer', severity: 'high', action: 'trade', leagueId: league.leagueId, leagueName: league.name, title: `Trade offer from ${t.from}`, subtitle: detail });
   }
-  for (const w of pendingWaivers(league.leagueId)) {
-    items.push({ id: `waiver-${league.leagueId}-${w.player}`, type: 'waiver_pending', severity: 'low', action: 'waiver', leagueId: league.leagueId, leagueName: league.name, title: `Waiver claim pending: ${w.player.split(',')[0]}`, subtitle: `$${w.bid} · runs ${w.runsAt}` });
+  for (const w of pendingWaivers(token, league)) {
+    items.push({ id: `waiver-${league.leagueId}-${w.player}`, type: 'waiver_pending', severity: 'low', action: 'waiver', leagueId: league.leagueId, leagueName: league.name, title: `Waiver claim pending: ${w.player.split(',')[0]}`, subtitle: `${w.bid != null ? `$${w.bid} · ` : ''}runs ${w.runsAt}` });
   }
   return items;
 }
@@ -68,7 +109,7 @@ async function getLeagueTriage(cookie, token, leagueId) {
   const items = [];
   const li = lineupItem(l);
   if (li) items.push(li);
-  items.push(...extraItems(league));
+  items.push(...(await extraItems(cookie, token, league)));
   return { leagueId: league.leagueId, name: league.name, status: l.status, items };
 }
 
@@ -89,8 +130,8 @@ async function getHome(cookie, token) {
   }
   let tradeOffers = 0;
   let waiversPending = 0;
-  for (const league of leagues) {
-    const ex = extraItems(league);
+  const extra = await Promise.all(leagues.map((league) => extraItems(cookie, token, league)));
+  for (const ex of extra) {
     tradeOffers += ex.filter((i) => i.type === 'trade_offer').length;
     waiversPending += ex.filter((i) => i.type === 'waiver_pending').length;
     items.push(...ex);
