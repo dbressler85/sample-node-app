@@ -14,8 +14,15 @@ const crypto = require('crypto');
 const config = require('../config');
 const persist = require('./persist');
 
-const SESSION_TTL_MS = 12 * 60 * 60 * 1000; // 12h
-const mem = new Map(); // token -> { cookie, username, createdAt }
+// Sliding idle timeout: a session stays valid as long as it's used at least once
+// every IDLE_TTL_MS. Active users effectively never get logged out; only a truly
+// dormant session (or an expired MFL cookie) forces a re-login. Override with
+// SESSION_IDLE_TTL_MS.
+const IDLE_TTL_MS = Number(process.env.SESSION_IDLE_TTL_MS) || 30 * 24 * 60 * 60 * 1000; // 30d
+// Only re-persist the sliding timestamp when it has advanced by this much, so a
+// refresh on every request doesn't rewrite the encrypted blob constantly.
+const PERSIST_REFRESH_MS = 60 * 60 * 1000; // 1h
+const mem = new Map(); // token -> { cookie, username, createdAt, lastSeen }
 
 const PERSIST = !!config.sessionSecret;
 const key = PERSIST ? crypto.scryptSync(config.sessionSecret, 'dynasty-central/sessions', 32) : null;
@@ -45,18 +52,19 @@ if (PERSIST) {
   let restored = 0;
   for (const [token, rec] of Object.entries(b)) {
     const s = dec(rec);
-    if (s && Date.now() - s.createdAt <= SESSION_TTL_MS) { mem.set(token, s); restored += 1; }
+    if (s && Date.now() - (s.lastSeen || s.createdAt) <= IDLE_TTL_MS) { mem.set(token, s); restored += 1; }
     else delete b[token];
   }
   persist.touch();
   console.log(`[sessions] persistence ON (encrypted at rest); restored ${restored}`);
 } else {
-  console.log('[sessions] persistence OFF — set SESSION_SECRET to persist sessions across restarts');
+  console.log('[sessions] persistence OFF — set SESSION_SECRET (+ a durable DATA_DIR) to keep users logged in across backend restarts');
 }
 
 function create({ cookie, username }) {
   const token = crypto.randomBytes(24).toString('hex');
-  const s = { cookie, username, createdAt: Date.now() };
+  const now = Date.now();
+  const s = { cookie, username, createdAt: now, lastSeen: now };
   mem.set(token, s);
   if (PERSIST) { box()[token] = enc(s); persist.touch(); }
   return token;
@@ -65,10 +73,16 @@ function create({ cookie, username }) {
 function get(token) {
   const s = mem.get(token);
   if (!s) return null;
-  if (Date.now() - s.createdAt > SESSION_TTL_MS) {
+  const now = Date.now();
+  const last = s.lastSeen || s.createdAt;
+  if (now - last > IDLE_TTL_MS) {
     destroy(token);
     return null;
   }
+  // Sliding refresh: every use pushes the idle deadline out. Persist only
+  // occasionally so we don't rewrite the encrypted record on every request.
+  s.lastSeen = now;
+  if (PERSIST && now - last > PERSIST_REFRESH_MS) { box()[token] = enc(s); persist.touch(); }
   return s;
 }
 

@@ -14,22 +14,35 @@ export function setAuthLostHandler(fn) {
   onAuthLost = fn;
 }
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
 async function request(path, { method = 'GET', body } = {}) {
   const headers = { Accept: 'application/json' };
   if (body) headers['Content-Type'] = 'application/json';
   if (authToken) headers.Authorization = `Bearer ${authToken}`;
 
+  // A network blip on resume (phone unlock) or a backend cold-start should NOT
+  // log you out — your token is still valid. Retry idempotent GETs a couple times
+  // with backoff, then surface the error WITHOUT clearing the session.
+  const maxNetRetries = method === 'GET' ? 2 : 0;
   let res;
-  try {
-    res = await fetch(`${API_URL}${path}`, {
-      method,
-      headers,
-      body: body ? JSON.stringify(body) : undefined,
-    });
-  } catch (e) {
-    // Backend unreachable (down, cold-start timeout, wrong URL) → back to login.
-    if (onAuthLost) onAuthLost('unreachable');
-    throw new Error(`Can't reach the backend at ${API_URL}. Is it running and is the URL correct?`);
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      res = await fetch(`${API_URL}${path}`, {
+        method,
+        headers,
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      break;
+    } catch (e) {
+      if (attempt < maxNetRetries) {
+        await sleep(800 * (attempt + 1));
+        continue;
+      }
+      // Unreachable ≠ logged out. Keep the session; the caller shows an error /
+      // the user can pull-to-refresh once the backend/network is back.
+      throw new Error(`Can't reach the backend at ${API_URL}. Check your connection and try again.`);
+    }
   }
 
   let data = null;
@@ -39,7 +52,7 @@ async function request(path, { method = 'GET', body } = {}) {
     /* non-JSON */
   }
   if (res.status === 401) {
-    // Session expired or the server restarted (in-memory sessions are lost) → login.
+    // A genuine auth rejection (token unknown to the server) → back to login.
     if (onAuthLost) onAuthLost('expired');
     throw new Error((data && data.error) || 'Session expired. Please log in again.');
   }
