@@ -66,13 +66,27 @@ async function rawRequest({ host, command, params, cookie, method = 'GET', body 
     init.body = body;
   }
 
-  const res = await throttle(() => fetch(url, init));
-  const text = await res.text();
+  // MFL rate-limits bursts with 429 (and occasionally 503). Retry with backoff,
+  // honoring Retry-After, before giving up.
+  let res;
+  let text;
+  for (let attempt = 0; ; attempt++) {
+    res = await throttle(() => fetch(url, init));
+    if ((res.status === 429 || res.status === 503) && attempt < config.mflMaxRetries) {
+      const retryAfter = parseInt(res.headers.get('retry-after') || '', 10);
+      const waitMs = Number.isFinite(retryAfter) ? retryAfter * 1000 : Math.min(10000, 800 * 2 ** attempt);
+      await new Promise((r) => setTimeout(r, waitMs));
+      continue;
+    }
+    text = await res.text();
+    break;
+  }
 
   if (!res.ok) {
     const err = new Error(`MFL request failed (${res.status}) for ${command}?TYPE=${params.TYPE || ''}`);
     err.status = res.status;
     err.body = text.slice(0, 500);
+    if (res.status === 429) err.detail = 'MyFantasyLeague rate limit hit. Give it a moment and refresh.';
     throw err;
   }
 
@@ -94,9 +108,20 @@ async function rawRequest({ host, command, params, cookie, method = 'GET', body 
   return json;
 }
 
-// Read data via the export command.
-function exportRequest(type, { host = config.apiHost, cookie = null, ...params } = {}) {
-  return rawRequest({ host, command: 'export', params: { TYPE: type, ...params }, cookie });
+// Short-lived cache for export (read) responses. Many services build a single
+// screen and would otherwise re-request the same league list / roster / scores;
+// this collapses those into one call and makes pull-to-refresh cheap.
+const readCache = new Map(); // key -> { at, value }
+
+// Read data via the export command (cached).
+async function exportRequest(type, { host = config.apiHost, cookie = null, ...params } = {}) {
+  const key = `${cookie || ''}|${host}|${type}|${JSON.stringify(params)}`;
+  const hit = readCache.get(key);
+  if (hit && Date.now() - hit.at < config.mflCacheTtlMs) return hit.value;
+
+  const value = await rawRequest({ host, command: 'export', params: { TYPE: type, ...params }, cookie });
+  readCache.set(key, { at: Date.now(), value });
+  return value;
 }
 
 // Write data via the import command (POST form-encoded).

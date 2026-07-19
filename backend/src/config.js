@@ -33,7 +33,15 @@ const config = {
   apiKey: process.env.MFL_API_KEY || null,
 
   // Minimum milliseconds between outbound MFL requests (simple client-side throttle).
-  mflMinRequestIntervalMs: int(process.env.MFL_MIN_REQUEST_INTERVAL_MS, 500),
+  mflMinRequestIntervalMs: int(process.env.MFL_MIN_REQUEST_INTERVAL_MS, 700),
+
+  // Short-lived cache for MFL export (read) responses, so the many services that
+  // build one screen don't re-fetch the same league list / roster / projections,
+  // and pull-to-refresh doesn't hammer MFL. Keyed by URL + session.
+  mflCacheTtlMs: int(process.env.MFL_CACHE_TTL_MS, 60 * 1000),
+
+  // On HTTP 429/503, retry this many times with backoff (respecting Retry-After).
+  mflMaxRetries: int(process.env.MFL_MAX_RETRIES, 4),
 
   // How long to cache the (large) global player database before refetching.
   playersCacheTtlMs: int(process.env.MFL_PLAYERS_TTL_MS, 24 * 60 * 60 * 1000),
