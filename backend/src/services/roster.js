@@ -84,7 +84,7 @@ async function getRoster(cookie, leagueId) {
     config.demoMode ? Promise.resolve(demo.playerStatus()) : nflLib.injuryMap(cookie, week),
     config.demoMode ? Promise.resolve(demo.byes()) : nflLib.byeMap(cookie, week),
     picksLib.franchisePicks(cookie, league).then((list) => list.map((p) => p.label)),
-    enrichmentLib.snapshot(fmt),
+    enrichmentLib.snapshot(fmt, cookie),
   ]);
   const empty = { starters: [], bench: [], ir: [], taxi: [] };
   const src = raw || empty;

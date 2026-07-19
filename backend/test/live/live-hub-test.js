@@ -33,6 +33,8 @@ mfl.exportRequest = async (type, opts = {}) => {
       return { rosters: { franchise: [{ id: opts.FRANCHISE || '0001', player: ['1', '2'].map((id) => ({ id, status: 'starter' })) }] } };
     case 'freeAgents':
       return { freeAgents: { leagueUnit: { player: [{ id: '99' }] } } };
+    case 'topOwns':
+      return { topOwns: { player: [{ id: '99', percent: '64.2' }, { id: '1', percent: '88.0' }] } };
     case 'projectedScores':
       return { projectedScores: { playerScore: Object.entries(PROJ).map(([id, s]) => ({ id, score: String(s) })) } };
     case 'playerScores': {
@@ -91,7 +93,8 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   assert(prof.age === 24, `enriched age 24, got ${prof.age}`);
   assert(prof.trend === 777, `enriched trend 777 via crosswalk, got ${prof.trend}`);
   assert(prof.overallRank === 1, `dynasty rank recomputed from values, got ${prof.overallRank}`);
-  console.log(`✓ enrichment on profile: value ${prof.value}, age ${prof.age}, trend ${prof.trend}`);
+  assert(prof.ownership === 64.2, `MFL topOwns ownership 64.2%, got ${prof.ownership}`);
+  console.log(`✓ enrichment on profile: value ${prof.value}, age ${prof.age}, trend ${prof.trend}, owned ${prof.ownership}%`);
 
   // PLAYER HUB: live game log + season from playerScores (player '1').
   const p1 = await playerhub.profile(CK, TK, '1');

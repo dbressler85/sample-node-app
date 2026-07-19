@@ -145,7 +145,7 @@ async function getOverview(cookie, token) {
   const groups = await Promise.all(
     leagues.map(async (league) => {
       try {
-        const enr = await enrichmentLib.snapshot(await leagueFormat.format(cookie, league));
+        const enr = await enrichmentLib.snapshot(await leagueFormat.format(cookie, league), cookie);
         return await offersForLeague(cookie, token, league, byId, enr);
       } catch (e) {
         return [];
@@ -166,7 +166,7 @@ async function getOverview(cookie, token) {
 async function getLeague(cookie, token, leagueId) {
   const league = await findLeague(cookie, leagueId);
   const byId = await playersLib.load(cookie);
-  const enr = await enrichmentLib.snapshot(await leagueFormat.format(cookie, league));
+  const enr = await enrichmentLib.snapshot(await leagueFormat.format(cookie, league), cookie);
 
   const [offers, roster, rawPartners] = await Promise.all([
     offersForLeague(cookie, token, league, byId, enr),
@@ -243,7 +243,7 @@ async function propose(cookie, token, leagueId, payload) {
   }
 
   const byId = await playersLib.load(cookie);
-  const enr = await enrichmentLib.snapshot(await leagueFormat.format(cookie, league));
+  const enr = await enrichmentLib.snapshot(await leagueFormat.format(cookie, league), cookie);
   const withName = config.demoMode
     ? (demo.tradePartners(leagueId).find((p) => p.franchiseId === toFranchiseId) || {}).name || 'Another team'
     : (await leaguesService.franchiseNames(cookie, league)).get(toFranchiseId) || 'Another team';

@@ -18,6 +18,7 @@
 
 const config = require('../config');
 const demo = require('../demo/fixtures');
+const mfl = require('./mfl');
 
 const TTL_MS = 6 * 60 * 60 * 1000; // 6h — dynasty values/trends change slowly
 const SLEEPER_TREND_URL = 'https://api.sleeper.app/v1/players/nfl/trending/add?lookback_hours=48&limit=300';
@@ -27,6 +28,7 @@ const DEFAULT_FORMAT = { numQbs: 1, ppr: 1 };
 // FantasyCalc value map cache, keyed by format; Sleeper trending cached once.
 const fcCache = new Map(); // "numQbs|ppr" -> { at, value, age, rank, sleeperToMfl }
 let sleeperCache = { at: 0, raw: new Map() }; // sleeperId -> count
+let ownershipCache = { at: 0, map: new Map() }; // mflId -> owned % (site-wide, from MFL topOwns)
 
 async function fetchJson(url, ms = 10000) {
   const ctrl = new AbortController();
@@ -106,9 +108,33 @@ async function getSleeperTrending() {
   return raw;
 }
 
-async function buildLive(format) {
-  // Fetch both providers in parallel to halve cold-start latency.
-  const [fc, sleeperRaw] = await Promise.all([getFantasyCalc(format), getSleeperTrending()]);
+// Site-wide ownership % from MFL's own topOwns export (keyed by MFL id — no
+// crosswalk needed). Cached once; last-good on a transient failure.
+async function getMflOwnership(cookie) {
+  if (!cookie) return ownershipCache.map;
+  if (ownershipCache.map.size && Date.now() - ownershipCache.at < TTL_MS) return ownershipCache.map;
+  const map = new Map();
+  try {
+    const res = await mfl.exportRequest('topOwns', { cookie });
+    const rows = mfl.toArray(res && res.topOwns && res.topOwns.player);
+    for (const r of rows) {
+      const id = r.id != null ? String(r.id) : null;
+      const raw = r.percent != null ? r.percent : r.owned != null ? r.owned : r.pct;
+      const pct = raw != null ? Number(raw) : NaN;
+      if (id && Number.isFinite(pct)) map.set(id, Math.round(pct * 10) / 10);
+    }
+    console.log(`[enrichment] mfl topOwns owned=${map.size}`);
+  } catch (e) {
+    console.log(`[enrichment] topOwns error=${e.message}`);
+    if (ownershipCache.map.size) return ownershipCache.map; // keep last-good
+  }
+  ownershipCache = { at: Date.now(), map };
+  return map;
+}
+
+async function buildLive(format, cookie) {
+  // Fetch all providers in parallel to halve cold-start latency.
+  const [fc, sleeperRaw, owned] = await Promise.all([getFantasyCalc(format), getSleeperTrending(), getMflOwnership(cookie)]);
   // Map trending counts onto MFL ids via the crosswalk.
   const trend = new Map();
   for (const [sleeperId, count] of sleeperRaw) {
@@ -119,7 +145,7 @@ async function buildLive(format) {
     value: (id) => (fc.value.has(String(id)) ? fc.value.get(String(id)) : null),
     age: (id) => (fc.age.has(String(id)) ? fc.age.get(String(id)) : null),
     trend: (id) => trend.get(String(id)) || 0,
-    ownership: () => null, // no free site-wide ownership source; trend is the heat signal
+    ownership: (id) => (owned.has(String(id)) ? owned.get(String(id)) : null), // MFL topOwns site-wide %
     rank: (id) => fc.rank.get(String(id)) || null,
   };
 }
@@ -144,9 +170,9 @@ function demoSnapshot() {
 // A snapshot with synchronous accessors, for a given league format. Callers
 // `await snapshot(format)` once per request, then look players up synchronously.
 // Omit `format` for the neutral default (1QB, full PPR) used by global views.
-async function snapshot(format) {
+async function snapshot(format, cookie) {
   if (config.demoMode) return demoSnapshot();
-  return buildLive(normalizeFormat(format || DEFAULT_FORMAT));
+  return buildLive(normalizeFormat(format || DEFAULT_FORMAT), cookie);
 }
 
 module.exports = { snapshot, DEFAULT_FORMAT };
