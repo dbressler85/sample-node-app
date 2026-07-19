@@ -115,7 +115,7 @@ function Game({ g }) {
         <View style={[styles.wpFill, { width: `${pct}%`, backgroundColor: st.color }]} />
       </View>
       <Text style={styles.wpText}>
-        {pct}% win{!g.locked ? ` · ${g.me.yetToPlay + g.opp.yetToPlay} players left` : ' · final'}
+        {pct}% win{!g.locked ? ` (est.) · ${g.me.yetToPlay + g.opp.yetToPlay} players left` : ' · final'}
       </Text>
     </View>
   );

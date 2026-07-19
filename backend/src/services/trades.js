@@ -17,11 +17,22 @@ const leaguesService = require('./leagues');
 const rosterService = require('./roster');
 const tradeStore = require('../store/trades');
 
-// Rough dynasty value (0-100 scale) for a future draft pick by round.
+// Estimated dynasty value (0-100 scale) for a future draft pick. This is a
+// model, not a market price: a round-based baseline plus a dynasty time-value
+// discount for picks further out (a 1st two years away is worth less than this
+// year's). Pick slot isn't known for future picks, so round is the best signal.
+const PICK_VALUE_BY_ROUND = { 1: 55, 2: 28, 3: 14, 4: 7 };
 function pickValue(label) {
-  const m = /(\d+)\s*(?:st|nd|rd|th)/i.exec(String(label));
-  const round = m ? parseInt(m[1], 10) : 4;
-  return { 1: 55, 2: 30, 3: 15 }[round] || 8;
+  const s = String(label);
+  const rm = /(\d+)\s*(?:st|nd|rd|th)/i.exec(s);
+  const round = rm ? parseInt(rm[1], 10) : 4;
+  let base = PICK_VALUE_BY_ROUND[round] != null ? PICK_VALUE_BY_ROUND[round] : Math.max(3, 8 - round);
+  const ym = /(20\d{2})/.exec(s);
+  if (ym) {
+    const yearsOut = parseInt(ym[1], 10) - (config.season || parseInt(ym[1], 10));
+    if (yearsOut > 0) base = Math.round(base * Math.pow(0.88, Math.min(yearsOut, 4))); // ~12%/yr
+  }
+  return Math.max(2, base);
 }
 
 // Resolve an asset token to a display object + value. A token is a player id, a
@@ -47,7 +58,9 @@ function analyze(acquire, send) {
   let verdict = 'fair';
   if (net > 5 && ratio > 0.12) verdict = 'favorable';
   else if (net < -5 && ratio < -0.12) verdict = 'unfavorable';
-  return { acquireValue, sendValue, net, verdict };
+  // estimated: the values are model estimates (enrichment dynasty values + a
+  // pick model), and the verdict thresholds are heuristic — the UI marks it so.
+  return { acquireValue, sendValue, net, verdict, estimated: true };
 }
 
 // Shape one raw offer ({acquire:[tok], send:[tok], ...}) into a full view.

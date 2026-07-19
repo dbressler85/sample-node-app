@@ -92,7 +92,7 @@ export default function PlayerProfileScreen({ playerId, onBack }) {
 
         {/* Outlook */}
         {p.outlook ? (
-          <Card title="This week (PPR outlook)">
+          <Card title="This week (projected · est.)">
             <View style={styles.bandRow}>
               <Band label="Floor" value={p.outlook.floor} />
               <Band label="Median" value={p.outlook.median} big />
