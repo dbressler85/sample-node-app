@@ -17,6 +17,7 @@ const availabilityLib = require('../lib/availability');
 const rosterService = require('./roster');
 const leaguesService = require('./leagues');
 const playersLib = require('../lib/players');
+const nflLib = require('../lib/nfl');
 const lineupStore = require('../store/lineups');
 
 const MODES = new Set(['auto', 'safe', 'balanced', 'aggressive']);
@@ -61,45 +62,12 @@ async function loadScoring(cookie, league) {
 
 async function loadStatuses(cookie) {
   if (config.demoMode) return demo.playerStatus();
-  try {
-    const res = await mfl.exportRequest('injuries', { cookie, W: currentWeek() });
-    const list = mfl.toArray(res && res.injuries && res.injuries.injury);
-    const map = {};
-    for (const i of list) map[String(i.id)] = String(i.status || '').toUpperCase();
-    return map;
-  } catch (e) {
-    return {};
-  }
+  return nflLib.injuryMap(cookie, currentWeek());
 }
 
-// Live byes: MFL's nflSchedule lists the matchups for a week; any NFL team not
-// appearing in one is on bye that week. We compare against the full team set
-// derived from the loaded player pool (same MFL team codes), so a bye sidelines
-// skill players, kickers, and defenses alike.
 async function loadByes(cookie) {
   if (config.demoMode) return demo.byes();
-  const week = currentWeek();
-  if (!week) return {}; // no week context (offseason) -> nothing to compute
-  try {
-    const res = await mfl.exportRequest('nflSchedule', { cookie, W: week });
-    const matchups = mfl.toArray(res && res.nflSchedule && res.nflSchedule.matchup);
-    const playing = new Set();
-    for (const m of matchups) {
-      for (const t of mfl.toArray(m && m.team)) {
-        if (t && t.id) playing.add(String(t.id).toUpperCase());
-      }
-    }
-    if (!playing.size) return {}; // schedule not populated yet -> don't guess byes
-    const byId = await playersLib.load(cookie);
-    const byes = {};
-    for (const p of byId.values()) {
-      const team = String(p.team || '').toUpperCase();
-      if (team && team !== 'FA' && !playing.has(team)) byes[team] = week;
-    }
-    return byes;
-  } catch (e) {
-    return {};
-  }
+  return nflLib.byeMap(cookie, currentWeek());
 }
 
 // Find this week's opponent franchise id from the league schedule.
