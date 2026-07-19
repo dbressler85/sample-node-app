@@ -8,6 +8,7 @@ const demo = require('../demo/fixtures');
 const players = require('../lib/players');
 const availabilityLib = require('../lib/availability');
 const nflLib = require('../lib/nfl');
+const enrichmentLib = require('../lib/enrichment');
 const leaguesService = require('./leagues');
 
 // Future draft picks a franchise owns (dynasty currency). Live: MFL
@@ -32,11 +33,10 @@ async function livePicks(cookie, league) {
 
 // Attach dynasty context (age, value) and availability to a resolved player.
 function enrich(player, ctx) {
-  const d = config.demoMode ? demo.dynasty(player.id) : null;
   return {
     ...player,
-    age: d ? d.age : null,
-    value: d ? d.value : null,
+    age: ctx.enr.age(player.id),
+    value: ctx.enr.value(player.id),
     availability: availabilityLib.resolve(player, ctx.statusMap, ctx.byeMap, ctx.week),
   };
 }
@@ -95,17 +95,18 @@ async function getRoster(cookie, leagueId) {
   }
 
   const week = config.demoMode ? demo.week() : Number(process.env.MFL_WEEK) || null;
-  const [raw, byId, statusMap, byeMap, picks] = await Promise.all([
+  const [raw, byId, statusMap, byeMap, picks, enr] = await Promise.all([
     rawRoster(league, cookie),
     players.load(cookie),
     config.demoMode ? Promise.resolve(demo.playerStatus()) : nflLib.injuryMap(cookie, week),
     config.demoMode ? Promise.resolve(demo.byes()) : nflLib.byeMap(cookie, week),
     config.demoMode ? Promise.resolve(demo.picks(league.leagueId)) : livePicks(cookie, league),
+    enrichmentLib.snapshot(),
   ]);
   const empty = { starters: [], bench: [], ir: [], taxi: [] };
   const src = raw || empty;
 
-  const ctx = { week, statusMap, byeMap };
+  const ctx = { week, statusMap, byeMap, enr };
   const map = (ids) => (ids || []).map((id) => enrich(players.resolve(byId, id), ctx));
 
   const roster = {
