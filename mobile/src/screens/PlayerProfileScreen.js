@@ -4,6 +4,7 @@ import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import AvailabilityBadge from '../components/AvailabilityBadge';
 import AddAcrossSheet from '../components/AddAcrossSheet';
+import TradeAcrossSheet from '../components/TradeAcrossSheet';
 import useAndroidBack from '../useAndroidBack';
 
 const RELATION = {
@@ -23,7 +24,7 @@ function diffColor(d) {
 export default function PlayerProfileScreen({ playerId, onBack }) {
   const [p, setP] = useState(null);
   const [error, setError] = useState(null);
-  const [sheet, setSheet] = useState(null); // 'add' | 'drop'
+  const [sheet, setSheet] = useState(null); // 'add' | 'drop' | 'trade'
 
   const load = () => {
     api.playerProfile(playerId).then(setP).catch((e) => setError(e.message));
@@ -60,6 +61,9 @@ export default function PlayerProfileScreen({ playerId, onBack }) {
   const posColor = positionColors[p.position] || colors.textDim;
   const canAdd = p.actions.addLeagues.length > 0;
   const canDrop = p.actions.dropLeagues.length > 0;
+  // He's a trade target wherever another team owns him.
+  const tradeLeagues = p.crossLeague.filter((c) => c.relation === 'unavailable').length;
+  const canTrade = tradeLeagues > 0;
 
   return (
     <View style={styles.container}>
@@ -168,11 +172,16 @@ export default function PlayerProfileScreen({ playerId, onBack }) {
       </ScrollView>
 
       {/* Action bar */}
-      {canAdd || canDrop ? (
+      {canAdd || canTrade || canDrop ? (
         <View style={styles.actionBar}>
           {canAdd ? (
             <Pressable style={[styles.actionBtn, { backgroundColor: colors.accent }]} onPress={() => setSheet('add')}>
               <Text style={styles.actionText}>Add in {p.actions.addLeagues.length} league{p.actions.addLeagues.length === 1 ? '' : 's'}</Text>
+            </Pressable>
+          ) : null}
+          {canTrade ? (
+            <Pressable style={[styles.actionBtn, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.accent }]} onPress={() => setSheet('trade')}>
+              <Text style={[styles.actionText, { color: colors.accent }]}>Trade for{tradeLeagues > 1 ? ` (${tradeLeagues})` : ''}</Text>
             </Pressable>
           ) : null}
           {canDrop ? (
@@ -184,6 +193,7 @@ export default function PlayerProfileScreen({ playerId, onBack }) {
       ) : null}
 
       {sheet === 'add' ? <AddAcrossSheet player={p} onClose={() => setSheet(null)} onDone={() => { setSheet(null); load(); }} /> : null}
+      {sheet === 'trade' ? <TradeAcrossSheet player={p} onClose={() => setSheet(null)} onDone={() => { setSheet(null); load(); }} /> : null}
       {sheet === 'drop' ? <DropSheet player={p} onClose={() => setSheet(null)} onDone={() => { setSheet(null); load(); }} /> : null}
     </View>
   );

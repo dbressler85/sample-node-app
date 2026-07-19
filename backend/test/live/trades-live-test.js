@@ -90,5 +90,27 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   assert(prop.offer.direction === 'outgoing', 'proposal stored as outgoing');
   console.log('✓ live propose: pick token in proposal', JSON.stringify({ GIVE: tp.params.WILL_GIVE_UP, RECEIVE: tp.params.WILL_RECEIVE }));
 
+  // Cross-league targeting: shop Rival WR (id 20, owned by 0002 in league 1000).
+  // He's not on my roster and IS on a partner roster -> a trade target, worth 100.
+  // My best is Mine WR (value 50), so suggestGive assembles a package led by him.
+  const pv = await trades.crossLeaguePreview(CK, TK, '20');
+  console.log('preview:', JSON.stringify(pv.leagues.map((l) => ({ lg: l.leagueId, own: l.partnerName, give: l.suggestedGive.map((g) => g.name), tv: l.targetValue }))));
+  assert(pv.player.name === 'Rival WR', 'preview names the target');
+  assert(pv.leagues.length === 1, `one league where he's a trade target, got ${pv.leagues.length}`);
+  const tl = pv.leagues[0];
+  assert(tl.leagueId === '1000' && tl.partnerFranchiseId === '0002' && tl.partnerName === 'Rival Squad', 'owner resolved');
+  assert(tl.targetValue === 100, `target value from enrichment, got ${tl.targetValue}`);
+  assert(tl.suggestedGive.some((g) => g.name === 'Mine WR'), 'give led by my most valuable player');
+  assert(!tl.suggestedGive.some((g) => g.id === '20'), 'target himself never appears in the give');
+  console.log(`✓ cross-league preview: target in 1 league, give ${tl.suggestedGive.map((g) => g.name).join('+')} (${tl.giveValue} for ${tl.targetValue})`);
+
+  // Propose across the selected league(s) -> one MFL tradeProposal per selection.
+  imported.length = 0;
+  const sent = await trades.crossLeaguePropose(CK, TK, '20', [{ leagueId: '1000', partnerFranchiseId: '0002', giveIds: ['1'] }]);
+  assert(sent.summary.requested === 1 && sent.summary.submitted === 1, `1 of 1 submitted, got ${sent.summary.submitted}/${sent.summary.requested}`);
+  const xp = imported.find((c) => c.type === 'tradeProposal');
+  assert(xp && xp.params.OFFEREDTO === '0002' && xp.params.WILL_GIVE_UP === '1' && xp.params.WILL_RECEIVE === '20', 'cross-league proposal hit MFL with right sides');
+  console.log('✓ cross-league propose: offer sent', JSON.stringify({ OFFEREDTO: xp.params.OFFEREDTO, GIVE: xp.params.WILL_GIVE_UP, RECEIVE: xp.params.WILL_RECEIVE }));
+
   console.log('\nLIVE TRADES HARNESS PASSED');
 })().catch((e) => { console.error(e.message); process.exit(1); });

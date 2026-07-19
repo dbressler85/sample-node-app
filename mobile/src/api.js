@@ -104,6 +104,8 @@ export const api = {
   playerProfile: (id) => request(`/api/players/${id}`),
   playerAddPreview: (id) => request(`/api/players/${id}/add/preview`),
   playerAdd: (id, leagues) => request(`/api/players/${id}/add`, { method: 'POST', body: { leagues } }),
+  playerTradePreview: (id) => request(`/api/players/${id}/trade/preview`),
+  playerTrade: (id, leagues) => request(`/api/players/${id}/trade`, { method: 'POST', body: { leagues } }),
   playerDrop: (id, leagues) => request(`/api/players/${id}/drop`, { method: 'POST', body: { leagues } }),
 
   // Drafts (M6)
