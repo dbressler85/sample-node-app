@@ -28,11 +28,12 @@ async function runPool(items, limit, worker) {
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, next));
 }
 
-export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpenWaivers, onOpenTrades, onOpenTradeInbox, onOpenDraft, onOpenDraftHub, onOpenPlayer, onLogout }) {
+export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpenWaivers, onOpenTrades, onOpenTradeInbox, onOpenDraft, onOpenDraftHub, onOpenOnDeck, onOpenPlayer, onLogout }) {
   const [leagues, setLeagues] = useState([]);
   const [statuses, setStatuses] = useState({}); // leagueId -> { name, status, items }
   const [drafts, setDrafts] = useState([]); // active/scheduled drafts across leagues
   const [news, setNews] = useState([]); // news touching your rostered players
+  const [onDeck, setOnDeck] = useState(null); // time-sorted deadlines across leagues
   const [expanded, setExpanded] = useState(new Set(GROUP_ORDER.filter((t) => GROUPS[t].open)));
   const [progress, setProgress] = useState(null); // { done, total }
   const [error, setError] = useState(null);
@@ -70,6 +71,9 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
       // News that touches your rostered players — the cross-league moat, surfaced
       // on the command center (already ranked by severity × teams-you-start).
       api.news().then((r) => setNews(r.news || [])).catch(() => {});
+
+      // On Deck — time-sorted deadlines across leagues (the proactive layer).
+      api.onDeck().then(setOnDeck).catch(() => {});
 
       setProgress({ done: 0, total: list.length });
       const collected = {};
@@ -196,6 +200,23 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
         refreshControl={<RefreshControl refreshing={false} onRefresh={refresh} tintColor={colors.accent} />}
         ListHeaderComponent={
           <View>
+            {onDeck && onDeck.items && onDeck.items.length ? (
+              <Pressable
+                style={({ pressed }) => [styles.onDeckRow, onDeck.summary.onClock > 0 && styles.onDeckRowNow, pressed && { opacity: 0.75 }]}
+                onPress={onOpenOnDeck}
+              >
+                <Text style={styles.onDeckIcon}>⏱</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.onDeckName}>On Deck</Text>
+                  <Text style={styles.onDeckSub} numberOfLines={1}>
+                    {onDeck.summary.onClock > 0
+                      ? `${onDeck.summary.onClock} on the clock now · ${onDeck.items.length} total`
+                      : `${onDeck.items.length} deadline${onDeck.items.length === 1 ? '' : 's'} coming up`}
+                  </Text>
+                </View>
+                <Text style={styles.teamChev}>›</Text>
+              </Pressable>
+            ) : null}
             <Portfolio p={portfolio} phase={phase} loading={summaryLoading} />
             {drafts.length ? (
               <View>
@@ -438,6 +459,11 @@ const styles = StyleSheet.create({
   teamRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: 10 },
   teamName: { color: colors.text, fontSize: 15, fontWeight: '700', marginRight: 10 },
   teamSub: { color: colors.textDim, fontSize: 12, marginTop: 3 },
+  onDeckRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 15, marginBottom: 14 },
+  onDeckRowNow: { borderColor: colors.gold, backgroundColor: colors.cardAlt },
+  onDeckIcon: { fontSize: 20, marginRight: 12 },
+  onDeckName: { color: colors.text, fontSize: 15, fontWeight: '900', letterSpacing: 0.2 },
+  onDeckSub: { color: colors.textDim, fontSize: 12, marginTop: 3 },
   newsRow: { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: 8 },
   newsDot: { width: 8, height: 8, borderRadius: 4, marginRight: 12, marginTop: 6 },
   newsHead: { color: colors.text, fontSize: 14, fontWeight: '700', lineHeight: 19 },

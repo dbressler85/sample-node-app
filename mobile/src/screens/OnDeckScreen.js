@@ -1,0 +1,146 @@
+import React, { useCallback, useEffect, useState } from 'react';
+import { View, Text, StyleSheet, Pressable, FlatList, RefreshControl, ActivityIndicator } from 'react-native';
+import { api } from '../api';
+import { colors } from '../theme';
+import useAndroidBack from '../useAndroidBack';
+
+// On Deck — the proactive, time-sorted view of what needs you next across every
+// league. Draft clocks (now), lineup locks (next kickoff), scheduled drafts, and
+// waiver runs, soonest first. Tapping an item jumps to the place you'd act.
+
+const TYPE = {
+  draft_clock: { icon: '🎯', tint: colors.gold },
+  draft_start: { icon: '🎯', tint: colors.accent },
+  lineup_lock: { icon: '⚑', tint: colors.warn },
+  waiver_run: { icon: '⇄', tint: colors.accent },
+};
+
+// Human "time until" for an ISO timestamp. Near times count down; far ones show
+// the weekday + clock. Past/now reads "now".
+function countdown(iso) {
+  if (!iso) return null;
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return null;
+  const ms = t - Date.now();
+  if (ms <= 60 * 1000) return 'now';
+  const mins = Math.round(ms / 60000);
+  if (mins < 60) return `in ${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `in ${hrs}h ${mins % 60}m`;
+  return new Date(iso).toLocaleString(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' });
+}
+
+export default function OnDeckScreen({ onBack, onOpenLineup, onOpenDraft, onOpenWaivers }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(null);
+  const [, force] = useState(0); // re-render to tick countdowns
+
+  useAndroidBack(useCallback(() => { onBack(); return true; }, [onBack]));
+
+  const load = useCallback(async () => {
+    setError(null);
+    try {
+      setData(await api.onDeck());
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+  // Tick the relative-time labels once a minute (no refetch).
+  useEffect(() => {
+    const id = setInterval(() => force((n) => n + 1), 60000);
+    return () => clearInterval(id);
+  }, []);
+
+  function act(item) {
+    const league = { leagueId: item.leagueId, name: item.leagueName };
+    if (item.action === 'draft') onOpenDraft(league);
+    else if (item.action === 'lineup') onOpenLineup(league);
+    else if (item.action === 'waiver') onOpenWaivers(league);
+  }
+
+  const items = (data && data.items) || [];
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.topbar}>
+        <Pressable onPress={onBack} hitSlop={10}><Text style={styles.back}>‹ Home</Text></Pressable>
+        <Text style={styles.title}>On Deck</Text>
+        <View style={{ width: 54 }} />
+      </View>
+      {data ? (
+        <Text style={styles.subtitle}>
+          {items.length ? `${items.length} deadline${items.length === 1 ? '' : 's'} across your leagues` : 'Nothing on deck'}
+          {data.summary && data.summary.onClock ? <Text style={{ color: colors.gold, fontWeight: '800' }}>{`  ·  ${data.summary.onClock} on the clock`}</Text> : null}
+        </Text>
+      ) : null}
+
+      {loading ? (
+        <View style={styles.center}><ActivityIndicator color={colors.accent} size="large" /></View>
+      ) : error ? (
+        <View style={styles.center}><Text style={styles.error}>{error}</Text></View>
+      ) : (
+        <FlatList
+          data={items}
+          keyExtractor={(i) => `${i.type}:${i.leagueId}`}
+          contentContainerStyle={styles.list}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.accent} />}
+          renderItem={({ item }) => <DeadlineRow item={item} onPress={() => act(item)} />}
+          ListEmptyComponent={
+            <View style={styles.emptyWrap}>
+              <Text style={styles.emptyTitle}>🎉 All clear</Text>
+              <Text style={styles.emptyText}>No lineup locks, draft clocks, or waiver runs coming up across your leagues.</Text>
+            </View>
+          }
+        />
+      )}
+    </View>
+  );
+}
+
+function DeadlineRow({ item, onPress }) {
+  const t = TYPE[item.type] || { icon: '•', tint: colors.textDim };
+  const when = item.now ? 'NOW' : countdown(item.at) || item.atLabel || null;
+  const whenColor = item.now ? colors.gold : item.type === 'lineup_lock' ? colors.warn : colors.textDim;
+  return (
+    <Pressable style={({ pressed }) => [styles.row, item.now && styles.rowNow, pressed && { opacity: 0.75 }]} onPress={onPress}>
+      <Text style={[styles.icon, { color: t.tint }]}>{t.icon}</Text>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.label} numberOfLines={1}>
+          {item.label}
+          <Text style={styles.league}>{`  ·  ${item.leagueName}`}</Text>
+        </Text>
+        {item.detail ? <Text style={styles.detail} numberOfLines={1}>{item.detail}</Text> : null}
+      </View>
+      {when ? <Text style={[styles.when, { color: whenColor }]}>{when}</Text> : <Text style={styles.chev}>›</Text>}
+    </Pressable>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.bg },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8 },
+  back: { color: colors.accent, fontSize: 16, fontWeight: '600', width: 54 },
+  title: { color: colors.text, fontSize: 20, fontWeight: '900' },
+  subtitle: { color: colors.textDim, fontSize: 13, textAlign: 'center', marginTop: 4 },
+  list: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 32 },
+  row: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 15, marginBottom: 8 },
+  rowNow: { borderColor: colors.gold, backgroundColor: colors.cardAlt },
+  icon: { fontSize: 18, width: 30, textAlign: 'center', marginRight: 8 },
+  label: { color: colors.text, fontSize: 15, fontWeight: '800' },
+  league: { color: colors.textDim, fontSize: 13, fontWeight: '600' },
+  detail: { color: colors.textDim, fontSize: 12, marginTop: 3 },
+  when: { fontSize: 13, fontWeight: '800', marginLeft: 10, textAlign: 'right' },
+  chev: { color: colors.textDim, fontSize: 20, fontWeight: '700', marginLeft: 8 },
+  error: { color: colors.bad, textAlign: 'center' },
+  emptyWrap: { paddingTop: 60, alignItems: 'center' },
+  emptyTitle: { color: colors.text, fontSize: 17, fontWeight: '800', marginBottom: 8 },
+  emptyText: { color: colors.textDim, fontSize: 14, textAlign: 'center', paddingHorizontal: 20, lineHeight: 20 },
+});

@@ -27,6 +27,7 @@ const TESTS = [
   'parse-hardening-test',
   'persist-test',
   'session-persist-test',
+  'ondeck-test',
 ];
 
 let failed = 0;

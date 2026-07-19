@@ -19,6 +19,7 @@ import TradesScreen from './src/screens/TradesScreen';
 import TradeInboxScreen from './src/screens/TradeInboxScreen';
 import DraftScreen from './src/screens/DraftScreen';
 import DraftHubScreen from './src/screens/DraftHubScreen';
+import OnDeckScreen from './src/screens/OnDeckScreen';
 import { loadSession, clearSession } from './src/auth';
 import { colors } from './src/theme';
 
@@ -98,6 +99,7 @@ export default function App() {
   const openTradeInbox = () => pushOverlay({ type: 'tradeInbox' });
   const openDraft = (league) => pushOverlay({ type: 'draft', league });
   const openDraftHub = () => pushOverlay({ type: 'draftHub' });
+  const openOnDeck = () => pushOverlay({ type: 'onDeck' });
   const openPlayer = (playerId) => pushOverlay({ type: 'playerProfile', playerId });
   const openWaivers = (target) => {
     setWaiversTarget(target || null);
@@ -133,6 +135,7 @@ export default function App() {
             onOpenTradeInbox={openTradeInbox}
             onOpenDraft={openDraft}
             onOpenDraftHub={openDraftHub}
+            onOpenOnDeck={openOnDeck}
             onOpenPlayer={openPlayer}
             onLogout={handleLogout}
           />
@@ -184,6 +187,16 @@ export default function App() {
     }
     if (overlay && overlay.type === 'draftHub') {
       return <DraftHubScreen onBack={popOverlay} onOpenDraft={openDraft} />;
+    }
+    if (overlay && overlay.type === 'onDeck') {
+      return (
+        <OnDeckScreen
+          onBack={popOverlay}
+          onOpenLineup={openLineup}
+          onOpenDraft={openDraft}
+          onOpenWaivers={(league) => openWaivers({ leagueId: league.leagueId })}
+        />
+      );
     }
     if (overlay && overlay.type === 'playerProfile') {
       return <PlayerProfileScreen playerId={overlay.playerId} onBack={popOverlay} />;

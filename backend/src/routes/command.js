@@ -5,9 +5,20 @@ const requireSession = require('../middleware/auth');
 const portfolio = require('../services/portfolio');
 const scoreboard = require('../services/scoreboard');
 const exposure = require('../services/exposure');
+const ondeck = require('../services/ondeck');
 
 const router = express.Router();
 router.use(requireSession);
+
+// GET /api/ondeck — time-sorted deadlines across leagues (draft clocks, lineup
+// locks, scheduled drafts, waiver runs). The proactive "what needs me next" view.
+router.get('/ondeck', async (req, res, next) => {
+  try {
+    res.json(await ondeck.getOnDeck(req.mflCookie, req.token));
+  } catch (err) {
+    next(err);
+  }
+});
 
 // GET /api/home — portfolio roll-up + cross-league triage queue (server-side).
 router.get('/home', async (req, res, next) => {
