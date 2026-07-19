@@ -167,6 +167,45 @@ async function liveLeagueProjection(cookie, league, playerId) {
   }
 }
 
+// One player's actual fantasy points for a given period (a week number, 'YTD',
+// or 'AVG') under a league's scoring. MFL playerScores is league-scoped.
+async function livePlayerScore(cookie, league, playerId, W) {
+  try {
+    const res = await mfl.exportRequest('playerScores', { host: league.host, cookie, L: league.leagueId, W, PLAYERS: playerId });
+    const hit = mfl.toArray(res && res.playerScores && res.playerScores.playerScore)
+      .find((p) => String(p.id) === String(playerId));
+    return hit && hit.score !== '' && hit.score != null ? Math.round((Number(hit.score) || 0) * 10) / 10 : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+// Live season line + recent game log for a player, scored under one of the
+// owner's leagues. Season totals come from YTD + AVG (2 calls) so we don't loop
+// every week; the game log fetches only the last few completed weeks.
+async function liveSeasonAndLog(cookie, league, playerId, week) {
+  if (!league) return { season: null, log: [] };
+  const [ytd, avg] = await Promise.all([
+    livePlayerScore(cookie, league, playerId, 'YTD'),
+    livePlayerScore(cookie, league, playerId, 'AVG'),
+  ]);
+  let season = null;
+  if (ytd != null && ytd > 0) {
+    const games = avg && avg > 0 ? Math.max(1, Math.round(ytd / avg)) : null;
+    season = { points: ytd, games, ppg: avg != null ? avg : games ? Math.round((ytd / games) * 10) / 10 : null };
+  }
+  const log = [];
+  if (week && week > 1) {
+    const weeks = [];
+    for (let w = Math.max(1, week - 4); w < week; w++) weeks.push(w);
+    const pts = await Promise.all(weeks.map((w) => livePlayerScore(cookie, league, playerId, w)));
+    weeks.forEach((w, i) => {
+      if (pts[i] != null) log.push({ week: w, pts: pts[i], line: null });
+    });
+  }
+  return { season, log };
+}
+
 async function profile(cookie, token, playerId) {
   const byId = await playersLib.load(cookie);
   const base = playersLib.resolve(byId, playerId);
@@ -176,10 +215,20 @@ async function profile(cookie, token, playerId) {
   // Live bye weeks (so availability + the profile's byeWeek are real).
   const byeMap = config.demoMode ? demo.byes() : await nflLib.byeMap(cookie, ctx.week);
 
-  // Game log + season.
-  const log = config.demoMode ? demo.gameLog(playerId) : [];
-  const seasonPoints = Math.round(log.reduce((s, g) => s + g.pts, 0) * 10) / 10;
-  const season = log.length ? { points: seasonPoints, games: log.length, ppg: Math.round((seasonPoints / log.length) * 10) / 10 } : null;
+  // Game log + season. Demo has a fixture; live pulls actual points from MFL
+  // playerScores, scored under the owner's first league.
+  let log;
+  let season;
+  if (config.demoMode) {
+    log = demo.gameLog(playerId);
+    const seasonPoints = Math.round(log.reduce((s, g) => s + g.pts, 0) * 10) / 10;
+    season = log.length ? { points: seasonPoints, games: log.length, ppg: Math.round((seasonPoints / log.length) * 10) / 10 } : null;
+  } else {
+    const leagues = await leaguesService.listLeagues(cookie);
+    const res = await liveSeasonAndLog(cookie, leagues[0], playerId, ctx.week);
+    log = res.log;
+    season = res.season;
+  }
 
   // Upcoming schedule difficulty.
   const upcoming = config.demoMode ? demo.schedule(base.team) : [];
