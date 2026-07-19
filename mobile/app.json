@@ -7,20 +7,26 @@
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "scheme": "dynastycentral",
+    "icon": "./assets/icon.png",
     "splash": {
+      "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0b1220"
+      "backgroundColor": "#0A0F1C"
     },
     "assetBundlePatterns": ["**/*"],
     "android": {
       "package": "com.dynastycentral.app",
       "adaptiveIcon": {
-        "backgroundColor": "#0b1220"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0A0F1C"
       }
     },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.dynastycentral.app"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
     },
     "extra": {
       "//": "Override the backend URL at build/run time with EXPO_PUBLIC_API_URL.",
