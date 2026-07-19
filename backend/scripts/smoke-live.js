@@ -19,6 +19,7 @@ const TESTS = [
   'trades-live-test',
   'draft-live-test',
   'offseason-test',
+  'news-test',
 ];
 
 let failed = 0;

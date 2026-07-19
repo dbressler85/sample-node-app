@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, FlatList, StyleSheet, Pressable, TextInput, ActivityIndicator } from 'react-native';
+import { View, Text, FlatList, StyleSheet, Pressable, TextInput, ActivityIndicator, Linking } from 'react-native';
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import AvailabilityBadge from '../components/AvailabilityBadge';
@@ -144,12 +144,14 @@ export default function PlayersScreen({ onOpenPlayer }) {
               data={news ? news.news : []}
               keyExtractor={(n) => n.id}
               contentContainerStyle={styles.list}
-              renderItem={({ item }) => <NewsRow n={item} onPress={() => item.player.id && onOpenPlayer(item.player.id)} />}
+              renderItem={({ item }) => (
+                <NewsRow n={item} onPress={() => (item.url ? Linking.openURL(item.url).catch(() => {}) : item.player.id && onOpenPlayer(item.player.id))} />
+              )}
               ListEmptyComponent={
                 !news ? (
                   <Center><ActivityIndicator color={colors.accent} /></Center>
                 ) : (
-                  <Text style={styles.note}>No player news right now. (Live news isn’t wired yet.)</Text>
+                  <Text style={styles.note}>No news affecting your rostered players right now.</Text>
                 )
               }
             />

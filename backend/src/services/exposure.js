@@ -6,6 +6,7 @@
 
 const config = require('../config');
 const demo = require('../demo/fixtures');
+const newsLib = require('../lib/news');
 const leaguesService = require('./leagues');
 const rosterService = require('./roster');
 
@@ -85,15 +86,18 @@ async function getExposure(cookie) {
 async function getNews(cookie) {
   const exposure = await getExposure(cookie);
   const byPlayer = new Map(exposure.players.map((p) => [p.id, p]));
-  const items = config.demoMode ? demo.news() : [];
+  // Demo has a fixture; live pulls ESPN news mapped to MFL players by name.
+  const items = config.demoMode ? demo.news() : await newsLib.mflNews(cookie);
 
-  const news = items.map((n) => {
+  let news = items.map((n) => {
     const p = byPlayer.get(String(n.playerId));
     const affected = p ? p.leagues : [];
     return {
       id: n.id,
       headline: n.headline,
       severity: n.severity,
+      url: n.url || null,
+      published: n.published || null,
       player: p
         ? { id: p.id, name: p.name, position: p.position, team: p.team, availability: p.availability }
         : { id: String(n.playerId) },
@@ -102,6 +106,10 @@ async function getNews(cookie) {
       startingCount: affected.filter((l) => l.starting).length,
     };
   });
+
+  // Live: the ESPN feed is league-wide, so keep only news that touches a player
+  // you actually roster — that's the "which of my teams does this hit" moat.
+  if (!config.demoMode) news = news.filter((n) => n.affectedCount > 0);
 
   // Most impactful first: high severity, then most teams affected where you start him.
   const rank = { high: 3, medium: 2, low: 1 };
