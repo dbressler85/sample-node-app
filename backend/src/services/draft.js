@@ -88,7 +88,18 @@ async function loadDraft(cookie, token, league) {
     const nowStarted = raw.some((p) => p.player && p.player !== '') || picks.length > 0;
     const allMade = withOrder.length ? withOrder.every((p) => p.player && p.player !== '') : false;
     const status = allMade ? 'complete' : nowStarted ? 'in_progress' : startTime ? 'scheduled' : 'scheduled';
-    return { status, type: 'Draft', startTime, rounds, snake: true, order, picks, rawSlots: withOrder };
+
+    // Snake vs linear is no longer assumed: use MFL's own type if it says so,
+    // otherwise infer from the grid (round 2 reversed => snake, same => linear).
+    // Only fall back to the dynasty-common snake default when it's indeterminable.
+    const mflType = String(unit.draftType || unit.type || '').toLowerCase();
+    let snake = /snake|serpentine/.test(mflType) ? true
+      : /standard|linear/.test(mflType) ? false
+      : inferSnake(withOrder);
+    const type = snake === false ? 'Linear draft' : snake === true ? 'Snake draft' : 'Draft';
+    if (snake == null) snake = true;
+
+    return { status, type, startTime, rounds, snake, order, picks, rawSlots: withOrder };
   } catch (e) {
     return null;
   }
@@ -98,6 +109,23 @@ async function loadDraft(cookie, token, league) {
 function deriveOrder(rawWithOrder) {
   const r1 = rawWithOrder.filter((p) => Number(p.round) === 1).sort((a, b) => Number(a.pick) - Number(b.pick));
   return r1.map((p) => String(p.franchise));
+}
+
+// Infer snake vs linear by comparing round 1 and round 2 franchise order.
+// Returns true (snake), false (linear), or null when it can't be determined
+// (fewer than two full rounds, or an irregular order from traded picks).
+function inferSnake(withOrder) {
+  const orderFor = (round) =>
+    withOrder
+      .filter((p) => Number(p.round) === round)
+      .sort((a, b) => Number(a.pick) - Number(b.pick))
+      .map((p) => String(p.franchise));
+  const r1 = orderFor(1);
+  const r2 = orderFor(2);
+  if (r1.length < 2 || r2.length !== r1.length) return null;
+  if (r2.join() === [...r1].reverse().join()) return true;
+  if (r2.join() === r1.join()) return false;
+  return null;
 }
 
 // Build the slots for a live draft that exposed a full grid, honoring made picks;
@@ -117,7 +145,11 @@ function slotsFor(draft) {
 }
 
 async function buildPool(cookie, league, drafted, byId, enr, position) {
-  const ids = config.demoMode ? demo.draftClass() : await waiversService.freeAgentIds(cookie, league);
+  // The draftable pool is everyone not on a roster in this league and not already
+  // picked in this draft. For a startup that's the whole player universe; for a
+  // rookie/in-season draft it's the free-agent pool. Fetch a deep list (not the
+  // waiver default cap) so the value-ranked board isn't missing high-value names.
+  const ids = config.demoMode ? demo.draftClass() : await waiversService.freeAgentIds(cookie, league, 2000);
   let pool = ids.filter((id) => !drafted.has(String(id))).map((id) => resolvePlayer(byId, id, enr));
   if (position) pool = pool.filter((p) => p.position === position);
   pool.sort((a, b) => (b.value || 0) - (a.value || 0));
@@ -205,6 +237,7 @@ async function getLeague(cookie, token, leagueId, { position } = {}) {
     leagueId: league.leagueId,
     name: league.name,
     type: draft.type,
+    snake: draft.snake != null ? draft.snake : null,
     status,
     startTime: draft.startTime || null,
     rounds: draft.rounds || null,
