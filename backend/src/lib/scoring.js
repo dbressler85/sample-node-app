@@ -96,17 +96,22 @@ function projectPoints(stat, position, scoring) {
   return round1(offense + kicker + defense);
 }
 
-// Rough weekly volatility by position — how boom/bust the position is. Used to
-// turn a median projection into a floor/ceiling band. QBs are steady; TEs swing.
+// MODEL ESTIMATE (not a real distribution): rough weekly volatility by position,
+// used to widen a single median projection into a floor/ceiling band. QBs are
+// steady; TEs swing. Consumers surface floor/ceiling as an estimate, not a
+// sourced projection range.
 const POSITION_VOLATILITY = { QB: 0.22, RB: 0.34, WR: 0.4, TE: 0.46, PK: 0.3, DEF: 0.45 };
 
-// Floor / median / ceiling band around a median projection.
+// Floor / median / ceiling band around a median projection. `estimated` flags
+// that floor/ceiling are model-derived (the median may be a real MFL projection,
+// but the spread is the volatility model above).
 function band(median, position) {
   const v = POSITION_VOLATILITY[position] != null ? POSITION_VOLATILITY[position] : 0.35;
   return {
     floor: round1(median * (1 - v)),
     median: round1(median),
     ceiling: round1(median * (1 + v)),
+    estimated: true,
   };
 }
 

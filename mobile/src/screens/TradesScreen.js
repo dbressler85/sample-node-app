@@ -221,6 +221,9 @@ function OfferCard({ offer, busy, onRespond }) {
       </View>
       <Side label="You get" assets={offer.acquire} total={offer.analysis.acquireValue} tint={colors.good} />
       <Side label="You give" assets={offer.send} total={offer.analysis.sendValue} tint={colors.textDim} />
+      <Text style={styles.estCaption}>
+        Dynasty value estimate · net {offer.analysis.net > 0 ? '+' : ''}{offer.analysis.net}
+      </Text>
       <View style={styles.cardActions}>
         <Pressable style={[styles.act, styles.reject]} onPress={() => onRespond(offer, 'reject')} disabled={busy}>
           <Text style={styles.rejectText}>Reject</Text>
@@ -288,6 +291,7 @@ const styles = StyleSheet.create({
   dot: { width: 8, height: 8, borderRadius: 4, marginRight: 8 },
   sideName: { color: colors.text, fontSize: 14, fontWeight: '600', flex: 1 },
   sideMeta: { color: colors.textDim, fontSize: 12 },
+  estCaption: { color: colors.textDim, fontSize: 11, fontStyle: 'italic', opacity: 0.8, marginTop: 8 },
   cardActions: { flexDirection: 'row', gap: 10, marginTop: 12 },
   act: { flex: 1, borderRadius: 10, paddingVertical: 11, alignItems: 'center' },
   reject: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
