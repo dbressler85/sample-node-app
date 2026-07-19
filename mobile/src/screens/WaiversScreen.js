@@ -512,7 +512,7 @@ const styles = StyleSheet.create({
   faNameRow: { flexDirection: 'row', alignItems: 'center' },
   faName: { color: colors.text, fontSize: 15, fontWeight: '700', flexShrink: 1 },
   faMeta: { color: colors.textDim, fontSize: 12, marginTop: 2 },
-  faValue: { color: colors.accent, fontSize: 15, fontWeight: '900', marginHorizontal: 10 },
+  faValue: { color: colors.gold, fontSize: 15, fontWeight: '900', marginHorizontal: 10 },
   addBtn: { color: colors.good, fontSize: 12, fontWeight: '800' },
   leagueChoices: { marginTop: -4, marginBottom: 10, marginLeft: 12, gap: 6 },
   leagueChoice: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.cardAlt, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10 },

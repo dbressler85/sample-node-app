@@ -41,5 +41,5 @@ const styles = StyleSheet.create({
   name: { color: colors.text, fontSize: 15, flexShrink: 1 },
   age: { color: colors.textDim, fontSize: 12, marginLeft: 'auto', marginRight: 8 },
   team: { color: colors.textDim, fontSize: 12, fontWeight: '600', width: 40, textAlign: 'right' },
-  value: { color: colors.accent, fontSize: 14, fontWeight: '900', width: 34, textAlign: 'right' },
+  value: { color: colors.gold, fontSize: 14, fontWeight: '900', width: 34, textAlign: 'right' },
 });

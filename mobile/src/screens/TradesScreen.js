@@ -303,7 +303,7 @@ const styles = StyleSheet.create({
   checkMark: { color: '#fff', fontWeight: '900', fontSize: 13 },
   assetName: { color: colors.text, fontSize: 14, fontWeight: '600', flex: 1 },
   assetMeta: { color: colors.textDim, fontSize: 12, marginRight: 10 },
-  assetValue: { color: colors.accent, fontSize: 14, fontWeight: '900', minWidth: 26, textAlign: 'right' },
+  assetValue: { color: colors.gold, fontSize: 14, fontWeight: '900', minWidth: 26, textAlign: 'right' },
   footer: { position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: colors.card, borderTopWidth: 1, borderTopColor: colors.border, padding: 16 },
   previewRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   previewText: { color: colors.textDim, fontSize: 13 },

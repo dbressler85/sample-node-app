@@ -63,7 +63,7 @@ export default function RosterScreen({ league, onBack, onOpenTrades, onOpenDraft
 
       {roster && roster.summary ? (
         <View style={styles.summary}>
-          <Summary label="Roster value" value={roster.summary.rosterValue} />
+          <Summary label="Roster value" value={roster.summary.rosterValue} gold />
           <Summary label="Core age" value={roster.summary.coreAge != null ? `${roster.summary.coreAge}y` : '—'} />
           <Summary label="Outlook" value={roster.summary.outlook} wide />
         </View>
@@ -109,11 +109,11 @@ export default function RosterScreen({ league, onBack, onOpenTrades, onOpenDraft
   );
 }
 
-function Summary({ label, value, wide }) {
+function Summary({ label, value, wide, gold }) {
   return (
     <View style={[styles.summaryCell, wide && { flex: 1.4 }]}>
       <Text style={styles.summaryLabel}>{label}</Text>
-      <Text style={styles.summaryValue} numberOfLines={1}>
+      <Text style={[styles.summaryValue, gold && { color: colors.gold }]} numberOfLines={1}>
         {value}
       </Text>
     </View>
