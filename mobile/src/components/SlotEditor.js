@@ -74,10 +74,10 @@ function SlotRow({ slot, player, onPress }) {
               <AvailabilityBadge availability={player.availability} style={{ marginLeft: 6 }} />
             </View>
             <Text style={styles.slotBand}>
-              floor {player.floor} · ceil {player.ceiling}
+              floor {player.floor != null ? player.floor : '—'} · ceil {player.ceiling != null ? player.ceiling : '—'}
             </Text>
           </View>
-          <Text style={styles.slotProj}>{player.median.toFixed(1)}</Text>
+          <Text style={styles.slotProj}>{player.median != null ? player.median.toFixed(1) : '—'}</Text>
         </>
       ) : (
         <Text style={styles.slotEmpty}>Tap to fill · empty</Text>
@@ -102,7 +102,7 @@ function PlayerPicker({ slot, players, assignments, slotIndex, onPick, onClose }
           renderItem={({ item }) => {
             const inThisSlot = assignments[slotIndex] === item.id;
             const elsewhere = assignments.includes(item.id) && !inThisSlot;
-            const unavailable = !item.availability.startable;
+            const unavailable = item.availability ? !item.availability.startable : false;
             return (
               <Pressable
                 style={({ pressed }) => [styles.cand, unavailable && { opacity: 0.45 }, pressed && !unavailable && { opacity: 0.6 }]}
@@ -116,7 +116,7 @@ function PlayerPicker({ slot, players, assignments, slotIndex, onPick, onClose }
                 <AvailabilityBadge availability={item.availability} style={{ marginRight: 8 }} />
                 {inThisSlot ? <Text style={styles.candTag}>current</Text> : null}
                 {elsewhere && !inThisSlot ? <Text style={styles.candTagDim}>starting</Text> : null}
-                <Text style={styles.candProj}>{item.median.toFixed(1)}</Text>
+                <Text style={styles.candProj}>{item.median != null ? item.median.toFixed(1) : '—'}</Text>
               </Pressable>
             );
           }}

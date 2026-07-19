@@ -113,11 +113,29 @@ export default function TradesScreen({ league, onBack }) {
     );
   }
 
+  if (!data) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.topbar}>
+          <Pressable onPress={onBack} hitSlop={10}>
+            <Text style={styles.back}>‹ Back</Text>
+          </Pressable>
+          <Text style={styles.title} numberOfLines={1}>{league.name}</Text>
+          <View style={{ width: 44 }} />
+        </View>
+        <View style={styles.center}>
+          <Text style={styles.error}>{error || 'Could not load trades.'}</Text>
+          <Pressable style={styles.retry} onPress={load}><Text style={styles.retryText}>Retry</Text></Pressable>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.topbar}>
         <Pressable onPress={onBack} hitSlop={10}>
-          <Text style={styles.back}>‹ Home</Text>
+          <Text style={styles.back}>‹ Back</Text>
         </Pressable>
         <Text style={styles.title} numberOfLines={1}>{league.name}</Text>
         <View style={{ width: 44 }} />
@@ -255,7 +273,9 @@ const styles = StyleSheet.create({
   segTextActive: { color: colors.text },
   list: { padding: 16 },
   empty: { color: colors.textDim, textAlign: 'center', marginTop: 30, fontSize: 14 },
-  error: { color: colors.bad, textAlign: 'center', marginTop: 12 },
+  error: { color: colors.bad, textAlign: 'center', marginTop: 12, marginHorizontal: 24 },
+  retry: { marginTop: 16, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingHorizontal: 24, paddingVertical: 10 },
+  retryText: { color: colors.accent, fontWeight: '700' },
   label: { color: colors.text, fontSize: 14, fontWeight: '800', marginTop: 16, marginBottom: 8 },
   card: { backgroundColor: colors.card, borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: 14 },
   cardTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },

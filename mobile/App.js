@@ -31,8 +31,14 @@ export default function App() {
   const [booting, setBooting] = useState(true);
   const [authed, setAuthed] = useState(false);
   const [tab, setTab] = useState('home');
-  const [overlay, setOverlay] = useState(null); // {type,league} | null
+  // Overlays form a stack so back returns to the previous screen (e.g. Trades or
+  // Draft opened from a roster returns to that roster, not Home).
+  const [overlayStack, setOverlayStack] = useState([]);
   const [waiversTarget, setWaiversTarget] = useState(null); // {leagueId, position}
+
+  const overlay = overlayStack[overlayStack.length - 1] || null;
+  const pushOverlay = (o) => setOverlayStack((s) => [...s, o]);
+  const popOverlay = () => setOverlayStack((s) => s.slice(0, -1));
 
   useEffect(() => {
     (async () => {
@@ -49,7 +55,7 @@ export default function App() {
       await clearCache();
       setAuthed(false);
       setTab('home');
-      setOverlay(null);
+      setOverlayStack([]);
       setWaiversTarget(null);
     });
   }, []);
@@ -60,7 +66,7 @@ export default function App() {
     useCallback(() => {
       if (!authed) return false;
       if (overlay) {
-        setOverlay(null);
+        popOverlay();
         return true;
       }
       if (tab !== 'home') {
@@ -76,15 +82,15 @@ export default function App() {
     await clearCache();
     setAuthed(false);
     setTab('home');
-    setOverlay(null);
+    setOverlayStack([]);
   }
 
-  const openRoster = (league) => setOverlay({ type: 'roster', league });
-  const openLineup = (league) => setOverlay({ type: 'lineupEditor', league });
-  const openWizard = (leagues, mode) => setOverlay({ type: 'lineupWizard', leagues, mode });
-  const openTrades = (league) => setOverlay({ type: 'trades', league });
-  const openDraft = (league) => setOverlay({ type: 'draft', league });
-  const openPlayer = (playerId) => setOverlay({ type: 'playerProfile', playerId });
+  const openRoster = (league) => pushOverlay({ type: 'roster', league });
+  const openLineup = (league) => pushOverlay({ type: 'lineupEditor', league });
+  const openWizard = (leagues, mode) => pushOverlay({ type: 'lineupWizard', leagues, mode });
+  const openTrades = (league) => pushOverlay({ type: 'trades', league });
+  const openDraft = (league) => pushOverlay({ type: 'draft', league });
+  const openPlayer = (playerId) => pushOverlay({ type: 'playerProfile', playerId });
   const openWaivers = (target) => {
     setWaiversTarget(target || null);
     setTab('waivers');
@@ -132,24 +138,24 @@ export default function App() {
     if (!authed) return <LoginScreen onLoggedIn={() => setAuthed(true)} />;
 
     if (overlay && overlay.type === 'roster') {
-      return <RosterScreen league={overlay.league} onBack={() => setOverlay(null)} onOpenTrades={openTrades} onOpenDraft={openDraft} />;
+      return <RosterScreen league={overlay.league} onBack={popOverlay} onOpenTrades={openTrades} onOpenDraft={openDraft} />;
     }
     if (overlay && overlay.type === 'lineupEditor') {
-      return <LineupEditorScreen league={overlay.league} onBack={() => setOverlay(null)} />;
+      return <LineupEditorScreen league={overlay.league} onBack={popOverlay} />;
     }
     if (overlay && overlay.type === 'lineupWizard') {
       return (
-        <LineupWizardScreen leagues={overlay.leagues} initialMode={overlay.mode} onBack={() => setOverlay(null)} />
+        <LineupWizardScreen leagues={overlay.leagues} initialMode={overlay.mode} onBack={popOverlay} />
       );
     }
     if (overlay && overlay.type === 'trades') {
-      return <TradesScreen league={overlay.league} onBack={() => setOverlay(null)} />;
+      return <TradesScreen league={overlay.league} onBack={popOverlay} />;
     }
     if (overlay && overlay.type === 'draft') {
-      return <DraftScreen league={overlay.league} onBack={() => setOverlay(null)} />;
+      return <DraftScreen league={overlay.league} onBack={popOverlay} />;
     }
     if (overlay && overlay.type === 'playerProfile') {
-      return <PlayerProfileScreen playerId={overlay.playerId} onBack={() => setOverlay(null)} />;
+      return <PlayerProfileScreen playerId={overlay.playerId} onBack={popOverlay} />;
     }
 
     return (

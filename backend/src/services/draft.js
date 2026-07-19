@@ -30,8 +30,10 @@ function resolvePlayer(byId, id, enr) {
 function buildSlots(draft) {
   const order = draft.order || [];
   const rounds = draft.rounds || 0;
+  // Key made picks by round+pick (not franchise), so a franchise holding two
+  // picks in a round via a trade doesn't collide onto one slot.
   const made = new Map();
-  for (const p of draft.picks || []) made.set(`${p.round}-${p.franchiseId}`, p.playerId);
+  for (const p of draft.picks || []) made.set(`${p.round}-${p.pick}`, p.playerId);
 
   if (!order.length || !rounds) {
     return (draft.picks || [])
@@ -46,7 +48,7 @@ function buildSlots(draft) {
     const roundOrder = draft.snake && r % 2 === 0 ? [...order].reverse() : order;
     roundOrder.forEach((franchiseId, i) => {
       overall += 1;
-      slots.push({ overall, round: r, pick: i + 1, franchiseId, playerId: made.get(`${r}-${franchiseId}`) || null });
+      slots.push({ overall, round: r, pick: i + 1, franchiseId, playerId: made.get(`${r}-${i + 1}`) || null });
     });
   }
   return slots;
@@ -135,12 +137,14 @@ async function findLeague(cookie, leagueId) {
 }
 
 function statusOf(draft, slots) {
-  if (draft.status) return draft.status;
   const anyMade = slots.some((s) => s.playerId);
   const anyOpen = slots.some((s) => !s.playerId);
-  if (anyMade && !anyOpen) return 'complete';
+  // Respect an explicit "scheduled" until the first pick is made...
+  if (draft.status === 'scheduled' && !anyMade) return 'scheduled';
+  // ...otherwise derive from the board so it flips to complete when full.
+  if (slots.length && !anyOpen) return 'complete';
   if (anyMade) return 'in_progress';
-  return 'scheduled';
+  return draft.status || 'scheduled';
 }
 
 function onClockSlot(status, slots) {

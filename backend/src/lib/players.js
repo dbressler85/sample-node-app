@@ -17,7 +17,7 @@ function normalizePosition(pos) {
   const p = String(pos || '').toUpperCase().replace(/[^A-Z]/g, '');
   if (p === 'DEF' || p === 'DST' || p === 'TMDEF' || p === 'DEFENSE') return 'DEF';
   if (p === 'PK' || p === 'K') return 'PK';
-  return String(pos || '').toUpperCase();
+  return p; // cleaned/uppercased, so "WR " matches "WR" in slot eligibility
 }
 
 let cache = { at: 0, byId: new Map() };

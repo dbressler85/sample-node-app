@@ -19,7 +19,8 @@ const tradeStore = require('../store/trades');
 
 // Rough dynasty value (0-100 scale) for a future draft pick by round.
 function pickValue(label) {
-  const round = /1st/.test(label) ? 1 : /2nd/.test(label) ? 2 : /3rd/.test(label) ? 3 : parseInt(label, 10) || 4;
+  const m = /(\d+)\s*(?:st|nd|rd|th)/i.exec(String(label));
+  const round = m ? parseInt(m[1], 10) : 4;
   return { 1: 55, 2: 30, 3: 15 }[round] || 8;
 }
 
