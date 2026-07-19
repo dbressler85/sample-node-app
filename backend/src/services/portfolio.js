@@ -1,14 +1,16 @@
 'use strict';
 
 // The command-center home: a portfolio roll-up across every league plus a single
-// triage queue of everything that needs the owner's attention — so a 5+ league
-// manager opens one screen and immediately knows what to do and where.
+// triage queue of everything that needs the owner's attention.
+//
+// Kept deliberately light: it uses the lineup overview in "light" mode (no
+// per-league point projections / live scores), which halves the MFL calls — the
+// difference between usable and rate-limited when you have 15+ leagues.
 
 const config = require('../config');
 const demo = require('../demo/fixtures');
 const leaguesService = require('./leagues');
 const lineupsService = require('./lineups');
-const scoreboardService = require('./scoreboard');
 
 const SEV = { high: 3, medium: 2, low: 1 };
 
@@ -20,20 +22,20 @@ function pendingWaivers(leagueId) {
 }
 
 async function getHome(cookie, token) {
-  const [leagues, overview, scoreboard] = await Promise.all([
+  const [leagues, overview] = await Promise.all([
     leaguesService.listLeagues(cookie),
-    lineupsService.getOverview(cookie, token, 'auto'),
-    scoreboardService.getScoreboard(cookie),
+    lineupsService.getOverview(cookie, token, 'auto', { light: true }),
   ]);
 
   const items = [];
   let tradeOffers = 0;
   let waiversPending = 0;
+  const counts = { injuries: 0, holes: 0, lineupsToSet: 0 };
 
-  // Lineup-driven triage (reuses M2.5 availability/optimizer signals).
   for (const l of overview.leagues) {
     if (l.error) continue;
     if (l.status === 'risk') {
+      counts.injuries += 1;
       const who = (l.warnings || []).filter((w) => w.playerId).map((w) => `${w.name.split(',')[0]} (${w.status})`);
       items.push({
         id: `lineup-risk-${l.leagueId}`,
@@ -46,15 +48,28 @@ async function getHome(cookie, token) {
         subtitle: who.join(', ') || 'A starter can’t play',
       });
     } else if (l.status === 'incomplete') {
+      counts.holes += 1;
       items.push({
-        id: `lineup-empty-${l.leagueId}`,
+        id: `lineup-hole-${l.leagueId}`,
         type: 'lineup_incomplete',
         severity: 'high',
-        action: 'waiver', // no eligible starter -> hit the waiver wire
+        action: 'waiver',
         leagueId: l.leagueId,
         leagueName: l.name,
-        title: 'Empty starting slot — add a player',
-        subtitle: 'No eligible starter; pick one up on waivers',
+        title: 'No eligible starter — needs a pickup',
+        subtitle: 'A slot has no healthy player; hit the waiver wire',
+      });
+    } else if (l.status === 'unset') {
+      counts.lineupsToSet += 1;
+      items.push({
+        id: `lineup-unset-${l.leagueId}`,
+        type: 'lineup_unset',
+        severity: 'medium',
+        action: 'lineup',
+        leagueId: l.leagueId,
+        leagueName: l.name,
+        title: 'Lineup not set',
+        subtitle: 'Set your starters for this week',
       });
     } else if (l.status === 'suboptimal') {
       items.push({
@@ -64,13 +79,12 @@ async function getHome(cookie, token) {
         action: 'lineup',
         leagueId: l.leagueId,
         leagueName: l.name,
-        title: `+${l.delta} projected points available`,
-        subtitle: 'A better lineup is one tap away',
+        title: 'A better lineup is available',
+        subtitle: 'Optimize your starters',
       });
     }
   }
 
-  // Trades + waivers.
   for (const league of leagues) {
     for (const t of pendingTrades(league.leagueId)) {
       tradeOffers += 1;
@@ -102,17 +116,14 @@ async function getHome(cookie, token) {
 
   items.sort((a, b) => (SEV[b.severity] || 0) - (SEV[a.severity] || 0));
 
-  const winning = scoreboard.summary.winning;
   return {
     week: overview.week,
     portfolio: {
       leagues: leagues.length,
-      weekRecord: `${winning}-${scoreboard.summary.total - winning}`,
-      liveGames: scoreboard.summary.live,
-      closeGames: scoreboard.summary.close,
-      lineupsNeedAttention: overview.summary.needAttention,
-      risky: overview.summary.risky,
-      pointsAvailable: overview.summary.pointsAvailable,
+      needAttention: overview.summary.needAttention,
+      injuries: counts.injuries,
+      holes: counts.holes,
+      lineupsToSet: counts.lineupsToSet,
       tradeOffers,
       waiversPending,
       actionItems: items.length,

@@ -1,26 +1,35 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, FlatList, StyleSheet, Pressable, RefreshControl, ActivityIndicator } from 'react-native';
 import { api } from '../api';
 import { colors } from '../theme';
 
-const SEV = {
-  high: { color: colors.bad, dot: colors.bad },
-  medium: { color: colors.warn, dot: colors.warn },
-  low: { color: colors.textDim, dot: colors.accent },
+// Group metadata: label, urgency color, and whether it's expanded by default.
+const GROUPS = {
+  lineup_risk: { label: 'Unavailable player in lineup', color: colors.bad, open: true },
+  lineup_incomplete: { label: 'Empty slot — needs a pickup', color: colors.bad, open: true },
+  trade_offer: { label: 'Trade offers', color: colors.bad, open: true },
+  lineup_unset: { label: 'Lineups not set', color: colors.warn, open: false },
+  lineup_suboptimal: { label: 'Better lineup available', color: colors.warn, open: false },
+  waiver_pending: { label: 'Pending waivers', color: colors.textDim, open: false },
 };
-
-const ACTION_LABEL = { lineup: 'Set lineup ›', trade: 'View trade ›', waiver: 'View ›' };
+const GROUP_ORDER = ['lineup_risk', 'lineup_incomplete', 'trade_offer', 'lineup_unset', 'lineup_suboptimal', 'waiver_pending'];
+const ACTION_LABEL = { lineup: 'Set ›', waiver: 'Waivers ›', trade: 'View ›' };
 
 export default function HomeScreen({ onOpenLineup, onOpenLeague, onOpenWaivers, onLogout }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [expanded, setExpanded] = useState(new Set());
 
   const load = useCallback(async () => {
     setError(null);
     try {
-      setData(await api.home());
+      const d = await api.home();
+      setData(d);
+      // Default: open urgent groups, collapse the rest (e.g. the "not set" flood).
+      const present = new Set((d.triage || []).map((t) => t.type));
+      setExpanded(new Set(GROUP_ORDER.filter((t) => present.has(t) && GROUPS[t] && GROUPS[t].open)));
     } catch (e) {
       setError(e.message);
     } finally {
@@ -39,6 +48,28 @@ export default function HomeScreen({ onOpenLineup, onOpenLeague, onOpenWaivers, 
     else if (item.action === 'waiver') onOpenWaivers(league);
     else onOpenLeague(league);
   }
+
+  function toggle(type) {
+    setExpanded((s) => {
+      const n = new Set(s);
+      n.has(type) ? n.delete(type) : n.add(type);
+      return n;
+    });
+  }
+
+  // Build a flat row list: a header per present group, plus item rows when open.
+  const rows = useMemo(() => {
+    const byType = {};
+    for (const t of (data && data.triage) || []) (byType[t.type] || (byType[t.type] = [])).push(t);
+    const out = [];
+    for (const type of GROUP_ORDER) {
+      const items = byType[type];
+      if (!items || !items.length) continue;
+      out.push({ kind: 'header', type, count: items.length });
+      if (expanded.has(type)) for (const item of items) out.push({ kind: 'item', item });
+    }
+    return out;
+  }, [data, expanded]);
 
   if (loading) {
     return (
@@ -63,43 +94,34 @@ export default function HomeScreen({ onOpenLineup, onOpenLeague, onOpenWaivers, 
       </View>
 
       <FlatList
-        data={data ? data.triage : []}
-        keyExtractor={(t) => t.id}
+        data={rows}
+        keyExtractor={(r, i) => (r.kind === 'header' ? `h-${r.type}` : `i-${r.item.id}`)}
         contentContainerStyle={styles.list}
         refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={() => {
-              setRefreshing(true);
-              load();
-            }}
-            tintColor={colors.accent}
-          />
+          <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.accent} />
         }
         ListHeaderComponent={
           <View>
             {p ? <Portfolio p={p} /> : null}
             {error ? <Text style={styles.error}>{error}</Text> : null}
-            <Text style={styles.section}>
-              Needs attention {data && data.triage.length ? `· ${data.triage.length}` : ''}
-            </Text>
+            <Text style={styles.section}>Needs attention{p ? ` · ${p.actionItems}` : ''}</Text>
           </View>
         }
-        renderItem={({ item }) => <TriageRow item={item} onPress={() => handleAction(item)} />}
+        renderItem={({ item: row }) =>
+          row.kind === 'header' ? (
+            <GroupHeader type={row.type} count={row.count} open={expanded.has(row.type)} onPress={() => toggle(row.type)} />
+          ) : (
+            <TriageRow item={row.item} onPress={() => handleAction(row.item)} />
+          )
+        }
         ListEmptyComponent={<Text style={styles.clear}>🎉 Nothing needs you right now.</Text>}
         ListFooterComponent={
           data && data.teams && data.teams.length ? (
             <View>
               <Text style={styles.section}>Your teams · {data.teams.length}</Text>
               {data.teams.map((t) => (
-                <Pressable
-                  key={t.leagueId}
-                  style={({ pressed }) => [styles.teamRow, pressed && { opacity: 0.7 }]}
-                  onPress={() => onOpenLeague({ leagueId: t.leagueId, name: t.name })}
-                >
-                  <Text style={styles.teamName} numberOfLines={1}>
-                    {t.name}
-                  </Text>
+                <Pressable key={t.leagueId} style={({ pressed }) => [styles.teamRow, pressed && { opacity: 0.7 }]} onPress={() => onOpenLeague({ leagueId: t.leagueId, name: t.name })}>
+                  <Text style={styles.teamName} numberOfLines={1}>{t.name}</Text>
                   <Text style={styles.teamChev}>›</Text>
                 </Pressable>
               ))}
@@ -115,26 +137,25 @@ function Portfolio({ p }) {
   return (
     <View style={styles.portfolio}>
       <View style={styles.tileRow}>
-        <Tile label="This week" value={p.weekRecord} hint={`${p.leagues} leagues`} big />
-        <Tile label="Action items" value={String(p.actionItems)} hint="to-dos" big accent={p.actionItems > 0} />
+        <Tile label="Leagues" value={String(p.leagues)} />
+        <Tile label="Needs attention" value={String(p.needAttention)} accent={p.needAttention > 0} />
       </View>
       <View style={styles.chips}>
-        <Chip label="Lineups" value={p.lineupsNeedAttention} bad={p.risky > 0} />
-        <Chip label="Close games" value={p.closeGames} />
+        <Chip label="Lineups to set" value={p.lineupsToSet} warn={p.lineupsToSet > 0} />
+        <Chip label="Holes" value={p.holes} bad={p.holes > 0} />
+        <Chip label="Injuries" value={p.injuries} bad={p.injuries > 0} />
         <Chip label="Trades" value={p.tradeOffers} bad={p.tradeOffers > 0} />
         <Chip label="Waivers" value={p.waiversPending} />
-        {p.pointsAvailable > 0 ? <Chip label="Pts left" value={`+${p.pointsAvailable}`} warn /> : null}
       </View>
     </View>
   );
 }
 
-function Tile({ label, value, hint, big, accent }) {
+function Tile({ label, value, accent }) {
   return (
-    <View style={[styles.tile, big && { flex: 1 }]}>
+    <View style={styles.tile}>
       <Text style={styles.tileLabel}>{label}</Text>
       <Text style={[styles.tileValue, accent && { color: colors.accent }]}>{value}</Text>
-      {hint ? <Text style={styles.tileHint}>{hint}</Text> : null}
     </View>
   );
 }
@@ -149,21 +170,25 @@ function Chip({ label, value, bad, warn }) {
   );
 }
 
+function GroupHeader({ type, count, open, onPress }) {
+  const g = GROUPS[type] || { label: type, color: colors.textDim };
+  return (
+    <Pressable style={({ pressed }) => [styles.groupHeader, pressed && { opacity: 0.7 }]} onPress={onPress}>
+      <View style={[styles.dot, { backgroundColor: g.color }]} />
+      <Text style={styles.groupLabel} numberOfLines={1}>{g.label}</Text>
+      <View style={styles.countPill}>
+        <Text style={styles.countText}>{count}</Text>
+      </View>
+      <Text style={styles.caret}>{open ? '⌄' : '›'}</Text>
+    </Pressable>
+  );
+}
+
 function TriageRow({ item, onPress }) {
-  const s = SEV[item.severity] || SEV.low;
   return (
     <Pressable style={({ pressed }) => [styles.row, pressed && { opacity: 0.7 }]} onPress={onPress}>
-      <View style={[styles.sevDot, { backgroundColor: s.dot }]} />
-      <View style={{ flex: 1 }}>
-        <Text style={styles.rowTitle} numberOfLines={1}>
-          {item.title}
-        </Text>
-        <Text style={styles.rowSub} numberOfLines={2}>
-          {item.subtitle}
-        </Text>
-        <Text style={styles.rowLeague}>{item.leagueName}</Text>
-      </View>
-      <Text style={[styles.rowAction, { color: s.color }]}>{ACTION_LABEL[item.action] || '›'}</Text>
+      <Text style={styles.rowLeague} numberOfLines={1}>{item.leagueName}</Text>
+      <Text style={styles.rowAction}>{ACTION_LABEL[item.action] || '›'}</Text>
     </Pressable>
   );
 }
@@ -176,23 +201,25 @@ const styles = StyleSheet.create({
   subtitle: { color: colors.textDim, fontSize: 13, marginTop: 2 },
   logout: { color: colors.accent, fontSize: 14, fontWeight: '600' },
   list: { paddingHorizontal: 16, paddingBottom: 32 },
-  portfolio: { marginBottom: 8 },
+  portfolio: { marginBottom: 4 },
   tileRow: { flexDirection: 'row', gap: 12 },
-  tile: { backgroundColor: colors.card, borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 16 },
+  tile: { flex: 1, backgroundColor: colors.card, borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 16 },
   tileLabel: { color: colors.textDim, fontSize: 12, fontWeight: '700' },
   tileValue: { color: colors.text, fontSize: 30, fontWeight: '900', marginTop: 4 },
-  tileHint: { color: colors.textDim, fontSize: 11, marginTop: 2 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
-  chip: { backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 8, alignItems: 'center', minWidth: 72 },
+  chip: { backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 8, alignItems: 'center', minWidth: 64 },
   chipValue: { fontSize: 18, fontWeight: '900' },
   chipLabel: { color: colors.textDim, fontSize: 11, fontWeight: '600', marginTop: 2 },
   section: { color: colors.text, fontSize: 15, fontWeight: '800', marginTop: 20, marginBottom: 10 },
-  row: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: 10 },
-  sevDot: { width: 10, height: 10, borderRadius: 5, marginRight: 12 },
-  rowTitle: { color: colors.text, fontSize: 15, fontWeight: '700' },
-  rowSub: { color: colors.textDim, fontSize: 13, marginTop: 2 },
-  rowLeague: { color: colors.accent, fontSize: 12, fontWeight: '600', marginTop: 4 },
-  rowAction: { fontSize: 13, fontWeight: '700', marginLeft: 10 },
+  groupHeader: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 14, marginBottom: 8 },
+  dot: { width: 10, height: 10, borderRadius: 5, marginRight: 12 },
+  groupLabel: { color: colors.text, fontSize: 15, fontWeight: '700', flex: 1 },
+  countPill: { backgroundColor: colors.cardAlt, borderRadius: 12, minWidth: 26, paddingHorizontal: 8, paddingVertical: 2, alignItems: 'center', marginRight: 10 },
+  countText: { color: colors.text, fontSize: 13, fontWeight: '800' },
+  caret: { color: colors.textDim, fontSize: 18, fontWeight: '700', width: 16, textAlign: 'center' },
+  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.cardAlt, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, marginBottom: 8, marginLeft: 22 },
+  rowLeague: { color: colors.text, fontSize: 14, fontWeight: '600', flex: 1, marginRight: 10 },
+  rowAction: { color: colors.accent, fontSize: 13, fontWeight: '700' },
   error: { color: colors.bad, marginVertical: 8 },
   clear: { color: colors.textDim, textAlign: 'center', marginTop: 30, fontSize: 15 },
   teamRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: 10 },

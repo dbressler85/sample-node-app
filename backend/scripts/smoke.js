@@ -73,8 +73,9 @@ function assert(cond, msg) {
     assert(home.triage[0].severity === 'high', 'triage is sorted most-urgent first');
     assert(home.portfolio.tradeOffers >= 1, 'trade offers surfaced');
     console.log(
-      `✓ home: ${home.portfolio.weekRecord} this week · ${home.portfolio.lineupsNeedAttention} lineups, ` +
-        `${home.portfolio.tradeOffers} trades, ${home.portfolio.waiversPending} waivers · ${home.triage.length} to-dos`
+      `✓ home: ${home.portfolio.leagues} leagues · ${home.portfolio.needAttention} need attention ` +
+        `(${home.portfolio.injuries} inj, ${home.portfolio.lineupsToSet} unset, ${home.portfolio.holes} holes, ` +
+        `${home.portfolio.tradeOffers} trades) · ${home.triage.length} to-dos`
     );
     for (const t of home.triage.slice(0, 4)) console.log(`    [${t.severity}] ${t.leagueName}: ${t.title}`);
 
