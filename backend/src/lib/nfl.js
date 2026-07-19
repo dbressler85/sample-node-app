@@ -102,6 +102,23 @@ async function injuryMap(cookie, week) {
   }
 }
 
+// The next NFL kickoff at or after now for a given week, as an ISO string —
+// i.e. the soonest moment a lineup starts locking. MFL's nflSchedule carries a
+// `kickoff` epoch per matchup. Returns null if the week or times aren't available.
+async function nextKickoff(cookie, week) {
+  if (!week) return null;
+  try {
+    const matchups = await scheduleMatchups(cookie, week);
+    const now = Math.floor(Date.now() / 1000);
+    const times = matchups.map((m) => Number(m && m.kickoff)).filter((t) => t && t >= now);
+    if (!times.length) return null;
+    return new Date(Math.min(...times) * 1000).toISOString();
+  } catch (e) {
+    console.log(`[nextKickoff] week=${week} failed: ${e.message}`);
+    return null;
+  }
+}
+
 // A team's upcoming opponents over the next `count` weeks, from MFL's
 // nflSchedule. Returns [{ week, opp, difficulty }]. `difficulty` is null: we
 // don't wire a defense-strength source in live yet, so we surface the real
@@ -132,4 +149,4 @@ async function upcomingOpponents(cookie, team, fromWeek, count = 4) {
   return out;
 }
 
-module.exports = { currentWeek, byeMap, injuryMap, upcomingOpponents, _resetWeekCache };
+module.exports = { currentWeek, byeMap, injuryMap, nextKickoff, upcomingOpponents, _resetWeekCache };

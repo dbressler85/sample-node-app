@@ -60,6 +60,7 @@ export const api = {
   // Command center (M1.5) — the Home screen composes from leaguesList +
   // per-league leagueTriage (progressive load), not a single /api/home call.
   leagueTriage: (leagueId) => request(`/api/home/league/${leagueId}`),
+  onDeck: () => request('/api/ondeck'),
   scoreboard: () => request('/api/scoreboard'),
   exposure: () => request('/api/players/exposure'),
   news: () => request('/api/news'),

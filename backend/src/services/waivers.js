@@ -203,7 +203,7 @@ function claimView(claim, byId) {
     bid: claim.bid != null ? claim.bid : null,
     priority: claim.priority != null ? claim.priority : null,
     status: claim.status || 'pending',
-    processTime: claim.processTime || null,
+    processTime: claim.processTime || claim.runsAt || null,
   };
 }
 
