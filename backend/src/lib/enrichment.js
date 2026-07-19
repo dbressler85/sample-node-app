@@ -109,6 +109,28 @@ async function getSleeperTrending() {
   return raw;
 }
 
+// First finite numeric among candidate field names on an MFL row.
+function fieldNum(row, fields) {
+  for (const f of fields) {
+    if (row[f] != null && row[f] !== '') {
+      const n = Number(row[f]);
+      if (Number.isFinite(n)) return n;
+    }
+  }
+  return null;
+}
+
+// A field-name mismatch used to look identical to "no data". If MFL returned
+// rows but none parsed, log the actual keys so it's diagnosable, not silent.
+function warnIfUnparsed(tag, rows, matched) {
+  if (rows.length && !matched) {
+    console.log(`[enrichment] ${tag} matched 0 of ${rows.length} rows — sample keys: ${Object.keys(rows[0] || {}).join(',')}`);
+  }
+}
+
+const OWN_FIELDS = ['percent', 'owned', 'pct', 'ownership'];
+const ADD_FIELDS = ['adds', 'count', 'percent', 'pct'];
+
 // Site-wide ownership % from MFL's own topOwns export (keyed by MFL id — no
 // crosswalk needed). Cached once; last-good on a transient failure.
 async function getMflOwnership(cookie) {
@@ -120,10 +142,10 @@ async function getMflOwnership(cookie) {
     const rows = mfl.toArray(res && res.topOwns && res.topOwns.player);
     for (const r of rows) {
       const id = r.id != null ? String(r.id) : null;
-      const raw = r.percent != null ? r.percent : r.owned != null ? r.owned : r.pct;
-      const pct = raw != null ? Number(raw) : NaN;
-      if (id && Number.isFinite(pct)) map.set(id, Math.round(pct * 10) / 10);
+      const pct = fieldNum(r, OWN_FIELDS);
+      if (id && pct != null) map.set(id, Math.round(pct * 10) / 10);
     }
+    warnIfUnparsed('topOwns', rows, map.size);
     console.log(`[enrichment] mfl topOwns owned=${map.size}`);
   } catch (e) {
     console.log(`[enrichment] topOwns error=${e.message}`);
@@ -145,10 +167,10 @@ async function getMflAdds(cookie) {
     const rows = mfl.toArray(res && res.topAdds && res.topAdds.player);
     for (const r of rows) {
       const id = r.id != null ? String(r.id) : null;
-      const raw = r.adds != null ? r.adds : r.count != null ? r.count : r.percent != null ? r.percent : r.pct;
-      const n = raw != null ? Number(raw) : NaN;
-      if (id && Number.isFinite(n)) map.set(id, n);
+      const n = fieldNum(r, ADD_FIELDS);
+      if (id && n != null) map.set(id, n);
     }
+    warnIfUnparsed('topAdds', rows, map.size);
     console.log(`[enrichment] mfl topAdds adds=${map.size}`);
   } catch (e) {
     console.log(`[enrichment] topAdds error=${e.message}`);

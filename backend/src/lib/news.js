@@ -76,21 +76,33 @@ async function fetchEspn() {
 // that resolves to an MFL player: { id, playerId, headline, severity, url, published }.
 async function mflNews(cookie) {
   const [articles, byId] = await Promise.all([fetchEspn(), playersLib.load(cookie)]);
-  const nameToId = new Map();
-  for (const p of byId.values()) nameToId.set(normName(p.name), p.id);
+  // Name -> [ids]. A normalized name can collide (two "Mike Williams"); when it
+  // maps to more than one player we skip it rather than attribute news to the
+  // wrong player. (Name-only matching has no id crosswalk, so ambiguity is real.)
+  const nameToIds = new Map();
+  for (const p of byId.values()) {
+    const n = normName(p.name);
+    if (!nameToIds.has(n)) nameToIds.set(n, []);
+    nameToIds.get(n).push(p.id);
+  }
 
   const items = [];
   const seen = new Set();
+  let unmatched = 0;
+  let ambiguous = 0;
   for (const a of articles) {
     for (const ath of a.athletes) {
-      const pid = nameToId.get(normName(ath.name));
-      if (!pid) continue;
+      const ids = nameToIds.get(normName(ath.name));
+      if (!ids) { unmatched += 1; continue; }
+      if (ids.length > 1) { ambiguous += 1; continue; } // don't guess between namesakes
+      const pid = ids[0];
       const key = `${a.id}-${pid}`;
       if (seen.has(key)) continue;
       seen.add(key);
       items.push({ id: key, playerId: pid, headline: a.headline, severity: severityOf(`${a.headline} ${a.description}`), url: a.url, published: a.published });
     }
   }
+  console.log(`[news] espn matched=${items.length} unmatched=${unmatched} ambiguous=${ambiguous}`);
   return items;
 }
 
