@@ -3,6 +3,7 @@ import { View, Text, Pressable, StyleSheet, StatusBar, ActivityIndicator, SafeAr
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import useAndroidBack from './src/useAndroidBack';
 import { api, setAuthLostHandler } from './src/api';
+import { registerForPush, unregisterPush } from './src/push';
 import { clearAll as clearCache } from './src/cache';
 import LoginScreen from './src/screens/LoginScreen';
 import HomeScreen from './src/screens/HomeScreen';
@@ -54,6 +55,12 @@ export default function App() {
     })();
   }, []);
 
+  // Register this device for push once authenticated (after login and on a
+  // restored session). Defensive: no-ops if push isn't available/granted.
+  useEffect(() => {
+    if (authed) registerForPush();
+  }, [authed]);
+
   // If a request finds the session dead or the backend unreachable, drop to login.
   useEffect(() => {
     setAuthLostHandler(async () => {
@@ -84,6 +91,7 @@ export default function App() {
   );
 
   async function handleLogout() {
+    await unregisterPush(); // stop notifications for this device (needs the live session)
     await clearSession();
     await clearCache();
     setAuthed(false);

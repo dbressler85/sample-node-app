@@ -28,6 +28,7 @@ const TESTS = [
   'persist-test',
   'session-persist-test',
   'ondeck-test',
+  'notifications-test',
 ];
 
 let failed = 0;
