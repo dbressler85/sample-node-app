@@ -13,6 +13,7 @@ const scoringLib = require('../lib/scoring');
 const availabilityLib = require('../lib/availability');
 const playersLib = require('../lib/players');
 const nflLib = require('../lib/nfl');
+const newsLib = require('../lib/news');
 const enrichmentLib = require('../lib/enrichment');
 const leaguesService = require('./leagues');
 const rosterService = require('./roster');
@@ -228,8 +229,11 @@ async function profile(cookie, token, playerId) {
   const upcoming = config.demoMode ? demo.schedule(base.team) : [];
   const avgDifficulty = upcoming.length ? Math.round((upcoming.reduce((s, g) => s + g.difficulty, 0) / upcoming.length) * 10) / 10 : null;
 
-  // News about this player.
-  const news = (config.demoMode ? demo.news() : []).filter((n) => String(n.playerId) === String(playerId)).map((n) => ({ id: n.id, headline: n.headline, severity: n.severity }));
+  // News about this player (demo fixture, or ESPN mapped to MFL players in live).
+  const rawNews = config.demoMode ? demo.news() : await newsLib.mflNews(cookie);
+  const news = rawNews
+    .filter((n) => String(n.playerId) === String(playerId))
+    .map((n) => ({ id: n.id, headline: n.headline, severity: n.severity, url: n.url || null }));
 
   // Cross-league ownership + per-league projection.
   const { data } = await gather(cookie);
