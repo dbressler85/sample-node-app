@@ -27,6 +27,16 @@ const PLAYERS = [
   { id: '16003', name: 'Dowdle, Rico', position: 'RB', team: 'DAL' },
   { id: '16004', name: "Robinson, Wan'Dale", position: 'WR', team: 'NYG' },
   { id: '16005', name: 'Ferguson, Jake', position: 'TE', team: 'DAL' },
+  // Kickers (position PK) — for leagues that start a kicker.
+  { id: '17001', name: 'McPherson, Evan', position: 'PK', team: 'CIN' },
+  { id: '17002', name: 'Bass, Tyler', position: 'PK', team: 'BUF' },
+  { id: '17003', name: 'Aubrey, Brandon', position: 'PK', team: 'DAL' },
+  { id: '17004', name: 'Koo, Younghoe', position: 'PK', team: 'ATL' }, // ATL bye this week
+  // Team defenses (position DEF) — for leagues that start a D/ST.
+  { id: '18001', name: '49ers D/ST', position: 'DEF', team: 'SF' },
+  { id: '18002', name: 'Cowboys D/ST', position: 'DEF', team: 'DAL' },
+  { id: '18003', name: 'Ravens D/ST', position: 'DEF', team: 'BAL' },
+  { id: '18004', name: 'Falcons D/ST', position: 'DEF', team: 'ATL' }, // ATL bye this week
 ];
 
 // Three dynasty leagues on different MFL hosts, as `myleagues` would return them.
@@ -93,7 +103,7 @@ const DASHBOARD = {
 // Per-league roster (ids into PLAYERS). starters/bench/ir/taxi.
 const ROSTERS = {
   '64097': {
-    starters: ['13116', '15267', '13649', '13593', '14802', '12171'],
+    starters: ['13116', '15267', '13649', '13593', '14802', '12171', '17001', '18001'],
     bench: ['15264', '13138', '11686'],
     ir: ['14106'],
     taxi: ['15266'],
@@ -105,7 +115,7 @@ const ROSTERS = {
     taxi: ['15264'],
   },
   '19622': {
-    starters: ['13116', '15267', '13649', '14802', '13138', '12171'],
+    starters: ['13116', '15267', '13649', '14802', '13138', '12171', '17003', '18003'],
     bench: ['14106', '11686'],
     ir: [],
     taxi: [],
@@ -142,6 +152,16 @@ const STAT_PROJECTIONS = {
   '16003': { rushYds: 48, rushTd: 0.3, rec: 1.5, recYds: 10, recTd: 0.0 }, // Dowdle RB
   '16004': { rec: 5.0, recYds: 48, recTd: 0.2 }, // Wan'Dale WR
   '16005': { rec: 4.5, recYds: 44, recTd: 0.3 }, // Ferguson TE
+  // Kickers: xp (extra points), fgAny (FG made < 50), fg50 (FG made 50+)
+  '17001': { xp: 2.6, fgAny: 1.7, fg50: 0.5 }, // McPherson
+  '17002': { xp: 2.4, fgAny: 1.6, fg50: 0.4 }, // Bass
+  '17003': { xp: 2.8, fgAny: 1.8, fg50: 0.6 }, // Aubrey
+  '17004': { xp: 2.2, fgAny: 1.5, fg50: 0.3 }, // Koo
+  // Defenses: sack, defInt, fumRec, defTd, safety, pointsAllowed (expected)
+  '18001': { sack: 3.0, defInt: 1.0, fumRec: 0.7, defTd: 0.2, pointsAllowed: 17 }, // 49ers
+  '18002': { sack: 2.6, defInt: 0.9, fumRec: 0.6, defTd: 0.15, pointsAllowed: 20 }, // Cowboys
+  '18003': { sack: 2.8, defInt: 0.9, fumRec: 0.6, defTd: 0.18, pointsAllowed: 18 }, // Ravens
+  '18004': { sack: 2.2, defInt: 0.7, fumRec: 0.5, defTd: 0.1, pointsAllowed: 22 }, // Falcons
 };
 
 // Per-league scoring settings — deliberately different formats so the optimizer
@@ -162,6 +182,8 @@ const LINEUP_REQS = {
     { name: 'RB', eligible: ['RB'], count: 2 },
     { name: 'WR', eligible: ['WR'], count: 2 },
     { name: 'TE', eligible: ['TE'], count: 1 },
+    { name: 'PK', eligible: ['PK'], count: 1 },
+    { name: 'DEF', eligible: ['DEF'], count: 1 },
   ],
   '40750': [
     { name: 'QB', eligible: ['QB'], count: 1 },
@@ -176,6 +198,8 @@ const LINEUP_REQS = {
     { name: 'WR', eligible: ['WR'], count: 2 },
     { name: 'TE', eligible: ['TE'], count: 1 },
     { name: 'FLEX', eligible: ['RB', 'WR', 'TE'], count: 1 },
+    { name: 'PK', eligible: ['PK'], count: 1 },
+    { name: 'DEF', eligible: ['DEF'], count: 1 },
   ],
 };
 
@@ -222,6 +246,16 @@ const DYNASTY = {
   '16003': { age: 26, value: 28 }, // Dowdle
   '16004': { age: 24, value: 33 }, // Wan'Dale
   '16005': { age: 26, value: 37 }, // Ferguson
+  // Kickers / defenses carry little dynasty value (streamed year to year), but a
+  // nominal value keeps them sortable on the board. Defenses use a nominal age.
+  '17001': { age: 26, value: 14 }, // McPherson
+  '17002': { age: 28, value: 11 }, // Bass
+  '17003': { age: 30, value: 13 }, // Aubrey
+  '17004': { age: 31, value: 9 }, // Koo
+  '18001': { age: 26, value: 15 }, // 49ers D/ST
+  '18002': { age: 26, value: 12 }, // Cowboys D/ST
+  '18003': { age: 26, value: 13 }, // Ravens D/ST
+  '18004': { age: 26, value: 10 }, // Falcons D/ST
 };
 
 // Live matchup detail for the current week: live points, players yet to play,
@@ -284,17 +318,17 @@ const WAIVER_SETTINGS = {
 // Free agents available per league (ids into PLAYERS). Overlap across leagues is
 // intentional so the cross-league "best available" view has multi-league targets.
 const FREE_AGENTS = {
-  '64097': ['16002', '16001', '16005', '16003'],
-  '40750': ['16002', '16004', '16001'],
-  '19622': ['16002', '16001', '16005', '16003'],
+  '64097': ['16002', '16001', '16005', '16003', '17002', '18002', '17004', '18004'],
+  '40750': ['16002', '16004', '16001'], // no kicker/defense slots — none listed
+  '19622': ['16002', '16001', '16005', '16003', '17002', '18002', '17004', '18004'],
 };
 
 // Waiver-wire heat: how many leagues (market-wide) are adding each player.
-const TRENDS = { '16002': 5400, '16001': 3900, '16005': 2800, '16004': 2100, '16003': 1500 };
+const TRENDS = { '16002': 5400, '16001': 3900, '16005': 2800, '16004': 2100, '16003': 1500, '18002': 2600, '17002': 1800, '18004': 900, '17004': 700 };
 
 // Ownership %: share of leagues site-wide that roster the player. A key waiver
 // signal — how contested a pickup is / how fast he's being scooped up.
-const OWNERSHIP = { '16002': 41, '16001': 33, '16005': 22, '16004': 18, '16003': 12 };
+const OWNERSHIP = { '16002': 41, '16001': 33, '16005': 22, '16004': 18, '16003': 12, '18002': 28, '17002': 24, '18004': 9, '17004': 7 };
 
 // Seed pending claims per league (add/drop ids + bid or priority).
 const PENDING_CLAIMS = {

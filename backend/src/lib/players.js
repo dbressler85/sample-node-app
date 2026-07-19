@@ -10,6 +10,16 @@ const mfl = require('./mfl');
 const config = require('../config');
 const demo = require('../demo/fixtures');
 
+// MFL spells positions a few ways across exports (team defense is "Def", kickers
+// sometimes "K"). Normalize to the canonical codes the rest of the app uses so
+// slot eligibility, position colors, and volatility bands all line up.
+function normalizePosition(pos) {
+  const p = String(pos || '').toUpperCase().replace(/[^A-Z]/g, '');
+  if (p === 'DEF' || p === 'DST' || p === 'TMDEF' || p === 'DEFENSE') return 'DEF';
+  if (p === 'PK' || p === 'K') return 'PK';
+  return String(pos || '').toUpperCase();
+}
+
 let cache = { at: 0, byId: new Map() };
 
 async function load(cookie) {
@@ -29,7 +39,7 @@ async function load(cookie) {
     byId.set(String(p.id), {
       id: String(p.id),
       name: p.name || 'Unknown',
-      position: p.position || '',
+      position: normalizePosition(p.position),
       team: p.team || 'FA',
     });
   }
@@ -44,4 +54,4 @@ function resolve(byId, id) {
   );
 }
 
-module.exports = { load, resolve };
+module.exports = { load, resolve, normalizePosition };

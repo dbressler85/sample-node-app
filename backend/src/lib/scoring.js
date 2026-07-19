@@ -20,20 +20,55 @@ const DEFAULT_SCORING = {
   ppr: 0, // points per reception (0, 0.5, 1)
   tePremium: 0, // EXTRA points per reception for TEs, on top of ppr
   fumbleLost: -2,
+  // Kicker (position 'PK'). FGs split by distance; the raw stat line carries
+  // fgAny (made under 50) and fg50 (made 50+) separately so the two aren't
+  // double-counted.
+  xpMade: 1,
+  fgAny: 3,
+  fg50: 5,
+  fgMiss: 0, // most leagues don't penalize; override to -1 where they do
+  // Team defense / special teams (position 'DEF').
+  sack: 1,
+  defInt: 2,
+  fumRec: 2,
+  defTd: 6,
+  safety: 2,
+  // Points-allowed tiers: [maxPointsAllowed, fantasyPoints], first match wins.
+  // The classic ESPN/MFL default scale; override per league if needed.
+  pointsAllowedTiers: [
+    [0, 10],
+    [6, 7],
+    [13, 4],
+    [20, 1],
+    [27, 0],
+    [34, -1],
+    [Infinity, -4],
+  ],
 };
 
 function round1(n) {
   return Math.round(n * 10) / 10;
 }
 
+// Fantasy points for a defense's (expected) points allowed, using the league's
+// tier table. A fractional expectation (e.g. 18.5) buckets by its rounded value.
+function pointsAllowedScore(pointsAllowed, tiers) {
+  const pa = Math.round(pointsAllowed);
+  for (const [max, pts] of tiers) {
+    if (pa <= max) return pts;
+  }
+  return 0;
+}
+
 // Projected fantasy points for one stat line under `scoring`.
-// `position` matters because the TE premium only applies to tight ends.
+// `position` matters because the TE premium only applies to tight ends, and
+// kicker/defense lines score on entirely different categories.
 function projectPoints(stat, position, scoring) {
   const s = { ...DEFAULT_SCORING, ...(scoring || {}) };
   const st = stat || {};
   const perRec = s.ppr + (position === 'TE' ? s.tePremium : 0);
 
-  const points =
+  const offense =
     (st.passYds || 0) * s.passYdsPer +
     (st.passTd || 0) * s.passTd +
     (st.passInt || 0) * s.passInt +
@@ -44,7 +79,21 @@ function projectPoints(stat, position, scoring) {
     (st.rec || 0) * perRec +
     (st.fumblesLost || 0) * s.fumbleLost;
 
-  return round1(points);
+  const kicker =
+    (st.xp || 0) * s.xpMade +
+    (st.fgAny || 0) * s.fgAny +
+    (st.fg50 || 0) * s.fg50 +
+    (st.fgMiss || 0) * s.fgMiss;
+
+  const defense =
+    (st.sack || 0) * s.sack +
+    (st.defInt || 0) * s.defInt +
+    (st.fumRec || 0) * s.fumRec +
+    (st.defTd || 0) * s.defTd +
+    (st.safety || 0) * s.safety +
+    (st.pointsAllowed != null ? pointsAllowedScore(st.pointsAllowed, s.pointsAllowedTiers) : 0);
+
+  return round1(offense + kicker + defense);
 }
 
 // Rough weekly volatility by position — how boom/bust the position is. Used to

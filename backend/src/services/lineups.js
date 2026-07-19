@@ -16,6 +16,7 @@ const scoringLib = require('../lib/scoring');
 const availabilityLib = require('../lib/availability');
 const rosterService = require('./roster');
 const leaguesService = require('./leagues');
+const playersLib = require('../lib/players');
 const lineupStore = require('../store/lineups');
 
 const MODES = new Set(['auto', 'safe', 'balanced', 'aggressive']);
@@ -43,7 +44,11 @@ async function loadRequirements(cookie, league) {
   const starters = res && res.league && res.league.starters;
   const positions = mfl.toArray(starters && starters.position);
   return positions.map((p) => {
-    const eligible = String(p.name || '').split('|').map((s) => s.trim()).filter(Boolean);
+    const eligible = String(p.name || '')
+      .split('|')
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map((s) => playersLib.normalizePosition(s));
     const max = parseInt(String(p.limit || '1').split('-').pop(), 10) || 1;
     return { name: eligible.length > 1 ? 'FLEX' : eligible[0] || 'FLEX', eligible, count: max };
   });
