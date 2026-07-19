@@ -116,15 +116,17 @@ export default function PlayerProfileScreen({ playerId, onBack }) {
 
         {/* Schedule */}
         {p.schedule.upcoming.length ? (
-          <Card title={`Upcoming · avg difficulty ${p.schedule.avgDifficulty}`}>
+          <Card title={p.schedule.avgDifficulty != null ? `Upcoming · avg difficulty ${p.schedule.avgDifficulty}` : 'Upcoming'}>
             <View style={styles.schedRow}>
               {p.schedule.upcoming.map((s) => (
                 <View key={s.week} style={styles.schedCell}>
                   <Text style={styles.schedWk}>Wk {s.week}</Text>
                   <Text style={styles.schedOpp}>{s.opp}</Text>
-                  <View style={[styles.diffPill, { backgroundColor: diffColor(s.difficulty) + '33', borderColor: diffColor(s.difficulty) }]}>
-                    <Text style={[styles.diffText, { color: diffColor(s.difficulty) }]}>{s.difficulty}</Text>
-                  </View>
+                  {s.difficulty != null ? (
+                    <View style={[styles.diffPill, { backgroundColor: diffColor(s.difficulty) + '33', borderColor: diffColor(s.difficulty) }]}>
+                      <Text style={[styles.diffText, { color: diffColor(s.difficulty) }]}>{s.difficulty}</Text>
+                    </View>
+                  ) : null}
                 </View>
               ))}
             </View>
