@@ -102,9 +102,68 @@ async function loadByes(cookie) {
   }
 }
 
-function loadMatchup(league) {
-  if (config.demoMode) return demo.matchupProjection(league.leagueId);
-  return null; // live matchup projection is a follow-up (schedule + opponent roster)
+// Find this week's opponent franchise id from the league schedule.
+async function opponentFranchiseId(cookie, league, week) {
+  const res = await mfl.exportRequest('schedule', { host: league.host, cookie, L: league.leagueId, W: week });
+  const weeks = mfl.toArray(res && res.schedule && res.schedule.weeklySchedule);
+  const wk = weeks.find((w) => String(w.week) === String(week)) || weeks[0];
+  for (const m of mfl.toArray(wk && wk.matchup)) {
+    const ids = mfl.toArray(m && m.franchise).map((f) => String(f.id));
+    if (ids.includes(league.franchiseId)) return ids.find((id) => id !== league.franchiseId) || null;
+  }
+  return null;
+}
+
+// The opponent's active (non-IR/taxi) player ids for this league.
+async function opponentRosterIds(cookie, league, oppId) {
+  const res = await mfl.exportRequest('rosters', { host: league.host, cookie, L: league.leagueId, FRANCHISE: oppId });
+  const opp = mfl.toArray(res && res.rosters && res.rosters.franchise).find((f) => String(f.id) === String(oppId));
+  if (!opp) return [];
+  return mfl.toArray(opp.player)
+    .filter((p) => {
+      const s = p.status || p.roster_status;
+      return s !== 'INJURED_RESERVE' && s !== 'TAXI_SQUAD';
+    })
+    .map((p) => String(p.id));
+}
+
+async function opponentName(cookie, league, oppId) {
+  try {
+    const res = await mfl.exportRequest('league', { host: league.host, cookie, L: league.leagueId });
+    const fr = mfl.toArray(res && res.league && res.league.franchises && res.league.franchises.franchise)
+      .find((f) => String(f.id) === String(oppId));
+    return (fr && fr.name) || `Franchise ${oppId}`;
+  } catch (e) {
+    return `Franchise ${oppId}`;
+  }
+}
+
+// Live matchup projection: field the opponent's OPTIMAL lineup under this league's
+// slot rules, projecting each of their players with the same league-wide
+// projectedScores map we already fetched (it covers every player in the league,
+// not just mine) and respecting their injuries/byes. Returns null (no matchup
+// shown) on any missing data, so a schedule gap degrades gracefully.
+async function resolveMatchupLive({ cookie, league, week, requirements, projMap, statusMap, byeMap }) {
+  if (!week || !league.franchiseId || !projMap || projMap.size === 0) return null;
+  try {
+    const oppId = await opponentFranchiseId(cookie, league, week);
+    if (!oppId) return null; // bye week or unscheduled
+    const [ids, byId, name] = await Promise.all([
+      opponentRosterIds(cookie, league, oppId),
+      playersLib.load(cookie),
+      opponentName(cookie, league, oppId),
+    ]);
+    if (!ids.length) return null;
+    const pool = ids.map((id) => {
+      const base = playersLib.resolve(byId, id);
+      const startable = availabilityLib.resolve(base, statusMap, byeMap, week).startable;
+      return { id, position: base.position, projection: startable ? projMap.get(id) || 0 : 0 };
+    });
+    const opt = optimizer.optimize(requirements, pool);
+    return { opponent: name, projected: opt.total };
+  } catch (e) {
+    return null;
+  }
 }
 
 // Format-aware median projection per player (see M2 commit for rationale).
@@ -277,6 +336,13 @@ async function viewForLeague(cookie, token, league, requestedMode, { light = fal
     };
   });
 
+  // Matchup projection: demo has a fixture; live fields the opponent's optimal
+  // lineup from the shared projection map. Skipped in light mode (Home rollup)
+  // so it never adds the schedule/opponent-roster calls to the cheap path.
+  let matchup = null;
+  if (config.demoMode) matchup = demo.matchupProjection(league.leagueId);
+  else if (!light) matchup = await resolveMatchupLive({ cookie, league, week, requirements, projMap, statusMap, byeMap });
+
   return buildView({
     league,
     week,
@@ -288,7 +354,7 @@ async function viewForLeague(cookie, token, league, requestedMode, { light = fal
     // live we rely on MFL's already-format-aware projectedScores, so don't
     // fabricate a "Standard · 4pt PaTD" label.
     format: config.demoMode ? scoringLib.describe(scoring) : null,
-    matchup: loadMatchup(league),
+    matchup,
     requestedMode,
   });
 }
