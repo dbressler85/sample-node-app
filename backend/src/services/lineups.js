@@ -72,10 +72,34 @@ async function loadStatuses(cookie) {
   }
 }
 
+// Live byes: MFL's nflSchedule lists the matchups for a week; any NFL team not
+// appearing in one is on bye that week. We compare against the full team set
+// derived from the loaded player pool (same MFL team codes), so a bye sidelines
+// skill players, kickers, and defenses alike.
 async function loadByes(cookie) {
   if (config.demoMode) return demo.byes();
-  // Live: derive team bye weeks from nflSchedule (a team missing in a week is on bye).
-  return {}; // follow-up
+  const week = currentWeek();
+  if (!week) return {}; // no week context (offseason) -> nothing to compute
+  try {
+    const res = await mfl.exportRequest('nflSchedule', { cookie, W: week });
+    const matchups = mfl.toArray(res && res.nflSchedule && res.nflSchedule.matchup);
+    const playing = new Set();
+    for (const m of matchups) {
+      for (const t of mfl.toArray(m && m.team)) {
+        if (t && t.id) playing.add(String(t.id).toUpperCase());
+      }
+    }
+    if (!playing.size) return {}; // schedule not populated yet -> don't guess byes
+    const byId = await playersLib.load(cookie);
+    const byes = {};
+    for (const p of byId.values()) {
+      const team = String(p.team || '').toUpperCase();
+      if (team && team !== 'FA' && !playing.has(team)) byes[team] = week;
+    }
+    return byes;
+  } catch (e) {
+    return {};
+  }
 }
 
 function loadMatchup(league) {
