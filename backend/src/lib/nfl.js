@@ -63,8 +63,11 @@ async function scheduleMatchups(cookie, week) {
 // any NFL team not appearing is on bye. We compare against the full team set
 // derived from the loaded player pool (same MFL team codes), so a bye sidelines
 // skill players, kickers, and defenses alike. Returns { [TEAM]: week }.
+const byeCache = new Map(); // week -> { at, byes }
 async function byeMap(cookie, week) {
   if (!week) return {};
+  const cached = byeCache.get(week);
+  if (cached && Date.now() - cached.at < SCHED_TTL_MS) return cached.byes;
   try {
     const matchups = await scheduleMatchups(cookie, week);
     const playing = new Set();
@@ -73,13 +76,16 @@ async function byeMap(cookie, week) {
         if (t && t.id) playing.add(String(t.id).toUpperCase());
       }
     }
-    if (!playing.size) return {};
+    if (!playing.size) return {}; // transient/empty — don't cache
     const byId = await playersLib.load(cookie);
+    // Derived by scanning the full player pool; the result (a few teams on bye) is
+    // stable for the week, so cache it and skip the scan on later reads this week.
     const byes = {};
     for (const p of byId.values()) {
       const team = String(p.team || '').toUpperCase();
       if (team && team !== 'FA' && !playing.has(team)) byes[team] = week;
     }
+    byeCache.set(week, { at: Date.now(), byes });
     return byes;
   } catch (e) {
     console.log(`[byeMap] week=${week} failed: ${e.message}`);

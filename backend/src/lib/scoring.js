@@ -60,11 +60,31 @@ function pointsAllowedScore(pointsAllowed, tiers) {
   return 0;
 }
 
+// projectPoints is called per player inside tight loops (a lineup pool, up to ~400
+// free agents) with the SAME `scoring` object each time, so merging DEFAULT_SCORING
+// on every call re-spread a ~25-field object (incl. the tiers array) per player.
+// Compile the merged settings once per distinct scoring object (keyed by identity),
+// so the loop pays the merge once, not once per player. Scoring config is read-only.
+const compiledCache = new WeakMap();
+let compiledDefault = null;
+function compileScoring(scoring) {
+  if (!scoring) {
+    if (!compiledDefault) compiledDefault = { ...DEFAULT_SCORING };
+    return compiledDefault;
+  }
+  let c = compiledCache.get(scoring);
+  if (!c) {
+    c = { ...DEFAULT_SCORING, ...scoring };
+    compiledCache.set(scoring, c);
+  }
+  return c;
+}
+
 // Projected fantasy points for one stat line under `scoring`.
 // `position` matters because the TE premium only applies to tight ends, and
 // kicker/defense lines score on entirely different categories.
 function projectPoints(stat, position, scoring) {
-  const s = { ...DEFAULT_SCORING, ...(scoring || {}) };
+  const s = compileScoring(scoring);
   const st = stat || {};
   const perRec = s.ppr + (position === 'TE' ? s.tePremium : 0);
 

@@ -1,8 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, FlatList, StyleSheet, Pressable, RefreshControl, ActivityIndicator } from 'react-native';
 import { api } from '../api';
-import { getValue, setValue } from '../cache';
+import { getValue, getEntry, setValue } from '../cache';
 import { colors } from '../theme';
+
+// How long a cached Home snapshot counts as fresh. Returning from an overlay
+// unmounts and remounts Home, so without this every quick round-trip re-ran the
+// whole 1 + drafts/news/onDeck + N-league-triage fan-out. Pull-to-refresh always
+// forces a fresh load regardless.
+const HOME_TTL_MS = 60 * 1000;
 
 const GROUPS = {
   lineup_risk: { label: 'Unavailable player in lineup', color: colors.bad, open: true },
@@ -41,14 +47,17 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
   const [busy, setBusy] = useState(false); // a refresh cycle is in flight
   const running = useRef(false);
 
-  // 1) Instant paint from disk cache.
+  // 1) Instant paint from disk cache, then revalidate only if the snapshot is stale.
   useEffect(() => {
     (async () => {
-      const [cachedLeagues, cachedStatuses] = await Promise.all([getValue('leagues'), getValue('statuses')]);
+      const [cachedLeagues, statusEntry] = await Promise.all([getValue('leagues'), getEntry('statuses')]);
       if (cachedLeagues) setLeagues(cachedLeagues);
-      if (cachedStatuses) setStatuses(cachedStatuses);
+      if (statusEntry && statusEntry.value) setStatuses(statusEntry.value);
       setBooting(false);
-      refresh();
+      // Skip the full fan-out when we just loaded (e.g. bounced to an overlay and
+      // back) — the cached snapshot is still current. Pull-to-refresh overrides.
+      const fresh = statusEntry && statusEntry.at && Date.now() - statusEntry.at < HOME_TTL_MS;
+      if (!fresh) refresh();
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

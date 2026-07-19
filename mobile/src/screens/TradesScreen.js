@@ -44,13 +44,15 @@ export default function TradesScreen({ league, onBack }) {
     try {
       const d = await api.leagueTrades(league.leagueId);
       setData(d);
-      if (!partnerId && d.partners && d.partners.length) setPartnerId(d.partners[0].franchiseId);
+      // Default the partner only if none is chosen — functional update so this
+      // doesn't depend on partnerId (which would recreate load and double-fetch).
+      if (d.partners && d.partners.length) setPartnerId((cur) => cur || d.partners[0].franchiseId);
     } catch (e) {
       setError(e.message);
     } finally {
       setLoading(false);
     }
-  }, [league.leagueId, partnerId]);
+  }, [league.leagueId]);
 
   useEffect(() => { load(); }, [load]);
 

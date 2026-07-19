@@ -72,19 +72,31 @@ async function fetchEspn() {
   }
 }
 
+// Name -> [ids] index over the full player DB. Rebuilding it means normName()
+// (three regexes) over thousands of players; it depends only on the player DB, so
+// memoize it by the byId Map's identity — players.load returns the same cached Map
+// until the 24h refresh, when a new Map reference misses and rebuilds. A normalized
+// name can collide (two "Mike Williams"); a name mapping to more than one id is
+// skipped by callers rather than mis-attributed.
+const nameIndexCache = new WeakMap(); // byId Map -> nameToIds Map
+function nameToIdIndex(byId) {
+  let idx = nameIndexCache.get(byId);
+  if (idx) return idx;
+  idx = new Map();
+  for (const p of byId.values()) {
+    const n = normName(p.name);
+    if (!idx.has(n)) idx.set(n, []);
+    idx.get(n).push(p.id);
+  }
+  nameIndexCache.set(byId, idx);
+  return idx;
+}
+
 // ESPN articles mapped to the app's news-item shape, one item per tagged athlete
 // that resolves to an MFL player: { id, playerId, headline, severity, url, published }.
 async function mflNews(cookie) {
   const [articles, byId] = await Promise.all([fetchEspn(), playersLib.load(cookie)]);
-  // Name -> [ids]. A normalized name can collide (two "Mike Williams"); when it
-  // maps to more than one player we skip it rather than attribute news to the
-  // wrong player. (Name-only matching has no id crosswalk, so ambiguity is real.)
-  const nameToIds = new Map();
-  for (const p of byId.values()) {
-    const n = normName(p.name);
-    if (!nameToIds.has(n)) nameToIds.set(n, []);
-    nameToIds.get(n).push(p.id);
-  }
+  const nameToIds = nameToIdIndex(byId);
 
   const items = [];
   const seen = new Set();

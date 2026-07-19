@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, FlatList, RefreshControl, ActivityIndicator } from 'react-native';
 import { api } from '../api';
 import { colors } from '../theme';
@@ -53,12 +53,26 @@ export default function OnDeckScreen({ onBack, onOpenLineup, onOpenDraft, onOpen
   }, []);
 
   useEffect(() => { load(); }, [load]);
-  // Tick the relative-time labels every 20s so countdowns stay fresh between fetches.
+  // Only the "in Xm / in Xh" labels change minute-to-minute; a far item shows a
+  // static "Wed 1:00 PM". So only run the 20s re-render tick when at least one item
+  // is actually counting down (within the hour) — otherwise it re-rendered the whole
+  // list every 20s to change nothing.
+  const hasCountdown = useMemo(() => {
+    const items = (data && data.items) || [];
+    const now = Date.now();
+    return items.some((it) => {
+      if (!it.at) return false;
+      const t = new Date(it.at).getTime();
+      return !Number.isNaN(t) && t - now < 60 * 60 * 1000;
+    });
+  }, [data]);
   useEffect(() => {
+    if (!hasCountdown) return undefined;
     const id = setInterval(() => force((n) => n + 1), 20000);
     return () => clearInterval(id);
-  }, []);
-  // Re-fetch every minute so a newly-on-the-clock draft or a new deadline appears.
+  }, [hasCountdown]);
+  // Re-fetch every minute so a newly-on-the-clock draft or a new deadline appears
+  // (usePoll pauses this while the app is backgrounded).
   usePoll(load, 60000, true);
 
   function act(item) {

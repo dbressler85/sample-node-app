@@ -19,6 +19,7 @@
 const config = require('../config');
 const demo = require('../demo/fixtures');
 const mfl = require('./mfl');
+const { createMemo } = require('./memo');
 
 const TTL_MS = 6 * 60 * 60 * 1000; // 6h — dynasty values/trends change slowly
 const SLEEPER_TREND_URL = 'https://api.sleeper.app/v1/players/nfl/trending/add?lookback_hours=48&limit=300';
@@ -223,12 +224,21 @@ function demoSnapshot() {
   };
 }
 
+// The snapshot's data sources are each 6h-cached, but the assembled snapshot —
+// notably the trend-map rebuild in buildLive — was recomputed on every call, and
+// snapshot() is called once per league inside Promise.all loops over all leagues.
+// Memoize the assembled snapshot per (cookie, format). normalizeFormat collapses
+// every league to one of six format keys, so N per-request rebuilds become at most
+// six, shared across services; the short TTL keeps ownership/adds reasonably fresh.
+const snapshotMemo = createMemo({ ttlMs: config.mflCacheTtlMs });
+
 // A snapshot with synchronous accessors, for a given league format. Callers
 // `await snapshot(format)` once per request, then look players up synchronously.
 // Omit `format` for the neutral default (1QB, full PPR) used by global views.
 async function snapshot(format, cookie) {
   if (config.demoMode) return demoSnapshot();
-  return buildLive(normalizeFormat(format || DEFAULT_FORMAT), cookie);
+  const fmt = normalizeFormat(format || DEFAULT_FORMAT);
+  return snapshotMemo.get(`${cookie || ''}|${formatKey(fmt)}`, () => buildLive(fmt, cookie));
 }
 
 module.exports = { snapshot, DEFAULT_FORMAT };

@@ -37,8 +37,16 @@ async function ctxFor(cookie) {
   return { week, statusMap, byeMap };
 }
 
-// Overall + positional rank by dynasty value across the whole player pool.
+// Overall + positional rank by dynasty value across the whole player pool. This
+// sorts the entire player universe (thousands) and is called by search, rankings,
+// AND profile (which only needs two scalars from it). Cache it against the
+// enrichment snapshot object's identity: the neutral snapshot is memoized per
+// cookie for its TTL, so ranks rebuild exactly when values refresh and are shared
+// across all three endpoints in between, instead of re-sorting on every request.
+const ranksCache = new WeakMap(); // enr snapshot -> { overall, pos }
 function computeRanks(byId, enr) {
+  const cached = ranksCache.get(enr);
+  if (cached) return cached;
   const arr = [...byId.values()]
     .map((p) => ({ id: p.id, position: p.position, value: enr.value(p.id) || 0 }))
     .sort((a, b) => b.value - a.value);
@@ -50,7 +58,9 @@ function computeRanks(byId, enr) {
     posCount[p.position] = (posCount[p.position] || 0) + 1;
     pos.set(p.id, posCount[p.position]);
   });
-  return { overall, pos };
+  const result = { overall, pos };
+  ranksCache.set(enr, result);
+  return result;
 }
 
 // Gather my rosters + free-agent sets across all leagues once. Free agents come
@@ -109,13 +119,16 @@ async function search(cookie, token, { q, position, status } = {}) {
   if (term) players = players.filter((p) => p.name.toLowerCase().includes(term));
   if (position) players = players.filter((p) => p.position === position);
 
-  let list = players.map((p) => annotate(p, byId, ranks, myRostered, freeBy, enr, ctx));
-  if (status === 'mine') list = list.filter((p) => p.mine);
-  else if (status === 'free') list = list.filter((p) => p.freeInLeagues > 0);
-  else if (status === 'available') list = list.filter((p) => !p.mine);
+  // Filter + sort on cheap lookups first; run the expensive annotate (availability
+  // resolution) only on the page we actually return, not the whole universe.
+  let light = players.map((p) => ({ p, value: enr.value(p.id) || 0, mine: myRostered.has(p.id), free: (freeBy.get(p.id) || []).length }));
+  if (status === 'mine') light = light.filter((x) => x.mine);
+  else if (status === 'free') light = light.filter((x) => x.free > 0);
+  else if (status === 'available') light = light.filter((x) => !x.mine);
 
-  list.sort((a, b) => (b.value || 0) - (a.value || 0));
-  return { total: list.length, players: list.slice(0, 60) };
+  light.sort((a, b) => b.value - a.value);
+  const players2 = light.slice(0, 60).map((x) => annotate(x.p, byId, ranks, myRostered, freeBy, enr, ctx));
+  return { total: light.length, players: players2 };
 }
 
 async function rankings(cookie, token, { type = 'value', position } = {}) {
@@ -123,18 +136,24 @@ async function rankings(cookie, token, { type = 'value', position } = {}) {
   const ranks = computeRanks(byId, enr);
   const { myRostered, freeBy } = await buildSets(cookie);
 
-  let list = [...byId.values()].map((p) => annotate(p, byId, ranks, myRostered, freeBy, enr, ctx));
-  if (type === 'position' && position) list = list.filter((p) => p.position === position);
+  // Filter + sort on cheap enr lookups over lightweight rows, then annotate only
+  // the top slice — availability resolution over the whole universe just to
+  // discard 99% of it was the cost here.
+  let cand = [...byId.values()];
+  if (type === 'position' && position) cand = cand.filter((p) => p.position === position);
+  let light = cand.map((p) => ({ p, value: enr.value(p.id), age: enr.age(p.id), trend: enr.trend(p.id) }));
 
   // Only rank by data we actually have, so players with no signal don't float up.
   if (type === 'trending') {
-    list = list.filter((p) => enr.trend(p.id) > 0).sort((a, b) => enr.trend(b.id) - enr.trend(a.id));
+    light = light.filter((x) => x.trend > 0).sort((a, b) => b.trend - a.trend);
   } else if (type === 'rookies') {
-    list = list.filter((p) => p.age != null && p.age <= 23).sort((a, b) => (b.value || 0) - (a.value || 0));
+    light = light.filter((x) => x.age != null && x.age <= 23).sort((a, b) => (b.value || 0) - (a.value || 0));
   } else {
     // value / position
-    list = list.filter((p) => p.value != null).sort((a, b) => (b.value || 0) - (a.value || 0));
+    light = light.filter((x) => x.value != null).sort((a, b) => (b.value || 0) - (a.value || 0));
   }
+
+  const list = light.slice(0, 40).map((x) => annotate(x.p, byId, ranks, myRostered, freeBy, enr, ctx));
 
   const note =
     list.length === 0
@@ -144,7 +163,7 @@ async function rankings(cookie, token, { type = 'value', position } = {}) {
         ? 'No rookie/age data available right now.'
         : 'Dynasty values are unavailable right now — search and My Players still work.'
       : null;
-  return { type, position: position || null, players: list.slice(0, 40), note };
+  return { type, position: position || null, players: list, note };
 }
 
 function leagueProjection(playerId, position, leagueId) {

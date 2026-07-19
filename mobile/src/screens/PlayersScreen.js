@@ -25,7 +25,8 @@ export default function PlayersScreen({ onOpenPlayer }) {
   const [news, setNews] = useState(null);
   const [error, setError] = useState(null);
 
-  // Debounced-ish search on query change.
+  // Debounced search on query change — wait ~300ms after the last keystroke so a
+  // multi-character name fires one request, not one per letter.
   useEffect(() => {
     const q = query.trim();
     if (q.length < 2) {
@@ -33,9 +34,12 @@ export default function PlayersScreen({ onOpenPlayer }) {
       return;
     }
     let alive = true;
-    api.playerSearch(q).then((r) => alive && setSearchRes(r)).catch((e) => alive && setError(e.message));
+    const timer = setTimeout(() => {
+      api.playerSearch(q).then((r) => alive && setSearchRes(r)).catch((e) => alive && setError(e.message));
+    }, 300);
     return () => {
       alive = false;
+      clearTimeout(timer);
     };
   }, [query]);
 
