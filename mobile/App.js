@@ -14,6 +14,7 @@ import RosterScreen from './src/screens/RosterScreen';
 import LineupsScreen from './src/screens/LineupsScreen';
 import LineupEditorScreen from './src/screens/LineupEditorScreen';
 import LineupWizardScreen from './src/screens/LineupWizardScreen';
+import WaiverWizardScreen from './src/screens/WaiverWizardScreen';
 import TradesScreen from './src/screens/TradesScreen';
 import DraftScreen from './src/screens/DraftScreen';
 import { loadSession, clearSession } from './src/auth';
@@ -88,6 +89,7 @@ export default function App() {
   const openRoster = (league) => pushOverlay({ type: 'roster', league });
   const openLineup = (league) => pushOverlay({ type: 'lineupEditor', league });
   const openWizard = (leagues, mode) => pushOverlay({ type: 'lineupWizard', leagues, mode });
+  const openWaiverWizard = (leagues) => pushOverlay({ type: 'waiverWizard', leagues });
   const openTrades = (league) => pushOverlay({ type: 'trades', league });
   const openDraft = (league) => pushOverlay({ type: 'draft', league });
   const openPlayer = (playerId) => pushOverlay({ type: 'playerProfile', playerId });
@@ -106,6 +108,7 @@ export default function App() {
             key={`w-${waiversTarget ? waiversTarget.leagueId : 'all'}`}
             initialLeagueId={waiversTarget ? waiversTarget.leagueId : null}
             initialPosition={waiversTarget ? waiversTarget.position : null}
+            onStartWizard={openWaiverWizard}
           />
         );
       case 'players':
@@ -147,6 +150,9 @@ export default function App() {
       return (
         <LineupWizardScreen leagues={overlay.leagues} initialMode={overlay.mode} onBack={popOverlay} />
       );
+    }
+    if (overlay && overlay.type === 'waiverWizard') {
+      return <WaiverWizardScreen leagues={overlay.leagues} onBack={popOverlay} />;
     }
     if (overlay && overlay.type === 'trades') {
       return <TradesScreen league={overlay.league} onBack={popOverlay} />;

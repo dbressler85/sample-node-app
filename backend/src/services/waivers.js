@@ -398,6 +398,84 @@ async function getOverview(cookie, token) {
   return { leagues: out, summary };
 }
 
+// League-by-league pickup suggestions for the Waiver Wizard. For each league we
+// pre-pick the best add (top free agent by dynasty value), the smart drop (lowest
+// bench asset — required when the roster is full), and a suggested FAAB bid, plus
+// a shortlist of alternate candidates and the bench for swapping the drop. The
+// wizard walks these, letting the owner tweak each before submitting.
+async function getSuggestions(cookie, token) {
+  const leagues = await leaguesService.listLeagues(cookie);
+  const out = [];
+  for (const league of leagues) {
+    try {
+      const settings = await loadSettings(league, cookie);
+      const [roster, fas] = await Promise.all([
+        rosterService.getRoster(cookie, league.leagueId),
+        loadFreeAgents(cookie, league, settings),
+      ]);
+      let freeAgents = fas;
+      if (!config.demoMode) freeAgents = freeAgents.filter((p) => p.name && !/^Player \d+$/.test(p.name));
+      freeAgents.sort((a, b) => (b.value || 0) - (a.value || 0));
+
+      const full = rosterIsFull(roster, settings);
+      const drop = suggestDrop(roster);
+      const candidates = freeAgents.slice(0, 8).map((p) => ({
+        id: p.id, name: p.name, position: p.position, team: p.team,
+        value: p.value, projection: p.projection, trend: p.trend, ownership: p.ownership, availability: p.availability,
+      }));
+      const bench = roster.bench
+        .slice()
+        .sort((a, b) => (a.value || 0) - (b.value || 0))
+        .map((p) => ({ id: p.id, name: p.name, position: p.position, value: p.value }));
+
+      const top = candidates[0] || null;
+      let recommended = null;
+      if (top) {
+        // An "upgrade" means it's worth acting on: either you have an open spot,
+        // or the top FA out-values the bench player you'd drop.
+        const upgrade = !full || (drop ? (top.value || 0) > (drop.value || 0) : true);
+        const useDrop = full ? drop : null; // a drop is only required when full
+        const bid = settings.system === 'faab' ? suggestBid(settings, top) : null;
+        recommended = {
+          add: top,
+          drop: useDrop ? { id: useDrop.id, name: useDrop.name, position: useDrop.position, value: useDrop.value } : null,
+          bid,
+          budgetAfter: bid != null && settings.faabRemaining != null ? settings.faabRemaining - bid : null,
+          upgrade,
+          reason: !full
+            ? 'Open roster spot — top available by value'
+            : upgrade
+            ? `Upgrade over ${drop ? drop.name.split(',')[0] : 'your bench'}`
+            : 'Roster full — top FA doesn’t beat your bench',
+        };
+      }
+
+      out.push({
+        leagueId: league.leagueId,
+        name: league.name,
+        system: settings.system,
+        faabRemaining: settings.faabRemaining != null ? settings.faabRemaining : null,
+        minBid: settings.minBid || 1,
+        rosterCount: activeCount(roster),
+        rosterSize: settings.rosterSize || null,
+        rosterFull: full,
+        clearTime: settings.clearTime || null,
+        recommended,
+        candidates,
+        bench,
+      });
+    } catch (e) {
+      out.push({ leagueId: league.leagueId, name: league.name, error: e.message });
+    }
+  }
+  const summary = {
+    total: out.length,
+    withSuggestions: out.filter((l) => l.recommended && l.recommended.upgrade).length,
+    withCandidates: out.filter((l) => l.candidates && l.candidates.length).length,
+  };
+  return { leagues: out, summary };
+}
+
 // All pending claims + recent results across leagues, for one activity view.
 async function getPending(cookie, token) {
   const leagues = await leaguesService.listLeagues(cookie);
@@ -415,4 +493,4 @@ async function getPending(cookie, token) {
   return { pending, results, summary: { pending: pending.length, results: results.length } };
 }
 
-module.exports = { getBoard, getOverview, preview, submit, cancel, getBestAvailable, getPending, freeAgentIds };
+module.exports = { getBoard, getOverview, getSuggestions, preview, submit, cancel, getBestAvailable, getPending, freeAgentIds };
