@@ -24,6 +24,7 @@ const TESTS = [
   'scoring-format-test',
   'waivers-live-test',
   'draft-format-test',
+  'parse-hardening-test',
 ];
 
 let failed = 0;

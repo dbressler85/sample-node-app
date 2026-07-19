@@ -9,6 +9,19 @@ const demo = require('../demo/fixtures');
 const mfl = require('./mfl');
 const playersLib = require('./players');
 
+// A readable name for a slot given its eligible positions. A multi-position slot
+// isn't just a generic "FLEX": a QB-eligible flex is a SUPERFLEX (drives value),
+// RB/WR/TE is FLEX, and narrower combos get an explicit label.
+function slotName(eligible) {
+  if (eligible.length <= 1) return eligible[0] || 'FLEX';
+  const set = new Set(eligible);
+  if (set.has('QB')) return 'SUPERFLEX';
+  if (set.has('RB') && set.has('WR') && set.has('TE')) return 'FLEX';
+  if (set.has('RB') && set.has('WR') && set.size === 2) return 'W/R';
+  if (set.has('WR') && set.has('TE') && set.size === 2) return 'W/T';
+  return eligible.join('/');
+}
+
 // Normalized starting-lineup requirements: [{ name, eligible[], count }].
 async function requirements(cookie, league) {
   if (config.demoMode) return demo.lineupRequirements(league.leagueId) || [];
@@ -20,8 +33,12 @@ async function requirements(cookie, league) {
       .map((s) => s.trim())
       .filter(Boolean)
       .map((s) => playersLib.normalizePosition(s));
-    const max = parseInt(String(p.limit || '1').split('-').pop(), 10) || 1;
-    return { name: eligible.length > 1 ? 'FLEX' : eligible[0] || 'FLEX', eligible, count: max };
+    // MFL limits can be a range ("1-3"); we take the max as the slot count and
+    // log it so a min-max lineup can't quietly miscount starters.
+    const rawLimit = String(p.limit || '1');
+    if (rawLimit.includes('-')) console.log(`[leagueformat] league=${league.leagueId} range slot limit "${rawLimit}" for "${p.name}" — using max`);
+    const max = parseInt(rawLimit.split('-').pop(), 10) || 1;
+    return { name: slotName(eligible), eligible, count: max };
   });
 }
 

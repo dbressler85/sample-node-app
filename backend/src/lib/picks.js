@@ -33,8 +33,14 @@ async function franchisePicks(cookie, league) {
     const fr = arr.find((f) => String(f.id) === league.franchiseId) || arr[0];
     if (!fr) return [];
     return mfl.toArray(fr.futureDraftPick).map((p) => {
-      const orig = p.originalPickForFranchise || p.originalOwningFranchiseId || p.original_franchise || league.franchiseId;
-      return { token: `FP_${orig}_${p.year}_${p.round}`, label: `${p.year} ${ordinal(p.round)}` };
+      // MFL names the original owner `originalPickFor` (older aliases kept as a
+      // fallback). When it's absent the pick is the franchise's own, so the
+      // listing franchise is the correct original owner. originalKnown records
+      // which case we're in, so a mis-derived token can't pass silently.
+      const orig = p.originalPickFor || p.originalPickForFranchise || p.originalOwningFranchiseId || p.original_franchise;
+      const originalKnown = orig != null && orig !== '';
+      const owner = originalKnown ? String(orig) : league.franchiseId;
+      return { token: `FP_${owner}_${p.year}_${p.round}`, label: `${p.year} ${ordinal(p.round)}`, originalKnown };
     });
   } catch (e) {
     return [];
