@@ -53,6 +53,16 @@ const config = {
 
   // Host used for account-level, non-league requests (login, myleagues, players).
   apiHost: process.env.MFL_API_HOST || 'api.myfantasyleague.com',
+
+  // Durable state file for app data (waiver/trade/draft/lineup/drop stores) so it
+  // survives restarts. Point DATA_DIR at a mounted disk in production. If writes
+  // fail (e.g. a read-only filesystem) the app degrades to in-memory, never crashes.
+  dataDir: process.env.DATA_DIR || require('path').join(__dirname, '..', 'data'),
+
+  // Sessions hold the live MFL cookie, so they are only persisted (encrypted at
+  // rest, AES-256-GCM) when an operator supplies a secret. Without it, sessions
+  // stay in memory (the prior behavior) — safe, but lost on restart.
+  sessionSecret: process.env.SESSION_SECRET || null,
 };
 
 module.exports = config;

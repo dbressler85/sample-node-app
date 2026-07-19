@@ -1,27 +1,29 @@
 'use strict';
 
-// In-memory pending waiver/FA claims per session token + league. Seeded lazily
-// from demo fixtures so the app starts with realistic pending claims, then
-// reflects submits/cancels. Swap for a real store before hosting (like sessions).
+// Pending waiver/FA claims per session token + league, seeded lazily from demo
+// fixtures, then reflecting submits/cancels. Durable via store/persist so queued
+// claims survive a restart (in live it's the optimistic mirror of MFL).
 
-let counter = 1000;
-const store = new Map(); // token -> Map(leagueId -> claim[])
+const persist = require('./persist');
 
-function leagueMap(token) {
-  if (!store.has(token)) store.set(token, new Map());
-  return store.get(token);
+const db = () => persist.ns('waivers'); // token -> { leagueId -> claim[] }
+const meta = () => persist.ns('meta');
+
+function nextId(key, start) {
+  const m = meta();
+  const cur = m[key] != null ? m[key] : start;
+  m[key] = cur + 1;
+  return cur;
 }
 
-// Return this token+league's claim list, initializing from `seed` the first time.
 function ensure(token, leagueId, seed) {
-  const m = leagueMap(token);
-  if (!m.has(leagueId)) {
-    m.set(
-      leagueId,
-      (seed || []).map((c, i) => ({ id: c.id || `seed-${leagueId}-${i}`, ...c }))
-    );
+  const d = db();
+  if (!d[token]) d[token] = {};
+  if (!d[token][leagueId]) {
+    d[token][leagueId] = (seed || []).map((c, i) => ({ id: c.id || `seed-${leagueId}-${i}`, ...c }));
+    persist.touch();
   }
-  return m.get(leagueId);
+  return d[token][leagueId];
 }
 
 function list(token, leagueId, seed) {
@@ -30,8 +32,9 @@ function list(token, leagueId, seed) {
 
 function add(token, leagueId, seed, claim) {
   const arr = ensure(token, leagueId, seed);
-  const withId = { id: `c${counter++}`, ...claim };
+  const withId = { id: `c${nextId('waiverCounter', 1000)}`, ...claim };
   arr.push(withId);
+  persist.touch();
   return withId;
 }
 
@@ -39,7 +42,9 @@ function remove(token, leagueId, seed, claimId) {
   const arr = ensure(token, leagueId, seed);
   const i = arr.findIndex((c) => String(c.id) === String(claimId));
   if (i < 0) return null;
-  return arr.splice(i, 1)[0];
+  const [removed] = arr.splice(i, 1);
+  persist.touch();
+  return removed;
 }
 
 module.exports = { list, add, remove };

@@ -25,6 +25,8 @@ const TESTS = [
   'waivers-live-test',
   'draft-format-test',
   'parse-hardening-test',
+  'persist-test',
+  'session-persist-test',
 ];
 
 let failed = 0;
