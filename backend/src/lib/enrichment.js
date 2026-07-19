@@ -29,6 +29,7 @@ const DEFAULT_FORMAT = { numQbs: 1, ppr: 1 };
 const fcCache = new Map(); // "numQbs|ppr" -> { at, value, age, rank, sleeperToMfl }
 let sleeperCache = { at: 0, raw: new Map() }; // sleeperId -> count
 let ownershipCache = { at: 0, map: new Map() }; // mflId -> owned % (site-wide, from MFL topOwns)
+let addsCache = { at: 0, map: new Map() }; // mflId -> add count (site-wide, from MFL topAdds)
 
 async function fetchJson(url, ms = 10000) {
   const ctrl = new AbortController();
@@ -132,14 +133,47 @@ async function getMflOwnership(cookie) {
   return map;
 }
 
+// Site-wide add counts from MFL's own topAdds export (keyed by MFL id). Combined
+// with Sleeper's trending adds so the "heat" signal reflects both platforms, and
+// covers players the Sleeper crosswalk misses. Cached with last-good fallback.
+async function getMflAdds(cookie) {
+  if (!cookie) return addsCache.map;
+  if (addsCache.map.size && Date.now() - addsCache.at < TTL_MS) return addsCache.map;
+  const map = new Map();
+  try {
+    const res = await mfl.exportRequest('topAdds', { cookie });
+    const rows = mfl.toArray(res && res.topAdds && res.topAdds.player);
+    for (const r of rows) {
+      const id = r.id != null ? String(r.id) : null;
+      const raw = r.adds != null ? r.adds : r.count != null ? r.count : r.percent != null ? r.percent : r.pct;
+      const n = raw != null ? Number(raw) : NaN;
+      if (id && Number.isFinite(n)) map.set(id, n);
+    }
+    console.log(`[enrichment] mfl topAdds adds=${map.size}`);
+  } catch (e) {
+    console.log(`[enrichment] topAdds error=${e.message}`);
+    if (addsCache.map.size) return addsCache.map;
+  }
+  addsCache = { at: Date.now(), map };
+  return map;
+}
+
 async function buildLive(format, cookie) {
   // Fetch all providers in parallel to halve cold-start latency.
-  const [fc, sleeperRaw, owned] = await Promise.all([getFantasyCalc(format), getSleeperTrending(), getMflOwnership(cookie)]);
-  // Map trending counts onto MFL ids via the crosswalk.
+  const [fc, sleeperRaw, owned, mflAdds] = await Promise.all([
+    getFantasyCalc(format),
+    getSleeperTrending(),
+    getMflOwnership(cookie),
+    getMflAdds(cookie),
+  ]);
+  // Combined add "heat": Sleeper trending adds (via crosswalk) + MFL topAdds.
   const trend = new Map();
   for (const [sleeperId, count] of sleeperRaw) {
     const mflId = fc.sleeperToMfl.get(sleeperId);
-    if (mflId) trend.set(mflId, count);
+    if (mflId) trend.set(mflId, (trend.get(mflId) || 0) + count);
+  }
+  for (const [mflId, adds] of mflAdds) {
+    trend.set(mflId, (trend.get(mflId) || 0) + adds);
   }
   return {
     value: (id) => (fc.value.has(String(id)) ? fc.value.get(String(id)) : null),

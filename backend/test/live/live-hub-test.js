@@ -35,6 +35,8 @@ mfl.exportRequest = async (type, opts = {}) => {
       return { freeAgents: { leagueUnit: { player: [{ id: '99' }] } } };
     case 'topOwns':
       return { topOwns: { player: [{ id: '99', percent: '64.2' }, { id: '1', percent: '88.0' }] } };
+    case 'topAdds':
+      return { topAdds: { player: [{ id: '99', adds: '300' }, { id: '1', adds: '200' }] } };
     case 'projectedScores':
       return { projectedScores: { playerScore: Object.entries(PROJ).map(([id, s]) => ({ id, score: String(s) })) } };
     case 'playerScores': {
@@ -91,10 +93,11 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   // ENRICHMENT flows onto the profile: value (normalized), age, trend.
   assert(prof.value === 100, `enriched value 100 (8000/8000), got ${prof.value}`);
   assert(prof.age === 24, `enriched age 24, got ${prof.age}`);
-  assert(prof.trend === 777, `enriched trend 777 via crosswalk, got ${prof.trend}`);
+  // trend combines Sleeper (777 via crosswalk) + MFL topAdds (300) = 1077.
+  assert(prof.trend === 1077, `combined Sleeper+MFL trend 1077, got ${prof.trend}`);
   assert(prof.overallRank === 1, `dynasty rank recomputed from values, got ${prof.overallRank}`);
   assert(prof.ownership === 64.2, `MFL topOwns ownership 64.2%, got ${prof.ownership}`);
-  console.log(`✓ enrichment on profile: value ${prof.value}, age ${prof.age}, trend ${prof.trend}, owned ${prof.ownership}%`);
+  console.log(`✓ enrichment on profile: value ${prof.value}, age ${prof.age}, trend ${prof.trend} (Sleeper+MFL), owned ${prof.ownership}%`);
 
   // PLAYER HUB: live game log + season from playerScores (player '1').
   const p1 = await playerhub.profile(CK, TK, '1');
@@ -103,7 +106,10 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   assert(p1.season.ppg === 13.3, `ppg 13.3, got ${p1.season.ppg}`);
   assert(p1.season.games === 3, `games ~3 (40/13.3), got ${p1.season.games}`);
   assert(p1.gameLog.length === 2 && p1.gameLog[0].week === 1 && p1.gameLog[1].pts === 25, 'recent game log built from weekly scores');
-  console.log('✓ player hub: live game log + season wired');
+  // Player '1' isn't in Sleeper trending, so its trend (200) comes purely from
+  // MFL topAdds — proving MFL covers players the Sleeper crosswalk misses.
+  assert(p1.trend === 200, `MFL-only trend 200 (no Sleeper), got ${p1.trend}`);
+  console.log('✓ player hub: live game log + season wired; MFL topAdds covers crosswalk misses');
 
   // HOME: live pending trade offer with resolved names.
   const home = await portfolio.getHome(CK, TK);
