@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import Svg, { Defs, LinearGradient, RadialGradient, Stop, Rect, Line, G, Path, Circle } from 'react-native-svg';
+import Svg, { Defs, LinearGradient, RadialGradient, Stop, Rect, Line, G, Path, Circle, Text as SvgText } from 'react-native-svg';
 
 // The app-wide backdrop: a championship gold-to-navy gradient, faint gridiron yard-lines,
 // and a large, ghosted crest watermark. Two intensities share one look:
@@ -57,6 +57,8 @@ export default function FieldBackdrop({ hero = false, watermark = true }) {
             <Circle cx="100" cy="132" r="38" />
             {/* coronet tipped askew, matching the crest */}
             <Path d="M64 96 L74 72 L88 86 L100 64 L112 86 L126 72 L136 96 Z" transform="rotate(-8 100 98)" />
+            {/* DC monogram — the letters are part of the mark, so the watermark carries them too */}
+            <SvgText x="100" y="146" fill="#F3C14A" stroke="none" fontSize="40" fontWeight="bold" textAnchor="middle">DC</SvgText>
           </G>
         </Svg>
       ) : null}

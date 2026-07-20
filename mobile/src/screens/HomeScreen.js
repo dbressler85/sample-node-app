@@ -349,14 +349,6 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
             <Text style={styles.clear}>🎉 Nothing needs you right now.</Text>
           )
         }
-        ListFooterComponent={
-          leagues.length ? (
-            <Pressable style={({ pressed }) => [styles.allLeaguesRow, pressed && { opacity: 0.7 }]} onPress={onOpenLeagues}>
-              <Text style={styles.allLeaguesText}>View all {leagues.length} leagues</Text>
-              <Text style={styles.teamChev}>›</Text>
-            </Pressable>
-          ) : null
-        }
       />
     </View>
   );
