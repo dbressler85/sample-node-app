@@ -205,6 +205,9 @@ export default function TradesScreen({ league, onBack, initialTab, seed }) {
         <Text style={styles.title} numberOfLines={1}>{league.name}</Text>
         <View style={{ width: 44 }} />
       </View>
+      {data && data.format ? (
+        <Text style={styles.formatNote} numberOfLines={1}>{data.format} · values are league-specific</Text>
+      ) : null}
 
       <View style={styles.segment}>
         {[['offers', `Offers${data && data.offers.length ? ` · ${data.offers.length}` : ''}`], ['propose', 'Propose']].map(([k, label]) => (
@@ -370,6 +373,7 @@ const styles = StyleSheet.create({
   topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8 },
   back: { color: colors.accent, fontSize: 16, fontWeight: '600', width: 60 },
   title: { color: colors.text, fontSize: 17, fontWeight: '800', flex: 1, textAlign: 'center' },
+  formatNote: { color: colors.textDim, fontSize: 11, textAlign: 'center', marginTop: 2 },
   segment: { flexDirection: 'row', marginHorizontal: 16, marginTop: 10, backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 3 },
   seg: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
   segActive: { backgroundColor: colors.cardAlt },

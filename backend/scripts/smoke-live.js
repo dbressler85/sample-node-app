@@ -41,6 +41,7 @@ const TESTS = [
   'tradebait-test',
   'trade-fit-test',
   'trade-counter-test',
+  'format-value-test',
 ];
 
 let failed = 0;

@@ -216,7 +216,8 @@ async function getOverview(cookie, token) {
 async function tradeData(cookie, token, leagueId) {
   const league = await findLeague(cookie, leagueId);
   const byId = await playersLib.load(cookie);
-  const enr = await enrichmentLib.snapshot(await leagueFormat.format(cookie, league), cookie);
+  const fmt = await leagueFormat.format(cookie, league);
+  const enr = await enrichmentLib.snapshot(fmt, cookie);
 
   const [roster, rawPartners, requirements] = await Promise.all([
     rosterService.getRoster(cookie, leagueId),
@@ -234,14 +235,14 @@ async function tradeData(cookie, token, leagueId) {
     })),
   ];
   const ns = tradefit.needsSurplus(franchises, requirements);
-  return { league, byId, enr, roster, rawPartners, requirements, ns };
+  return { league, byId, enr, roster, rawPartners, requirements, ns, fmt };
 }
 
 // One league's offers + everything needed to build a proposal, now with each team's
 // positional needs & surplus so you can craft a fair, roster-fitting offer.
 async function getLeague(cookie, token, leagueId) {
   const data = await tradeData(cookie, token, leagueId);
-  const { league, byId, enr, roster, rawPartners, ns } = data;
+  const { league, byId, enr, roster, rawPartners, ns, fmt } = data;
   const offers = await offersForLeague(cookie, token, league, byId, enr);
 
   const myPlayers = [...roster.starters, ...roster.bench]
@@ -269,6 +270,8 @@ async function getLeague(cookie, token, leagueId) {
     myPicks,
     partners,
     me: { name: roster.franchiseName || 'My Team', needs: mine.needs, surplus: mine.surplus },
+    // The scoring/roster format these values reflect (e.g. "Superflex · TE-premium").
+    format: leagueFormat.label(fmt),
   };
 }
 

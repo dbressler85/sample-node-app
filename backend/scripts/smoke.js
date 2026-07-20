@@ -363,8 +363,11 @@ function assert(cond, msg) {
     assert(trOverview.offers.length === 2, 'two pending trade offers across leagues');
     const t1 = trOverview.offers.find((o) => o.id === 't1');
     assert(t1 && t1.acquire[0].name.includes('Gibbs') && t1.send[0].name.includes('Nix'), 'offer resolves players on both sides');
-    assert(t1.analysis.acquireValue > t1.analysis.sendValue && t1.analysis.verdict === 'favorable', 'value analysis flags a favorable offer');
-    console.log(`✓ trade offers: ${trOverview.offers.length} pending; t1 IN ${t1.acquire.map((a) => a.name.split(',')[0])} (${t1.analysis.acquireValue}) OUT ${t1.send.map((a) => a.name.split(',')[0])} (${t1.analysis.sendValue}) → ${t1.analysis.verdict}`);
+    // t1 is in The Superflex Society: Nix is a QB, so his value carries the SUPERFLEX
+    // premium — giving him up for an RB (Gibbs) is correctly flagged unfavorable. This
+    // proves value is league-specific (the same QB would be worth far less in a 1QB league).
+    assert(t1.send[0].value > t1.acquire[0].value && t1.analysis.verdict === 'unfavorable', 'superflex QB premium makes giving up Nix unfavorable');
+    console.log(`✓ trade offers (league-specific value): t1 give Nix QB (${t1.send[0].value}, superflex) for Gibbs RB (${t1.acquire[0].value}) → ${t1.analysis.verdict}`);
 
     // League detail: offers + my players + partners to build a proposal.
     const trLeague = (await j(await fetch(`${base}/api/leagues/40750/trades`, authed))).body;
