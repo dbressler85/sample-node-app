@@ -22,6 +22,7 @@ const rosterService = require('./roster');
 const waiversService = require('./waivers');
 const dropStore = require('../store/drops');
 const watchStore = require('../store/watchlist');
+const playerTags = require('../store/playerTags');
 const { createMemo } = require('../lib/memo');
 
 // A neutral scoring baseline for the headline projection on a profile (each of
@@ -356,6 +357,7 @@ async function profile(cookie, token, playerId) {
     ownership: enr.ownership(playerId),
     trend: enr.trend(playerId),
     watched: watchStore.has(token, playerId),
+    tag: playerTags.get(token, playerId), // 'target' | 'avoid' | null
     availability: availabilityLib.resolve(base, ctx.statusMap, byeMap, ctx.week),
     outlook,
     season,

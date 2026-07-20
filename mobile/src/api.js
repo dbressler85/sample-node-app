@@ -118,6 +118,9 @@ export const api = {
   // Cross-league watchlist
   watchlist: () => request('/api/watchlist'),
   watchlistAlerts: () => request('/api/watchlist/alerts'),
+  // Target / Avoid personal tags (±10% personal-value overlay). tag: 'target'|'avoid'|null.
+  tags: () => request('/api/tags'),
+  setTag: (id, tag) => request(`/api/players/${id}/tag`, { method: 'POST', body: { tag } }),
   watchAdd: (id) => request(`/api/watchlist/${id}`, { method: 'POST' }),
   watchRemove: (id) => request(`/api/watchlist/${id}`, { method: 'DELETE' }),
 

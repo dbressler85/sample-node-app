@@ -26,9 +26,10 @@ export default function PlayerProfileScreen({ playerId, onBack, onOpenTradeDesk 
   const [error, setError] = useState(null);
   const [sheet, setSheet] = useState(null); // 'add' | 'drop' | 'trade'
   const [watched, setWatched] = useState(false);
+  const [tag, setTag] = useState(null); // 'target' | 'avoid' | null
 
   const load = () => {
-    api.playerProfile(playerId).then((prof) => { setP(prof); setWatched(!!prof.watched); }).catch((e) => setError(e.message));
+    api.playerProfile(playerId).then((prof) => { setP(prof); setWatched(!!prof.watched); setTag(prof.tag || null); }).catch((e) => setError(e.message));
   };
   useEffect(() => {
     load();
@@ -41,6 +42,14 @@ export default function PlayerProfileScreen({ playerId, onBack, onOpenTradeDesk 
     const call = next ? api.watchAdd(playerId) : api.watchRemove(playerId);
     call.catch((e) => { setWatched(!next); Alert.alert('Could not update watchlist', e.message); });
   }, [watched, playerId]);
+
+  // Target / Avoid — tapping the current tag clears it. Optimistic, reverts on failure.
+  const applyTag = useCallback((which) => {
+    const next = tag === which ? null : which;
+    const prev = tag;
+    setTag(next);
+    api.setTag(playerId, next).catch((e) => { setTag(prev); Alert.alert('Could not update tag', e.message); });
+  }, [tag, playerId]);
 
   // Back closes an open action sheet before leaving the profile.
   useAndroidBack(useCallback(() => {
@@ -108,6 +117,22 @@ export default function PlayerProfileScreen({ playerId, onBack, onOpenTradeDesk 
               ) : null}
             </View>
           ) : null}
+        </View>
+
+        {/* Target / Avoid — personal value overlay (±10%). Tap again to clear. */}
+        <View style={styles.tagRow}>
+          <Pressable
+            style={[styles.tagBtn, tag === 'target' && styles.tagTargetOn]}
+            onPress={() => applyTag('target')}
+          >
+            <Text style={[styles.tagTxt, tag === 'target' && styles.tagTxtOn]}>◎ Target</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.tagBtn, tag === 'avoid' && styles.tagAvoidOn]}
+            onPress={() => applyTag('avoid')}
+          >
+            <Text style={[styles.tagTxt, tag === 'avoid' && styles.tagTxtOn]}>⊘ Avoid</Text>
+          </Pressable>
         </View>
 
         {/* Outlook */}
@@ -301,6 +326,12 @@ const styles = StyleSheet.create({
   valueNum: { color: colors.gold, fontSize: 24, fontWeight: '900' },
   valueLabel: { color: colors.textDim, fontSize: 10, fontWeight: '700' },
   valueSpread: { color: colors.gold, fontSize: 10, fontWeight: '700', marginTop: 2, maxWidth: 92, textAlign: 'center' },
+  tagRow: { flexDirection: 'row', gap: 10, marginTop: 4, marginBottom: 4 },
+  tagBtn: { flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
+  tagTargetOn: { borderColor: colors.good, backgroundColor: colors.good + '22' },
+  tagAvoidOn: { borderColor: colors.bad, backgroundColor: colors.bad + '22' },
+  tagTxt: { color: colors.textDim, fontSize: 13, fontWeight: '800' },
+  tagTxtOn: { color: colors.text },
   card: { backgroundColor: colors.card, borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 14, marginTop: 12 },
   cardTitle: { color: colors.textDim, fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 },
   bandRow: { flexDirection: 'row', justifyContent: 'space-around' },
