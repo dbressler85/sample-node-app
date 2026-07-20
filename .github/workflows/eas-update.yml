@@ -1,0 +1,47 @@
+name: EAS Update (OTA)
+
+# After you've installed a build once (see eas-build.yml), use THIS to push JS / font /
+# animation changes straight to your phone — no rebuild. Trigger from the GitHub mobile
+# app: Actions tab → "EAS Update (OTA)" → Run workflow. Takes ~1 minute; then just
+# reopen the app and it pulls the update.
+#
+# Only works for JavaScript/asset changes. If you add or change a NATIVE module
+# (a new expo-* package with native code), you need a fresh build first (eas-build.yml).
+#
+# Requires the same EXPO_TOKEN repository secret as the build workflow.
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Update branch (matches the build's channel)"
+        default: preview
+      message:
+        description: "What changed"
+        default: "Update"
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install EAS CLI
+        run: npm install -g eas-cli
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Publish the OTA update
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: eas update --branch "${{ inputs.branch }}" --message "${{ inputs.message }}" --non-interactive

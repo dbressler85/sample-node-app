@@ -6,19 +6,21 @@
   "build": {
     "preview": {
       "distribution": "internal",
+      "channel": "preview",
       "android": {
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://your-backend.example.com"
+        "EXPO_PUBLIC_API_URL": "https://dynasty-central-backend.onrender.com"
       }
     },
     "production": {
+      "channel": "production",
       "android": {
         "buildType": "app-bundle"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://your-backend.example.com"
+        "EXPO_PUBLIC_API_URL": "https://dynasty-central-backend.onrender.com"
       }
     }
   },
