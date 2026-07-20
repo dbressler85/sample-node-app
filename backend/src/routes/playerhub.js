@@ -3,9 +3,30 @@
 const express = require('express');
 const requireSession = require('../middleware/auth');
 const hub = require('../services/playerhub');
+const playerTags = require('../store/playerTags');
 
 const router = express.Router();
 router.use(requireSession);
+
+// GET /api/tags — the owner's Target/Avoid tags, keyed by playerId. Used to overlay
+// personal value across the value-based surfaces.
+router.get('/tags', (req, res, next) => {
+  try {
+    res.json({ tags: playerTags.all(req.token) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/players/:id/tag — set (or clear) a player's tag. Body: { tag: 'target' | 'avoid' | null }.
+router.post('/players/:id/tag', (req, res, next) => {
+  try {
+    const tag = playerTags.set(req.token, req.params.id, req.body && req.body.tag);
+    res.json({ ok: true, id: String(req.params.id), tag });
+  } catch (err) {
+    next(err);
+  }
+});
 
 // GET /api/players/search?q=&position=&status=  (status: mine|free|available)
 router.get('/players/search', async (req, res, next) => {

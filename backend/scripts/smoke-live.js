@@ -53,6 +53,7 @@ const TESTS = [
   'watchlist-alerts-test',
   'push-prefs-test',
   'standing-test',
+  'playertags-test',
 ];
 
 let failed = 0;
