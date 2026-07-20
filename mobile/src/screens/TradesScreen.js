@@ -5,6 +5,21 @@ import { colors, positionColors } from '../theme';
 import useAndroidBack from '../useAndroidBack';
 
 const posList = (arr) => (arr && arr.length ? arr.map((x) => x.pos).join(', ') : '—');
+
+// Sortable asset lists on the offer builder. Position groups run QB→RB→WR→TE→K/DEF→picks
+// (picks last), value within a group descending; value sorts high→low; name A→Z.
+const POS_ORDER = { QB: 0, RB: 1, WR: 2, TE: 3, PK: 4, DEF: 5, PICK: 9 };
+function sortAssets(list, key) {
+  const arr = [...(list || [])];
+  if (key === 'name') return arr.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  if (key === 'value') return arr.sort((a, b) => (b.value || 0) - (a.value || 0));
+  return arr.sort((a, b) => {
+    const pa = POS_ORDER[a.position] != null ? POS_ORDER[a.position] : 6;
+    const pb = POS_ORDER[b.position] != null ? POS_ORDER[b.position] : 6;
+    return pa - pb || (b.value || 0) - (a.value || 0);
+  });
+}
+const SORTS = [['position', 'Pos'], ['value', 'Value'], ['name', 'Name']];
 const CONSTRUCTION = {
   good: { color: colors.good, icon: '✓' },
   caution: { color: colors.bad, icon: '⚠' },
@@ -95,6 +110,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
   const [sending, setSending] = useState(false);
   const [suggesting, setSuggesting] = useState(false);
   const [counterInfo, setCounterInfo] = useState(null); // { offerId, rationale } when countering
+  const [sortKey, setSortKey] = useState('position'); // offer lists: position | value | name
   const seededRef = useRef(false);
 
   useAndroidBack(useCallback(() => { onBack(); return true; }, [onBack]));
@@ -129,6 +145,8 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
   }
 
   const partner = useMemo(() => (data && data.partners || []).find((p) => p.franchiseId === partnerId) || null, [data, partnerId]);
+  const receiveOptions = useMemo(() => sortAssets(partner ? partner.players : [], sortKey), [partner, sortKey]);
+  const sendOptions = useMemo(() => sortAssets([...((data && data.myPlayers) || []), ...((data && data.myPicks) || [])], sortKey), [data, sortKey]);
   const sendList = Object.values(send);
   const receiveList = Object.values(receive);
   const preview = useMemo(() => analyze(receiveList, sendList), [receiveList, sendList]);
@@ -333,8 +351,19 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
             </View>
           ) : null}
 
+          {partner ? (
+            <View style={styles.sortRow}>
+              <Text style={styles.sortLabel}>SORT</Text>
+              {SORTS.map(([k, l]) => (
+                <Pressable key={k} onPress={() => setSortKey(k)} style={[styles.sortChip, sortKey === k && styles.sortChipOn]} hitSlop={6}>
+                  <Text style={[styles.sortChipTxt, sortKey === k && styles.sortChipTxtOn]}>{l}</Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
+
           <Text style={styles.label}>You get {receiveList.length ? `· ${preview.acquireValue}` : ''}</Text>
-          {partner ? partner.players.map((a) => (
+          {partner ? receiveOptions.map((a) => (
             <AssetRow key={a.id} asset={a} on={!!receive[a.id]} onPress={() => toggle(setReceive, receive, a)} tint={colors.good} />
           )) : <Text style={styles.empty}>Pick a team above.</Text>}
 
@@ -348,10 +377,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
               {suggesting ? <ActivityIndicator size="small" color={colors.accent} /> : <Text style={styles.suggestTxt}>✦ Suggest</Text>}
             </Pressable>
           </View>
-          {(data.myPlayers || []).map((a) => (
-            <AssetRow key={a.id} asset={a} on={!!send[a.id]} onPress={() => toggle(setSend, send, a)} tint={colors.accent} />
-          ))}
-          {(data.myPicks || []).map((a) => (
+          {sendOptions.map((a) => (
             <AssetRow key={a.id} asset={a} on={!!send[a.id]} onPress={() => toggle(setSend, send, a)} tint={colors.accent} />
           ))}
           <View style={{ height: 120 }} />
@@ -488,6 +514,12 @@ function AssetRow({ asset, on, onPress, tint }) {
 }
 
 const styles = StyleSheet.create({
+  sortRow: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginTop: 14, marginBottom: 2 },
+  sortLabel: { color: colors.textDim, fontSize: 11, fontWeight: '800', letterSpacing: 1, marginRight: 8 },
+  sortChip: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: colors.border, marginRight: 6 },
+  sortChipOn: { backgroundColor: colors.cardAlt, borderColor: colors.accent },
+  sortChipTxt: { color: colors.textDim, fontSize: 12, fontWeight: '700' },
+  sortChipTxtOn: { color: colors.accent },
   container: { flex: 1, backgroundColor: colors.bg },
   center: { alignItems: 'center', justifyContent: 'center' },
   topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8 },
