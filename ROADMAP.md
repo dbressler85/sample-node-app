@@ -132,10 +132,10 @@ Grouped into four "synergy systems", highest-leverage first:
 - [x] **Make dead-end aggregates tappable.** Portfolio "By league" rows (outlook · core
   age · strength · %risk) now open that league's roster; Home's offseason outlook chips
   (Win-now/Ascending/Rebuilding/Balanced) drill into Portfolio (where each per-league row
-  is tappable), and the Waivers chips open the Waivers tab. *(Still open: enrich the bare
-  **Leagues** switcher rows with per-league value/outlook/risk — deferred because it needs
-  a heavier per-league valuation fetch; do it as a progressive/background enrich so the
-  switcher keeps its instant open.)*
+  is tappable), and the Waivers chips open the Waivers tab. The **Leagues** switcher rows
+  are now enriched with per-league outlook · value · %risk via a background `/api/portfolio`
+  fetch that merges in when it lands, so the switcher keeps its instant open (names +
+  pin/mute first, dynasty badges a beat later).
 - [ ] **Need-adjusted draft board.** DraftScreen ranks by pure value with no roster
   context; badge available players that fill the manager's thin positions (needs/surplus
   already computed in trades).
