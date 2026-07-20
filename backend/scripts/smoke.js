@@ -414,10 +414,10 @@ function assert(cond, msg) {
     const dl = (await j(await fetch(`${base}/api/leagues/${live.leagueId}/draft`, authed))).body;
     assert(dl.status === 'in_progress' && dl.onClock && dl.onClock.mine, 'my league draft is live and on my pick');
     assert(dl.board.some((s) => s.player) && dl.board.some((s) => !s.playerId), 'board shows made + upcoming picks');
-    assert(dl.available.length > 0 && dl.available[0].value >= (dl.available[1] || {}).value, 'available pool ranked by dynasty value');
+    assert(dl.available.length > 0 && dl.available[0].adp != null && dl.available[0].adp <= (dl.available[1] || { adp: Infinity }).adp, 'available pool ordered by ADP (market draft order)');
     console.log(
       `✓ draft board (${dl.name}): on the clock 1.${String(dl.onClock.pick).padStart(2, '0')}; ` +
-        `top available ${dl.available[0].name.split(',')[0]} (${dl.available[0].value})`
+        `top available ${dl.available[0].name.split(',')[0]} (ADP ${dl.available[0].adp}, value ${dl.available[0].value})`
     );
 
     // Make the pick; it lands on the board and I'm no longer on the clock.

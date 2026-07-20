@@ -48,6 +48,7 @@ const TESTS = [
   'waivers-perf-test',
   'waiver-multi-test',
   'league-prefs-test',
+  'adp-test',
 ];
 
 let failed = 0;

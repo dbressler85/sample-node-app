@@ -15,6 +15,7 @@ const mfl = require('../lib/mfl');
 const enrichmentLib = require('../lib/enrichment');
 const leagueFormat = require('../lib/leagueformat');
 const playersLib = require('../lib/players');
+const adpLib = require('../lib/adp');
 const leaguesService = require('./leagues');
 const waiversService = require('./waivers');
 const rosterService = require('./roster');
@@ -151,9 +152,23 @@ async function buildPool(cookie, league, drafted, byId, enr, position) {
   // rookie/in-season draft it's the free-agent pool. Fetch a deep list (not the
   // waiver default cap) so the value-ranked board isn't missing high-value names.
   const ids = config.demoMode ? demo.draftClass() : await waiversService.freeAgentIds(cookie, league, 2000);
-  let pool = ids.filter((id) => !drafted.has(String(id))).map((id) => resolvePlayer(byId, id, enr));
+  const adp = await adpLib.adpMap(cookie).catch(() => new Map());
+  let pool = ids.filter((id) => !drafted.has(String(id))).map((id) => {
+    const p = resolvePlayer(byId, id, enr);
+    const a = adp.get(String(id));
+    p.adp = a != null ? a : null;
+    return p;
+  });
   if (position) pool = pool.filter((p) => p.position === position);
-  pool.sort((a, b) => (b.value || 0) - (a.value || 0));
+  // Order by ADP (market-consensus draft order) — objective and owner-independent.
+  // Players with a known ADP sort ahead of those without; ties and the ADP-less tail
+  // fall back to dynasty value so the board is never arbitrary.
+  pool.sort((a, b) => {
+    if (a.adp != null && b.adp != null) return a.adp - b.adp || (b.value || 0) - (a.value || 0);
+    if (a.adp != null) return -1;
+    if (b.adp != null) return 1;
+    return (b.value || 0) - (a.value || 0);
+  });
   return pool.slice(0, 60);
 }
 
