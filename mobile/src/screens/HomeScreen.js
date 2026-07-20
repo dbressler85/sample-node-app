@@ -16,6 +16,19 @@ const GROUP_ORDER = ['lineup_risk', 'lineup_incomplete', 'trade_offer', 'lineup_
 const ACTION_LABEL = { lineup: 'Set ›', waiver: 'Waivers ›', trade: 'View ›' };
 const CONCURRENCY = 4;
 
+// A draft belongs on the Home action list only if it needs you soon: you're on the
+// clock, it's live, or it starts within ~3 days. Everything else lives in the Hub.
+const DRAFT_SOON_MS = 3 * 24 * 60 * 60 * 1000;
+function isDraftActionable(d) {
+  if (!d || !d.status || d.status === 'none' || d.status === 'complete') return false;
+  if (d.myOnClock || d.status === 'in_progress') return true;
+  if (d.status === 'scheduled' && d.startTime) {
+    const t = new Date(d.startTime).getTime();
+    return !Number.isNaN(t) && t - Date.now() < DRAFT_SOON_MS;
+  }
+  return false;
+}
+
 // Run `worker` over items with limited concurrency.
 async function runPool(items, limit, worker) {
   let idx = 0;
@@ -28,11 +41,10 @@ async function runPool(items, limit, worker) {
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, next));
 }
 
-export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpenWaivers, onOpenTrades, onOpenTradeInbox, onOpenDraft, onOpenDraftHub, onOpenOnDeck, onOpenPlayer, onLogout }) {
+export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpenLeagues, onOpenWaivers, onOpenTrades, onOpenTradeInbox, onOpenDraft, onOpenDraftHub, onOpenOnDeck, onOpenPlayer, onLogout }) {
   const [leagues, setLeagues] = useState([]);
   const [statuses, setStatuses] = useState({}); // leagueId -> { name, status, items }
-  const [drafts, setDrafts] = useState([]); // active/scheduled drafts across leagues
-  const [news, setNews] = useState([]); // news touching your rostered players
+  const [drafts, setDrafts] = useState([]); // only ACTIONABLE drafts (on the clock / live / imminent)
   const [onDeck, setOnDeck] = useState(null); // time-sorted deadlines across leagues
   const [expanded, setExpanded] = useState(new Set(GROUP_ORDER.filter((t) => GROUPS[t].open)));
   const [progress, setProgress] = useState(null); // { done, total }
@@ -69,12 +81,11 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
       setLeagues(list);
       setValue('leagues', list);
 
-      // Drafts are cross-league and seasonal — fetch once and surface if any are active.
-      api.drafts().then((d) => setDrafts((d.drafts || []).filter((x) => x.status && x.status !== 'none' && x.status !== 'complete'))).catch(() => {});
-
-      // News that touches your rostered players — the cross-league moat, surfaced
-      // on the command center (already ranked by severity × teams-you-start).
-      api.news().then((r) => setNews(r.news || [])).catch(() => {});
+      // Drafts: Home is an action list, so only surface drafts that actually need
+      // you now — on the clock, live, or starting within ~3 days. A draft a month
+      // out isn't an action; it lives in the Draft Hub (and On Deck). News moved
+      // off Home entirely — it's on the Players → News tab.
+      api.drafts().then((d) => setDrafts((d.drafts || []).filter(isDraftActionable))).catch(() => {});
 
       // On Deck — time-sorted deadlines across leagues (the proactive layer).
       api.onDeck().then(setOnDeck).catch(() => {});
@@ -178,8 +189,6 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
   // of the aggregate counts rather than a misleading run of zeroes. When we have
   // cached data, statuses are already complete, so numbers update in place.
   const summaryLoading = busy && !(leagues.length > 0 && leagues.every((l) => statuses[l.leagueId]));
-  // Top news touching your rostered players (already ranked severity × starters).
-  const topNews = news.filter((n) => n.affectedCount > 0).slice(0, 4);
 
   return (
     <View style={styles.container}>
@@ -221,7 +230,7 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
                 <Text style={styles.teamChev}>›</Text>
               </Pressable>
             ) : null}
-            <Portfolio p={portfolio} phase={phase} loading={summaryLoading} />
+            <Portfolio p={portfolio} phase={phase} loading={summaryLoading} onLeagues={onOpenLeagues} />
             {drafts.length ? (
               <View>
                 <Pressable style={styles.sectionRow} onPress={onOpenDraftHub}>
@@ -265,14 +274,6 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
                 <Text style={styles.teamChev}>›</Text>
               </Pressable>
             ) : null}
-            {topNews.length ? (
-              <View>
-                <Text style={styles.section}>News · your players</Text>
-                {topNews.map((n) => (
-                  <NewsRow key={n.id} n={n} onPress={() => n.player && n.player.id && onOpenPlayer && onOpenPlayer(n.player.id)} />
-                ))}
-              </View>
-            ) : null}
             {error ? <Text style={styles.error}>{error}</Text> : null}
             <Text style={styles.section}>
               Needs attention{summaryLoading ? '  ·  updating…' : ` · ${portfolio.actionItems}`}
@@ -295,25 +296,10 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
         }
         ListFooterComponent={
           leagues.length ? (
-            <View>
-              <Text style={styles.section}>Your teams · {leagues.length}</Text>
-              {leagues.map((t) => {
-                const d = (statuses[t.leagueId] || {}).dynasty;
-                return (
-                  <Pressable key={t.leagueId} style={({ pressed }) => [styles.teamRow, pressed && { opacity: 0.7 }]} onPress={() => onOpenLeague({ leagueId: t.leagueId, name: t.name })}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.teamName} numberOfLines={1}>{t.name}</Text>
-                      {d ? (
-                        <Text style={styles.teamSub} numberOfLines={1}>
-                          {d.value != null ? `${d.value} value` : ''}{d.coreAge != null ? ` · core ${d.coreAge}y` : ''}{d.outlook ? ` · ${d.outlook}` : ''}
-                        </Text>
-                      ) : null}
-                    </View>
-                    <Text style={styles.teamChev}>›</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+            <Pressable style={({ pressed }) => [styles.allLeaguesRow, pressed && { opacity: 0.7 }]} onPress={onOpenLeagues}>
+              <Text style={styles.allLeaguesText}>View all {leagues.length} leagues</Text>
+              <Text style={styles.teamChev}>›</Text>
+            </Pressable>
           ) : null
         }
       />
@@ -321,13 +307,13 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
   );
 }
 
-function Portfolio({ p, phase, loading }) {
+function Portfolio({ p, phase, loading, onLeagues }) {
   const offseason = phase === 'offseason';
   // The Leagues count is known as soon as the league list loads, so keep it live.
   return (
     <View style={styles.portfolio}>
       <View style={styles.tileRow}>
-        <Tile label="Leagues" value={String(p.leagues)} loading={loading && !p.leagues} />
+        <Tile label="Leagues ›" value={String(p.leagues)} loading={loading && !p.leagues} onPress={onLeagues} />
         {offseason ? (
           <Tile label="Total roster value" value={p.rosterValue ? String(p.rosterValue) : '—'} gold loading={loading} />
         ) : (
@@ -357,9 +343,10 @@ function Portfolio({ p, phase, loading }) {
   );
 }
 
-function Tile({ label, value, accent, gold, loading }) {
+function Tile({ label, value, accent, gold, loading, onPress }) {
+  const Wrap = onPress ? Pressable : View;
   return (
-    <View style={styles.tile}>
+    <Wrap style={({ pressed } = {}) => [styles.tile, onPress && pressed && { opacity: 0.7 }]} onPress={onPress}>
       <Text style={styles.tileLabel}>{label}</Text>
       {loading ? (
         <View style={styles.tileSpinner}>
@@ -368,7 +355,7 @@ function Tile({ label, value, accent, gold, loading }) {
       ) : (
         <Text style={[styles.tileValue, accent && { color: colors.accent }, gold && { color: colors.gold }]}>{value}</Text>
       )}
-    </View>
+    </Wrap>
   );
 }
 
@@ -409,23 +396,6 @@ function TriageRow({ item, onPress }) {
   );
 }
 
-function NewsRow({ n, onPress }) {
-  const sev = n.severity === 'high' ? colors.bad : n.severity === 'medium' ? colors.warn : colors.textDim;
-  const name = n.player && n.player.name ? n.player.name.split(',')[0] : null;
-  return (
-    <Pressable style={({ pressed }) => [styles.newsRow, pressed && { opacity: 0.7 }]} onPress={onPress}>
-      <View style={[styles.newsDot, { backgroundColor: sev }]} />
-      <View style={{ flex: 1 }}>
-        <Text style={styles.newsHead} numberOfLines={2}>{n.headline}</Text>
-        <Text style={styles.newsMeta} numberOfLines={1}>
-          {name ? `${name} · ` : ''}affects {n.affectedCount} team{n.affectedCount === 1 ? '' : 's'}
-          {n.startingCount ? <Text style={{ color: colors.warn, fontWeight: '700' }}>{` · starting in ${n.startingCount}`}</Text> : null}
-        </Text>
-      </View>
-      <Text style={styles.teamChev}>›</Text>
-    </Pressable>
-  );
-}
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
@@ -461,6 +431,8 @@ const styles = StyleSheet.create({
   error: { color: colors.bad, marginVertical: 8 },
   clear: { color: colors.textDim, textAlign: 'center', marginTop: 30, fontSize: 15 },
   teamRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: 10 },
+  allLeaguesRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 16, marginTop: 20 },
+  allLeaguesText: { color: colors.accent, fontSize: 15, fontWeight: '800' },
   teamName: { color: colors.text, fontSize: 15, fontWeight: '700', marginRight: 10 },
   teamSub: { color: colors.textDim, fontSize: 12, marginTop: 3 },
   onDeckRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 15, marginBottom: 14 },
@@ -468,10 +440,6 @@ const styles = StyleSheet.create({
   onDeckIcon: { fontSize: 20, marginRight: 12 },
   onDeckName: { color: colors.text, fontSize: 15, fontWeight: '900', letterSpacing: 0.2 },
   onDeckSub: { color: colors.textDim, fontSize: 12, marginTop: 3 },
-  newsRow: { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: 8 },
-  newsDot: { width: 8, height: 8, borderRadius: 4, marginRight: 12, marginTop: 6 },
-  newsHead: { color: colors.text, fontSize: 14, fontWeight: '700', lineHeight: 19 },
-  newsMeta: { color: colors.textDim, fontSize: 12, marginTop: 4 },
   inboxRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 14, marginTop: 12 },
   inboxName: { color: colors.text, fontSize: 15, fontWeight: '800' },
   inboxSub: { color: colors.textDim, fontSize: 12, marginTop: 3 },
