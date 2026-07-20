@@ -41,7 +41,7 @@ async function runPool(items, limit, worker) {
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, next));
 }
 
-export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpenLeagues, onOpenWaivers, onOpenTrades, onOpenTradeInbox, onOpenDraft, onOpenDraftHub, onOpenOnDeck, onOpenPlayer, onLogout }) {
+export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpenLeagues, onOpenPortfolio, onOpenWaivers, onOpenTrades, onOpenTradeInbox, onOpenDraft, onOpenDraftHub, onOpenOnDeck, onOpenPlayer, onLogout }) {
   const [leagues, setLeagues] = useState([]);
   const [statuses, setStatuses] = useState({}); // leagueId -> { name, status, items }
   const [drafts, setDrafts] = useState([]); // only ACTIONABLE drafts (on the clock / live / imminent)
@@ -230,7 +230,7 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
                 <Text style={styles.teamChev}>›</Text>
               </Pressable>
             ) : null}
-            <Portfolio p={portfolio} phase={phase} loading={summaryLoading} onLeagues={onOpenLeagues} />
+            <Portfolio p={portfolio} phase={phase} loading={summaryLoading} onLeagues={onOpenLeagues} onPortfolio={onOpenPortfolio} />
             {drafts.length ? (
               <View>
                 <Pressable style={styles.sectionRow} onPress={onOpenDraftHub}>
@@ -307,7 +307,7 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
   );
 }
 
-function Portfolio({ p, phase, loading, onLeagues }) {
+function Portfolio({ p, phase, loading, onLeagues, onPortfolio }) {
   const offseason = phase === 'offseason';
   // The Leagues count is known as soon as the league list loads, so keep it live.
   return (
@@ -320,6 +320,10 @@ function Portfolio({ p, phase, loading, onLeagues }) {
           <Tile label="Needs attention" value={String(p.needAttention)} accent={p.needAttention > 0} loading={loading} />
         )}
       </View>
+      <Pressable style={({ pressed }) => [styles.portfolioLink, pressed && { opacity: 0.7 }]} onPress={onPortfolio}>
+        <Text style={styles.portfolioLinkText}>Portfolio · value at risk</Text>
+        <Text style={styles.teamChev}>›</Text>
+      </Pressable>
       <View style={styles.chips}>
         {offseason ? (
           <>
@@ -433,6 +437,8 @@ const styles = StyleSheet.create({
   teamRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: 10 },
   allLeaguesRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 16, marginTop: 20 },
   allLeaguesText: { color: colors.accent, fontSize: 15, fontWeight: '800' },
+  portfolioLink: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 16, paddingVertical: 13, marginTop: 10 },
+  portfolioLinkText: { color: colors.gold, fontSize: 14, fontWeight: '800' },
   teamName: { color: colors.text, fontSize: 15, fontWeight: '700', marginRight: 10 },
   teamSub: { color: colors.textDim, fontSize: 12, marginTop: 3 },
   onDeckRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 15, marginBottom: 14 },

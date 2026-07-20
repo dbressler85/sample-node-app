@@ -74,6 +74,7 @@ export const api = {
   // per-league leagueTriage (progressive load), not a single /api/home call.
   leagueTriage: (leagueId) => request(`/api/home/league/${leagueId}`),
   onDeck: () => request('/api/ondeck'),
+  portfolio: () => request('/api/portfolio'),
   registerPush: (expoPushToken, prefs) => request('/api/push/register', { method: 'POST', body: { expoPushToken, prefs } }),
   unregisterPush: () => request('/api/push/unregister', { method: 'POST' }),
   scoreboard: () => request('/api/scoreboard'),
