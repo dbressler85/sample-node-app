@@ -164,6 +164,7 @@ async function rankings(cookie, token, { type = 'value', position } = {}) {
   // Filter + sort on cheap enr lookups over lightweight rows, then annotate only
   // the top slice — availability resolution over the whole universe just to
   // discard 99% of it was the cost here.
+  const tags = playerTags.all(token);
   let cand = [...byId.values()];
   if (type === 'position' && position) cand = cand.filter((p) => p.position === position);
   let light = cand.map((p) => ({ p, value: enr.value(p.id), age: enr.age(p.id), trend: enr.trend(p.id) }));
@@ -173,12 +174,21 @@ async function rankings(cookie, token, { type = 'value', position } = {}) {
     light = light.filter((x) => x.trend > 0).sort((a, b) => b.trend - a.trend);
   } else if (type === 'rookies') {
     light = light.filter((x) => x.age != null && x.age <= 23).sort((a, b) => (b.value || 0) - (a.value || 0));
+  } else if (type === 'myvalue') {
+    // Your personal ranking: market value × your Target/Avoid modifier, so your Targets
+    // rise and your Avoids fall. (Displayed value stays the honest market value.)
+    const pv = (x) => (x.value || 0) * playerTags.modifier(tags[String(x.p.id)]);
+    light = light.filter((x) => x.value != null).sort((a, b) => pv(b) - pv(a));
   } else {
     // value / position
     light = light.filter((x) => x.value != null).sort((a, b) => (b.value || 0) - (a.value || 0));
   }
 
-  const list = light.slice(0, 40).map((x) => annotate(x.p, byId, ranks, myRostered, freeBy, enr, ctx));
+  const list = light.slice(0, 40).map((x) => {
+    const row = annotate(x.p, byId, ranks, myRostered, freeBy, enr, ctx);
+    row.tag = tags[String(row.id)] || null;
+    return row;
+  });
 
   const note =
     list.length === 0

@@ -14,6 +14,7 @@ const TABS = [
 ];
 const RANK_TYPES = [
   ['value', 'Value'],
+  ['myvalue', 'My values'],
   ['trending', 'Trending'],
   ['rookies', 'Rookies'],
 ];
@@ -217,6 +218,7 @@ function PlayerRow({ p, rank, sub, onPress }) {
       <View style={{ flex: 1 }}>
         <View style={styles.nameRow}>
           <Text style={styles.name} numberOfLines={1}>{p.name}</Text>
+          {p.tag ? <Text style={[styles.tagMark, { color: p.tag === 'target' ? colors.good : colors.bad }]}>{p.tag === 'target' ? '◎' : '⊘'}</Text> : null}
           <AvailabilityBadge availability={p.availability} style={{ marginLeft: 6 }} />
           {p.mine ? <Text style={styles.mine}>YOURS</Text> : null}
         </View>
@@ -308,6 +310,7 @@ const styles = StyleSheet.create({
   chipTrade: { color: colors.gold, backgroundColor: colors.gold + '22' },
   chipNews: { color: colors.bad, backgroundColor: colors.bad + '22' },
   mine: { color: colors.good, fontSize: 9, fontWeight: '900', marginLeft: 6, borderWidth: 1, borderColor: colors.good, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1, overflow: 'hidden' },
+  tagMark: { fontSize: 13, fontWeight: '900', marginLeft: 6 },
   meta: { color: colors.textDim, fontSize: 12, marginTop: 2 },
   value: { color: colors.gold, fontSize: 15, fontWeight: '900', marginLeft: 10 },
   dot: { width: 10, height: 10, borderRadius: 5, marginRight: 10 },

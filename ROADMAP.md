@@ -123,8 +123,13 @@ Cross-league management is the moat; these deepen it.
   Targets** on their roster (and never your Avoids). **MVP-4 shipped (waivers + draft):**
   the waiver board floats a **Target** free agent to the top and sinks an **Avoid** (chosen
   sort still orders within each group), and the draft board highlights **Target** rows /
-  dims **Avoids** — both with a `◎`/`⊘` marker. Optional later polish: a rankings tier badge
-  + "my values" sort, and a portfolio "you roster N Avoids" surface. Spec:
+  dims **Avoids** — both with a `◎`/`⊘` marker. **MVP-5 shipped (rankings + portfolio):** the
+  Players → Rankings tab has a **"My values"** sort (market value × your modifier, so Targets
+  rise / Avoids fall — displayed value stays honest) and every ranking row shows the `◎`/`⊘`
+  badge; Portfolio has a **"Your tags"** card ("⊘ N Avoids on your rosters — shop them" / "◎ N
+  Targets you hold — protected in trade suggestions"). **Feature complete** across profile →
+  trades → suggestions → waivers → draft → rankings → portfolio; still, as designed, never
+  touches lineups/start-sit. Full spec:
   - **Two lenses — the core principle.** Keep the existing enrichment `value` as the
     honest **market value** (it drives fairness and, crucially, the *partner's* perception
     and their needs/surplus — they don't share your tags). Add a **personal value** overlay

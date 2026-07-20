@@ -20,6 +20,7 @@ const lineupsService = require('./lineups');
 const rosterService = require('./roster');
 const nflLib = require('../lib/nfl');
 const waiverStore = require('../store/waivers');
+const playerTags = require('../store/playerTags');
 
 const SEV = { high: 3, medium: 2, low: 1 };
 
@@ -266,11 +267,17 @@ async function getDashboard(cookie, token) {
   let riskValue = 0;
   const byLeague = [];
   const outlookMix = { winNow: 0, ascending: 0, rebuilding: 0, balanced: 0 };
+  // Distinct rostered players you've tagged — "shop your Avoids" / "your Targets are safe".
+  const tags = playerTags.all(token);
+  const taggedRostered = { target: new Set(), avoid: new Set() };
 
   for (const { league, roster } of valid) {
     const all = [...roster.starters, ...roster.bench, ...roster.ir, ...roster.taxi];
     let leagueRisk = 0;
     for (const p of all) {
+      const t = tags[String(p.id)];
+      if (t === 'avoid') taggedRostered.avoid.add(String(p.id));
+      else if (t === 'target') taggedRostered.target.add(String(p.id));
       const v = p.value || 0;
       if (!v) continue;
       totalValue += v;
@@ -334,6 +341,7 @@ async function getDashboard(cookie, token) {
       top,
     },
     outlookMix,
+    tags: { avoids: taggedRostered.avoid.size, targets: taggedRostered.target.size },
     byLeague,
   };
 }

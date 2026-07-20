@@ -112,6 +112,23 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
           <Text style={styles.hint}>Where your value sits by player age. A left-heavy curve is a younger, ascending portfolio.</Text>
         </View>
 
+        {/* Your tags */}
+        {d.tags && (d.tags.avoids > 0 || d.tags.targets > 0) ? (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Your tags</Text>
+            {d.tags.avoids > 0 ? (
+              <Text style={styles.tagLine}>
+                <Text style={{ color: colors.bad, fontWeight: '900' }}>⊘ {d.tags.avoids}</Text> Avoid{d.tags.avoids === 1 ? '' : 's'} on your rosters — shop them.
+              </Text>
+            ) : null}
+            {d.tags.targets > 0 ? (
+              <Text style={styles.tagLine}>
+                <Text style={{ color: colors.good, fontWeight: '900' }}>◎ {d.tags.targets}</Text> Target{d.tags.targets === 1 ? '' : 's'} you hold — protected in trade suggestions.
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
+
         {/* Per-league */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>By league</Text>
@@ -192,6 +209,7 @@ const styles = StyleSheet.create({
   barFill: { height: 14, backgroundColor: colors.accent, borderRadius: 7 },
   curveVal: { color: colors.text, fontSize: 12, fontWeight: '800', width: 38, textAlign: 'right' },
   hint: { color: colors.textDim, fontSize: 11, marginTop: 6, lineHeight: 15 },
+  tagLine: { color: colors.text, fontSize: 13, lineHeight: 20 },
   leagueRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   leagueName: { color: colors.text, fontSize: 14, fontWeight: '700' },
   leagueSub: { color: colors.textDim, fontSize: 12, marginTop: 1 },
