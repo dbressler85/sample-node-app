@@ -105,6 +105,52 @@ async function getWatchlist(cookie, token) {
   return { players, totalLeagues: data.length };
 }
 
+// Watchlist alerts for Home: a watched player has become actionable in one of your
+// leagues — he's a FREE AGENT you could claim, or another owner just put him ON THE
+// BLOCK (their MFL trade bait). Cheap-ish: reuses the memoized free-agent id sets and
+// the trade-bait board read; muted leagues are skipped. Returns [] fast with no watchlist.
+async function alerts(cookie, token) {
+  const ids = watchStore.list(token).map(String);
+  if (!ids.length) return { alerts: [] };
+
+  // Lazy require to keep the module graph acyclic (trades pulls in a lot).
+  const tradesService = require('./trades');
+  const [leagues, byId] = await Promise.all([
+    leaguesService.orderedLeagues(cookie, token, { hideMuted: true }),
+    playersLib.load(cookie),
+  ]);
+
+  const perLeague = await Promise.all(
+    leagues.map(async (league) => {
+      const [faIds, baitMap] = await Promise.all([
+        waiversService.freeAgentIds(cookie, league).catch(() => []),
+        tradesService.tradeBaitByFranchise(cookie, token, league).catch(() => new Map()),
+      ]);
+      const faSet = new Set(faIds.map(String));
+      // Players any OTHER owner is shopping (exclude my own bait).
+      const rivalBait = new Set();
+      for (const [fid, set] of baitMap) {
+        if (String(fid) === String(league.franchiseId)) continue;
+        for (const pid of set) rivalBait.add(String(pid));
+      }
+      const out = [];
+      for (const id of ids) {
+        if (faSet.has(id)) out.push({ type: 'free', playerId: id, leagueId: league.leagueId, leagueName: league.name });
+        else if (rivalBait.has(id)) out.push({ type: 'onblock', playerId: id, leagueId: league.leagueId, leagueName: league.name });
+      }
+      return out;
+    })
+  );
+
+  const alerts = perLeague.flat().map((a) => {
+    const p = playersLib.resolve(byId, a.playerId);
+    return { ...a, name: p.name, position: p.position, team: p.team };
+  });
+  // Claimable free agents first (more time-sensitive), then on-the-block.
+  alerts.sort((a, b) => (a.type === 'free' ? 0 : 1) - (b.type === 'free' ? 0 : 1));
+  return { alerts };
+}
+
 function add(token, playerId) {
   watchStore.add(token, playerId);
   return { ok: true, watched: true, id: String(playerId) };
@@ -114,4 +160,4 @@ function remove(token, playerId) {
   return { ok: true, watched: false, id: String(playerId) };
 }
 
-module.exports = { getWatchlist, add, remove };
+module.exports = { getWatchlist, alerts, add, remove };

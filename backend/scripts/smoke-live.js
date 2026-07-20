@@ -50,6 +50,7 @@ const TESTS = [
   'league-prefs-test',
   'adp-test',
   'trade-fit-summary-test',
+  'watchlist-alerts-test',
 ];
 
 let failed = 0;
