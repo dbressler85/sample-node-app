@@ -40,6 +40,7 @@ const TESTS = [
   'dynasty-outlook-test',
   'tradebait-test',
   'trade-fit-test',
+  'trade-counter-test',
 ];
 
 let failed = 0;

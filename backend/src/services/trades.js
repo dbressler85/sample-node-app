@@ -16,7 +16,38 @@ const picksLib = require('../lib/picks');
 const leaguesService = require('./leagues');
 const rosterService = require('./roster');
 const tradeStore = require('../store/trades');
+const baitStore = require('../store/tradebait');
 const tradefit = require('../lib/tradefit');
+
+// Trade bait for every franchise in a league: my own from our store (or the demo seed),
+// everyone else's from MFL's native Trade Bait board (or a demo fixture). Returns
+// Map(franchiseId -> Set(playerId)). Best-effort — an unreadable board yields empty sets,
+// and suggestions simply fall back to value + needs.
+async function tradeBaitByFranchise(cookie, token, league) {
+  const map = new Map();
+  let mineIds = baitStore.listLeague(token, league.leagueId);
+  if (!mineIds.length && config.demoMode) {
+    mineIds = demo.tradeBait().filter((e) => String(e.leagueId) === String(league.leagueId)).map((e) => String(e.playerId));
+  }
+  map.set(String(league.franchiseId), new Set(mineIds.map(String)));
+
+  if (config.demoMode) {
+    for (const b of demo.tradeBaitBoard(league.leagueId)) map.set(String(b.franchiseId), new Set((b.willGiveUp || []).map(String)));
+  } else {
+    try {
+      const res = await mfl.exportRequest('tradeBait', { host: league.host, cookie, L: league.leagueId });
+      for (const b of mfl.toArray(res && res.tradeBaits && res.tradeBaits.tradeBait)) {
+        const fid = String(b.franchise_id != null ? b.franchise_id : (b.franchiseId || ''));
+        if (!fid) continue;
+        const ids = String(b.willGiveUp || b.will_give_up || '').split(/[,;|]/).map((s) => s.trim()).filter(Boolean);
+        map.set(fid, new Set(ids));
+      }
+    } catch (e) {
+      /* no board -> no bait signal */
+    }
+  }
+  return map;
+}
 
 // Estimated dynasty value (0-100 scale) for a future draft pick. This is a
 // model, not a market price: a round-based baseline plus a dynasty time-value
@@ -250,16 +281,104 @@ async function suggestFor(cookie, token, leagueId, targetId, partnerFranchiseId)
   const tid = String(targetId);
   const targetValue = enr.value(tid) || 0;
   const partnerNeeds = (ns[String(partnerFranchiseId)] || {}).needs || [];
+  const baitMap = await tradeBaitByFranchise(cookie, token, league);
+  const myBait = baitMap.get(String(league.franchiseId)) || new Set();
   const mine = [...roster.starters, ...roster.bench]
     .map((p) => ({ id: p.id, name: p.name, position: p.position, value: enr.value(p.id) || 0 }));
-  const give = tradefit.suggestGive(mine, targetValue, partnerNeeds);
+  const give = tradefit.suggestGive(mine, targetValue, partnerNeeds, myBait);
   return {
     leagueId: league.leagueId,
     targetId: tid,
     targetValue,
-    give: give.map((g) => ({ id: g.id, name: g.name, position: g.position, value: g.value })),
+    give: give.map((g) => ({ id: g.id, name: g.name, position: g.position, value: g.value, bait: myBait.has(String(g.id)) })),
     giveValue: Math.round(give.reduce((s, g) => s + (g.value || 0), 0) * 10) / 10,
     partnerNeeds,
+  };
+}
+
+// A COUNTER to an incoming offer: keep the offer's construction (same players, same
+// shape) but rebalance to fair value. If their offer leaves you light, ask for one more
+// of their players — preferring one on THEIR trade bait (they're willing to move him)
+// or at YOUR need — else trim your give. You come out at/above fair.
+async function counterFor(cookie, token, leagueId, offerId) {
+  const data = await tradeData(cookie, token, leagueId);
+  const { league, byId, enr, roster, rawPartners, ns } = data;
+  const offers = await offersForLeague(cookie, token, league, byId, enr);
+  const offer = offers.find((o) => String(o.id) === String(offerId));
+  if (!offer) { const e = new Error('That offer is no longer available.'); e.status = 404; throw e; }
+
+  const partnerId = String(offer.withFranchiseId || '');
+  const partner = rawPartners.find((p) => String(p.franchiseId) === partnerId);
+  const myIds = new Set([...roster.starters, ...roster.bench].map((p) => String(p.id)));
+  const baitMap = await tradeBaitByFranchise(cookie, token, league);
+  const theirBait = baitMap.get(partnerId) || new Set();
+  const myNeeds = new Set(((ns[String(league.franchiseId)] || {}).needs || []).map((n) => n.pos));
+
+  const val = (arr) => Math.round(arr.reduce((s, a) => s + (a.value || 0), 0) * 10) / 10;
+  // I receive what they offered; I give what they asked. Rebalance from there.
+  const receive = offer.acquire.map((a) => ({ ...a }));
+  let give = offer.send.map((a) => ({ ...a }));
+  const inRecv = new Set(receive.map((a) => String(a.id)));
+  // Their other tradeable players (not already in the deal, and not mine) I could ask for.
+  const partnerPool = (partner ? partner.roster : [])
+    .map((id) => asset(id, byId, enr))
+    .filter((a) => (a.value || 0) > 0 && !inRecv.has(String(a.id)) && !myIds.has(String(a.id)));
+
+  const FAIR = 0.06;
+  const scale = () => Math.max(val(receive), val(give), 1);
+  const added = [];
+  let guard = 0;
+  while (val(receive) - val(give) < -FAIR * scale() && guard++ < 3) {
+    const deficit = val(give) - val(receive);
+    const cands = partnerPool.filter((a) => !inRecv.has(String(a.id)));
+    if (!cands.length) {
+      // Nothing to ask for — trim my least-valuable give instead, if I can.
+      if (give.length > 1) { give = give.slice().sort((a, b) => (a.value || 0) - (b.value || 0)).slice(1); continue; }
+      break;
+    }
+    const score = (a) => {
+      const v = a.value || 0;
+      const near = -Math.abs(v - deficit);
+      const overshoot = v > deficit * 1.4 ? -(v - deficit * 1.4) : 0;
+      const baitBonus = theirBait.has(String(a.id)) ? 30 : 0;
+      const needBonus = myNeeds.has(a.position) ? 15 : 0;
+      return near * 0.5 + overshoot + baitBonus + needBonus;
+    };
+    cands.sort((a, b) => score(b) - score(a));
+    const pick = cands[0];
+    // If the best add would swing it wildly in my favor, prefer trimming my give.
+    if (val(receive) + (pick.value || 0) - val(give) > 0.25 * scale() && give.length > 1) {
+      give = give.slice().sort((a, b) => (a.value || 0) - (b.value || 0)).slice(1);
+      continue;
+    }
+    receive.push(pick);
+    inRecv.add(String(pick.id));
+    added.push(pick);
+  }
+
+  const net = val(receive) - val(give);
+  const short = Math.abs(Math.round(offer.analysis.net));
+  let rationale;
+  if (added.length) {
+    const names = added.map((a) => a.name.split(',')[0]).join(' + ');
+    const baited = added.some((a) => theirBait.has(String(a.id)));
+    rationale = `Their offer left you about ${short} light. Counter keeps the same shape but also asks for ${names}${baited ? ' (on their block)' : ''}.`;
+  } else if (net >= 0) {
+    rationale = 'Their offer is already fair to you — sent back as-is to lock it in.';
+  } else {
+    rationale = 'Kept the same shape; nudge it from here.';
+  }
+
+  return {
+    leagueId: league.leagueId,
+    counterOfferId: String(offer.id),
+    toFranchiseId: partnerId,
+    partnerName: offer.withName,
+    give: give.map((a) => ({ id: a.id, name: a.name, position: a.position, value: a.value })),
+    receive: receive.map((a) => ({ id: a.id, name: a.name, position: a.position, value: a.value, bait: theirBait.has(String(a.id)) })),
+    giveValue: val(give),
+    receiveValue: val(receive),
+    rationale,
   };
 }
 
@@ -435,4 +554,4 @@ function throwBad(msg) {
   throw err;
 }
 
-module.exports = { getOverview, getLeague, respond, propose, analyze, crossLeaguePreview, crossLeaguePropose, suggestFor };
+module.exports = { getOverview, getLeague, respond, propose, analyze, crossLeaguePreview, crossLeaguePropose, suggestFor, counterFor };

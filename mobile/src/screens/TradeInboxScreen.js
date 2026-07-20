@@ -15,7 +15,7 @@ const VERDICT = {
 };
 const VRANK = { favorable: 0, fair: 1, unfavorable: 2 };
 
-export default function TradeInboxScreen({ onBack, onOpenLeague, onProposeInLeague, onOpenBlock }) {
+export default function TradeInboxScreen({ onBack, onOpenLeague, onProposeInLeague, onOpenBlock, onCounter }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -120,6 +120,7 @@ export default function TradeInboxScreen({ onBack, onOpenLeague, onProposeInLeag
               busy={busy === `${item.leagueId}:${item.id}`}
               onRespond={respond}
               onOpenLeague={() => onOpenLeague({ leagueId: item.leagueId, name: item.leagueName })}
+              onCounter={onCounter ? () => onCounter({ leagueId: item.leagueId, name: item.leagueName, offerId: item.id }) : null}
             />
           )}
           ListEmptyComponent={
@@ -135,7 +136,7 @@ export default function TradeInboxScreen({ onBack, onOpenLeague, onProposeInLeag
   );
 }
 
-function OfferCard({ offer, busy, onRespond, onOpenLeague }) {
+function OfferCard({ offer, busy, onRespond, onOpenLeague, onCounter }) {
   const v = VERDICT[offer.analysis.verdict] || VERDICT.fair;
   return (
     <View style={styles.card}>
@@ -164,6 +165,11 @@ function OfferCard({ offer, busy, onRespond, onOpenLeague }) {
           {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.acceptText}>Accept</Text>}
         </Pressable>
       </View>
+      {onCounter ? (
+        <Pressable style={({ pressed }) => [styles.counterBtn, pressed && { opacity: 0.7 }]} onPress={onCounter} disabled={busy}>
+          <Text style={styles.counterBtnText}>↩ Counter with a balanced offer</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -207,6 +213,8 @@ const styles = StyleSheet.create({
   sideName: { color: colors.text, fontSize: 14, flex: 1, marginRight: 8 },
   sideMeta: { color: colors.textDim, fontSize: 12 },
   estCaption: { color: colors.textDim, fontSize: 11, fontStyle: 'italic', opacity: 0.8, marginTop: 2, marginBottom: 4 },
+  counterBtn: { marginTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, paddingTop: 10, alignItems: 'center' },
+  counterBtnText: { color: colors.accent, fontSize: 14, fontWeight: '800' },
   actions: { flexDirection: 'row', gap: 10, marginTop: 12 },
   act: { flex: 1, borderRadius: 12, paddingVertical: 13, alignItems: 'center' },
   reject: { backgroundColor: colors.cardAlt, borderWidth: 1, borderColor: colors.border },
