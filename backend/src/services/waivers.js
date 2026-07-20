@@ -532,7 +532,7 @@ async function cancel(cookie, token, leagueId, claimId) {
 // Cross-league "best available": top free agents across all your leagues, each
 // annotated with which leagues he's available in and under what system.
 async function getBestAvailable(cookie, token) {
-  const leagues = await leaguesService.listLeagues(cookie);
+  const leagues = await leaguesService.orderedLeagues(cookie, token);
   const [byId, enr, ctx] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(undefined, cookie), ctxFor(cookie)]);
   const map = new Map();
 
@@ -638,7 +638,7 @@ async function waiverLocks(cookie, token) {
 // one card per league showing system, budget/priority, roster space, how many
 // free agents are worth a look, top available by value, and pending claims.
 async function getOverview(cookie, token) {
-  const leagues = await leaguesService.listLeagues(cookie);
+  const leagues = await leaguesService.orderedLeagues(cookie, token);
   const [locks, out] = await Promise.all([
     waiverLocks(cookie, token),
     Promise.all(

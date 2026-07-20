@@ -5,12 +5,14 @@ import { colors } from '../theme';
 import useAndroidBack from '../useAndroidBack';
 
 // The full list of your leagues, moved off the Home command center (which is now an
-// action list). Intentionally light — one cheap /api/leagues call, names only — so
-// it opens instantly; tap a league to open its roster (full dynasty detail there).
+// action list). Doubles as the league switcher: PIN a league (★) to float it to the
+// top of every cross-league view, or MUTE it (🔕) so it drops out of Home triage, On
+// Deck, and exposure. The backend returns leagues pinned-first with pinned/muted flags.
 export default function LeaguesScreen({ onBack, onOpenLeague, onOpenDraftHub }) {
   const [leagues, setLeagues] = useState(null);
   const [error, setError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [busy, setBusy] = useState({}); // leagueId -> true while a toggle is in flight
 
   useAndroidBack(useCallback(() => { onBack(); return true; }, [onBack]));
 
@@ -21,6 +23,39 @@ export default function LeaguesScreen({ onBack, onOpenLeague, onOpenDraftHub }) 
       .finally(() => setRefreshing(false));
   }, []);
   useEffect(() => { load(); }, [load]);
+
+  // Optimistically flip the flag, re-sort pinned-first, then reconcile with the server.
+  // Pin and mute are opposite intents, so setting one clears the other locally too.
+  const applyLocal = useCallback((leagueId, patch) => {
+    setLeagues((prev) => {
+      if (!prev) return prev;
+      const next = prev.map((l) => (l.leagueId === leagueId ? { ...l, ...patch } : l));
+      return next
+        .map((l, i) => ({ l, i }))
+        .sort((a, b) => (b.l.pinned ? 1 : 0) - (a.l.pinned ? 1 : 0) || a.i - b.i)
+        .map((x) => x.l);
+    });
+  }, []);
+
+  const togglePin = useCallback((item) => {
+    if (busy[item.leagueId]) return;
+    const on = !item.pinned;
+    setBusy((b) => ({ ...b, [item.leagueId]: true }));
+    applyLocal(item.leagueId, { pinned: on, muted: on ? false : item.muted });
+    api.setPin(item.leagueId, on)
+      .catch(() => { setError('Could not update pin'); load(); })
+      .finally(() => setBusy((b) => ({ ...b, [item.leagueId]: false })));
+  }, [busy, applyLocal, load]);
+
+  const toggleMute = useCallback((item) => {
+    if (busy[item.leagueId]) return;
+    const on = !item.muted;
+    setBusy((b) => ({ ...b, [item.leagueId]: true }));
+    applyLocal(item.leagueId, { muted: on, pinned: on ? false : item.pinned });
+    api.setMute(item.leagueId, on)
+      .catch(() => { setError('Could not update mute'); load(); })
+      .finally(() => setBusy((b) => ({ ...b, [item.leagueId]: false })));
+  }, [busy, applyLocal, load]);
 
   return (
     <View style={styles.container}>
@@ -40,11 +75,27 @@ export default function LeaguesScreen({ onBack, onOpenLeague, onOpenDraftHub }) 
         contentContainerStyle={styles.list}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.accent} />}
         renderItem={({ item }) => (
-          <Pressable style={({ pressed }) => [styles.row, pressed && { opacity: 0.7 }]} onPress={() => onOpenLeague({ leagueId: item.leagueId, name: item.name })}>
-            <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
-            <Text style={styles.chev}>›</Text>
-          </Pressable>
+          <View style={[styles.row, item.muted && styles.rowMuted]}>
+            <Pressable style={styles.pinBtn} hitSlop={8} disabled={!!busy[item.leagueId]} onPress={() => togglePin(item)}>
+              <Text style={[styles.pin, item.pinned && styles.pinOn]}>{item.pinned ? '★' : '☆'}</Text>
+            </Pressable>
+            <Pressable style={styles.nameWrap} onPress={() => onOpenLeague({ leagueId: item.leagueId, name: item.name })}>
+              <Text style={[styles.name, item.muted && styles.nameMuted]} numberOfLines={1}>{item.name}</Text>
+              {item.muted ? <Text style={styles.mutedTag}>Muted</Text> : null}
+            </Pressable>
+            <Pressable style={styles.muteBtn} hitSlop={8} disabled={!!busy[item.leagueId]} onPress={() => toggleMute(item)}>
+              <Text style={[styles.mute, item.muted && styles.muteOn]}>{item.muted ? '🔕' : '🔔'}</Text>
+            </Pressable>
+            <Pressable hitSlop={8} onPress={() => onOpenLeague({ leagueId: item.leagueId, name: item.name })}>
+              <Text style={styles.chev}>›</Text>
+            </Pressable>
+          </View>
         )}
+        ListHeaderComponent={
+          leagues && leagues.length ? (
+            <Text style={styles.hint}>★ pin to the top of every view · 🔔 mute to hide from Home, On Deck &amp; exposure</Text>
+          ) : null
+        }
         ListEmptyComponent={
           leagues == null ? (
             <View style={styles.center}><ActivityIndicator color={colors.accent} size="large" /></View>
@@ -64,10 +115,21 @@ const styles = StyleSheet.create({
   title: { color: colors.text, fontSize: 17, fontWeight: '900' },
   link: { color: colors.accent, fontSize: 15, fontWeight: '700', width: 70, textAlign: 'right' },
   list: { padding: 16 },
+  hint: { color: colors.textDim, fontSize: 12, marginBottom: 12, lineHeight: 17 },
   center: { padding: 40, alignItems: 'center' },
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 16, marginBottom: 10 },
-  name: { color: colors.text, fontSize: 16, fontWeight: '700', flex: 1, marginRight: 10 },
-  chev: { color: colors.textDim, fontSize: 20, fontWeight: '700' },
+  row: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, paddingVertical: 14, paddingHorizontal: 12, marginBottom: 10 },
+  rowMuted: { opacity: 0.55 },
+  pinBtn: { paddingRight: 10 },
+  pin: { color: colors.textDim, fontSize: 20, fontWeight: '700' },
+  pinOn: { color: colors.gold },
+  nameWrap: { flex: 1, flexDirection: 'row', alignItems: 'center' },
+  name: { color: colors.text, fontSize: 16, fontWeight: '700', flexShrink: 1, marginRight: 8 },
+  nameMuted: { color: colors.textDim },
+  mutedTag: { color: colors.textDim, fontSize: 11, fontWeight: '700', borderWidth: 1, borderColor: colors.border, borderRadius: 6, paddingHorizontal: 5, paddingVertical: 1, overflow: 'hidden' },
+  muteBtn: { paddingHorizontal: 8 },
+  mute: { fontSize: 16 },
+  muteOn: { opacity: 1 },
+  chev: { color: colors.textDim, fontSize: 20, fontWeight: '700', paddingLeft: 4 },
   error: { color: colors.bad, textAlign: 'center', padding: 12 },
   empty: { color: colors.textDim, textAlign: 'center', padding: 30 },
 });

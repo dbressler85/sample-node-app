@@ -28,8 +28,8 @@ async function ctxFor(cookie) {
 }
 
 // My roster + free-agent set per league (the cross-league "where does he stand" data).
-async function gather(cookie) {
-  const leagues = await leaguesService.listLeagues(cookie);
+async function gather(cookie, token) {
+  const leagues = await leaguesService.orderedLeagues(cookie, token);
   const data = await Promise.all(
     leagues.map(async (league) => {
       const [roster, faIds] = await Promise.all([
@@ -62,7 +62,7 @@ async function getWatchlist(cookie, token) {
     ctxFor(cookie),
   ]);
   const [data, rawNews] = await Promise.all([
-    gather(cookie),
+    gather(cookie, token),
     (config.demoMode ? Promise.resolve(demo.news()) : newsLib.mflNews(cookie)).catch(() => []),
   ]);
 

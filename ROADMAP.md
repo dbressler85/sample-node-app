@@ -37,9 +37,15 @@ Cross-league management is the moat; these deepen it.
   the Portfolio "By league" row shows the strength tag that explains each label.
   *(Next: fold in actual on-field results (standings/points) alongside dynasty value
   once we're reading `leagueStandings`.)*
-- [ ] **League switcher / mute / pin.** Let the owner pin the leagues they care about
-  to the top of every cross-league view, and mute leagues (e.g. finished or
-  bye-week teams) so they drop out of Home triage, On Deck, and exposure.
+- [x] **League switcher / mute / pin.** The Leagues screen doubles as a switcher: **pin**
+  (★) a league to float it to the top of every cross-league view (Home, Portfolio "By
+  league", Waivers, Trades, Watch, On Deck), or **mute** (🔔) a finished/bye team so it
+  drops out of Home triage, On Deck, and exposure. Pin and mute are opposite intents, so
+  setting one clears the other. Durable per-owner via `store/leaguePrefs`; the leagues
+  endpoint returns pinned-first with `pinned`/`muted` flags, `leaguesService.orderedLeagues`
+  (`hideMuted`) is the shared read the aggregates route through, and the mute filter is
+  applied at each named surface (`getHome`, `ondeck`, `exposure`) so a muted league can't
+  leak back in through a sub-service's own league read.
 - [x] **Trades are discoverable (the trade hub).** The cross-league Trade hub used
   to be reachable only when an offer happened to be waiting (Home row gated on
   `tradeOffers`); the "Trades" chip was a dead count and proposing was buried under
