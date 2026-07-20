@@ -23,6 +23,8 @@ jobs:
           node-version: 20
       - name: Install EAS CLI
         run: npm install -g eas-cli
+      - name: Install dependencies
+        run: npm ci
       - name: List recent builds
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
