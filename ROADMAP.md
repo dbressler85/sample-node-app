@@ -33,8 +33,11 @@ Cross-league management is the moat; these deepen it.
 - [ ] **Trade negotiation: counter-offers.** Trades support propose / accept / reject
   and cross-league "trade for" today; add counter-offer (respond to an incoming
   offer with a modified package) via MFL `import?TYPE=tradeProposal` threading.
-- [ ] **Waiver Wizard: multi-add per league.** The wizard picks one add/drop per
-  league; allow queuing several claims per league with FAAB budgeting across them.
+- [~] **Waiver Wizard flexibility + lock awareness.** Done: position-filter chips +
+  a deeper candidate pool (pick a different player, filter by position), and it
+  now detects leagues where waivers aren't running (draft pending → locked, shown
+  on the landing + walked-past in the wizard). Still open: **multi-add per league**
+  — queue several claims in one league with FAAB budgeting across them.
 
 ## Performance & caching backlog
 
