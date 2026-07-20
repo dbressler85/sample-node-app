@@ -113,6 +113,17 @@ function buildOffer(raw, league, byId, enr) {
   };
 }
 
+// Attach a roster-construction read (does this offer fix a hole or open one?) to each
+// incoming offer, from MY needs/surplus in that league. `send` = what I'd give, `acquire`
+// = what I'd get.
+function annotateConstruction(offers, ns, franchiseId) {
+  const mine = ns[String(franchiseId)] || { needs: [], surplus: [] };
+  for (const o of offers) {
+    if (o.direction === 'incoming') o.construction = tradefit.constructionVerdict(o.send, o.acquire, mine.needs, mine.surplus);
+  }
+  return offers;
+}
+
 // --- live helpers -----------------------------------------------------------
 
 async function livePendingOffers(cookie, league) {
@@ -191,7 +202,15 @@ async function getOverview(cookie, token) {
     leagues.map(async (league) => {
       try {
         const enr = await enrichmentLib.snapshot(await leagueFormat.format(cookie, league), cookie);
-        return await offersForLeague(cookie, token, league, byId, enr);
+        const offers = await offersForLeague(cookie, token, league, byId, enr);
+        // Only pay for the needs/surplus read when a league actually has an offer to judge.
+        if (offers.length) {
+          try {
+            const d = await tradeData(cookie, token, league.leagueId);
+            annotateConstruction(offers, d.ns, league.franchiseId);
+          } catch (e) { /* value-only if we can't read rosters */ }
+        }
+        return offers;
       } catch (e) {
         return [];
       }
@@ -243,7 +262,7 @@ async function tradeData(cookie, token, leagueId) {
 async function getLeague(cookie, token, leagueId) {
   const data = await tradeData(cookie, token, leagueId);
   const { league, byId, enr, roster, rawPartners, ns, fmt } = data;
-  const offers = await offersForLeague(cookie, token, league, byId, enr);
+  const offers = annotateConstruction(await offersForLeague(cookie, token, league, byId, enr), ns, league.franchiseId);
 
   const myPlayers = [...roster.starters, ...roster.bench]
     .map((p) => ({ id: p.id, name: p.name, position: p.position, team: p.team, value: enr.value(p.id) }))

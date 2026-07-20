@@ -42,6 +42,7 @@ const TESTS = [
   'trade-fit-test',
   'trade-counter-test',
   'format-value-test',
+  'trade-construction-test',
 ];
 
 let failed = 0;

@@ -14,6 +14,11 @@ const VERDICT = {
   unfavorable: { label: 'You give up value', color: colors.bad },
 };
 const VRANK = { favorable: 0, fair: 1, unfavorable: 2 };
+const CONSTRUCTION = {
+  good: { color: colors.good, icon: '✓' },
+  caution: { color: colors.bad, icon: '⚠' },
+  neutral: { color: colors.textDim, icon: '•' },
+};
 
 export default function TradeInboxScreen({ onBack, onOpenLeague, onProposeInLeague, onOpenBlock, onCounter }) {
   const [data, setData] = useState(null);
@@ -156,6 +161,13 @@ function OfferCard({ offer, busy, onRespond, onOpenLeague, onCounter }) {
       <Text style={styles.estCaption}>
         Dynasty value estimate · net {offer.analysis.net > 0 ? '+' : ''}{offer.analysis.net}
       </Text>
+      {offer.construction ? (
+        <View style={[styles.construction, { borderColor: (CONSTRUCTION[offer.construction.rating] || CONSTRUCTION.neutral).color }]}>
+          <Text style={[styles.constructionText, { color: (CONSTRUCTION[offer.construction.rating] || CONSTRUCTION.neutral).color }]}>
+            {(CONSTRUCTION[offer.construction.rating] || CONSTRUCTION.neutral).icon} {offer.construction.reason}
+          </Text>
+        </View>
+      ) : null}
 
       <View style={styles.actions}>
         <Pressable style={[styles.act, styles.reject]} onPress={() => onRespond(offer, 'reject')} disabled={busy}>
@@ -213,6 +225,8 @@ const styles = StyleSheet.create({
   sideName: { color: colors.text, fontSize: 14, flex: 1, marginRight: 8 },
   sideMeta: { color: colors.textDim, fontSize: 12 },
   estCaption: { color: colors.textDim, fontSize: 11, fontStyle: 'italic', opacity: 0.8, marginTop: 2, marginBottom: 4 },
+  construction: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, marginTop: 6 },
+  constructionText: { fontSize: 13, fontWeight: '700', lineHeight: 18 },
   counterBtn: { marginTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, paddingTop: 10, alignItems: 'center' },
   counterBtnText: { color: colors.accent, fontSize: 14, fontWeight: '800' },
   actions: { flexDirection: 'row', gap: 10, marginTop: 12 },
