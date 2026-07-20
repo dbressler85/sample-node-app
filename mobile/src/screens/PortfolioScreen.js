@@ -175,7 +175,7 @@ function RiskStat({ label, value, count, color }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
+  container: { flex: 1, backgroundColor: 'transparent' },
   center: { alignItems: 'center', justifyContent: 'center', padding: 24 },
   topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 },
   back: { color: colors.accent, fontSize: 16, fontWeight: '600', width: 60 },

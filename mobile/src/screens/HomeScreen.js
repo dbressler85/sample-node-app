@@ -5,6 +5,7 @@ import { getValue, setValue } from '../cache';
 import { colors } from '../theme';
 import { ScreenTitle, CrestWatermark } from '../components/Brand';
 import Pulse from '../components/Pulse';
+import GearIcon from '../components/GearIcon';
 
 const GROUPS = {
   lineup_risk: { label: 'Unavailable player in lineup', color: colors.bad, open: true },
@@ -227,8 +228,8 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
         </View>
         <View style={styles.topActions}>
           {onOpenSettings ? (
-            <Pressable onPress={onOpenSettings} hitSlop={10} accessibilityLabel="Settings">
-              <Text style={styles.gear}>⚙</Text>
+            <Pressable onPress={onOpenSettings} hitSlop={10} accessibilityLabel="Settings" style={styles.gearBtn}>
+              <GearIcon size={22} />
             </Pressable>
           ) : null}
           <Pressable onPress={onLogout} hitSlop={10}>
@@ -454,13 +455,13 @@ function TriageRow({ item, onPress }) {
 
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
+  container: { flex: 1, backgroundColor: 'transparent' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 30 },
   topbar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8 },
   title: { color: colors.text, fontSize: 26, fontWeight: '900' },
   subtitle: { color: colors.textDim, fontSize: 13, marginTop: 2 },
   topActions: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  gear: { color: colors.textDim, fontSize: 20 },
+  gearBtn: { padding: 2 },
   logout: { color: colors.accent, fontSize: 14, fontWeight: '600' },
   list: { paddingHorizontal: 16, paddingBottom: 32 },
   portfolio: { marginBottom: 4 },

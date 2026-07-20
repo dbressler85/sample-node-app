@@ -317,7 +317,7 @@ function winColor(p) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
+  container: { flex: 1, backgroundColor: 'transparent' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 4 },
   title: { color: colors.text, fontSize: 26, fontWeight: '900' },

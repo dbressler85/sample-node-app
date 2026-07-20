@@ -83,7 +83,7 @@ export default function SettingsScreen({ onBack }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
+  container: { flex: 1, backgroundColor: 'transparent' },
   topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 },
   back: { color: colors.accent, fontSize: 16, fontWeight: '600', width: 60 },
   title: { color: colors.text, fontSize: 17, fontWeight: '900' },

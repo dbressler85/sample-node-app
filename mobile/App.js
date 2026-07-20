@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, Pressable, StyleSheet, StatusBar, ActivityIndicator, SafeAreaView, Platform } from 'react-native';
+import { View, Text, Pressable, StyleSheet, StatusBar, ActivityIndicator, SafeAreaView, Platform, Dimensions } from 'react-native';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import useAndroidBack from './src/useAndroidBack';
 import { api, setAuthLostHandler } from './src/api';
@@ -28,7 +28,21 @@ import OnDeckScreen from './src/screens/OnDeckScreen';
 import { loadSession, clearSession } from './src/auth';
 import { loadDisplayFont } from './src/typography';
 import PressableScale from './src/components/PressableScale';
+import FieldBackdrop from './src/components/FieldBackdrop';
 import { colors } from './src/theme';
+
+// On phones that draw edge-to-edge (the app content extends under the system navigation
+// bar), the tab bar would otherwise sit beneath the gesture pill / nav buttons and be
+// impossible to see or tap. We detect that case (screen height == window height on
+// Android) and add clearance. When the OS already insets the window above its bars,
+// screen != window and no extra padding is needed.
+function androidNavClearance() {
+  if (Platform.OS !== 'android') return 6;
+  const win = Dimensions.get('window');
+  const scr = Dimensions.get('screen');
+  const edgeToEdge = Math.abs(scr.height - win.height) < 2;
+  return edgeToEdge ? 26 : 8;
+}
 
 const TABS = [
   { key: 'home', label: 'Home', icon: '⌂' },
@@ -269,22 +283,35 @@ export default function App() {
     );
   }
 
+  // The gold-over-navy field sits behind the whole app; screens render on transparent
+  // containers so it shows through, with opaque cards floating on top. Login draws its
+  // own hero-intensity backdrop over this one.
   return (
-    <SafeAreaView style={styles.safe}>
-      <ExpoStatusBar style="light" />
-      {Platform.OS === 'android' ? <StatusBar backgroundColor={colors.bg} barStyle="light-content" /> : null}
-      {render()}
-    </SafeAreaView>
+    <View style={styles.root}>
+      <FieldBackdrop />
+      <SafeAreaView style={styles.safe}>
+        <ExpoStatusBar style="light" />
+        {Platform.OS === 'android' ? <StatusBar translucent backgroundColor="transparent" barStyle="light-content" /> : null}
+        {render()}
+      </SafeAreaView>
+    </View>
   );
 }
 
 function TabBar({ tab, onChange }) {
   return (
-    <View style={styles.tabbar}>
+    <View style={[styles.tabbar, { paddingBottom: androidNavClearance() }]}>
       {TABS.map((t) => {
         const active = tab === t.key;
         return (
-          <PressableScale key={t.key} style={styles.tab} onPress={() => onChange(t.key)} hitSlop={6} dip={0.88}>
+          <PressableScale
+            key={t.key}
+            pressableStyle={styles.tab}
+            style={styles.tabInner}
+            onPress={() => onChange(t.key)}
+            hitSlop={6}
+            dip={0.88}
+          >
             <Text style={[styles.tabIcon, { color: active ? colors.accent : colors.textDim }]}>{t.icon}</Text>
             <Text style={[styles.tabLabel, { color: active ? colors.accent : colors.textDim }]}>{t.label}</Text>
           </PressableScale>
@@ -298,18 +325,20 @@ const styles = StyleSheet.create({
   // SafeAreaView only insets on iOS; on Android the (translucent) status bar would
   // otherwise overlap the top of every screen (search box, tab menus). Pad the root
   // by the Android status-bar height so all content clears the OS ribbon.
-  safe: { flex: 1, backgroundColor: colors.bg, paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0 },
+  root: { flex: 1, backgroundColor: colors.bg },
+  safe: { flex: 1, backgroundColor: 'transparent', paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0 },
   flex: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   tabbar: {
     flexDirection: 'row',
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    backgroundColor: colors.card,
-    paddingBottom: Platform.OS === 'ios' ? 4 : 8,
+    // Solid, slightly lifted from the backdrop so the bar reads as a distinct surface.
+    backgroundColor: '#0C1424',
     paddingTop: 8,
   },
-  tab: { flex: 1, alignItems: 'center' },
+  tab: { flex: 1 },
+  tabInner: { alignItems: 'center', paddingVertical: 2 },
   tabIcon: { fontSize: 18, marginBottom: 2 },
   tabLabel: { fontSize: 10, fontWeight: '700' },
 });
