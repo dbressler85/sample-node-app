@@ -47,9 +47,10 @@ function androidNavClearance() {
 const TABS = [
   { key: 'home', label: 'Home', icon: '⌂' },
   { key: 'scores', label: 'Scores', icon: '◉' },
-  { key: 'waivers', label: 'Waivers', icon: '⇄' },
-  { key: 'players', label: 'Players', icon: '◐' },
   { key: 'lineups', label: 'Lineups', icon: '⚑' },
+  { key: 'waivers', label: 'Waivers', icon: '⇄' },
+  { key: 'trades', label: 'Trades', icon: '⇌' },
+  { key: 'players', label: 'Players', icon: '◐' },
 ];
 
 export default function App() {
@@ -157,6 +158,16 @@ export default function App() {
         );
       case 'players':
         return <PlayersScreen onOpenPlayer={openPlayer} />;
+      case 'trades':
+        return (
+          <TradeInboxScreen
+            onOpenLeague={openTrades}
+            onProposeInLeague={(league) => openTrades(league, 'propose')}
+            onOpenBlock={openBlock}
+            onCounter={(ctx) => openTrades({ leagueId: ctx.leagueId, name: ctx.name }, 'propose', { counterOfferId: ctx.offerId })}
+            onOpenPlayer={openPlayer}
+          />
+        );
       case 'lineups':
         return <LineupsScreen onOpenLineup={openLineup} onStartWizard={openWizard} />;
       case 'home':
@@ -170,7 +181,7 @@ export default function App() {
             onOpenPortfolio={openPortfolio}
             onOpenWaivers={(league) => openWaivers({ leagueId: league.leagueId, position: league.position })}
             onOpenTrades={openTrades}
-            onOpenTradeInbox={openTradeInbox}
+            onOpenTradeInbox={() => setTab('trades')}
             onOpenDraft={openDraft}
             onOpenDraftHub={openDraftHub}
             onOpenOnDeck={openOnDeck}
