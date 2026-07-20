@@ -1,0 +1,47 @@
+name: EAS Build (Android)
+
+# Phone-friendly: trigger from the GitHub mobile app or website — Actions tab →
+# "EAS Build (Android)" → Run workflow. GitHub's runners can reach Expo's API (this
+# repo's dev sandbox can't), so the build is kicked off here and runs on EAS's servers.
+# When it finishes, install the APK from the build's page on expo.dev.
+#
+# Requires a repository secret named EXPO_TOKEN (Settings → Secrets and variables →
+# Actions → New repository secret). Create the token at expo.dev → Account settings →
+# Access tokens.
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: "Build profile"
+        type: choice
+        default: preview
+        options:
+          - preview
+          - production
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install EAS CLI
+        run: npm install -g eas-cli
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Kick off the EAS build
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: eas build --platform android --profile ${{ inputs.profile }} --non-interactive --no-wait

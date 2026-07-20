@@ -7,6 +7,12 @@
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "scheme": "dynastycentral",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/761454da-7a00-442c-93b5-38ddf72a8b77"
+    },
     "icon": "./assets/icon.png",
     "splash": {
       "image": "./assets/splash.png",
