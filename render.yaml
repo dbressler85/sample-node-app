@@ -37,7 +37,8 @@ services:
   - type: web
     name: dynasty-central-backend
     runtime: node
-    plan: free # → change to `starter` for always-on + a persistent disk (see notes above)
+    plan: starter # always-on (no idle sleep / cold starts). Keep in sync with the
+    # dashboard so a blueprint sync can't silently downgrade you back to `free`.
     rootDir: backend
     buildCommand: npm install
     startCommand: npm start
