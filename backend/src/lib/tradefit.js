@@ -114,20 +114,23 @@ function suggestGive(mine, targetValue, partnerNeeds, myBait) {
   return [pool.sort((a, b) => a.value - b.value)[0]];
 }
 
-// Roster-construction read on an incoming offer, independent of raw value: does it fix a
-// hole or open one? `give` = players you'd send, `receive` = players you'd get, each with
-// a `position`. myNeeds/mySurplus are your league-relative needs/surplus (from needsSurplus).
+// Roster-construction read on a deal, independent of raw value: does it fix a hole or open
+// one? `give` = players this team sends, `receive` = players it gets, each with a `position`.
+// needs/surplus are that team's league-relative needs/surplus (from needsSurplus). `subject`
+// phrases the reason: 'you' (default, your side) or 'they' (the other team, e.g. on an
+// outgoing offer — a "good" for them means they're likely to accept).
 // Returns { rating: 'good'|'neutral'|'caution', reason, fills:[pos], thins:[pos] }.
-function constructionVerdict(give, receive, myNeeds, mySurplus) {
-  const needSet = new Set((myNeeds || []).map((n) => n.pos));
-  const surSet = new Set((mySurplus || []).map((s) => s.pos));
+function constructionVerdict(give, receive, needs, surplus, subject) {
+  const you = subject !== 'they';
+  const needSet = new Set((needs || []).map((n) => n.pos));
+  const surSet = new Set((surplus || []).map((s) => s.pos));
   const giveFromNeed = (give || []).filter((p) => needSet.has(p.position));
   const giveFromSurplus = (give || []).filter((p) => surSet.has(p.position));
   const recvFillsNeed = (receive || []).filter((p) => needSet.has(p.position));
   const recvOntoSurplus = (receive || []).filter((p) => surSet.has(p.position));
 
   let score = 0;
-  score += recvFillsNeed.length * 2;     // getting what you're thin at — strong plus
+  score += recvFillsNeed.length * 2;     // getting what they're thin at — strong plus
   score += giveFromSurplus.length;       // dealing from depth — plus
   score -= giveFromNeed.length * 2;      // dealing away a need — strong minus
   score -= recvOntoSurplus.length * 0.5; // piling onto a strength — minor minus
@@ -135,23 +138,32 @@ function constructionVerdict(give, receive, myNeeds, mySurplus) {
   const fills = [...new Set(recvFillsNeed.map((p) => p.position))];
   const thins = [...new Set(giveFromNeed.map((p) => p.position))];
   const fromDepth = [...new Set(giveFromSurplus.map((p) => p.position))];
+  const j = (a) => a.join('/');
 
   let rating;
   let reason;
   if (thins.length && !fills.length) {
     rating = 'caution';
-    reason = `Sends a ${thins.join('/')} you're already thin at — don't do it unless the value is a steal.`;
+    reason = you
+      ? `Sends a ${j(thins)} you're already thin at — don't do it unless the value is a steal.`
+      : `Costs them a ${j(thins)} they're thin at — a tough sell.`;
   } else if (score >= 2) {
     rating = 'good';
-    if (fills.length && fromDepth.length) reason = `Fills your ${fills.join('/')} need from ${fromDepth.join('/')} depth — a real roster fit.`;
-    else if (fills.length) reason = `Fills your ${fills.join('/')} need.`;
-    else reason = `Deals from your ${fromDepth.join('/')} depth.`;
+    if (you) {
+      if (fills.length && fromDepth.length) reason = `Fills your ${j(fills)} need from ${j(fromDepth)} depth — a real roster fit.`;
+      else if (fills.length) reason = `Fills your ${j(fills)} need.`;
+      else reason = `Deals from your ${j(fromDepth)} depth.`;
+    } else {
+      reason = fills.length ? `Fills their ${j(fills)} need — likely to bite.` : `Comes from their ${j(fromDepth)} depth.`;
+    }
   } else if (score <= -1) {
     rating = 'caution';
-    reason = thins.length ? `Thins your ${thins.join('/')} without filling a need.` : `Piles onto a spot you're already deep at.`;
+    reason = you
+      ? (thins.length ? `Thins your ${j(thins)} without filling a need.` : `Piles onto a spot you're already deep at.`)
+      : (thins.length ? `Thins their ${j(thins)}.` : `Adds to a spot they're already deep at.`);
   } else {
     rating = 'neutral';
-    reason = 'Roster-neutral — it comes down to value.';
+    reason = you ? 'Roster-neutral — it comes down to value.' : 'Roster-neutral for them.';
   }
   return { rating, reason, fills, thins };
 }

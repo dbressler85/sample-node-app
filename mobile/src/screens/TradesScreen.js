@@ -11,6 +11,30 @@ const CONSTRUCTION = {
   neutral: { color: colors.textDim, icon: '•' },
 };
 
+// Live roster-construction read for the builder (mirrors the backend tradefit verdict).
+// give/receive are asset lists from THIS team's side; subject phrases it ('you' | 'they').
+function constructionOf(give, receive, needs, surplus, subject) {
+  const you = subject !== 'they';
+  const needSet = new Set((needs || []).map((n) => n.pos));
+  const surSet = new Set((surplus || []).map((s) => s.pos));
+  const gNeed = give.filter((p) => needSet.has(p.position));
+  const gSurp = give.filter((p) => surSet.has(p.position));
+  const rNeed = receive.filter((p) => needSet.has(p.position));
+  const rSurp = receive.filter((p) => surSet.has(p.position));
+  const score = rNeed.length * 2 + gSurp.length - gNeed.length * 2 - rSurp.length * 0.5;
+  const fills = [...new Set(rNeed.map((p) => p.position))];
+  const thins = [...new Set(gNeed.map((p) => p.position))];
+  const depth = [...new Set(gSurp.map((p) => p.position))];
+  const j = (a) => a.join('/');
+  if (thins.length && !fills.length) return { rating: 'caution', reason: you ? `Ships a ${j(thins)} you're thin at` : `Costs them a ${j(thins)} they need` };
+  if (score >= 2) {
+    if (you) return { rating: 'good', reason: fills.length ? `Fills your ${j(fills)} need${depth.length ? ` from ${j(depth)} depth` : ''}` : `From your ${j(depth)} depth` };
+    return { rating: 'good', reason: fills.length ? `Fills their ${j(fills)} need — likely to bite` : `From their ${j(depth)} depth` };
+  }
+  if (score <= -1) return { rating: 'caution', reason: you ? (thins.length ? `Thins your ${j(thins)}` : 'Onto your strength') : (thins.length ? `Thins their ${j(thins)}` : 'Onto their strength') };
+  return { rating: 'neutral', reason: you ? 'Roster-neutral' : 'Neutral for them' };
+}
+
 const VERDICT = {
   favorable: { label: 'You gain value', color: colors.good },
   fair: { label: 'Fair deal', color: colors.textDim },
@@ -82,6 +106,14 @@ export default function TradesScreen({ league, onBack, initialTab, seed }) {
   const sendList = Object.values(send);
   const receiveList = Object.values(receive);
   const preview = useMemo(() => analyze(receiveList, sendList), [receiveList, sendList]);
+  // Live construction for BOTH sides of the offer being built.
+  const buildFit = useMemo(() => {
+    if (!partner || !sendList.length || !receiveList.length) return null;
+    return {
+      me: constructionOf(sendList, receiveList, data && data.me && data.me.needs, data && data.me && data.me.surplus, 'you'),
+      them: constructionOf(receiveList, sendList, partner.needs, partner.surplus, 'they'),
+    };
+  }, [partner, sendList, receiveList, data]);
 
   function toggle(setFn, obj, asset) {
     setFn((cur) => {
@@ -294,6 +326,16 @@ export default function TradesScreen({ league, onBack, initialTab, seed }) {
 
       {tab === 'propose' ? (
         <View style={styles.footer}>
+          {buildFit ? (
+            <View style={styles.buildFit}>
+              <Text style={[styles.buildFitLine, { color: (CONSTRUCTION[buildFit.me.rating] || CONSTRUCTION.neutral).color }]} numberOfLines={1}>
+                {(CONSTRUCTION[buildFit.me.rating] || CONSTRUCTION.neutral).icon} You — {buildFit.me.reason}
+              </Text>
+              <Text style={[styles.buildFitLine, { color: (CONSTRUCTION[buildFit.them.rating] || CONSTRUCTION.neutral).color }]} numberOfLines={1}>
+                {(CONSTRUCTION[buildFit.them.rating] || CONSTRUCTION.neutral).icon} {partner ? partner.name : 'Them'} — {buildFit.them.reason}
+              </Text>
+            </View>
+          ) : null}
           <View style={styles.previewRow}>
             <Text style={styles.previewText}>
               You get <Text style={styles.previewStrong}>{preview.acquireValue}</Text> · send <Text style={styles.previewStrong}>{preview.sendValue}</Text>
@@ -331,8 +373,13 @@ function OfferCard({ offer, busy, onRespond, onCounter }) {
       {offer.construction ? (
         <View style={[styles.construction, { borderColor: (CONSTRUCTION[offer.construction.rating] || CONSTRUCTION.neutral).color }]}>
           <Text style={[styles.constructionText, { color: (CONSTRUCTION[offer.construction.rating] || CONSTRUCTION.neutral).color }]}>
-            {(CONSTRUCTION[offer.construction.rating] || CONSTRUCTION.neutral).icon} {offer.construction.reason}
+            {(CONSTRUCTION[offer.construction.rating] || CONSTRUCTION.neutral).icon} {offer.direction === 'outgoing' ? 'You — ' : ''}{offer.construction.reason}
           </Text>
+          {offer.direction === 'outgoing' && offer.partnerConstruction ? (
+            <Text style={[styles.constructionText, { color: (CONSTRUCTION[offer.partnerConstruction.rating] || CONSTRUCTION.neutral).color, marginTop: 4 }]}>
+              {(CONSTRUCTION[offer.partnerConstruction.rating] || CONSTRUCTION.neutral).icon} {offer.withName} — {offer.partnerConstruction.reason}
+            </Text>
+          ) : null}
         </View>
       ) : null}
       <View style={styles.cardActions}>
@@ -427,6 +474,8 @@ const styles = StyleSheet.create({
   estCaption: { color: colors.textDim, fontSize: 11, fontStyle: 'italic', opacity: 0.8, marginTop: 8 },
   construction: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, marginTop: 8 },
   constructionText: { fontSize: 13, fontWeight: '700', lineHeight: 18 },
+  buildFit: { marginBottom: 8, gap: 2 },
+  buildFitLine: { fontSize: 12, fontWeight: '700' },
   cardActions: { flexDirection: 'row', gap: 10, marginTop: 12 },
   act: { flex: 1, borderRadius: 10, paddingVertical: 11, alignItems: 'center' },
   reject: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
