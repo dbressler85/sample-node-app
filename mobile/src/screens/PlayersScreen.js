@@ -3,6 +3,7 @@ import { View, Text, FlatList, StyleSheet, Pressable, TextInput, ActivityIndicat
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import AvailabilityBadge from '../components/AvailabilityBadge';
+import { getValue, setValue } from '../cache';
 
 const TABS = [
   ['rankings', 'Rankings'],
@@ -45,18 +46,37 @@ export default function PlayersScreen({ onOpenPlayer }) {
     };
   }, [query]);
 
-  const loadRankings = useCallback(() => {
-    api.playerRankings(rankType).then(setRankings).catch((e) => setError(e.message));
+  const loadRankings = useCallback(async () => {
+    try {
+      const res = await api.playerRankings(rankType);
+      setRankings(res);
+      setValue(`players:rankings:${rankType}`, res);
+    } catch (e) {
+      setError(e.message);
+    }
   }, [rankType]);
 
+  // Rankings tab uses stale-while-revalidate: paint the cached list for this rank
+  // type instantly, then refresh. (Search is transient; My Players / News / Watch
+  // load fresh when opened.)
   useEffect(() => {
-    if (tab === 'rankings') loadRankings();
+    if (tab !== 'rankings') return undefined;
+    let alive = true;
+    setRankings(null);
+    getValue(`players:rankings:${rankType}`).then((cached) => {
+      if (alive && cached != null) setRankings(cached);
+      if (alive) loadRankings();
+    });
+    return () => { alive = false; };
+  }, [tab, rankType, loadRankings]);
+
+  useEffect(() => {
     if (tab === 'mine' && !mine) api.exposure().then(setMine).catch((e) => setError(e.message));
     if (tab === 'news' && !news) api.news().then(setNews).catch((e) => setError(e.message));
     // Watchlist changes as you star players elsewhere, so refetch each time the
     // tab is opened rather than caching it.
     if (tab === 'watch') { setWatch(null); api.watchlist().then(setWatch).catch((e) => setError(e.message)); }
-  }, [tab, loadRankings, mine, news]);
+  }, [tab, mine, news]);
 
   const searching = query.trim().length >= 2;
 

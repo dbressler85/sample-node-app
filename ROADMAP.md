@@ -49,14 +49,13 @@ player hub). Remaining, in rough priority order:
   15s poll and every filter tap). Convert to `FlatList` with `keyExtractor`,
   header/my-picks in `ListHeaderComponent`. *(Deferred: needs on-device UI
   verification, not just a parse-check.)*
-- [ ] **Stale-while-revalidate on the other overview screens.** Only Home uses the
-  AsyncStorage disk cache (paint cached instantly, always revalidate in the
-  background). Extend that pattern to Lineups, Waivers, Scores, Draft Hub, and Trade
-  Inbox so tab switches paint instantly instead of cold-loading with a spinner.
-  Note: a time-based "skip refresh if fresh" gate was tried on Home and **reverted**
-  — it left triage stale after an action taken in an overlay (e.g. a lineup just
-  set). Any freshness gate must be **mutation-aware** (invalidate the cached view
-  when the user performs a write that changes it), not purely time-based.
+- [x] **Stale-while-revalidate on the overview screens.** Lineups, Waivers, and the
+  Players → Rankings tab now paint their last-known data from the on-device cache
+  instantly and refetch in the background (`useCachedResource` hook + per-screen
+  wiring), so they no longer cold-load with a blank spinner. Always revalidates
+  (never skips the fetch), so there's no stale-after-action surprise — the trap
+  that sank the earlier time-based Home gate. *(Not applied to Scores — it's live
+  and freshness matters. Draft Hub and Trade Inbox could get the same treatment.)*
 - [ ] **Seed overlays from Home's already-fetched data.** Home fetches `drafts`,
   `onDeck`, and `news`; the Draft Hub / On Deck / News screens then refetch the
   same endpoints cold. Pass the loaded data as an initial prop (still revalidate).

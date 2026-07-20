@@ -13,6 +13,7 @@ import { api } from '../api';
 import { colors } from '../theme';
 import AvailabilityBadge from '../components/AvailabilityBadge';
 import useAndroidBack from '../useAndroidBack';
+import useCachedResource from '../useCachedResource';
 
 const STATUS = {
   risk: { label: 'Risk', color: colors.bad },
@@ -31,13 +32,13 @@ const MODES = [
 
 export default function LineupsScreen({ onOpenLineup, onStartWizard }) {
   const [mode, setMode] = useState('auto');
-  const [data, setData] = useState(null);
-  const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [plan, setPlan] = useState(null); // review sheet
   const [planning, setPlanning] = useState(false);
   const [applying, setApplying] = useState(false);
+
+  // Stale-while-revalidate: paint the last lineups for this mode instantly, refetch
+  // in the background. Keyed by mode so switching modes paints that mode's cache.
+  const { data, error, refreshing, loading, reload } = useCachedResource(`lineups:${mode}`, () => api.lineups(mode));
 
   // Back closes the review sheet first.
   useAndroidBack(useCallback(() => {
@@ -47,23 +48,6 @@ export default function LineupsScreen({ onOpenLineup, onStartWizard }) {
     }
     return false;
   }, [plan]));
-
-  const load = useCallback(async () => {
-    setError(null);
-    try {
-      setData(await api.lineups(mode));
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [mode]);
-
-  useEffect(() => {
-    setLoading(true);
-    load();
-  }, [load]);
 
   function startWizard() {
     const queue = (data ? data.leagues : []).filter((l) => !l.error && l.status !== 'optimal');
@@ -100,7 +84,7 @@ export default function LineupsScreen({ onOpenLineup, onStartWizard }) {
         ids.map((leagueId) => ({ leagueId }))
       );
       setPlan(null);
-      await load();
+      await reload();
       Alert.alert('Lineups set', `${res.summary.leaguesUpdated} updated · +${res.summary.pointsGained} projected pts.`);
     } catch (e) {
       Alert.alert('Could not set lineups', e.message);
@@ -164,14 +148,7 @@ export default function LineupsScreen({ onOpenLineup, onStartWizard }) {
           keyExtractor={(l) => l.leagueId}
           contentContainerStyle={styles.list}
           refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={() => {
-                setRefreshing(true);
-                load();
-              }}
-              tintColor={colors.accent}
-            />
+            <RefreshControl refreshing={refreshing} onRefresh={reload} tintColor={colors.accent} />
           }
           renderItem={({ item }) => <Row item={item} onPress={() => onOpenLineup(item)} />}
         />
