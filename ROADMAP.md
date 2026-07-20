@@ -160,9 +160,13 @@ Grouped into four "synergy systems", highest-leverage first:
   `watchlist.alerts` + `GET /api/watchlist/alerts` cross the watchlist ids with the
   memoized free-agent sets and the trade-bait board; each row opens that player's profile
   (add/trade from there). Fetched in the background, empty-fast with no watchlist.
-- [ ] **Expand push beyond draft-clock + trade-offer.** On Deck / exposure / news
-  already detect lineup holes before lock, injuries to *your starters*, and waiver runs;
-  the detection exists, push just doesn't subscribe to it.
+- [~] **Expand push beyond draft-clock + trade-offer.** Push now also fires for a **lineup
+  that needs attention** before kickoff (from On Deck's `lineup_lock` items, keyed by
+  league+kickoff so it's once per week per league) and a **watchlist** player who's newly a
+  free agent / on another owner's block. Each channel is an independent pref and is only
+  polled when enabled (`buildFor` + `tick` in `notifications.js`). *(Still open: injuries to
+  a starter and waiver-run times — the latter has no machine-readable MFL timestamp; a
+  mobile prefs UI to toggle the channels.)*
 - [ ] **Unify the "where does this player stand" computation.** profile `crossLeague`,
   watchlist `relationIn`, and exposure are three silos of the same concept; Watch tab's
   `free`/`tradeTarget` and the profile's "Trade for" should share one action pathway.
