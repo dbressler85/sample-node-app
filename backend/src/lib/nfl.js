@@ -17,24 +17,48 @@ const playersLib = require('./players');
 let weekCache = { week: null, at: 0 };
 const WEEK_TTL_MS = 60 * 60 * 1000; // 1h
 
+// MFL labels the UPCOMING season's week 1 months in advance — in July its
+// nflSchedule already reports "week 1." Trusting that number flips the whole app
+// into in-season mode in the deep offseason and nags you to set lineups for games
+// weeks away. The season is only actually "live" once the reported week's games
+// are near: its earliest kickoff is within IN_SEASON_LEAD_MS (or already underway).
+// When kickoff times aren't published yet, fall back to the NFL calendar window.
+const IN_SEASON_LEAD_MS = 10 * 24 * 60 * 60 * 1000; // ~10 days out counts as "this week"
+
+async function seasonLive(cookie, week) {
+  try {
+    const matchups = await scheduleMatchups(cookie, week);
+    const kicks = matchups.map((m) => Number(m && m.kickoff)).filter((t) => t > 0);
+    if (kicks.length) return Math.min(...kicks) * 1000 - Date.now() <= IN_SEASON_LEAD_MS;
+  } catch (e) {
+    /* no kickoff data — fall through to the calendar window */
+  }
+  const month = new Date().getUTCMonth(); // 0=Jan … 11=Dec
+  return month >= 8 || month === 0; // Sep–Dec or Jan: the fantasy regular-season window
+}
+
 async function currentWeek(cookie) {
   const override = Number(process.env.MFL_WEEK);
   if (override >= 1 && override <= 18) return override;
 
   const now = Date.now();
-  if (weekCache.week != null && now - weekCache.at < WEEK_TTL_MS) return weekCache.week;
+  // Cache by time so the offseason (null) is cached too, not re-fetched every call.
+  if (weekCache.at && now - weekCache.at < WEEK_TTL_MS) return weekCache.week;
 
   try {
     const res = await mfl.exportRequest('nflSchedule', { cookie }); // no W -> current week
     const w = Number(res && res.nflSchedule && res.nflSchedule.week);
-    if (w >= 1 && w <= 18) {
-      weekCache = { week: w, at: now };
-      console.log(`[currentWeek] detected week ${w} from MFL`);
-      return w;
+    if (!(w >= 1 && w <= 18)) {
+      // No in-range week at all -> clearly the offseason.
+      weekCache = { week: null, at: now };
+      return null;
     }
-    // A response with no in-range week means the season isn't active.
-    weekCache = { week: null, at: now };
-    return null;
+    const live = await seasonLive(cookie, w);
+    weekCache = { week: live ? w : null, at: now };
+    console.log(live
+      ? `[currentWeek] detected live week ${w} from MFL`
+      : `[currentWeek] MFL reports week ${w} but its games aren't near — treating as offseason`);
+    return live ? w : null;
   } catch (e) {
     console.log(`[currentWeek] detection failed: ${e.message}`);
     return weekCache.week; // keep last-good if we have one, else null
