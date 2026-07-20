@@ -5,6 +5,7 @@ import { colors, positionColors } from '../theme';
 import AvailabilityBadge from '../components/AvailabilityBadge';
 import AddAcrossSheet from '../components/AddAcrossSheet';
 import TradeAcrossSheet from '../components/TradeAcrossSheet';
+import { TargetIcon, AvoidIcon, WatchIcon } from '../components/PlayerActionIcons';
 import useAndroidBack from '../useAndroidBack';
 
 const RELATION = {
@@ -87,9 +88,6 @@ export default function PlayerProfileScreen({ playerId, onBack, onOpenTradeDesk,
     <View style={styles.container}>
       <View style={styles.topbar}>
         <Pressable onPress={onBack} hitSlop={10}><Text style={styles.back}>‹ Players</Text></Pressable>
-        <Pressable onPress={toggleWatch} hitSlop={12}>
-          <Text style={[styles.star, watched && styles.starOn]}>{watched ? '★ Watching' : '☆ Watch'}</Text>
-        </Pressable>
       </View>
 
       <ScrollView contentContainerStyle={styles.body}>
@@ -119,19 +117,20 @@ export default function PlayerProfileScreen({ playerId, onBack, onOpenTradeDesk,
           ) : null}
         </View>
 
-        {/* Target / Avoid — personal value overlay (±10%). Tap again to clear. */}
+        {/* One control set: Target / Avoid tint your personal value (±10%); Watch tracks
+            him on your watchlist. Tap an active Target/Avoid again to clear. */}
         <View style={styles.tagRow}>
-          <Pressable
-            style={[styles.tagBtn, tag === 'target' && styles.tagTargetOn]}
-            onPress={() => applyTag('target')}
-          >
-            <Text style={[styles.tagTxt, tag === 'target' && styles.tagTxtOn]}>◎ Target</Text>
+          <Pressable style={[styles.tagBtn, tag === 'target' && styles.tagTargetOn]} onPress={() => applyTag('target')}>
+            <TargetIcon size={17} color={tag === 'target' ? colors.good : colors.textDim} />
+            <Text style={[styles.tagTxt, tag === 'target' && styles.tagTxtOn]}>Target</Text>
           </Pressable>
-          <Pressable
-            style={[styles.tagBtn, tag === 'avoid' && styles.tagAvoidOn]}
-            onPress={() => applyTag('avoid')}
-          >
-            <Text style={[styles.tagTxt, tag === 'avoid' && styles.tagTxtOn]}>⊘ Avoid</Text>
+          <Pressable style={[styles.tagBtn, tag === 'avoid' && styles.tagAvoidOn]} onPress={() => applyTag('avoid')}>
+            <AvoidIcon size={17} color={tag === 'avoid' ? colors.bad : colors.textDim} />
+            <Text style={[styles.tagTxt, tag === 'avoid' && styles.tagTxtOn]}>Avoid</Text>
+          </Pressable>
+          <Pressable style={[styles.tagBtn, watched && styles.tagWatchOn]} onPress={toggleWatch}>
+            <WatchIcon size={17} color={watched ? colors.gold : colors.textDim} filled={watched} />
+            <Text style={[styles.tagTxt, watched && styles.tagTxtOn]}>Watch</Text>
           </Pressable>
         </View>
 
@@ -265,7 +264,7 @@ function DropSheet({ player, onClose, onDone }) {
   const [busy, setBusy] = useState(false);
   const leagues = player.actions.dropLeagues;
 
-  async function submit() {
+  async function doDrop() {
     setBusy(true);
     try {
       const res = await api.playerDrop(player.id, [...selected]);
@@ -276,6 +275,21 @@ function DropSheet({ player, onClose, onDone }) {
     } finally {
       setBusy(false);
     }
+  }
+
+  // Dropping releases the player to free agency in each chosen league — hard to undo (he
+  // can be claimed immediately). Require an explicit, named confirmation first.
+  function submit() {
+    const n = selected.size;
+    const where = n === 1 ? 'this league' : `${n} leagues`;
+    Alert.alert(
+      `Drop ${player.name}?`,
+      `This releases him to free agency in ${where}. Another team can claim him right away.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: `Drop from ${where}`, style: 'destructive', onPress: doDrop },
+      ]
+    );
   }
 
   return (
@@ -328,9 +342,10 @@ const styles = StyleSheet.create({
   valueLabel: { color: colors.textDim, fontSize: 10, fontWeight: '700' },
   valueSpread: { color: colors.gold, fontSize: 10, fontWeight: '700', marginTop: 2, maxWidth: 92, textAlign: 'center' },
   tagRow: { flexDirection: 'row', gap: 10, marginTop: 4, marginBottom: 4 },
-  tagBtn: { flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
+  tagBtn: { flex: 1, flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center', paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
   tagTargetOn: { borderColor: colors.good, backgroundColor: colors.good + '22' },
   tagAvoidOn: { borderColor: colors.bad, backgroundColor: colors.bad + '22' },
+  tagWatchOn: { borderColor: colors.gold, backgroundColor: colors.gold + '22' },
   tagTxt: { color: colors.textDim, fontSize: 13, fontWeight: '800' },
   tagTxtOn: { color: colors.text },
   card: { backgroundColor: colors.card, borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 14, marginTop: 12 },
