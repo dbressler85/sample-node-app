@@ -55,7 +55,7 @@ function analyze(receive, send) {
   return { acquireValue, sendValue, net, verdict };
 }
 
-export default function TradesScreen({ league, onBack, initialTab, seed }) {
+export default function TradesScreen({ league, onBack, initialTab, seed, onOpenPlayer }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -262,7 +262,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed }) {
             <Text style={styles.empty}>No pending trade offers in this league.</Text>
           ) : (
             data.offers.map((o) => (
-              <OfferCard key={o.id} offer={o} busy={busy === o.id} onRespond={respond} onCounter={startCounter} />
+              <OfferCard key={o.id} offer={o} busy={busy === o.id} onRespond={respond} onCounter={startCounter} onOpenPlayer={onOpenPlayer} />
             ))
           )}
         </ScrollView>
@@ -355,7 +355,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed }) {
   );
 }
 
-function OfferCard({ offer, busy, onRespond, onCounter }) {
+function OfferCard({ offer, busy, onRespond, onCounter, onOpenPlayer }) {
   const v = VERDICT[offer.analysis.verdict] || VERDICT.fair;
   return (
     <View style={styles.card}>
@@ -365,8 +365,8 @@ function OfferCard({ offer, busy, onRespond, onCounter }) {
           <Text style={[styles.badgeText, { color: v.color }]}>{v.label}</Text>
         </View>
       </View>
-      <Side label="You get" assets={offer.acquire} total={offer.analysis.acquireValue} tint={colors.good} />
-      <Side label="You give" assets={offer.send} total={offer.analysis.sendValue} tint={colors.textDim} />
+      <Side label="You get" assets={offer.acquire} total={offer.analysis.acquireValue} tint={colors.good} onOpenPlayer={onOpenPlayer} />
+      <Side label="You give" assets={offer.send} total={offer.analysis.sendValue} tint={colors.textDim} onOpenPlayer={onOpenPlayer} />
       <Text style={styles.estCaption}>
         Dynasty value estimate · net {offer.analysis.net > 0 ? '+' : ''}{offer.analysis.net}
       </Text>
@@ -399,17 +399,23 @@ function OfferCard({ offer, busy, onRespond, onCounter }) {
   );
 }
 
-function Side({ label, assets, total, tint }) {
+function Side({ label, assets, total, tint, onOpenPlayer }) {
   return (
     <View style={styles.side}>
       <Text style={styles.sideLabel}>{label} · {total}</Text>
-      {assets.map((a) => (
-        <View key={a.id} style={styles.sideRow}>
-          <View style={[styles.dot, { backgroundColor: positionColors[a.position] || colors.textDim }]} />
-          <Text style={styles.sideName} numberOfLines={1}>{a.name}</Text>
-          <Text style={styles.sideMeta}>{a.position}{a.value != null ? ` · ${a.value}` : ''}</Text>
-        </View>
-      ))}
+      {assets.map((a) => {
+        // Players open their cross-league profile; picks aren't players, so they stay inert.
+        const tappable = onOpenPlayer && a.kind !== 'pick';
+        const Row = tappable ? Pressable : View;
+        const rowProps = tappable ? { onPress: () => onOpenPlayer(a.id) } : {};
+        return (
+          <Row key={a.id} style={styles.sideRow} {...rowProps}>
+            <View style={[styles.dot, { backgroundColor: positionColors[a.position] || colors.textDim }]} />
+            <Text style={styles.sideName} numberOfLines={1}>{a.name}</Text>
+            <Text style={styles.sideMeta}>{a.position}{a.value != null ? ` · ${a.value}` : ''}</Text>
+          </Row>
+        );
+      })}
     </View>
   );
 }

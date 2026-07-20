@@ -9,7 +9,7 @@ import useAndroidBack from '../useAndroidBack';
 // drop + FAAB bid) pre-filled for each. The owner can swap the add from the
 // shortlist, change the drop, adjust the bid, submit, and advance — or skip.
 // `leagues` is the pre-filtered queue of per-league suggestion objects.
-export default function WaiverWizardScreen({ leagues, onBack }) {
+export default function WaiverWizardScreen({ leagues, onBack, onOpenPlayer }) {
   const [index, setIndex] = useState(0);
   const [addId, setAddId] = useState(null);
   const [dropId, setDropId] = useState(null);
@@ -188,7 +188,7 @@ export default function WaiverWizardScreen({ leagues, onBack }) {
         {/* ADD */}
         <Text style={styles.fieldLabel}>Add</Text>
         {add ? (
-          <PlayerLine p={add} showValue />
+          <PlayerLine p={add} showValue onOpenPlayer={onOpenPlayer} />
         ) : (
           <Text style={styles.noneText}>No player selected</Text>
         )}
@@ -335,10 +335,12 @@ export default function WaiverWizardScreen({ leagues, onBack }) {
   );
 }
 
-function PlayerLine({ p, showValue, compact }) {
+function PlayerLine({ p, showValue, compact, onOpenPlayer }) {
   const posColor = positionColors[p.position] || colors.textDim;
+  const Wrap = onOpenPlayer ? Pressable : View;
+  const wrapProps = onOpenPlayer ? { onPress: () => onOpenPlayer(p.id), accessibilityRole: 'button', accessibilityLabel: `Open ${p.name}` } : {};
   return (
-    <View style={[styles.playerLine, compact && { paddingVertical: 6 }]}>
+    <Wrap style={[styles.playerLine, compact && { paddingVertical: 6 }]} {...wrapProps}>
       <View style={[styles.posBadge, { backgroundColor: posColor + '22', borderColor: posColor }]}>
         <Text style={[styles.pos, { color: posColor }]}>{p.position}</Text>
       </View>
@@ -357,7 +359,7 @@ function PlayerLine({ p, showValue, compact }) {
         </Text>
       </View>
       {showValue && p.value != null ? <Text style={styles.playerValue}>{p.value}</Text> : null}
-    </View>
+    </Wrap>
   );
 }
 

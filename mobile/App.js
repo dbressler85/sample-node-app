@@ -131,6 +131,7 @@ export default function App() {
             initialLeagueId={waiversTarget ? waiversTarget.leagueId : null}
             initialPosition={waiversTarget ? waiversTarget.position : null}
             onStartWizard={openWaiverWizard}
+            onOpenPlayer={openPlayer}
           />
         );
       case 'players':
@@ -179,7 +180,7 @@ export default function App() {
     }
 
     if (overlay && overlay.type === 'roster') {
-      return <RosterScreen league={overlay.league} onBack={popOverlay} onOpenTrades={openTrades} onOpenDraft={openDraft} />;
+      return <RosterScreen league={overlay.league} onBack={popOverlay} onOpenTrades={openTrades} onOpenDraft={openDraft} onOpenPlayer={openPlayer} />;
     }
     if (overlay && overlay.type === 'lineupEditor') {
       return <LineupEditorScreen league={overlay.league} onBack={popOverlay} />;
@@ -190,10 +191,10 @@ export default function App() {
       );
     }
     if (overlay && overlay.type === 'waiverWizard') {
-      return <WaiverWizardScreen leagues={overlay.leagues} onBack={popOverlay} />;
+      return <WaiverWizardScreen leagues={overlay.leagues} onBack={popOverlay} onOpenPlayer={openPlayer} />;
     }
     if (overlay && overlay.type === 'trades') {
-      return <TradesScreen league={overlay.league} initialTab={overlay.initialTab} seed={overlay.seed} onBack={popOverlay} />;
+      return <TradesScreen league={overlay.league} initialTab={overlay.initialTab} seed={overlay.seed} onBack={popOverlay} onOpenPlayer={openPlayer} />;
     }
     if (overlay && overlay.type === 'tradeInbox') {
       return (
@@ -203,14 +204,15 @@ export default function App() {
           onProposeInLeague={(league) => openTrades(league, 'propose')}
           onOpenBlock={openBlock}
           onCounter={(ctx) => openTrades({ leagueId: ctx.leagueId, name: ctx.name }, 'propose', { counterOfferId: ctx.offerId })}
+          onOpenPlayer={openPlayer}
         />
       );
     }
     if (overlay && overlay.type === 'block') {
-      return <OnTheBlockScreen onBack={popOverlay} onShopLeague={(league) => openTrades(league, 'propose')} />;
+      return <OnTheBlockScreen onBack={popOverlay} onShopLeague={(league) => openTrades(league, 'propose')} onOpenPlayer={openPlayer} />;
     }
     if (overlay && overlay.type === 'draft') {
-      return <DraftScreen league={overlay.league} onBack={popOverlay} />;
+      return <DraftScreen league={overlay.league} onBack={popOverlay} onOpenPlayer={openPlayer} />;
     }
     if (overlay && overlay.type === 'draftHub') {
       return <DraftHubScreen onBack={popOverlay} onOpenDraft={openDraft} />;

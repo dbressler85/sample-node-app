@@ -4,7 +4,7 @@ import { api } from '../api';
 import PlayerRow from '../components/PlayerRow';
 import { colors } from '../theme';
 
-export default function RosterScreen({ league, onBack, onOpenTrades, onOpenDraft }) {
+export default function RosterScreen({ league, onBack, onOpenTrades, onOpenDraft, onOpenPlayer }) {
   const [roster, setRoster] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -117,7 +117,7 @@ export default function RosterScreen({ league, onBack, onOpenTrades, onOpenDraft
             </Text>
           )}
           renderItem={({ item }) => (
-            <PlayerRow player={item} baited={baited.has(String(item.id))} onToggleBait={toggleBait} />
+            <PlayerRow player={item} baited={baited.has(String(item.id))} onToggleBait={toggleBait} onOpenPlayer={onOpenPlayer} />
           )}
           ListFooterComponent={
             roster && roster.picks && roster.picks.length ? (
