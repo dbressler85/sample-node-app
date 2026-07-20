@@ -66,6 +66,9 @@ services:
       - key: SESSION_SECRET
         generateValue: true
       # Uncomment together with the `disk:` block above so durable state lands on
-      # the mounted disk instead of the ephemeral filesystem.
+      # the mounted disk instead of the ephemeral filesystem. Setting DATA_DIR also
+      # auto-enables persisting the large MFL player database (MFL_PERSIST_PLAYERS),
+      # so a restart reloads it from disk instead of re-downloading the whole NFL
+      # universe. (Override with MFL_PERSIST_PLAYERS=false if ever needed.)
       # - key: DATA_DIR
       #   value: /var/data
