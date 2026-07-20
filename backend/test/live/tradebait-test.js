@@ -93,12 +93,16 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   assert(p.suggestions.every((s) => s.name && s.reason), 'each suggestion has a name and a reason');
   console.log('✓ roll-up: player carries value/slot/note + suggested trade partners —', p.suggestions.map((s) => `${s.name} (${s.reason})`).join(', '));
 
-  // Re-adding updates the note (idempotent per league+player).
+  // Editing the note (what the in-app note editor does): re-add with a new note —
+  // idempotent per league+player, and re-syncs the new IN_EXCHANGE_FOR to MFL.
+  imports.length = 0;
   await tradebait.add(CK, TOK, '1000', '1', 'Firm ask: a 1st');
   block = await tradebait.getBlock(CK, TOK);
   assert(block.totals.count === 1, 'no duplicate on re-add');
   assert(block.leagues[0].players[0].note === 'Firm ask: a 1st', 'note updated on re-add');
-  console.log('✓ re-adding the same player updates the note instead of duplicating');
+  const notePush = imports.find((i) => i.type === 'tradeBait');
+  assert(notePush && notePush.params.WILL_GIVE_UP === '1' && notePush.params.IN_EXCHANGE_FOR === 'Firm ask: a 1st', 'editing the note re-syncs IN_EXCHANGE_FOR to MFL');
+  console.log('✓ note edit updates the note (no duplicate) and re-syncs it to MFL');
 
   // Remove — clears the bait locally AND re-syncs an empty set to MFL.
   imports.length = 0;
