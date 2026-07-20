@@ -145,8 +145,9 @@ Grouped into four "synergy systems", highest-leverage first:
   suggestion already carries the partner `franchiseId`). No more rebuilding the trade by
   hand. *(`Shop ›` at the league level still opens the empty builder — there's no single
   player context there.)*
-- [ ] **Annotate the inbox "Start a trade" list** — "you have N on the block here" /
-  "they need RB, you're deep" instead of blind league names.
+- [~] **Annotate the inbox "Start a trade" list.** Each league now flags "N on the block
+  here" (fetched alongside the offers) so picking a league to propose in isn't blind.
+  *(Still open: "they need RB, you're deep" — needs per-partner needs/surplus, heavier.)*
 
 ### System 3 — Signals computed and thrown away
 - [ ] **Surface "watched player is now a free agent" on Home.** Watchlist already
