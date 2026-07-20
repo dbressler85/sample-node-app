@@ -1,48 +1,31 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, Pressable, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
 import { api } from '../api';
 import { colors } from '../theme';
 
-// Batch "send a trade offer for this player across every league he's on another
-// team." One preview (per league: the owner + a suggested fair give-package from
-// your roster there), a checkbox list (all pre-selected), and a single submit that
-// fires the offers. The trade equivalent of AddAcrossSheet.
-export default function TradeAcrossSheet({ player, onClose, onDone }) {
+// "Trade for this player" — league by league, NOT a batch send. Lists every league where
+// he's on another team; picking one opens that league's trade desk seeded with the target
+// and a needs-fitting suggested offer you then craft. If he's only a target in one league,
+// the caller opens it directly (this sheet is for choosing among several).
+export default function TradeAcrossSheet({ player, onClose, onCraft }) {
   const [preview, setPreview] = useState(null);
-  const [selected, setSelected] = useState(new Set());
-  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
+    let alive = true;
     api.playerTradePreview(player.id)
       .then((pv) => {
+        if (!alive) return;
+        // Only a trade target in one league? Skip the picker and go straight to crafting.
+        if (pv.leagues && pv.leagues.length === 1) {
+          const l = pv.leagues[0];
+          onCraft({ leagueId: l.leagueId, name: l.name, targetPlayerId: player.id, partnerFranchiseId: l.partnerFranchiseId });
+          return;
+        }
         setPreview(pv);
-        setSelected(new Set((pv.leagues || []).map((l) => l.leagueId)));
       })
-      .catch(() => setPreview({ leagues: [] }));
+      .catch(() => { if (alive) setPreview({ leagues: [] }); });
+    return () => { alive = false; };
   }, [player.id]);
-
-  async function submit() {
-    setBusy(true);
-    try {
-      const leagues = preview.leagues
-        .filter((l) => selected.has(l.leagueId))
-        .map((l) => ({ leagueId: l.leagueId, partnerFranchiseId: l.partnerFranchiseId, giveIds: l.suggestedGive.map((g) => g.id) }));
-      const res = await api.playerTrade(player.id, leagues);
-      Alert.alert('Offers sent', `${player.name} offered in ${res.summary.submitted} of ${res.summary.requested} leagues.`);
-      onDone();
-    } catch (e) {
-      Alert.alert('Could not send', e.message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  const toggle = (id) =>
-    setSelected((s) => {
-      const n = new Set(s);
-      n.has(id) ? n.delete(id) : n.add(id);
-      return n;
-    });
 
   return (
     <Pressable style={styles.backdrop} onPress={onClose}>
@@ -54,29 +37,20 @@ export default function TradeAcrossSheet({ player, onClose, onDone }) {
           <Text style={styles.empty}>He isn't on another team in any of your leagues — nothing to offer for.</Text>
         ) : (
           <>
-            <Text style={styles.sub}>A fair package is suggested per league — review, then send. Tweak any offer in that league's trade desk.</Text>
-            {preview.leagues.map((l) => {
-              const on = selected.has(l.leagueId);
-              return (
-                <Pressable key={l.leagueId} style={styles.row} onPress={() => toggle(l.leagueId)}>
-                  <View style={[styles.check, on && styles.checkOn]}>{on ? <Text style={styles.checkMark}>✓</Text> : null}</View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.league} numberOfLines={1}>{l.name} <Text style={styles.owner}>· {l.partnerName}</Text></Text>
-                    <Text style={styles.give} numberOfLines={1}>
-                      offer {l.suggestedGive.map((g) => g.name.split(',')[0]).join(' + ') || '—'}
-                      <Text style={styles.vals}>{`  (${l.giveValue} for ${l.targetValue})`}</Text>
-                    </Text>
-                  </View>
-                </Pressable>
-              );
-            })}
-            <Pressable
-              style={({ pressed }) => [styles.confirm, (!selected.size || busy) && styles.confirmOff, pressed && selected.size && { opacity: 0.85 }]}
-              onPress={submit}
-              disabled={!selected.size || busy}
-            >
-              {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.confirmText}>Send {selected.size} offer{selected.size === 1 ? '' : 's'}</Text>}
-            </Pressable>
+            <Text style={styles.sub}>Pick a league to craft an offer. Each opens that league's trade desk with a suggested, needs-fitting package you can adjust.</Text>
+            {preview.leagues.map((l) => (
+              <Pressable
+                key={l.leagueId}
+                style={({ pressed }) => [styles.row, pressed && { opacity: 0.7 }]}
+                onPress={() => onCraft({ leagueId: l.leagueId, name: l.name, targetPlayerId: player.id, partnerFranchiseId: l.partnerFranchiseId })}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.league} numberOfLines={1}>{l.name}</Text>
+                  <Text style={styles.owner} numberOfLines={1}>held by {l.partnerName}</Text>
+                </View>
+                <Text style={styles.craft}>Craft offer ›</Text>
+              </Pressable>
+            ))}
           </>
         )}
       </Pressable>
@@ -90,15 +64,8 @@ const styles = StyleSheet.create({
   sheetTitle: { color: colors.text, fontSize: 18, fontWeight: '900' },
   sub: { color: colors.textDim, fontSize: 12, marginTop: 4, marginBottom: 8, lineHeight: 17 },
   empty: { color: colors.textDim, fontSize: 14, paddingVertical: 20, textAlign: 'center', lineHeight: 20 },
-  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
-  check: { width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: colors.border, marginRight: 12, alignItems: 'center', justifyContent: 'center' },
-  checkOn: { backgroundColor: colors.accent, borderColor: colors.accent },
-  checkMark: { color: '#fff', fontWeight: '900', fontSize: 14 },
+  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   league: { color: colors.text, fontSize: 15, fontWeight: '700' },
-  owner: { color: colors.textDim, fontSize: 13, fontWeight: '600' },
-  give: { color: colors.textDim, fontSize: 12, marginTop: 2 },
-  vals: { color: colors.gold, fontWeight: '700' },
-  confirm: { backgroundColor: colors.accent, borderRadius: 12, paddingVertical: 15, alignItems: 'center', marginTop: 16 },
-  confirmOff: { backgroundColor: colors.cardAlt },
-  confirmText: { color: '#fff', fontSize: 16, fontWeight: '800' },
+  owner: { color: colors.textDim, fontSize: 13, marginTop: 2 },
+  craft: { color: colors.accent, fontSize: 14, fontWeight: '800' },
 });

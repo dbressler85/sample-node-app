@@ -21,7 +21,7 @@ function diffColor(d) {
   return colors.bad;
 }
 
-export default function PlayerProfileScreen({ playerId, onBack }) {
+export default function PlayerProfileScreen({ playerId, onBack, onOpenTradeDesk }) {
   const [p, setP] = useState(null);
   const [error, setError] = useState(null);
   const [sheet, setSheet] = useState(null); // 'add' | 'drop' | 'trade'
@@ -205,7 +205,13 @@ export default function PlayerProfileScreen({ playerId, onBack }) {
       ) : null}
 
       {sheet === 'add' ? <AddAcrossSheet player={p} onClose={() => setSheet(null)} onDone={() => { setSheet(null); load(); }} /> : null}
-      {sheet === 'trade' ? <TradeAcrossSheet player={p} onClose={() => setSheet(null)} onDone={() => { setSheet(null); load(); }} /> : null}
+      {sheet === 'trade' ? (
+        <TradeAcrossSheet
+          player={p}
+          onClose={() => setSheet(null)}
+          onCraft={(ctx) => { setSheet(null); onOpenTradeDesk && onOpenTradeDesk(ctx); }}
+        />
+      ) : null}
       {sheet === 'drop' ? <DropSheet player={p} onClose={() => setSheet(null)} onDone={() => { setSheet(null); load(); }} /> : null}
     </View>
   );

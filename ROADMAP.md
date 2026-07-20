@@ -63,6 +63,15 @@ Cross-league management is the moat; these deepen it.
   MFL. *(The MFL import param names follow the documented convention but need
   verification against a live account — MFL blocks its own API docs to us; tighten
   once confirmed on-device.)*
+- [x] **League-by-league trade crafting + needs/surplus + fit suggestions.** "Trade
+  for" a player no longer opens a batch-send of N pre-filled offers. Instead it lists
+  the leagues where he's a target (auto-opens when there's only one) and each opens
+  that league's trade **desk seeded** with the target on the "you get" side and a
+  suggested package on "you send". The desk surfaces both teams' positional **needs &
+  surplus** (league-relative, from the starting-lineup requirements), and the
+  **Suggest** button (and the seed) build a package that's fair by **league-specific
+  value** (format-aware: scoring/roster) AND biased to the partner's needs from your
+  surplus (`lib/tradefit` + `GET /trades/suggest`). Value updates live as you adjust.
 - [ ] **Trade negotiation: counter-offers.** Trades support propose / accept / reject
   and cross-league "trade for" today; add counter-offer (respond to an incoming
   offer with a modified package) via MFL `import?TYPE=tradeProposal` threading.

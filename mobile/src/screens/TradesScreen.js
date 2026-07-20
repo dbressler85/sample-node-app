@@ -1,8 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import useAndroidBack from '../useAndroidBack';
+
+const posList = (arr) => (arr && arr.length ? arr.map((x) => x.pos).join(', ') : '—');
 
 const VERDICT = {
   favorable: { label: 'You gain value', color: colors.good },
@@ -24,7 +26,7 @@ function analyze(receive, send) {
   return { acquireValue, sendValue, net, verdict };
 }
 
-export default function TradesScreen({ league, onBack, initialTab }) {
+export default function TradesScreen({ league, onBack, initialTab, seed }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -36,6 +38,8 @@ export default function TradesScreen({ league, onBack, initialTab }) {
   const [send, setSend] = useState({}); // token -> asset
   const [receive, setReceive] = useState({});
   const [sending, setSending] = useState(false);
+  const [suggesting, setSuggesting] = useState(false);
+  const seededRef = useRef(false);
 
   useAndroidBack(useCallback(() => { onBack(); return true; }, [onBack]));
 
@@ -44,9 +48,9 @@ export default function TradesScreen({ league, onBack, initialTab }) {
     try {
       const d = await api.leagueTrades(league.leagueId);
       setData(d);
-      // Default the partner only if none is chosen — functional update so this
-      // doesn't depend on partnerId (which would recreate load and double-fetch).
-      if (d.partners && d.partners.length) setPartnerId((cur) => cur || d.partners[0].franchiseId);
+      // Default the partner only if none is chosen — prefer the seeded partner (the
+      // team that holds the player you came to trade for), else the first.
+      if (d.partners && d.partners.length) setPartnerId((cur) => cur || (seed && seed.partnerFranchiseId) || d.partners[0].franchiseId);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -86,6 +90,36 @@ export default function TradesScreen({ league, onBack, initialTab }) {
     setPartnerId(id);
     setReceive({});
   }
+
+  // Ask the backend for a fair, needs-fitting package to acquire `targetId` and load it
+  // into the "you send" side. Target defaults to the most valuable player you're getting.
+  const applySuggestion = useCallback(async (targetId, pId) => {
+    const pf = pId || partnerId;
+    const tid = targetId || (Object.values(receive).sort((a, b) => (b.value || 0) - (a.value || 0))[0] || {}).id;
+    if (!pf || !tid) return;
+    setSuggesting(true);
+    try {
+      const s = await api.suggestTrade(league.leagueId, tid, pf);
+      const map = {};
+      for (const g of s.give || []) map[g.id] = g;
+      setSend(map);
+    } catch (e) {
+      /* keep whatever's there */
+    } finally {
+      setSuggesting(false);
+    }
+  }, [league.leagueId, partnerId, receive]);
+
+  // Came in from "Trade for <player>": preselect the target on the "you get" side and
+  // pull a suggested package. Runs once when the desk data lands.
+  useEffect(() => {
+    if (!seed || !data || seededRef.current) return;
+    seededRef.current = true;
+    const partner = (data.partners || []).find((p) => p.franchiseId === seed.partnerFranchiseId);
+    const target = partner && partner.players.find((pl) => String(pl.id) === String(seed.targetPlayerId));
+    if (target) setReceive({ [target.id]: target });
+    applySuggestion(seed.targetPlayerId, seed.partnerFranchiseId);
+  }, [data, seed, applySuggestion]);
 
   async function submitProposal() {
     setSending(true);
@@ -174,12 +208,37 @@ export default function TradesScreen({ league, onBack, initialTab }) {
             ))}
           </ScrollView>
 
+          {partner ? (
+            <View style={styles.fitPanel}>
+              <View style={styles.fitCol}>
+                <Text style={styles.fitTeam} numberOfLines={1}>You</Text>
+                <Text style={styles.fitLine}><Text style={styles.fitNeed}>NEED </Text>{posList(data.me && data.me.needs)}</Text>
+                <Text style={styles.fitLine}><Text style={styles.fitSurp}>SURPLUS </Text>{posList(data.me && data.me.surplus)}</Text>
+              </View>
+              <View style={styles.fitDiv} />
+              <View style={styles.fitCol}>
+                <Text style={styles.fitTeam} numberOfLines={1}>{partner.name}</Text>
+                <Text style={styles.fitLine}><Text style={styles.fitNeed}>NEED </Text>{posList(partner.needs)}</Text>
+                <Text style={styles.fitLine}><Text style={styles.fitSurp}>SURPLUS </Text>{posList(partner.surplus)}</Text>
+              </View>
+            </View>
+          ) : null}
+
           <Text style={styles.label}>You get {receiveList.length ? `· ${preview.acquireValue}` : ''}</Text>
           {partner ? partner.players.map((a) => (
             <AssetRow key={a.id} asset={a} on={!!receive[a.id]} onPress={() => toggle(setReceive, receive, a)} tint={colors.good} />
           )) : <Text style={styles.empty}>Pick a team above.</Text>}
 
-          <Text style={styles.label}>You send {sendList.length ? `· ${preview.sendValue}` : ''}</Text>
+          <View style={styles.sendHead}>
+            <Text style={styles.label}>You send {sendList.length ? `· ${preview.sendValue}` : ''}</Text>
+            <Pressable
+              onPress={() => applySuggestion()}
+              disabled={!receiveList.length || suggesting}
+              style={({ pressed }) => [styles.suggestBtn, (!receiveList.length || suggesting) && styles.suggestOff, pressed && { opacity: 0.8 }]}
+            >
+              {suggesting ? <ActivityIndicator size="small" color={colors.accent} /> : <Text style={styles.suggestTxt}>✦ Suggest</Text>}
+            </Pressable>
+          </View>
           {(data.myPlayers || []).map((a) => (
             <AssetRow key={a.id} asset={a} on={!!send[a.id]} onPress={() => toggle(setSend, send, a)} tint={colors.accent} />
           ))}
@@ -282,6 +341,17 @@ const styles = StyleSheet.create({
   retry: { marginTop: 16, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingHorizontal: 24, paddingVertical: 10 },
   retryText: { color: colors.accent, fontWeight: '700' },
   label: { color: colors.text, fontSize: 14, fontWeight: '800', marginTop: 16, marginBottom: 8 },
+  fitPanel: { flexDirection: 'row', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 12, marginTop: 12 },
+  fitCol: { flex: 1 },
+  fitDiv: { width: StyleSheet.hairlineWidth, backgroundColor: colors.border, marginHorizontal: 12 },
+  fitTeam: { color: colors.text, fontSize: 13, fontWeight: '900', marginBottom: 6 },
+  fitLine: { color: colors.text, fontSize: 12, marginTop: 2 },
+  fitNeed: { color: colors.bad, fontSize: 10, fontWeight: '800' },
+  fitSurp: { color: colors.good, fontSize: 10, fontWeight: '800' },
+  sendHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  suggestBtn: { borderWidth: 1, borderColor: colors.accent, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, marginTop: 8 },
+  suggestOff: { opacity: 0.4 },
+  suggestTxt: { color: colors.accent, fontSize: 13, fontWeight: '800' },
   card: { backgroundColor: colors.card, borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: 14 },
   cardTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
   cardFrom: { color: colors.text, fontSize: 16, fontWeight: '800', flex: 1, marginRight: 8 },
