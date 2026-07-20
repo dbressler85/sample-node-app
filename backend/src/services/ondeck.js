@@ -32,13 +32,30 @@ function demoNextKickoff() {
   return d.toISOString();
 }
 
+// Lineup-lock inputs: the next kickoff + each league's lineup status. Grouped so
+// it can run concurrently with the draft/waiver reads. In-season only.
+async function lineupLocks(cookie, token, week) {
+  const kickoff = config.demoMode ? demoNextKickoff() : await nflLib.nextKickoff(cookie, week);
+  if (!kickoff) return null;
+  const ov = await lineupsService.getOverview(cookie, token, 'auto', { light: true }).catch(() => ({ leagues: [] }));
+  return { kickoff, leagues: ov.leagues || [] };
+}
+
 async function getOnDeck(cookie, token) {
   const week = config.demoMode ? require('../demo/fixtures').week() : await nflLib.currentWeek(cookie);
   const inSeason = !!(week && week >= 1 && week <= 18);
   const items = [];
 
+  // The three cross-league aggregations are independent — run them concurrently
+  // instead of one-after-another (draft overview + lineup status + waiver pending
+  // each fan out per league, so serializing them tripled On Deck's load time).
+  const [draftOv, locks, pend] = await Promise.all([
+    draftService.getOverview(cookie, token).catch(() => ({ drafts: [] })),
+    inSeason ? lineupLocks(cookie, token, week).catch(() => null) : Promise.resolve(null),
+    waiversService.getPending(cookie, token).catch(() => ({ pending: [] })),
+  ]);
+
   // Drafts run year-round in dynasty.
-  const draftOv = await draftService.getOverview(cookie, token).catch(() => ({ drafts: [] }));
   for (const d of draftOv.drafts || []) {
     if (d.myOnClock) {
       items.push({ type: 'draft_clock', leagueId: d.leagueId, leagueName: d.name, at: null, now: true, action: 'draft', label: "You're on the clock", detail: d.type || 'Draft' });
@@ -48,21 +65,13 @@ async function getOnDeck(cookie, token) {
   }
 
   // Lineup locks: only in-season, only for leagues that actually need attention.
-  if (inSeason) {
-    const kickoff = config.demoMode ? demoNextKickoff() : await nflLib.nextKickoff(cookie, week);
-    if (kickoff) {
-      const ov = await lineupsService.getOverview(cookie, token, 'auto', { light: true }).catch(() => ({ leagues: [] }));
-      for (const l of ov.leagues || []) {
-        if (l.status && l.status !== 'optimal' && l.status !== 'error' && l.status !== 'offseason') {
-          items.push({ type: 'lineup_lock', leagueId: l.leagueId, leagueName: l.name, at: kickoff, action: 'lineup', label: 'Lineups lock', detail: LINEUP_DETAIL[l.status] || l.status });
-        }
+  if (locks) {
+    for (const l of locks.leagues) {
+      if (l.status && l.status !== 'optimal' && l.status !== 'error' && l.status !== 'offseason') {
+        items.push({ type: 'lineup_lock', leagueId: l.leagueId, leagueName: l.name, at: locks.kickoff, action: 'lineup', label: 'Lineups lock', detail: LINEUP_DETAIL[l.status] || l.status });
       }
     }
   }
-
-  // Waiver runs: pending claims per league. MFL exposes only a human run-time
-  // string, so these are label-only (sorted after timestamped items).
-  const pend = await waiversService.getPending(cookie, token).catch(() => ({ pending: [] }));
   const byLeague = new Map();
   for (const c of pend.pending || []) {
     if (!byLeague.has(c.leagueId)) byLeague.set(c.leagueId, { leagueName: c.leagueName, count: 0, when: null });

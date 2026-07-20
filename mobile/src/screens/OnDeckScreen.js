@@ -4,6 +4,7 @@ import { api } from '../api';
 import { colors } from '../theme';
 import useAndroidBack from '../useAndroidBack';
 import usePoll from '../usePoll';
+import useCachedResource from '../useCachedResource';
 
 // On Deck — the proactive, time-sorted view of what needs you next across every
 // league. Draft clocks (now), lineup locks (next kickoff), scheduled drafts, and
@@ -32,27 +33,13 @@ function countdown(iso) {
 }
 
 export default function OnDeckScreen({ onBack, onOpenLineup, onOpenDraft, onOpenWaivers }) {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState(null);
+  // Stale-while-revalidate: paint the last On Deck snapshot from disk instantly,
+  // then refetch in the background (and on the 60s poll). Countdowns recompute from
+  // each item's timestamp client-side, so a briefly-stale paint is fine.
+  const { data, error, refreshing, loading, reload } = useCachedResource('ondeck', () => api.onDeck());
   const [, force] = useState(0); // re-render to tick countdowns
 
   useAndroidBack(useCallback(() => { onBack(); return true; }, [onBack]));
-
-  const load = useCallback(async () => {
-    setError(null);
-    try {
-      setData(await api.onDeck());
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
   // Only the "in Xm / in Xh" labels change minute-to-minute; a far item shows a
   // static "Wed 1:00 PM". So only run the 20s re-render tick when at least one item
   // is actually counting down (within the hour) — otherwise it re-rendered the whole
@@ -73,7 +60,7 @@ export default function OnDeckScreen({ onBack, onOpenLineup, onOpenDraft, onOpen
   }, [hasCountdown]);
   // Re-fetch every minute so a newly-on-the-clock draft or a new deadline appears
   // (usePoll pauses this while the app is backgrounded).
-  usePoll(load, 60000, true);
+  usePoll(reload, 60000, true);
 
   function act(item) {
     const league = { leagueId: item.leagueId, name: item.leagueName };
@@ -107,7 +94,7 @@ export default function OnDeckScreen({ onBack, onOpenLineup, onOpenDraft, onOpen
           data={items}
           keyExtractor={(i) => `${i.type}:${i.leagueId}`}
           contentContainerStyle={styles.list}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.accent} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={reload} tintColor={colors.accent} />}
           renderItem={({ item }) => <DeadlineRow item={item} onPress={() => act(item)} />}
           ListEmptyComponent={
             <View style={styles.emptyWrap}>
