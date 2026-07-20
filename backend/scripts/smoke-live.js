@@ -37,6 +37,7 @@ const TESTS = [
   'portfolio-dashboard-test',
   'waiver-lock-test',
   'waiver-calendar-test',
+  'dynasty-outlook-test',
 ];
 
 let failed = 0;

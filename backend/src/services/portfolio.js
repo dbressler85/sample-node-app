@@ -36,7 +36,7 @@ async function seasonPhase(cookie) {
 
 function dynastyOf(roster) {
   if (!roster || !roster.summary) return null;
-  return { value: roster.summary.rosterValue, coreAge: roster.summary.coreAge, outlook: roster.summary.outlook };
+  return { value: roster.summary.rosterValue, coreAge: roster.summary.coreAge, strengthPct: roster.summary.strengthPct, outlook: roster.summary.outlook };
 }
 
 // Pending trade offers awaiting my response. Live: MFL pendingTrades (best-effort
@@ -199,6 +199,8 @@ async function getHome(cookie, token) {
       avgCoreAge: coreAges.length ? Math.round((coreAges.reduce((s, a) => s + a, 0) / coreAges.length) * 10) / 10 : null,
       contenders: dynastyList.filter((d) => d.outlook === 'Win-now window').length,
       ascending: dynastyList.filter((d) => d.outlook === 'Ascending').length,
+      rebuilding: dynastyList.filter((d) => d.outlook === 'Rebuilding').length,
+      balanced: dynastyList.filter((d) => d.outlook === 'Balanced').length,
       actionItems: items.length,
     },
     teams,
@@ -257,7 +259,7 @@ async function getDashboard(cookie, token) {
   const riskIds = new Set(); // distinct (league,player) keys counted once toward total-at-risk
   let riskValue = 0;
   const byLeague = [];
-  const outlookMix = { winNow: 0, ascending: 0, balanced: 0 };
+  const outlookMix = { winNow: 0, ascending: 0, rebuilding: 0, balanced: 0 };
 
   for (const { league, roster } of valid) {
     const all = [...roster.starters, ...roster.bench, ...roster.ir, ...roster.taxi];
@@ -285,12 +287,14 @@ async function getDashboard(cookie, token) {
     const s = roster.summary || {};
     if (s.outlook === 'Win-now window') outlookMix.winNow += 1;
     else if (s.outlook === 'Ascending') outlookMix.ascending += 1;
+    else if (s.outlook === 'Rebuilding') outlookMix.rebuilding += 1;
     else outlookMix.balanced += 1;
     byLeague.push({
       leagueId: league.leagueId,
       name: league.name,
       value: s.rosterValue != null ? Math.round(s.rosterValue) : null,
       coreAge: s.coreAge != null ? s.coreAge : null,
+      strengthPct: s.strengthPct != null ? s.strengthPct : null,
       outlook: s.outlook || null,
       atRiskValue: Math.round(leagueRisk),
       atRiskPct: pct(leagueRisk, s.rosterValue || 0),
