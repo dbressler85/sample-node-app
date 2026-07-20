@@ -199,6 +199,23 @@ async function findLeague(cookie, leagueId) {
 }
 
 // All pending incoming offers across every league, value-analyzed.
+// A "start a trade here" nudge for the hub: the positions where YOU have surplus and at
+// least one rival has a need — i.e. where a deal is most likely to click. Derived from
+// the same needs/surplus map the desk uses. Returns null when there's no clear match.
+function tradeFitSummary(ns, myFranchiseId) {
+  const me = ns && ns[String(myFranchiseId)];
+  if (!me || !me.surplus || !me.surplus.length) return null;
+  const mySurplus = new Set(me.surplus.map((s) => s.pos));
+  const rivalNeed = {}; // pos -> # of rivals who need it
+  for (const [fid, v] of Object.entries(ns)) {
+    if (fid === String(myFranchiseId)) continue;
+    for (const n of v.needs || []) if (mySurplus.has(n.pos)) rivalNeed[n.pos] = (rivalNeed[n.pos] || 0) + 1;
+  }
+  const positions = Object.keys(rivalNeed).sort((a, b) => rivalNeed[b] - rivalNeed[a]);
+  if (!positions.length) return null;
+  return { positions, topPos: positions[0], rivals: rivalNeed[positions[0]] };
+}
+
 async function getOverview(cookie, token) {
   const leagues = await leaguesService.orderedLeagues(cookie, token);
   const byId = await playersLib.load(cookie);
@@ -207,25 +224,28 @@ async function getOverview(cookie, token) {
       try {
         const enr = await enrichmentLib.snapshot(await leagueFormat.format(cookie, league), cookie);
         const offers = await offersForLeague(cookie, token, league, byId, enr);
-        // Only pay for the needs/surplus read when a league actually has an offer to judge.
-        if (offers.length) {
-          try {
-            const d = await tradeData(cookie, token, league.leagueId);
-            annotateConstruction(offers, d.ns, league.franchiseId);
-          } catch (e) { /* value-only if we can't read rosters */ }
-        }
-        return offers;
+        // Read the league's needs/surplus once and use it for BOTH the construction
+        // verdict on any offers AND the "start a trade here" fit nudge. Best-effort: a
+        // roster-read failure just means value-only offers and no fit hint.
+        let fit = null;
+        try {
+          const d = await tradeData(cookie, token, league.leagueId);
+          if (offers.length) annotateConstruction(offers, d.ns, league.franchiseId);
+          fit = tradeFitSummary(d.ns, league.franchiseId);
+        } catch (e) { /* value-only */ }
+        return { offers, fit, leagueId: String(league.leagueId) };
       } catch (e) {
-        return [];
+        return { offers: [], fit: null, leagueId: String(league.leagueId) };
       }
     })
   );
-  const offers = groups.flat().filter((o) => o.direction === 'incoming');
+  const offers = groups.flatMap((g) => g.offers).filter((o) => o.direction === 'incoming');
+  const fitByLeague = new Map(groups.map((g) => [g.leagueId, g.fit]));
   return {
     offers,
-    // Every league you're in, so the hub can start a NEW trade in any of them —
-    // not just respond to offers that happen to be sitting in the inbox.
-    leagues: leagues.map((l) => ({ leagueId: l.leagueId, name: l.name })),
+    // Every league you're in, so the hub can start a NEW trade in any of them — not just
+    // respond to offers sitting in the inbox — each with a fit hint where one exists.
+    leagues: leagues.map((l) => ({ leagueId: l.leagueId, name: l.name, fit: fitByLeague.get(String(l.leagueId)) || null })),
     summary: {
       count: offers.length,
       favorable: offers.filter((o) => o.analysis.verdict === 'favorable').length,
@@ -580,4 +600,4 @@ function throwBad(msg) {
   throw err;
 }
 
-module.exports = { getOverview, getLeague, respond, propose, analyze, crossLeaguePreview, crossLeaguePropose, suggestFor, counterFor };
+module.exports = { getOverview, getLeague, respond, propose, analyze, crossLeaguePreview, crossLeaguePropose, suggestFor, counterFor, tradeFitSummary };

@@ -49,6 +49,7 @@ const TESTS = [
   'waiver-multi-test',
   'league-prefs-test',
   'adp-test',
+  'trade-fit-summary-test',
 ];
 
 let failed = 0;

@@ -147,9 +147,11 @@ Grouped into four "synergy systems", highest-leverage first:
   suggestion already carries the partner `franchiseId`). No more rebuilding the trade by
   hand. *(`Shop ›` at the league level still opens the empty builder — there's no single
   player context there.)*
-- [~] **Annotate the inbox "Start a trade" list.** Each league now flags "N on the block
-  here" (fetched alongside the offers) so picking a league to propose in isn't blind.
-  *(Still open: "they need RB, you're deep" — needs per-partner needs/surplus, heavier.)*
+- [x] **Annotate the inbox "Start a trade" list.** Each league flags "N on the block here"
+  (your bait) AND a fit nudge — "You're deep at RB · 2 rivals need it" — derived from the
+  league's needs/surplus map (`trades.tradeFitSummary` over the same `tradeData` the desk
+  uses; getOverview now reads it for every league, not just offer-leagues). Picking where
+  to propose now leads with where a deal is most likely to click.
 
 ### System 3 — Signals computed and thrown away
 - [ ] **Surface "watched player is now a free agent" on Home.** Watchlist already
