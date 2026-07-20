@@ -38,6 +38,15 @@ router.get('/home/league/:leagueId', async (req, res, next) => {
   }
 });
 
+// GET /api/portfolio — dynasty value dashboard + value-at-risk across leagues.
+router.get('/portfolio', async (req, res, next) => {
+  try {
+    res.json(await portfolio.getDashboard(req.mflCookie, req.token));
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/scoreboard — live matchups across leagues, sorted by closeness.
 router.get('/scoreboard', async (req, res, next) => {
   try {

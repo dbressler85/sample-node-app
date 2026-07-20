@@ -20,10 +20,13 @@ Cross-league management is the moat; these deepen it.
   reusing the roster + free-agent sets. *(Next: quick add/trade actions straight
   from a watch row, and surfacing "your watched player is now a free agent" on
   Home.)*
-- [ ] **Portfolio dynasty dashboard + value-at-risk.** A single view of total roster
-  value across leagues, age curve, and "value at risk" (aging cores, injured
-  starters, expiring contracts where applicable). Extends `services/portfolio.js`
-  and the dynasty summaries already computed in `roster.js`.
+- [x] **Portfolio dynasty dashboard + value-at-risk.** `/api/portfolio` +
+  PortfolioScreen (reached from Home's "Portfolio · value at risk" row): total
+  dynasty value across leagues, value-weighted age, value-by-age curve, and
+  value-at-risk — split into hurt starters (can't deploy now) and aging cores
+  (past a position-aware decline age), with the biggest at-risk holdings listed
+  (tap → profile) and a per-league breakdown. *(Next: expiring-contract risk where
+  MFL exposes it; a value-trend sparkline once we retain snapshots.)*
 - [ ] **League switcher / mute / pin.** Let the owner pin the leagues they care about
   to the top of every cross-league view, and mute leagues (e.g. finished or
   bye-week teams) so they drop out of Home triage, On Deck, and exposure.

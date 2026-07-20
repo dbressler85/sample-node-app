@@ -206,4 +206,126 @@ async function getHome(cookie, token) {
   };
 }
 
-module.exports = { getHome, getLeagueTriage };
+// --- portfolio dashboard (dynasty value + value-at-risk) --------------------
+
+// Age at which a position's dynasty value typically starts declining — the point
+// past which rostered value is "aging" (at risk of falling). Position-aware
+// because an RB ages out years before a QB.
+const DECLINE_AGE = { QB: 32, RB: 27, WR: 29, TE: 30, PK: 34, DEF: 99 };
+function isAging(position, age) {
+  if (age == null) return false;
+  const cliff = DECLINE_AGE[position] != null ? DECLINE_AGE[position] : 29;
+  return age >= cliff;
+}
+
+// Age bands for the "where is my value concentrated" curve.
+const AGE_BANDS = [
+  [0, 23, '≤23'],
+  [24, 25, '24–25'],
+  [26, 27, '26–27'],
+  [28, 29, '28–29'],
+  [30, 120, '30+'],
+];
+function ageBand(age) {
+  if (age == null) return null;
+  const b = AGE_BANDS.find(([min, max]) => age >= min && age <= max);
+  return b ? b[2] : null;
+}
+
+const round1 = (n) => Math.round(n * 10) / 10;
+const pct = (part, whole) => (whole > 0 ? Math.round((part / whole) * 100) : 0);
+
+// Cross-league dynasty portfolio: total invested value, how it's distributed by
+// age, and the value "at risk" — tied up in players who are hurt (can't be
+// deployed now) or aging past their position's decline curve. Each roster spot
+// counts, so a player you hold in three leagues counts three times (that IS your
+// portfolio exposure). Reuses the enriched rosters (value + age + availability).
+async function getDashboard(cookie, token) {
+  const leagues = await leaguesService.listLeagues(cookie);
+  const loaded = await Promise.all(
+    leagues.map((l) => rosterService.getRoster(cookie, l.leagueId).then((roster) => ({ league: l, roster })).catch(() => null))
+  );
+  const valid = loaded.filter(Boolean);
+
+  let totalValue = 0;
+  let playerCount = 0;
+  let ageValueSum = 0; // value-weighted age numerator
+  let ageValueWeight = 0;
+  const curve = new Map(AGE_BANDS.map(([, , label]) => [label, { band: label, value: 0, count: 0 }]));
+  const injured = [];
+  const aging = [];
+  const riskIds = new Set(); // distinct (league,player) keys counted once toward total-at-risk
+  let riskValue = 0;
+  const byLeague = [];
+  const outlookMix = { winNow: 0, ascending: 0, balanced: 0 };
+
+  for (const { league, roster } of valid) {
+    const all = [...roster.starters, ...roster.bench, ...roster.ir, ...roster.taxi];
+    let leagueRisk = 0;
+    for (const p of all) {
+      const v = p.value || 0;
+      if (!v) continue;
+      totalValue += v;
+      playerCount += 1;
+      if (p.age != null) {
+        ageValueSum += p.age * v;
+        ageValueWeight += v;
+        const band = ageBand(p.age);
+        if (band && curve.has(band)) { const c = curve.get(band); c.value += v; c.count += 1; }
+      }
+      const key = `${league.leagueId}:${p.id}`;
+      // Hurt = can't be deployed now (OUT / IR / injured), excluding a plain bye.
+      const hurt = p.availability && p.availability.startable === false && p.availability.status !== 'BYE';
+      const old = isAging(p.position, p.age);
+      const entry = { id: p.id, name: p.name, position: p.position, team: p.team, age: p.age, value: v, leagueId: league.leagueId, leagueName: league.name };
+      if (hurt) injured.push({ ...entry, reason: p.availability.status });
+      if (old) aging.push({ ...entry, reason: `age ${p.age}` });
+      if (hurt || old) { if (!riskIds.has(key)) { riskIds.add(key); riskValue += v; leagueRisk += v; } }
+    }
+    const s = roster.summary || {};
+    if (s.outlook === 'Win-now window') outlookMix.winNow += 1;
+    else if (s.outlook === 'Ascending') outlookMix.ascending += 1;
+    else outlookMix.balanced += 1;
+    byLeague.push({
+      leagueId: league.leagueId,
+      name: league.name,
+      value: s.rosterValue != null ? Math.round(s.rosterValue) : null,
+      coreAge: s.coreAge != null ? s.coreAge : null,
+      outlook: s.outlook || null,
+      atRiskValue: Math.round(leagueRisk),
+      atRiskPct: pct(leagueRisk, s.rosterValue || 0),
+    });
+  }
+
+  const bySizeDesc = (a, b) => b.value - a.value;
+  injured.sort(bySizeDesc);
+  aging.sort(bySizeDesc);
+  // Top single at-risk holdings (dedupe by name+league already distinct), biggest first.
+  const top = [...injured, ...aging].sort(bySizeDesc).slice(0, 8);
+  byLeague.sort((a, b) => (b.value || 0) - (a.value || 0));
+
+  return {
+    totals: {
+      leagues: leagues.length,
+      teams: valid.length,
+      rosterValue: Math.round(totalValue),
+      playerCount,
+      valueWeightedAge: ageValueWeight > 0 ? round1(ageValueSum / ageValueWeight) : null,
+    },
+    ageCurve: AGE_BANDS.map(([, , label]) => {
+      const c = curve.get(label);
+      return { band: label, value: Math.round(c.value), count: c.count, pct: pct(c.value, totalValue) };
+    }),
+    atRisk: {
+      injured: { value: Math.round(injured.reduce((s, p) => s + p.value, 0)), count: injured.length },
+      aging: { value: Math.round(aging.reduce((s, p) => s + p.value, 0)), count: aging.length },
+      totalValue: Math.round(riskValue),
+      pct: pct(riskValue, totalValue),
+      top,
+    },
+    outlookMix,
+    byLeague,
+  };
+}
+
+module.exports = { getHome, getLeagueTriage, getDashboard };

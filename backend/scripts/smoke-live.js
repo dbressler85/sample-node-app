@@ -34,6 +34,7 @@ const TESTS = [
   'cache-primitives-test',
   'watchlist-test',
   'throttle-test',
+  'portfolio-dashboard-test',
 ];
 
 let failed = 0;
