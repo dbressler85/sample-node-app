@@ -17,7 +17,7 @@ const strengthLabel = (pct) => {
 // Cross-league dynasty portfolio: total invested value, how it's spread by age, and
 // the value "at risk" — tied up in hurt starters or players aging past their
 // position's decline curve. The strategic counterpart to the Home action list.
-export default function PortfolioScreen({ onBack, onOpenPlayer }) {
+export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) {
   const [d, setD] = useState(null);
   const [error, setError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -115,18 +115,23 @@ export default function PortfolioScreen({ onBack, onOpenPlayer }) {
         {/* Per-league */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>By league</Text>
-          {d.byLeague.map((l) => (
-            <View key={l.leagueId} style={styles.leagueRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.leagueName} numberOfLines={1}>{l.name}</Text>
-                <Text style={styles.leagueSub} numberOfLines={1}>
-                  {[l.outlook, l.coreAge != null ? `core ${l.coreAge}y` : null, strengthLabel(l.strengthPct)].filter(Boolean).join(' · ')}
-                </Text>
-              </View>
-              {l.atRiskPct > 0 ? <Text style={[styles.leagueRisk, l.atRiskPct >= 20 && { color: colors.bad }]}>{l.atRiskPct}% risk</Text> : null}
-              <Text style={styles.leagueVal}>{l.value != null ? l.value : '—'}</Text>
-            </View>
-          ))}
+          {d.byLeague.map((l) => {
+            const Row = onOpenLeague ? Pressable : View;
+            const rowProps = onOpenLeague ? { onPress: () => onOpenLeague({ leagueId: l.leagueId, name: l.name }) } : {};
+            return (
+              <Row key={l.leagueId} style={({ pressed }) => [styles.leagueRow, pressed && { opacity: 0.7 }]} {...rowProps}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.leagueName} numberOfLines={1}>{l.name}</Text>
+                  <Text style={styles.leagueSub} numberOfLines={1}>
+                    {[l.outlook, l.coreAge != null ? `core ${l.coreAge}y` : null, strengthLabel(l.strengthPct)].filter(Boolean).join(' · ')}
+                  </Text>
+                </View>
+                {l.atRiskPct > 0 ? <Text style={[styles.leagueRisk, l.atRiskPct >= 20 && { color: colors.bad }]}>{l.atRiskPct}% risk</Text> : null}
+                <Text style={styles.leagueVal}>{l.value != null ? l.value : '—'}</Text>
+                {onOpenLeague ? <Text style={styles.leagueChev}>›</Text> : null}
+              </Row>
+            );
+          })}
         </View>
 
         <View style={{ height: 30 }} />
@@ -192,6 +197,7 @@ const styles = StyleSheet.create({
   leagueSub: { color: colors.textDim, fontSize: 12, marginTop: 1 },
   leagueRisk: { color: colors.warn, fontSize: 12, fontWeight: '800', marginRight: 12 },
   leagueVal: { color: colors.gold, fontSize: 15, fontWeight: '900', width: 44, textAlign: 'right' },
+  leagueChev: { color: colors.textDim, fontSize: 18, fontWeight: '700', marginLeft: 8 },
   error: { color: colors.bad, textAlign: 'center', marginBottom: 14 },
   retry: { backgroundColor: colors.card, borderRadius: 10, paddingHorizontal: 20, paddingVertical: 10, borderWidth: 1, borderColor: colors.border },
   retryText: { color: colors.text, fontWeight: '700' },

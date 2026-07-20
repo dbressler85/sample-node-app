@@ -129,11 +129,13 @@ Grouped into four "synergy systems", highest-leverage first:
   (also fixes today's accidental-pick risk).
 
 ### System 2 — Needs/surplus + outlook should follow you everywhere
-- [ ] **Make dead-end aggregates tappable.** Portfolio "By league" rows (outlook · core
-  age · strength · %risk — the richest per-league data in the app, currently inert) →
-  open that league. Home outlook chips (Win-now/Ascending/…) → list the leagues in that
-  bucket. Enrich bare **Leagues** rows with the per-league status those downstream
-  screens already compute.
+- [x] **Make dead-end aggregates tappable.** Portfolio "By league" rows (outlook · core
+  age · strength · %risk) now open that league's roster; Home's offseason outlook chips
+  (Win-now/Ascending/Rebuilding/Balanced) drill into Portfolio (where each per-league row
+  is tappable), and the Waivers chips open the Waivers tab. *(Still open: enrich the bare
+  **Leagues** switcher rows with per-league value/outlook/risk — deferred because it needs
+  a heavier per-league valuation fetch; do it as a progressive/background enrich so the
+  switcher keeps its instant open.)*
 - [ ] **Need-adjusted draft board.** DraftScreen ranks by pure value with no roster
   context; badge available players that fill the manager's thin positions (needs/surplus
   already computed in trades).

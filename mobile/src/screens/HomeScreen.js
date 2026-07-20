@@ -248,7 +248,7 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
                 <Text style={styles.teamChev}>›</Text>
               </Pressable>
             ) : null}
-            <Portfolio p={portfolio} phase={phase} loading={summaryLoading} onLeagues={onOpenLeagues} onPortfolio={onOpenPortfolio} onTrades={onOpenTradeInbox} />
+            <Portfolio p={portfolio} phase={phase} loading={summaryLoading} onLeagues={onOpenLeagues} onPortfolio={onOpenPortfolio} onTrades={onOpenTradeInbox} onWaivers={() => onOpenWaivers({})} />
             {drafts.length ? (
               <View>
                 <Pressable style={styles.sectionRow} onPress={onOpenDraftHub}>
@@ -327,7 +327,7 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
   );
 }
 
-function Portfolio({ p, phase, loading, onLeagues, onPortfolio, onTrades }) {
+function Portfolio({ p, phase, loading, onLeagues, onPortfolio, onTrades, onWaivers }) {
   const offseason = phase === 'offseason';
   // The Leagues count is known as soon as the league list loads, so keep it live.
   return (
@@ -343,12 +343,12 @@ function Portfolio({ p, phase, loading, onLeagues, onPortfolio, onTrades }) {
       <View style={styles.chips}>
         {offseason ? (
           <>
-            <Chip label="Win-now" value={p.contenders} loading={loading} />
-            <Chip label="Ascending" value={p.ascending} loading={loading} />
-            <Chip label="Rebuilding" value={p.rebuilding} loading={loading} />
-            <Chip label="Balanced" value={p.balanced} loading={loading} />
+            <Chip label="Win-now" value={p.contenders} loading={loading} onPress={onPortfolio} />
+            <Chip label="Ascending" value={p.ascending} loading={loading} onPress={onPortfolio} />
+            <Chip label="Rebuilding" value={p.rebuilding} loading={loading} onPress={onPortfolio} />
+            <Chip label="Balanced" value={p.balanced} loading={loading} onPress={onPortfolio} />
             <Chip label="Trades ›" value={p.tradeOffers} bad={p.tradeOffers > 0} loading={loading} onPress={onTrades} />
-            <Chip label="Waivers" value={p.waiversPending} loading={loading} />
+            <Chip label="Waivers" value={p.waiversPending} loading={loading} onPress={onWaivers} />
           </>
         ) : (
           <>
@@ -356,7 +356,7 @@ function Portfolio({ p, phase, loading, onLeagues, onPortfolio, onTrades }) {
             <Chip label="Holes" value={p.holes} bad={p.holes > 0} loading={loading} />
             <Chip label="Injuries" value={p.injuries} bad={p.injuries > 0} loading={loading} />
             <Chip label="Trades ›" value={p.tradeOffers} bad={p.tradeOffers > 0} loading={loading} onPress={onTrades} />
-            <Chip label="Waivers" value={p.waiversPending} loading={loading} />
+            <Chip label="Waivers" value={p.waiversPending} loading={loading} onPress={onWaivers} />
           </>
         )}
       </View>
