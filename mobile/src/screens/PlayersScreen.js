@@ -4,6 +4,7 @@ import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import AvailabilityBadge from '../components/AvailabilityBadge';
 import { getValue, setValue } from '../cache';
+import { ScreenTitle, Value } from '../components/Brand';
 
 const TABS = [
   ['rankings', 'Rankings'],
@@ -83,7 +84,7 @@ export default function PlayersScreen({ onOpenPlayer }) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Players</Text>
+        <ScreenTitle>Players</ScreenTitle>
       </View>
 
       <View style={styles.searchWrap}>
@@ -208,7 +209,7 @@ export default function PlayersScreen({ onOpenPlayer }) {
 function PlayerRow({ p, rank, sub, onPress }) {
   const posColor = positionColors[p.position] || colors.textDim;
   return (
-    <Pressable style={({ pressed }) => [styles.row, pressed && { opacity: 0.7 }]} onPress={onPress}>
+    <Pressable style={({ pressed }) => [styles.row, { borderLeftColor: posColor, borderLeftWidth: 3 }, pressed && { opacity: 0.7 }]} onPress={onPress}>
       {rank ? <Text style={styles.rank}>{rank}</Text> : null}
       <View style={[styles.posBadge, { backgroundColor: posColor + '22', borderColor: posColor }]}>
         <Text style={[styles.pos, { color: posColor }]}>{p.position}</Text>
@@ -226,7 +227,7 @@ function PlayerRow({ p, rank, sub, onPress }) {
           {sub ? ` · ${sub}` : ''}
         </Text>
       </View>
-      {p.value != null ? <Text style={styles.value}>{p.value}</Text> : null}
+      {p.value != null ? <Value size={17} style={{ marginLeft: 10 }}>{p.value}</Value> : null}
     </Pressable>
   );
 }

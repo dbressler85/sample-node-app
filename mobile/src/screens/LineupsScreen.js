@@ -14,6 +14,7 @@ import { colors } from '../theme';
 import AvailabilityBadge from '../components/AvailabilityBadge';
 import useAndroidBack from '../useAndroidBack';
 import useCachedResource from '../useCachedResource';
+import { ScreenTitle } from '../components/Brand';
 
 const STATUS = {
   risk: { label: 'Risk', color: colors.bad },
@@ -106,7 +107,7 @@ export default function LineupsScreen({ onOpenLineup, onStartWizard }) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Lineups</Text>
+        <ScreenTitle>Lineups</ScreenTitle>
         {summary ? (
           <Text style={styles.subtitle}>
             {summary.needAttention === 0

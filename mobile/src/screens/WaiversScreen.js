@@ -17,6 +17,7 @@ import AvailabilityBadge from '../components/AvailabilityBadge';
 import AddAcrossSheet from '../components/AddAcrossSheet';
 import useAndroidBack from '../useAndroidBack';
 import { getValue, setValue } from '../cache';
+import { ScreenTitle } from '../components/Brand';
 
 const SORTS = [
   { key: 'value', label: 'Value' },
@@ -161,7 +162,7 @@ export default function WaiversScreen({ initialLeagueId, initialPosition, onStar
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Waivers</Text>
+        <ScreenTitle>Waivers</ScreenTitle>
         {summary && !openLeagueId ? (
           <Text style={styles.subtitle}>
             {summary.total} league{summary.total === 1 ? '' : 's'}

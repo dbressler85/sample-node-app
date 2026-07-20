@@ -11,18 +11,26 @@
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0A0F1C"
+      "backgroundColor": "#080B15"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "plugins": [
-      ["expo-notifications", { "color": "#4F8CFF" }]
+      [
+        "expo-notifications",
+        {
+          "color": "#4F8CFF"
+        }
+      ]
     ],
     "android": {
       "package": "com.dynastycentral.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0A0F1C"
-      }
+      },
+      "backgroundColor": "#080B15"
     },
     "ios": {
       "supportsTablet": true,

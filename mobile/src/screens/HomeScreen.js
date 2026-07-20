@@ -3,6 +3,7 @@ import { View, Text, FlatList, StyleSheet, Pressable, RefreshControl, ActivityIn
 import { api } from '../api';
 import { getValue, setValue } from '../cache';
 import { colors } from '../theme';
+import { ScreenTitle, CrestWatermark } from '../components/Brand';
 
 const GROUPS = {
   lineup_risk: { label: 'Unavailable player in lineup', color: colors.bad, open: true },
@@ -193,8 +194,9 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
   return (
     <View style={styles.container}>
       <View style={styles.topbar}>
+        <CrestWatermark />
         <View>
-          <Text style={styles.title}>Command Center</Text>
+          <ScreenTitle>Command Center</ScreenTitle>
           <Text style={styles.subtitle}>
             {loading
               ? `Updating ${progress.done}/${progress.total}…`
