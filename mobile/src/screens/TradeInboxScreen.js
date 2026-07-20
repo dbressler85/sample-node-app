@@ -83,6 +83,7 @@ export default function TradeInboxScreen({ onBack, onOpenLeague, onProposeInLeag
       <Text style={styles.startSub}>Pick a league to build and send an offer.</Text>
       {leagues.map((l) => {
         const onBlock = baitByLeague[String(l.leagueId)] || 0;
+        const fit = l.fit;
         return (
           <Pressable
             key={l.leagueId}
@@ -91,6 +92,11 @@ export default function TradeInboxScreen({ onBack, onOpenLeague, onProposeInLeag
           >
             <View style={{ flex: 1 }}>
               <Text style={styles.startName} numberOfLines={1}>{l.name}</Text>
+              {fit ? (
+                <Text style={styles.startFit} numberOfLines={1}>
+                  You're deep at {fit.topPos} · {fit.rivals} rival{fit.rivals === 1 ? '' : 's'} need{fit.rivals === 1 ? 's' : ''} it
+                </Text>
+              ) : null}
               {onBlock ? <Text style={styles.startBait}>{onBlock} on the block here</Text> : null}
             </View>
             <Text style={styles.startCta}>Propose ›</Text>
@@ -263,6 +269,7 @@ const styles = StyleSheet.create({
   startSub: { color: colors.textDim, fontSize: 13, marginTop: 3, marginBottom: 12 },
   startRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 13, marginBottom: 10 },
   startName: { color: colors.text, fontSize: 15, fontWeight: '700', marginRight: 10 },
+  startFit: { color: colors.good, fontSize: 12, fontWeight: '700', marginTop: 2 },
   startBait: { color: colors.gold, fontSize: 12, fontWeight: '700', marginTop: 2 },
   startCta: { color: colors.accent, fontSize: 14, fontWeight: '800' },
 });
