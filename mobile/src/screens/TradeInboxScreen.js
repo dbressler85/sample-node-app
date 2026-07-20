@@ -237,7 +237,8 @@ function Side({ label, assets, total, onOpenPlayer }) {
           <Row key={a.id} style={styles.sideRow} {...rowProps}>
             <View style={[styles.dot, { backgroundColor: positionColors[a.position] || colors.textDim }]} />
             <Text style={styles.sideName} numberOfLines={1}>{a.name}</Text>
-            <Text style={styles.sideMeta}>{a.position}{a.value != null ? ` · ${a.value}` : ''}</Text>
+            {/* Picks show dynasty value ("val N"), not a bare number that reads as a slot. */}
+            <Text style={styles.sideMeta}>{a.kind === 'pick' ? (a.value != null ? `val ${a.value}` : 'pick') : `${a.position}${a.value != null ? ` · ${a.value}` : ''}`}</Text>
           </Row>
         );
       })}
