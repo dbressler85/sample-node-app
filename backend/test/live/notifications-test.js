@@ -21,10 +21,14 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   const sessions = { get: (t) => (t === 'tok' ? { cookie: 'ck' } : null) };
   let draftState = { drafts: [] };
   let tradeState = { offers: [] };
+  let deckState = { items: [] };
+  let watchState = { alerts: [] };
   const deps = {
     sessions,
     draftOverview: async () => draftState,
     tradeOverview: async () => tradeState,
+    onDeck: async () => deckState,
+    watchAlerts: async () => watchState,
     sender: async (msgs) => { sent.push(...msgs); },
   };
 
@@ -73,6 +77,41 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   const res = await notifications.tick(deps2);
   assert(sent.length === b2, 'expired session sends nothing');
   console.log('✓ expired login is skipped safely');
+
+  // 7) A NEW lineup lock and NEW watchlist alerts fire once each (re-enable trade pref
+  //    was off; use a fresh device so prefs are all-default and the seen-sets are clean).
+  notifications.registerToken('tok2', 'ExpoPushTok2', {});
+  const deps3 = { ...deps, sessions: { get: (t) => (t === 'tok2' ? { cookie: 'ck' } : null) } };
+  draftState = { drafts: [] };
+  tradeState = { offers: [] };
+  await notifications.tick(deps3); // prime tok2
+  const b3 = sent.length;
+  deckState = { items: [{ type: 'lineup_lock', leagueId: 'L1', leagueName: 'League One', at: '2026-09-10T17:00:00Z', detail: 'empty slot — needs a pickup' }] };
+  watchState = { alerts: [
+    { type: 'free', playerId: 'p1', leagueId: 'L2', name: 'Jayden Marliss', leagueName: 'League Two' },
+    { type: 'onblock', playerId: 'p2', leagueId: 'L3', name: 'Deion Bellamy', leagueName: 'League Three' },
+  ] };
+  await notifications.tick(deps3);
+  const fresh = sent.slice(b3);
+  assert(fresh.length === 3, `one lineup + two watch alerts fire, got ${fresh.length}`);
+  assert(fresh.some((m) => m.data.type === 'lineup' && m.data.leagueId === 'L1'), 'lineup-attention notified');
+  assert(fresh.some((m) => m.data.type === 'watch' && m.data.kind === 'free' && m.data.playerId === 'p1'), 'watchlist free-agent notified');
+  assert(fresh.some((m) => m.data.type === 'watch' && m.data.kind === 'onblock' && m.data.playerId === 'p2'), 'watchlist on-the-block notified');
+  console.log('✓ lineup-attention + watchlist alerts each notify once');
+
+  // 8) Unchanged lineup/watch state -> no repeats (dedup by key).
+  const b4 = sent.length;
+  await notifications.tick(deps3);
+  assert(sent.length === b4, 'unchanged lineup/watch state sends nothing');
+  console.log('✓ lineup/watch dedup holds');
+
+  // 9) Per-channel pref off -> that channel goes quiet even with new state.
+  notifications.registerToken('tok2', 'ExpoPushTok2', { watchlist: false });
+  watchState = { alerts: [{ type: 'free', playerId: 'p9', leagueId: 'L2', name: 'New Guy', leagueName: 'League Two' }] };
+  const b5 = sent.length;
+  await notifications.tick(deps3);
+  assert(sent.length === b5, 'watchlist=false suppresses watch notifications');
+  console.log('✓ watchlist channel can be muted');
 
   fs.rmSync(DIR, { recursive: true, force: true });
   console.log('\nNOTIFICATIONS HARNESS PASSED');
