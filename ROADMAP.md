@@ -35,9 +35,14 @@ Cross-league management is the moat; these deepen it.
   offer with a modified package) via MFL `import?TYPE=tradeProposal` threading.
 - [~] **Waiver Wizard flexibility + lock awareness.** Done: position-filter chips +
   a deeper candidate pool (pick a different player, filter by position), and it
-  now detects leagues where waivers aren't running (draft pending → locked, shown
-  on the landing + walked-past in the wizard). Still open: **multi-add per league**
-  — queue several claims in one league with FAAB budgeting across them.
+  now detects leagues where waivers aren't running — **calendar-first** (MFL
+  `TYPE=calendar` "Lock/Unlock All Free Agents" events are the authoritative
+  transaction-lock signal) with the **draft heuristic as fallback** (draft pending
+  → locked), shown on the landing + walked-past in the wizard. Still open:
+  **multi-add per league** — queue several claims in one league with FAAB budgeting
+  across them. *(Calendar parser is best-effort against an unverified response
+  shape — text-scans lock/unlock semantics tolerant of field-name/format variation;
+  tighten once verified against a real league's calendar response.)*
 
 ## Performance & caching backlog
 
