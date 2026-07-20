@@ -30,6 +30,7 @@ import { loadSession, clearSession } from './src/auth';
 import { loadDisplayFont } from './src/typography';
 import PressableScale from './src/components/PressableScale';
 import FieldBackdrop from './src/components/FieldBackdrop';
+import ErrorBoundary from './src/components/ErrorBoundary';
 import { colors } from './src/theme';
 
 // On phones that draw edge-to-edge (the app content extends under the system navigation
@@ -324,11 +325,16 @@ export default function App() {
   // own hero-intensity backdrop over this one.
   return (
     <View style={styles.root}>
-      <FieldBackdrop />
+      {/* The backdrop is decorative — if it ever throws (e.g. an SVG quirk on a device),
+          isolate it so the app still runs instead of white-screening. */}
+      <ErrorBoundary silent>
+        <FieldBackdrop />
+      </ErrorBoundary>
       <SafeAreaView style={styles.safe}>
         <ExpoStatusBar style="light" />
         {Platform.OS === 'android' ? <StatusBar translucent backgroundColor="transparent" barStyle="light-content" /> : null}
-        {render()}
+        {/* Any render crash shows its message on screen instead of closing the app. */}
+        <ErrorBoundary>{render()}</ErrorBoundary>
       </SafeAreaView>
     </View>
   );
