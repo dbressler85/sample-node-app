@@ -385,7 +385,7 @@ function FaRow({ p, onPress, onOpenPlayer }) {
   const Identity = onOpenPlayer ? Pressable : View;
   const idProps = onOpenPlayer ? { onPress: () => onOpenPlayer(p.id) } : {};
   return (
-    <View style={styles.faRow}>
+    <View style={[styles.faRow, p.tag === 'target' && styles.faRowTarget, p.tag === 'avoid' && styles.faRowAvoid]}>
       <Identity style={styles.faIdentity} {...idProps}>
         <View style={[styles.posBadge, { backgroundColor: posColor + '22', borderColor: posColor }]}>
           <Text style={[styles.pos, { color: posColor }]}>{p.position}</Text>
@@ -395,6 +395,7 @@ function FaRow({ p, onPress, onOpenPlayer }) {
             <Text style={styles.faName} numberOfLines={1}>
               {p.name}
             </Text>
+            {p.tag ? <Text style={[styles.faTagMark, { color: p.tag === 'target' ? colors.good : colors.bad }]}>{p.tag === 'target' ? '◎' : '⊘'}</Text> : null}
             <AvailabilityBadge availability={p.availability} style={{ marginLeft: 6 }} />
           </View>
           <Text style={styles.faMeta}>
@@ -695,6 +696,9 @@ const styles = StyleSheet.create({
   faMeta: { color: colors.textDim, fontSize: 12, marginTop: 2 },
   faValue: { color: colors.gold, fontSize: 15, fontWeight: '900', marginHorizontal: 10 },
   faIdentity: { flex: 1, flexDirection: 'row', alignItems: 'center' },
+  faRowTarget: { borderColor: colors.good },
+  faRowAvoid: { opacity: 0.55 },
+  faTagMark: { fontSize: 13, fontWeight: '900', marginLeft: 6 },
   addBtnPill: { borderWidth: 1, borderColor: colors.good, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, marginLeft: 4 },
   addBtn: { color: colors.good, fontSize: 12, fontWeight: '800' },
   leagueChoices: { marginTop: -4, marginBottom: 10, marginLeft: 12, gap: 6 },

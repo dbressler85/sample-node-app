@@ -55,6 +55,7 @@ const TESTS = [
   'standing-test',
   'playertags-test',
   'trade-tags-test',
+  'tag-surfaces-test',
 ];
 
 let failed = 0;

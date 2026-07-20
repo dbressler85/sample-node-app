@@ -107,7 +107,7 @@ Cross-league management is the moat; these deepen it.
   unverified response shape — text-scans lock/unlock semantics tolerant of
   field-name/format variation; tighten once verified against a real league's
   calendar response.)*
-- [~] **Target / Avoid personal player tags (±10% value overlay).** Let the owner tag any
+- [x] **Target / Avoid personal player tags (±10% value overlay).** Let the owner tag any
   player **Target** (+10%) or **Avoid** (−10%) to encode personal conviction, so the app's
   value-based decisions lean the way they lean. **MVP-1 shipped:** the token-keyed
   `store/playerTags` (+ `modifier` helper), `GET /api/tags` + `POST /api/players/:id/tag`,
@@ -120,8 +120,11 @@ Cross-league management is the moat; these deepen it.
   market value untouched). **MVP-3 shipped (suggestion bias):** `suggestFor`/`suggestGive`
   now prefer shipping **Avoids** and protect **Targets** (soft −2 priority, so a Target is
   used only when it's the only fair option); `counterFor` prefers asking for **your
-  Targets** on their roster (and never your Avoids). Still to come: waivers/draft
-  highlights, rankings/portfolio. Spec:
+  Targets** on their roster (and never your Avoids). **MVP-4 shipped (waivers + draft):**
+  the waiver board floats a **Target** free agent to the top and sinks an **Avoid** (chosen
+  sort still orders within each group), and the draft board highlights **Target** rows /
+  dims **Avoids** — both with a `◎`/`⊘` marker. Optional later polish: a rankings tier badge
+  + "my values" sort, and a portfolio "you roster N Avoids" surface. Spec:
   - **Two lenses — the core principle.** Keep the existing enrichment `value` as the
     honest **market value** (it drives fairness and, crucially, the *partner's* perception
     and their needs/surplus — they don't share your tags). Add a **personal value** overlay
