@@ -211,6 +211,25 @@ Grouped into four "synergy systems", highest-leverage first:
 - [ ] **Roster: rookie picks are inert text** — no value, not tappable, can't add to a
   trade; and no positional value breakdown.
 
+## Design & motion
+
+Moving the app from "functional but uninspired" toward a slick, branded product.
+
+- [x] **DC monogram on the crest + first-impression polish.** The "Regent Crest" now
+  carries the brand's initials: the crown became a **coronet** (three points = your
+  leagues) and a **gold roundel medallion holds a crisp "DC" monogram**, over the gridiron
+  hash-marks. Login is the flagship polish pass — a branded `FieldBackdrop` (navy gradient
+  + soft gold glow + faint yard-lines), a choreographed entrance (crest springs in,
+  wordmark rises, a gold rule wipes out under "Central"), and a tactile `PressableScale`
+  button. All with the built-in `Animated` API (no new native deps).
+- [ ] **Roll the motion primitives across the app.** `PressableScale` on triage/roster/
+  waiver/trade cards and the tab bar; `FieldBackdrop` behind the Home and Portfolio
+  headers; a subtle looping pulse on live / on-the-clock indicators; staggered section
+  reveals on Home. The reusable pieces exist — this is applying them screen by screen.
+- [ ] **Bundle a display typeface** (Saira Condensed / Oswald via `expo-font`) and wire it
+  into `ScreenTitle`/`Value` so the "broadcast" type is real, not the system fallback.
+- [ ] **Regenerate the app icon / splash** from the new DC crest.
+
 ## Performance & caching backlog
 
 The big wins are shipped (parallelized per-league fan-outs; cached `listLeagues` /
