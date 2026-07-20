@@ -221,7 +221,7 @@ export default function App() {
       return <LeaguesScreen onBack={popOverlay} onOpenLeague={openRoster} onOpenDraftHub={openDraftHub} />;
     }
     if (overlay && overlay.type === 'portfolio') {
-      return <PortfolioScreen onBack={popOverlay} onOpenPlayer={openPlayer} />;
+      return <PortfolioScreen onBack={popOverlay} onOpenPlayer={openPlayer} onOpenLeague={openRoster} />;
     }
     if (overlay && overlay.type === 'onDeck') {
       return (
