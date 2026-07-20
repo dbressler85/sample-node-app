@@ -64,25 +64,16 @@ export default function App() {
   const [overlayStack, setOverlayStack] = useState([]);
   const [waiversTarget, setWaiversTarget] = useState(null); // {leagueId, position}
 
-  // Login → Home handoff: the login lockup flies up and fades, then the app flies in.
-  // `enter` starts hidden and plays every time the app first shows the authed UI —
-  // whether from a live login or a restored session on cold boot — so opening the app
-  // always has the fly-in moment (not just right after typing a password).
-  const enter = useRef(new Animated.Value(0)).current;
+  // Login → Home handoff: only the login lockup flies up and out. The authed app is
+  // NEVER wrapped in an opacity animation — a prior version started it at opacity 0 and
+  // faded it in on every launch, which could leave the whole app blank if the fade
+  // didn't run, and a blank bundle trips expo-updates' rollback to the old embedded
+  // build. Scoping the motion to the login screen removes that failure mode entirely.
   const leave = useRef(new Animated.Value(0)).current;
-
-  // Fly the authed app in whenever we transition into it (login OR restored session).
-  useEffect(() => {
-    if (authed && !booting) {
-      enter.setValue(0);
-      Animated.timing(enter, { toValue: 1, duration: 560, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
-    }
-  }, [authed, booting, enter]);
 
   function handleLoggedIn(info) {
     if (info && typeof info.demoMode === 'boolean') setDemoMode(info.demoMode);
-    // Fly the login lockup up and out, then swap to the app (the effect above flies it in).
-    Animated.timing(leave, { toValue: 1, duration: 380, easing: Easing.in(Easing.cubic), useNativeDriver: true }).start(() => {
+    Animated.timing(leave, { toValue: 1, duration: 360, easing: Easing.in(Easing.cubic), useNativeDriver: true }).start(() => {
       setAuthed(true);
       leave.setValue(0);
     });
@@ -331,25 +322,13 @@ export default function App() {
   // The gold-over-navy field sits behind the whole app; screens render on transparent
   // containers so it shows through, with opaque cards floating on top. Login draws its
   // own hero-intensity backdrop over this one.
-  // The app flies in after login; identity transform once settled (enter=1), so
-  // ordinary navigation isn't animated.
-  const enterStyle = authed
-    ? {
-        opacity: enter.interpolate({ inputRange: [0, 0.6, 1], outputRange: [0, 1, 1] }),
-        transform: [
-          { translateY: enter.interpolate({ inputRange: [0, 1], outputRange: [90, 0] }) },
-          { scale: enter.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1] }) },
-        ],
-      }
-    : null;
-
   return (
     <View style={styles.root}>
       <FieldBackdrop />
       <SafeAreaView style={styles.safe}>
         <ExpoStatusBar style="light" />
         {Platform.OS === 'android' ? <StatusBar translucent backgroundColor="transparent" barStyle="light-content" /> : null}
-        <Animated.View style={[styles.flex, enterStyle]}>{render()}</Animated.View>
+        {render()}
       </SafeAreaView>
     </View>
   );
