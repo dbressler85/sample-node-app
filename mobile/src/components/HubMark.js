@@ -43,16 +43,21 @@ export default function HubMark({ size = 88 }) {
           strokeWidth={1.4}
         />
 
-        {/* coronet — three points = your leagues, center = your title team */}
-        <Path d="M64 74 L74 50 L88 64 L100 42 L112 64 L126 50 L136 74 Z" fill="url(#dcGold)" />
-        <Rect x={64} y={72} width={72} height={9} rx={3} fill="url(#dcGold)" />
-        <Circle cx={74} cy={50} r={5} fill="#5C9BFF" />
-        <Circle cx={100} cy={42} r={6.5} fill="#FCE38F" stroke="#7A5A18" strokeWidth={1} />
-        <Circle cx={126} cy={50} r={5} fill="#5C9BFF" />
-
-        {/* roundel medallion — carries the DC monogram */}
+        {/* roundel medallion (the "head") — carries the DC monogram */}
         <Circle cx={100} cy={132} r={38} fill="#0C1322" stroke="url(#dcGold)" strokeWidth={3} />
         <Circle cx={100} cy={132} r={30} fill="none" stroke="rgba(243,193,74,0.28)" strokeWidth={1.3} />
+
+        {/* coronet — rests directly ON the roundel like a crown on a head, tipped a few
+            degrees askew so it reads hand-set rather than stamped. Three points = your
+            leagues, center jewel = your title team. Drawn after the roundel so it sits on
+            top and clips a sliver of the rim. */}
+        <G transform="rotate(-8 100 98)">
+          <Rect x={64} y={92} width={72} height={9} rx={3} fill="url(#dcGold)" />
+          <Path d="M64 94 L74 70 L88 84 L100 62 L112 84 L126 70 L136 94 Z" fill="url(#dcGold)" />
+          <Circle cx={74} cy={70} r={5} fill="#5C9BFF" />
+          <Circle cx={100} cy={62} r={6.5} fill="#FCE38F" stroke="#7A5A18" strokeWidth={1} />
+          <Circle cx={126} cy={70} r={5} fill="#5C9BFF" />
+        </G>
 
         {/* gridiron hash-marks */}
         <G stroke="rgba(243,193,74,0.55)" strokeWidth={2.4} strokeLinecap="round">
@@ -80,7 +85,9 @@ const styles = StyleSheet.create({
   dc: {
     color: colors.goldLite,
     fontWeight: '900',
-    letterSpacing: 1,
+    // No trailing letter-spacing — it padded the right of "C" and shoved the pair
+    // left of the roundel's true center. The glyphs sit dead-center now.
+    letterSpacing: 0,
     textShadowColor: 'rgba(0,0,0,0.45)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,

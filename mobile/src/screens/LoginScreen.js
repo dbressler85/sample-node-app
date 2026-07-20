@@ -63,7 +63,7 @@ export default function LoginScreen({ onLoggedIn }) {
 
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <FieldBackdrop />
+      <FieldBackdrop hero />
       <View style={styles.inner}>
         <Animated.View style={[styles.lockup, fade, pop]}>
           <HubMark size={104} />
