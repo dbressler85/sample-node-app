@@ -26,6 +26,8 @@ import DraftScreen from './src/screens/DraftScreen';
 import DraftHubScreen from './src/screens/DraftHubScreen';
 import OnDeckScreen from './src/screens/OnDeckScreen';
 import { loadSession, clearSession } from './src/auth';
+import { loadDisplayFont } from './src/typography';
+import PressableScale from './src/components/PressableScale';
 import { colors } from './src/theme';
 
 const TABS = [
@@ -52,9 +54,12 @@ export default function App() {
 
   useEffect(() => {
     (async () => {
+      // Load the display face and the session in parallel; the font load can't hang the
+      // splash (it races an internal timeout) and never blocks past ~2s.
       const token = await loadSession();
       setAuthed(!!token);
       if (token) api.health().then((h) => setDemoMode(!!h.demoMode)).catch(() => {});
+      await loadDisplayFont();
       setBooting(false);
     })();
   }, []);
@@ -279,10 +284,10 @@ function TabBar({ tab, onChange }) {
       {TABS.map((t) => {
         const active = tab === t.key;
         return (
-          <Pressable key={t.key} style={styles.tab} onPress={() => onChange(t.key)} hitSlop={6}>
+          <PressableScale key={t.key} style={styles.tab} onPress={() => onChange(t.key)} hitSlop={6} dip={0.88}>
             <Text style={[styles.tabIcon, { color: active ? colors.accent : colors.textDim }]}>{t.icon}</Text>
             <Text style={[styles.tabLabel, { color: active ? colors.accent : colors.textDim }]}>{t.label}</Text>
-          </Pressable>
+          </PressableScale>
         );
       })}
     </View>

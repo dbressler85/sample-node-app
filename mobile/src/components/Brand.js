@@ -2,13 +2,14 @@ import React from 'react';
 import { Text, StyleSheet } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { colors } from '../theme';
+import { displayXL } from '../typography';
 
 // Shared "broadcast" treatment so the flair stays consistent in one place.
-// ScreenTitle: condensed, uppercase, tracked — the lower-third look. (When we
-// bundle Saira Condensed / Oswald via expo-font, set fontFamily here once and it
-// applies everywhere.) Value: championship-gold, tabular numerals for columns.
+// ScreenTitle: condensed, uppercase, tracked — the lower-third look, now in the bundled
+// Oswald display face (falls back to the system face until it loads). Value:
+// championship-gold, tabular numerals for columns (kept in the system face for alignment).
 export function ScreenTitle({ children, style }) {
-  return <Text style={[styles.title, style]}>{children}</Text>;
+  return <Text style={[styles.title, displayXL(), style]}>{children}</Text>;
 }
 
 export function Value({ children, size = 22, color = colors.gold, style }) {

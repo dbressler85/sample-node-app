@@ -4,6 +4,7 @@ import { api } from '../api';
 import { getValue, setValue } from '../cache';
 import { colors } from '../theme';
 import { ScreenTitle, CrestWatermark } from '../components/Brand';
+import Pulse from '../components/Pulse';
 
 const GROUPS = {
   lineup_risk: { label: 'Unavailable player in lineup', color: colors.bad, open: true },
@@ -285,7 +286,7 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
                           : d.status}
                       </Text>
                     </View>
-                    {d.myOnClock ? <Text style={styles.draftPill}>PICK</Text> : <Text style={styles.teamChev}>›</Text>}
+                    {d.myOnClock ? <Pulse><Text style={styles.draftPill}>PICK</Text></Pulse> : <Text style={styles.teamChev}>›</Text>}
                   </Pressable>
                 ))}
               </View>

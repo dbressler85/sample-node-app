@@ -222,12 +222,18 @@ Moving the app from "functional but uninspired" toward a slick, branded product.
   + soft gold glow + faint yard-lines), a choreographed entrance (crest springs in,
   wordmark rises, a gold rule wipes out under "Central"), and a tactile `PressableScale`
   button. All with the built-in `Animated` API (no new native deps).
-- [ ] **Roll the motion primitives across the app.** `PressableScale` on triage/roster/
-  waiver/trade cards and the tab bar; `FieldBackdrop` behind the Home and Portfolio
-  headers; a subtle looping pulse on live / on-the-clock indicators; staggered section
-  reveals on Home. The reusable pieces exist — this is applying them screen by screen.
-- [ ] **Bundle a display typeface** (Saira Condensed / Oswald via `expo-font`) and wire it
-  into `ScreenTitle`/`Value` so the "broadcast" type is real, not the system fallback.
+- [~] **Roll the motion primitives across the app.** Started: `PressableScale` on the tab
+  bar, and a `Pulse` (new looping breathing component) on the on-the-clock "PICK" pill.
+  Still to apply: `PressableScale` on triage/roster/waiver/trade cards, `FieldBackdrop`
+  behind the Home/Portfolio headers, pulse on the Scores "live" indicator, and staggered
+  section reveals on Home.
+- [x] **Bundle a display typeface.** **Oswald** (condensed "broadcast" face) via `expo-font`
+  + `@expo-google-fonts/oswald`, wired into `ScreenTitle` and the Login wordmark. Loaded
+  defensively (`src/typography.js`): the packages are `require`d in a try/catch and the
+  load races a ~2.2s timeout folded into the boot gate, so a missing/slow font can't hang
+  the splash or crash — it just falls back to the system face. Numbers stay in the system
+  face for tabular alignment. *(Needs `npx expo install` + a rebuild to activate on-device;
+  verify the weights render.)*
 - [ ] **Regenerate the app icon / splash** from the new DC crest.
 
 ## Performance & caching backlog
