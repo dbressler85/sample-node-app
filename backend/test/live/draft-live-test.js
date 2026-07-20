@@ -53,7 +53,11 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   assert(d.status === 'in_progress', `live draft in progress, got ${d.status}`);
   assert(d.myOnClock === true, 'I am on the clock');
   assert(ov.summary.onClock === 1, 'overview counts my on-clock draft');
-  console.log('✓ overview: draftResults parsed -> in_progress, on my clock');
+  // myNextPick carries round + pick-in-round (for "4.05" notation) AND overall
+  // (for "41st overall"), so the UI never shows round.overall as if it were a slot.
+  assert(d.myNextPick && d.myNextPick.round === 1 && d.myNextPick.pick === 2 && d.myNextPick.overall === 2,
+    `myNextPick has round/pick/overall, got ${JSON.stringify(d.myNextPick)}`);
+  console.log('✓ overview: draftResults parsed -> in_progress, on my clock; next pick 1.02 (2nd overall)');
 
   const dl = await draft.getLeague(CK, TK, '1000');
   console.log('league:', JSON.stringify({ status: dl.status, onClock: dl.onClock, avail: dl.available.map((p) => `${p.name.split(',')[0]}:${p.value}`), board: dl.board.map((s) => `${s.round}.${s.pick}=${s.player ? s.player.name.split(',')[0] : '—'}`) }));

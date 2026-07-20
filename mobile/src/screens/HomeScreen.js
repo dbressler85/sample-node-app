@@ -30,6 +30,16 @@ function isDraftActionable(d) {
   return false;
 }
 
+// Draft pick notation: round.pick (e.g. 4.05 = round 4, 5th pick), not round.overall.
+function pickCode(p) {
+  return `${p.round}.${String(p.pick).padStart(2, '0')}`;
+}
+function ordinal(n) {
+  const s = ['th', 'st', 'nd', 'rd'];
+  const v = n % 100;
+  return `${n}${s[(v - 20) % 10] || s[v] || s[0]}`;
+}
+
 // Run `worker` over items with limited concurrency.
 async function runPool(items, limit, worker) {
   let idx = 0;
@@ -154,10 +164,12 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
         lineupsToSet: vals.filter((v) => v.status === 'unset').length,
         tradeOffers: items.filter((i) => i.type === 'trade_offer').length,
         waiversPending: items.filter((i) => i.type === 'waiver_pending').length,
-        rosterValue: dyn.reduce((s, d) => s + (d.value || 0), 0),
         avgCoreAge: coreAges.length ? Math.round((coreAges.reduce((s, a) => s + a, 0) / coreAges.length) * 10) / 10 : null,
         contenders: dyn.filter((d) => d.outlook === 'Win-now window').length,
         ascending: dyn.filter((d) => d.outlook === 'Ascending').length,
+        // The middle bucket (core age between the two thresholds). Surfaced so the
+        // three windows add up to your league count instead of silently dropping.
+        balanced: dyn.filter((d) => d.outlook === 'Balanced').length,
         actionItems: items.length,
       },
     };
@@ -251,7 +263,7 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
                         {d.myOnClock
                           ? "You're on the clock"
                           : d.status === 'in_progress'
-                          ? `Live${d.myNextPick ? ` · your next: ${d.myNextPick.round}.${String(d.myNextPick.overall).padStart(2, '0')}` : ''}`
+                          ? `Live${d.myNextPick ? ` · your pick ${pickCode(d.myNextPick)} · ${ordinal(d.myNextPick.overall)} overall` : ''}`
                           : d.status === 'scheduled'
                           ? `Scheduled${d.startTime ? ` · ${new Date(d.startTime).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` : ''}`
                           : d.status}
@@ -318,11 +330,7 @@ function Portfolio({ p, phase, loading, onLeagues, onPortfolio, onTrades }) {
     <View style={styles.portfolio}>
       <View style={styles.tileRow}>
         <Tile label="Leagues ›" value={String(p.leagues)} loading={loading && !p.leagues} onPress={onLeagues} />
-        {offseason ? (
-          <Tile label="Total roster value" value={p.rosterValue ? String(p.rosterValue) : '—'} gold loading={loading} />
-        ) : (
-          <Tile label="Needs attention" value={String(p.needAttention)} accent={p.needAttention > 0} loading={loading} />
-        )}
+        <Tile label="Needs attention" value={String(p.needAttention)} accent={p.needAttention > 0} loading={loading} />
       </View>
       <Pressable style={({ pressed }) => [styles.portfolioLink, pressed && { opacity: 0.7 }]} onPress={onPortfolio}>
         <Text style={styles.portfolioLinkText}>Portfolio · value at risk</Text>
@@ -333,6 +341,7 @@ function Portfolio({ p, phase, loading, onLeagues, onPortfolio, onTrades }) {
           <>
             <Chip label="Avg core age" value={p.avgCoreAge != null ? `${p.avgCoreAge}y` : '—'} loading={loading} />
             <Chip label="Win-now" value={p.contenders} loading={loading} />
+            <Chip label="Balanced" value={p.balanced} loading={loading} />
             <Chip label="Ascending" value={p.ascending} loading={loading} />
             <Chip label="Trades ›" value={p.tradeOffers} bad={p.tradeOffers > 0} loading={loading} onPress={onTrades} />
             <Chip label="Waivers" value={p.waiversPending} loading={loading} />
