@@ -33,6 +33,7 @@ const TESTS = [
   'leagues-cache-test',
   'cache-primitives-test',
   'watchlist-test',
+  'throttle-test',
 ];
 
 let failed = 0;

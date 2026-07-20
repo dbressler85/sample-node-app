@@ -20,21 +20,41 @@
 const config = require('../config');
 
 // --- request throttle -------------------------------------------------------
-// Serialize all outbound MFL requests and enforce a minimum gap between them.
-let chain = Promise.resolve();
-let lastRequestAt = 0;
+// Run up to mflMaxConcurrent outbound MFL requests at once, with a small stagger
+// between starts so we don't burst. This replaces strict serialization: cold
+// first-load fans out many per-league reads, and serializing them at a big gap
+// dominated latency. Concurrency is bounded (polite + caps blast radius) and the
+// 429/503 backoff in rawRequest is the safety net if MFL rate-limits.
+let active = 0;
+let lastStartAt = 0;
+const waiters = []; // queued resolve() callbacks waiting for a slot
 
-function throttle(task) {
-  const run = async () => {
-    const wait = Math.max(0, lastRequestAt + config.mflMinRequestIntervalMs - Date.now());
-    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
-    lastRequestAt = Date.now();
-    return task();
-  };
-  // Queue behind the previous request but don't let one failure break the chain.
-  const result = chain.then(run, run);
-  chain = result.catch(() => {});
-  return result;
+function pumpThrottle() {
+  while (active < config.mflMaxConcurrent && waiters.length) {
+    const grant = waiters.shift();
+    active += 1;
+    // Stagger each granted start by the min interval (accumulating), so even a
+    // burst of grants spreads out rather than firing simultaneously.
+    const now = Date.now();
+    const startAt = Math.max(now, lastStartAt + config.mflMinRequestIntervalMs);
+    lastStartAt = startAt;
+    const delay = startAt - now;
+    if (delay > 0) setTimeout(grant, delay);
+    else grant();
+  }
+}
+
+async function throttle(task) {
+  await new Promise((resolve) => {
+    waiters.push(resolve);
+    pumpThrottle();
+  });
+  try {
+    return await task();
+  } finally {
+    active -= 1;
+    pumpThrottle();
+  }
 }
 
 // Normalize MFL's inconsistent shapes: a collection with one element is returned
