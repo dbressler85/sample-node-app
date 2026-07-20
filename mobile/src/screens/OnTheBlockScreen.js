@@ -54,10 +54,13 @@ export default function OnTheBlockScreen({ onBack, onShopLeague }) {
         <View style={{ width: 60 }} />
       </View>
       {totals && totals.count > 0 ? (
-        <Text style={styles.subtitle}>
-          {totals.count} player{totals.count === 1 ? '' : 's'} shopped across {totals.leagues} league{totals.leagues === 1 ? '' : 's'}
-          <Text style={{ color: colors.gold, fontWeight: '800' }}>{`  ·  ${totals.value} value`}</Text>
-        </Text>
+        <>
+          <Text style={styles.subtitle}>
+            {totals.count} player{totals.count === 1 ? '' : 's'} shopped across {totals.leagues} league{totals.leagues === 1 ? '' : 's'}
+            <Text style={{ color: colors.gold, fontWeight: '800' }}>{`  ·  ${totals.value} value`}</Text>
+          </Text>
+          <Text style={styles.syncNote}>Also posted to each league's MFL Trade Bait board</Text>
+        </>
       ) : null}
 
       {loading ? (
@@ -77,22 +80,32 @@ export default function OnTheBlockScreen({ onBack, onShopLeague }) {
                 <Text style={styles.shopLink}>Shop ›</Text>
               </Pressable>
               {lg.players.map((p) => (
-                <View key={p.id} style={styles.playerRow}>
-                  <View style={[styles.dot, { backgroundColor: positionColors[p.position] || colors.textDim }]} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.playerName} numberOfLines={1}>
-                      {p.name}
-                      {p.stale ? <Text style={styles.stale}>  · no longer rostered</Text> : null}
-                    </Text>
-                    <Text style={styles.playerMeta} numberOfLines={1}>
-                      {[p.position, p.bucket, p.age != null ? `${p.age}y` : null].filter(Boolean).join(' · ')}
-                      {p.note ? <Text style={styles.note}>{`  ·  “${p.note}”`}</Text> : null}
-                    </Text>
+                <View key={p.id} style={styles.playerBlock}>
+                  <View style={styles.playerRow}>
+                    <View style={[styles.dot, { backgroundColor: positionColors[p.position] || colors.textDim }]} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.playerName} numberOfLines={1}>
+                        {p.name}
+                        {p.stale ? <Text style={styles.stale}>  · no longer rostered</Text> : null}
+                      </Text>
+                      <Text style={styles.playerMeta} numberOfLines={1}>
+                        {[p.position, p.bucket, p.age != null ? `${p.age}y` : null].filter(Boolean).join(' · ')}
+                        {p.note ? <Text style={styles.note}>{`  ·  “${p.note}”`}</Text> : null}
+                      </Text>
+                    </View>
+                    {p.value != null ? <Text style={styles.playerVal}>{p.value}</Text> : null}
+                    <Pressable onPress={() => removeOne(lg.leagueId, p)} hitSlop={8} style={styles.remove} disabled={busy === `${lg.leagueId}:${p.id}`}>
+                      {busy === `${lg.leagueId}:${p.id}` ? <ActivityIndicator size="small" color={colors.textDim} /> : <Text style={styles.removeTxt}>✕</Text>}
+                    </Pressable>
                   </View>
-                  {p.value != null ? <Text style={styles.playerVal}>{p.value}</Text> : null}
-                  <Pressable onPress={() => removeOne(lg.leagueId, p)} hitSlop={8} style={styles.remove} disabled={busy === `${lg.leagueId}:${p.id}`}>
-                    {busy === `${lg.leagueId}:${p.id}` ? <ActivityIndicator size="small" color={colors.textDim} /> : <Text style={styles.removeTxt}>✕</Text>}
-                  </Pressable>
+                  {p.suggestions && p.suggestions.length ? (
+                    <View style={styles.fitRow}>
+                      <Text style={styles.fitLabel}>Best fits</Text>
+                      <Text style={styles.fitText} numberOfLines={2}>
+                        {p.suggestions.map((s) => `${s.name} (${s.reason})`).join(' · ')}
+                      </Text>
+                    </View>
+                  ) : null}
                 </View>
               ))}
             </View>
@@ -116,12 +129,14 @@ const styles = StyleSheet.create({
   back: { color: colors.accent, fontSize: 16, fontWeight: '600', width: 60 },
   title: { color: colors.text, fontSize: 20, fontWeight: '900' },
   subtitle: { color: colors.textDim, fontSize: 13, textAlign: 'center', marginTop: 4 },
+  syncNote: { color: colors.textDim, fontSize: 11, textAlign: 'center', marginTop: 2, opacity: 0.7 },
   list: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 32 },
   card: { backgroundColor: colors.card, borderRadius: 16, borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: 14 },
   leagueRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 10, marginBottom: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   leagueName: { color: colors.text, fontSize: 13, fontWeight: '800', letterSpacing: 0.3, flex: 1, marginRight: 10, textTransform: 'uppercase' },
   shopLink: { color: colors.accent, fontSize: 13, fontWeight: '700' },
-  playerRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8 },
+  playerBlock: { paddingVertical: 4 },
+  playerRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6 },
   dot: { width: 8, height: 8, borderRadius: 4, marginRight: 10 },
   playerName: { color: colors.text, fontSize: 15, fontWeight: '600' },
   stale: { color: colors.warn, fontSize: 12, fontWeight: '700' },
@@ -130,6 +145,9 @@ const styles = StyleSheet.create({
   playerVal: { color: colors.gold, fontSize: 15, fontWeight: '900', marginRight: 12, minWidth: 30, textAlign: 'right' },
   remove: { width: 26, height: 26, alignItems: 'center', justifyContent: 'center' },
   removeTxt: { color: colors.textDim, fontSize: 16, fontWeight: '800' },
+  fitRow: { flexDirection: 'row', alignItems: 'flex-start', marginLeft: 18, marginBottom: 8, marginTop: 2, gap: 8 },
+  fitLabel: { color: colors.accent, fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4, marginTop: 1 },
+  fitText: { color: colors.textDim, fontSize: 12, flex: 1, lineHeight: 16 },
   error: { color: colors.bad, textAlign: 'center' },
   emptyWrap: { paddingTop: 60, alignItems: 'center' },
   emptyTitle: { color: colors.text, fontSize: 17, fontWeight: '800', marginBottom: 8 },

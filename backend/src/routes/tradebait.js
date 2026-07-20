@@ -35,9 +35,9 @@ router.post('/leagues/:leagueId/tradebait/:playerId', async (req, res, next) => 
 });
 
 // DELETE /api/leagues/:leagueId/tradebait/:playerId — take a player off the block.
-router.delete('/leagues/:leagueId/tradebait/:playerId', (req, res, next) => {
+router.delete('/leagues/:leagueId/tradebait/:playerId', async (req, res, next) => {
   try {
-    res.json(tradebait.remove(req.token, req.params.leagueId, req.params.playerId));
+    res.json(await tradebait.remove(req.mflCookie, req.token, req.params.leagueId, req.params.playerId));
   } catch (err) {
     next(err);
   }
