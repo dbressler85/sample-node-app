@@ -54,6 +54,7 @@ const TESTS = [
   'push-prefs-test',
   'standing-test',
   'playertags-test',
+  'trade-tags-test',
 ];
 
 let failed = 0;

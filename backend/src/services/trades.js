@@ -16,6 +16,7 @@ const picksLib = require('../lib/picks');
 const leaguesService = require('./leagues');
 const rosterService = require('./roster');
 const tradeStore = require('../store/trades');
+const playerTags = require('../store/playerTags');
 const baitStore = require('../store/tradebait');
 const tradefit = require('../lib/tradefit');
 
@@ -128,6 +129,35 @@ function annotateConstruction(offers, ns, franchiseId) {
   return offers;
 }
 
+// Personal-value overlay from Target/Avoid tags. Market `analysis` stays untouched (it's
+// the honest, partner-visible read); this is "for YOU" — the same math over tag-adjusted
+// values (Target ×1.10, Avoid ×0.90). Only computed when a tagged player is involved.
+function personalAnalyze(acquire, send) {
+  if (![...acquire, ...send].some((a) => a.tag)) return null; // nothing tagged → no personal lens
+  const scale = (arr) => arr.map((a) => ({ ...a, value: (a.value || 0) * playerTags.modifier(a.tag) }));
+  return analyze(scale(acquire), scale(send));
+}
+
+// Short, human notes about the tagged players in a deal (from your perspective).
+function tagNotes(acquire, send) {
+  const notes = [];
+  if (send.some((a) => a.tag === 'target')) notes.push({ level: 'caution', text: 'They want a Target of yours' });
+  if (acquire.some((a) => a.tag === 'avoid')) notes.push({ level: 'caution', text: "You'd take on an Avoid" });
+  if (acquire.some((a) => a.tag === 'target')) notes.push({ level: 'good', text: "You'd land a Target" });
+  if (send.some((a) => a.tag === 'avoid')) notes.push({ level: 'good', text: 'Sheds an Avoid' });
+  return notes;
+}
+
+// Stamp each player asset with its tag, then attach the personal analysis + notes.
+function annotateTags(offers, token) {
+  for (const o of offers) {
+    for (const a of [...o.acquire, ...o.send]) if (a.kind !== 'pick') a.tag = playerTags.get(token, a.id) || null;
+    o.personal = personalAnalyze(o.acquire, o.send); // null when nothing's tagged
+    o.tagNotes = tagNotes(o.acquire, o.send);
+  }
+  return offers;
+}
+
 // --- live helpers -----------------------------------------------------------
 
 async function livePendingOffers(cookie, league) {
@@ -183,7 +213,8 @@ async function offersForLeague(cookie, token, league, byId, enr) {
   const raw = config.demoMode
     ? tradeStore.list(token, league.leagueId, demo.tradeOffers(league.leagueId))
     : await livePendingOffers(cookie, league);
-  return raw.filter((o) => (o.status || 'pending') === 'pending').map((o) => buildOffer(o, league, byId, enr));
+  const offers = raw.filter((o) => (o.status || 'pending') === 'pending').map((o) => buildOffer(o, league, byId, enr));
+  return annotateTags(offers, token);
 }
 
 // --- public API -------------------------------------------------------------
@@ -289,7 +320,7 @@ async function getLeague(cookie, token, leagueId) {
   const offers = annotateConstruction(await offersForLeague(cookie, token, league, byId, enr), ns, league.franchiseId);
 
   const myPlayers = [...roster.starters, ...roster.bench]
-    .map((p) => ({ id: p.id, name: p.name, position: p.position, team: p.team, value: enr.value(p.id) }))
+    .map((p) => ({ id: p.id, name: p.name, position: p.position, team: p.team, value: enr.value(p.id), tag: playerTags.get(token, p.id) }))
     .sort((a, b) => (b.value || 0) - (a.value || 0));
   // Picks carry the real MFL trade token as their id, so a proposal can include them.
   const myPicks = (await picksLib.franchisePicks(cookie, league)).map((p) => asset(p.token, byId, enr));
@@ -300,7 +331,7 @@ async function getLeague(cookie, token, leagueId) {
     needs: (ns[String(pt.franchiseId)] || {}).needs || [],
     surplus: (ns[String(pt.franchiseId)] || {}).surplus || [],
     players: (pt.roster || [])
-      .map((id) => asset(id, byId, enr))
+      .map((id) => { const a = asset(id, byId, enr); if (a.kind !== 'pick') a.tag = playerTags.get(token, a.id) || null; return a; })
       .sort((a, b) => (b.value || 0) - (a.value || 0)),
   }));
 
@@ -600,4 +631,4 @@ function throwBad(msg) {
   throw err;
 }
 
-module.exports = { getOverview, getLeague, respond, propose, analyze, crossLeaguePreview, crossLeaguePropose, suggestFor, counterFor, tradeFitSummary, tradeBaitByFranchise };
+module.exports = { getOverview, getLeague, respond, propose, analyze, crossLeaguePreview, crossLeaguePropose, suggestFor, counterFor, tradeFitSummary, tradeBaitByFranchise, personalAnalyze, tagNotes };

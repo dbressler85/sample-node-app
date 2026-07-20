@@ -179,8 +179,22 @@ function OfferCard({ offer, busy, onRespond, onOpenLeague, onCounter, onOpenPlay
       <Side label="You get" assets={offer.acquire} total={offer.analysis.acquireValue} onOpenPlayer={onOpenPlayer} />
       <Side label="You give" assets={offer.send} total={offer.analysis.sendValue} onOpenPlayer={onOpenPlayer} />
       <Text style={styles.estCaption}>
-        Dynasty value estimate · net {offer.analysis.net > 0 ? '+' : ''}{offer.analysis.net}
+        Market value · net {offer.analysis.net > 0 ? '+' : ''}{offer.analysis.net}
       </Text>
+      {offer.personal ? (
+        <Text style={[styles.personalLine, { color: (VERDICT[offer.personal.verdict] || VERDICT.fair).color }]}>
+          For you · net {offer.personal.net > 0 ? '+' : ''}{offer.personal.net} · {(VERDICT[offer.personal.verdict] || VERDICT.fair).label}
+        </Text>
+      ) : null}
+      {offer.tagNotes && offer.tagNotes.length ? (
+        <View style={styles.tagNotes}>
+          {offer.tagNotes.map((n, i) => (
+            <Text key={i} style={[styles.tagNote, { color: n.level === 'good' ? colors.good : colors.warn }]}>
+              {n.level === 'good' ? '✓' : '⚠'} {n.text}
+            </Text>
+          ))}
+        </View>
+      ) : null}
       {offer.construction ? (
         <View style={[styles.construction, { borderColor: (CONSTRUCTION[offer.construction.rating] || CONSTRUCTION.neutral).color }]}>
           <Text style={[styles.constructionText, { color: (CONSTRUCTION[offer.construction.rating] || CONSTRUCTION.neutral).color }]}>
@@ -249,7 +263,10 @@ const styles = StyleSheet.create({
   dot: { width: 8, height: 8, borderRadius: 4, marginRight: 8 },
   sideName: { color: colors.text, fontSize: 14, flex: 1, marginRight: 8 },
   sideMeta: { color: colors.textDim, fontSize: 12 },
-  estCaption: { color: colors.textDim, fontSize: 11, fontStyle: 'italic', opacity: 0.8, marginTop: 2, marginBottom: 4 },
+  estCaption: { color: colors.textDim, fontSize: 11, marginTop: 2 },
+  personalLine: { fontSize: 12, fontWeight: '800', marginTop: 3 },
+  tagNotes: { marginTop: 6, gap: 3, marginBottom: 4 },
+  tagNote: { fontSize: 12, fontWeight: '700' },
   construction: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, marginTop: 6 },
   constructionText: { fontSize: 13, fontWeight: '700', lineHeight: 18 },
   counterBtn: { marginTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, paddingTop: 10, alignItems: 'center' },

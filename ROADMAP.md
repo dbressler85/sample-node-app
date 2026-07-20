@@ -112,8 +112,13 @@ Cross-league management is the moat; these deepen it.
   value-based decisions lean the way they lean. **MVP-1 shipped:** the token-keyed
   `store/playerTags` (+ `modifier` helper), `GET /api/tags` + `POST /api/players/:id/tag`,
   the profile response carries the current `tag`, and the **player profile has a
-  Target/Avoid toggle** (tap again to clear). Value-lens integration (trades → waivers →
-  draft → rankings) still to come. Spec:
+  Target/Avoid toggle** (tap again to clear). **MVP-2 shipped (trades):** every trade offer
+  (inbox + desk) shows a **"For you"** personal-value net alongside the honest **market**
+  net, plus **tag notes** ("They want a Target of yours" / "You'd take on an Avoid" / "You'd
+  land a Target" / "Sheds an Avoid"); the live builder preview shows the personal net too;
+  the builder's player lists carry each player's tag (`trades.personalAnalyze` / `tagNotes`,
+  market value untouched). Still to come: suggestion bias (`suggestFor`/`counterFor` prefer
+  Avoids in the give, protect Targets), waivers/draft highlights, rankings/portfolio. Spec:
   - **Two lenses — the core principle.** Keep the existing enrichment `value` as the
     honest **market value** (it drives fairness and, crucially, the *partner's* perception
     and their needs/surplus — they don't share your tags). Add a **personal value** overlay
