@@ -18,6 +18,12 @@ function formatWhen(iso) {
   return d.toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
 const pad = (n) => String(n).padStart(2, '0');
+// round.pick (e.g. 4.05), plus overall as an ordinal (41st).
+const ordinal = (n) => {
+  const s = ['th', 'st', 'nd', 'rd'];
+  const v = n % 100;
+  return `${n}${s[(v - 20) % 10] || s[v] || s[0]}`;
+};
 
 export default function DraftHubScreen({ onBack, onOpenDraft }) {
   const [data, setData] = useState(null);
@@ -99,7 +105,7 @@ export default function DraftHubScreen({ onBack, onOpenDraft }) {
             <Section label={`Live · ${live.length}`}>
               {live.map((d) => (
                 <Row key={d.leagueId} d={d} onPress={() => open(d)}
-                  sub={d.myNextPick ? `Live · your next: ${d.myNextPick.round}.${pad(d.myNextPick.overall)}` : `Live · ${d.picksMade} picks made`} />
+                  sub={d.myNextPick ? `Live · your pick ${d.myNextPick.round}.${pad(d.myNextPick.pick)} · ${ordinal(d.myNextPick.overall)} overall` : `Live · ${d.picksMade} picks made`} />
               ))}
             </Section>
           ) : null}

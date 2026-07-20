@@ -203,7 +203,7 @@ async function getOverview(cookie, token) {
           status,
           startTime: draft.startTime || null,
           myOnClock: !!(clock && clock.franchiseId === league.franchiseId),
-          myNextPick: myNext ? { overall: myNext.overall, round: myNext.round } : null,
+          myNextPick: myNext ? { overall: myNext.overall, round: myNext.round, pick: myNext.pick } : null,
           picksMade: slots.filter((s) => s.playerId).length,
         };
       } catch (e) {
