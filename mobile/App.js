@@ -106,7 +106,7 @@ export default function App() {
   const openLineup = (league) => pushOverlay({ type: 'lineupEditor', league });
   const openWizard = (leagues, mode) => pushOverlay({ type: 'lineupWizard', leagues, mode });
   const openWaiverWizard = (leagues) => pushOverlay({ type: 'waiverWizard', leagues });
-  const openTrades = (league, initialTab) => pushOverlay({ type: 'trades', league, initialTab });
+  const openTrades = (league, initialTab, seed) => pushOverlay({ type: 'trades', league, initialTab, seed });
   const openTradeInbox = () => pushOverlay({ type: 'tradeInbox' });
   const openBlock = () => pushOverlay({ type: 'block' });
   const openDraft = (league) => pushOverlay({ type: 'draft', league });
@@ -193,7 +193,7 @@ export default function App() {
       return <WaiverWizardScreen leagues={overlay.leagues} onBack={popOverlay} />;
     }
     if (overlay && overlay.type === 'trades') {
-      return <TradesScreen league={overlay.league} initialTab={overlay.initialTab} onBack={popOverlay} />;
+      return <TradesScreen league={overlay.league} initialTab={overlay.initialTab} seed={overlay.seed} onBack={popOverlay} />;
     }
     if (overlay && overlay.type === 'tradeInbox') {
       return (
@@ -231,7 +231,13 @@ export default function App() {
       );
     }
     if (overlay && overlay.type === 'playerProfile') {
-      return <PlayerProfileScreen playerId={overlay.playerId} onBack={popOverlay} />;
+      return (
+        <PlayerProfileScreen
+          playerId={overlay.playerId}
+          onBack={popOverlay}
+          onOpenTradeDesk={(ctx) => openTrades({ leagueId: ctx.leagueId, name: ctx.name }, 'propose', { targetPlayerId: ctx.targetPlayerId, partnerFranchiseId: ctx.partnerFranchiseId })}
+        />
+      );
     }
 
     return (

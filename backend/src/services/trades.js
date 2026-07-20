@@ -16,6 +16,7 @@ const picksLib = require('../lib/picks');
 const leaguesService = require('./leagues');
 const rosterService = require('./roster');
 const tradeStore = require('../store/trades');
+const tradefit = require('../lib/tradefit');
 
 // Estimated dynasty value (0-100 scale) for a future draft pick. This is a
 // model, not a market price: a round-based baseline plus a dynasty time-value
@@ -178,17 +179,39 @@ async function getOverview(cookie, token) {
   };
 }
 
-// One league's offers + everything needed to build a proposal.
-async function getLeague(cookie, token, leagueId) {
+// Shared load for the trade desk: my roster, the partners' rosters, format-aware values,
+// and the league-relative needs/surplus for every franchise (from the starting-lineup
+// requirements). Both getLeague and the suggestion endpoint build on this.
+async function tradeData(cookie, token, leagueId) {
   const league = await findLeague(cookie, leagueId);
   const byId = await playersLib.load(cookie);
   const enr = await enrichmentLib.snapshot(await leagueFormat.format(cookie, league), cookie);
 
-  const [offers, roster, rawPartners] = await Promise.all([
-    offersForLeague(cookie, token, league, byId, enr),
+  const [roster, rawPartners, requirements] = await Promise.all([
     rosterService.getRoster(cookie, leagueId),
     config.demoMode ? Promise.resolve(demo.tradePartners(leagueId)) : liveRosters(cookie, league),
+    leagueFormat.requirements(cookie, league).catch(() => []),
   ]);
+
+  const myPlayersAll = [...roster.starters, ...roster.bench];
+  // Every franchise's players as { id, position, value } for the needs/surplus model.
+  const franchises = [
+    { franchiseId: String(league.franchiseId), players: myPlayersAll.map((p) => ({ id: p.id, position: p.position, value: enr.value(p.id) })) },
+    ...rawPartners.map((pt) => ({
+      franchiseId: String(pt.franchiseId),
+      players: (pt.roster || []).map((id) => { const b = playersLib.resolve(byId, id); return { id: String(id), position: b.position, value: enr.value(id) }; }),
+    })),
+  ];
+  const ns = tradefit.needsSurplus(franchises, requirements);
+  return { league, byId, enr, roster, rawPartners, requirements, ns };
+}
+
+// One league's offers + everything needed to build a proposal, now with each team's
+// positional needs & surplus so you can craft a fair, roster-fitting offer.
+async function getLeague(cookie, token, leagueId) {
+  const data = await tradeData(cookie, token, leagueId);
+  const { league, byId, enr, roster, rawPartners, ns } = data;
+  const offers = await offersForLeague(cookie, token, league, byId, enr);
 
   const myPlayers = [...roster.starters, ...roster.bench]
     .map((p) => ({ id: p.id, name: p.name, position: p.position, team: p.team, value: enr.value(p.id) }))
@@ -199,12 +222,45 @@ async function getLeague(cookie, token, leagueId) {
   const partners = rawPartners.map((pt) => ({
     franchiseId: pt.franchiseId,
     name: pt.name,
+    needs: (ns[String(pt.franchiseId)] || {}).needs || [],
+    surplus: (ns[String(pt.franchiseId)] || {}).surplus || [],
     players: (pt.roster || [])
       .map((id) => asset(id, byId, enr))
       .sort((a, b) => (b.value || 0) - (a.value || 0)),
   }));
 
-  return { leagueId: league.leagueId, name: league.name, offers, myPlayers, myPicks, partners };
+  const mine = ns[String(league.franchiseId)] || { needs: [], surplus: [] };
+  return {
+    leagueId: league.leagueId,
+    name: league.name,
+    offers,
+    myPlayers,
+    myPicks,
+    partners,
+    me: { name: roster.franchiseName || 'My Team', needs: mine.needs, surplus: mine.surplus },
+  };
+}
+
+// A suggested give-package to acquire `targetId` from `partnerFranchiseId`: fair by
+// league-specific value AND biased to the partner's positional needs (drawn from your
+// surplus). Powers the "Suggest" button and the seeded offer when you start from a player.
+async function suggestFor(cookie, token, leagueId, targetId, partnerFranchiseId) {
+  const data = await tradeData(cookie, token, leagueId);
+  const { league, enr, roster, ns } = data;
+  const tid = String(targetId);
+  const targetValue = enr.value(tid) || 0;
+  const partnerNeeds = (ns[String(partnerFranchiseId)] || {}).needs || [];
+  const mine = [...roster.starters, ...roster.bench]
+    .map((p) => ({ id: p.id, name: p.name, position: p.position, value: enr.value(p.id) || 0 }));
+  const give = tradefit.suggestGive(mine, targetValue, partnerNeeds);
+  return {
+    leagueId: league.leagueId,
+    targetId: tid,
+    targetValue,
+    give: give.map((g) => ({ id: g.id, name: g.name, position: g.position, value: g.value })),
+    giveValue: Math.round(give.reduce((s, g) => s + (g.value || 0), 0) * 10) / 10,
+    partnerNeeds,
+  };
 }
 
 // Accept or reject a pending incoming offer.
@@ -379,4 +435,4 @@ function throwBad(msg) {
   throw err;
 }
 
-module.exports = { getOverview, getLeague, respond, propose, analyze, crossLeaguePreview, crossLeaguePropose };
+module.exports = { getOverview, getLeague, respond, propose, analyze, crossLeaguePreview, crossLeaguePropose, suggestFor };

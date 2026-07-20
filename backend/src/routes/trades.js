@@ -45,6 +45,16 @@ router.get('/leagues/:leagueId/trades', async (req, res, next) => {
   }
 });
 
+// GET /api/leagues/:leagueId/trades/suggest?target=&partner= — a fair, needs-fitting
+// give-package to acquire `target` from `partner`.
+router.get('/leagues/:leagueId/trades/suggest', async (req, res, next) => {
+  try {
+    res.json(await trades.suggestFor(req.mflCookie, req.token, req.params.leagueId, req.query.target, req.query.partner));
+  } catch (err) {
+    next(err);
+  }
+});
+
 // POST /api/leagues/:leagueId/trades — propose a trade.
 router.post('/leagues/:leagueId/trades', async (req, res, next) => {
   try {
