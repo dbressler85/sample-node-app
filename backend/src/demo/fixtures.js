@@ -149,6 +149,15 @@ const TRADE_BAIT = [
   { leagueId: '40750', playerId: '13593', note: null },
 ];
 
+// What OTHER franchises have listed on the league's Trade Bait board (live: read from
+// MFL's tradeBait export). Lets suggestions/counters lean on players a rival has already
+// said they'll move. Ids are on those franchises' partner rosters below.
+const TRADE_BAIT_BOARD = {
+  '64097': [{ franchiseId: '0004', willGiveUp: ['15264'] }, { franchiseId: '0008', willGiveUp: ['15870', '14106'] }],
+  '40750': [{ franchiseId: '0002', willGiveUp: ['12171'] }, { franchiseId: '0009', willGiveUp: ['13116'] }],
+  '19622': [{ franchiseId: '0005', willGiveUp: ['13593'] }],
+};
+
 // Projected RAW stats for the current week, keyed by player id. These are
 // format-independent — the per-league scoring settings below turn them into
 // points, so the same player is worth different points in different leagues.
@@ -501,6 +510,7 @@ module.exports = {
   roster: (leagueId) => ROSTERS[leagueId] || null,
   teamStrength: (leagueId) => (TEAM_STRENGTH[leagueId] != null ? TEAM_STRENGTH[leagueId] : null),
   tradeBait: () => TRADE_BAIT.map((e) => ({ ...e })),
+  tradeBaitBoard: (leagueId) => (TRADE_BAIT_BOARD[leagueId] || []).map((b) => ({ franchiseId: b.franchiseId, willGiveUp: [...b.willGiveUp] })),
   statProjections: () => ({ ...STAT_PROJECTIONS }),
   scoring: (leagueId) => (SCORING[leagueId] ? { ...SCORING[leagueId] } : null),
   lineupRequirements: (leagueId) => LINEUP_REQS[leagueId] || null,

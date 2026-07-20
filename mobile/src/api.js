@@ -125,6 +125,7 @@ export const api = {
   trades: () => request('/api/trades'),
   leagueTrades: (leagueId) => request(`/api/leagues/${leagueId}/trades`),
   suggestTrade: (leagueId, targetId, partnerId) => request(`/api/leagues/${leagueId}/trades/suggest?target=${targetId}&partner=${partnerId}`),
+  counterTrade: (leagueId, offerId) => request(`/api/leagues/${leagueId}/trades/counter?offer=${offerId}`),
   proposeTrade: (leagueId, body) => request(`/api/leagues/${leagueId}/trades`, { method: 'POST', body }),
   respondTrade: (leagueId, tradeId, action) =>
     request(`/api/leagues/${leagueId}/trades/${tradeId}/respond`, { method: 'POST', body: { action } }),

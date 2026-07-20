@@ -39,6 +39,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed }) {
   const [receive, setReceive] = useState({});
   const [sending, setSending] = useState(false);
   const [suggesting, setSuggesting] = useState(false);
+  const [counterInfo, setCounterInfo] = useState(null); // { offerId, rationale } when countering
   const seededRef = useRef(false);
 
   useAndroidBack(useCallback(() => { onBack(); return true; }, [onBack]));
@@ -85,10 +86,11 @@ export default function TradesScreen({ league, onBack, initialTab, seed }) {
       return next;
     });
   }
-  // Reset the "you get" side when switching partners.
+  // Reset the "you get" side when switching partners (and drop any counter context).
   function pickPartner(id) {
     setPartnerId(id);
     setReceive({});
+    setCounterInfo(null);
   }
 
   // Ask the backend for a fair, needs-fitting package to acquire `targetId` and load it
@@ -110,16 +112,38 @@ export default function TradesScreen({ league, onBack, initialTab, seed }) {
     }
   }, [league.leagueId, partnerId, receive]);
 
-  // Came in from "Trade for <player>": preselect the target on the "you get" side and
-  // pull a suggested package. Runs once when the desk data lands.
+  // Build a value-balanced counter to an incoming offer and load it into the builder
+  // (both sides prefilled, partner = the offering team). Keeps their construction.
+  const startCounter = useCallback(async (offer) => {
+    setSuggesting(true);
+    try {
+      const c = await api.counterTrade(league.leagueId, offer.id);
+      setPartnerId(c.toFranchiseId);
+      setReceive(Object.fromEntries((c.receive || []).map((a) => [a.id, a])));
+      setSend(Object.fromEntries((c.give || []).map((a) => [a.id, a])));
+      setCounterInfo({ offerId: c.counterOfferId, rationale: c.rationale });
+      setTab('propose');
+    } catch (e) {
+      Alert.alert('Could not build a counter', e.message);
+    } finally {
+      setSuggesting(false);
+    }
+  }, [league.leagueId]);
+
+  // Seeded entry: either "trade for <player>" (preselect target + suggest a package) or
+  // "counter <offer>" (from the cross-league hub). Runs once when the desk data lands.
   useEffect(() => {
     if (!seed || !data || seededRef.current) return;
     seededRef.current = true;
+    if (seed.counterOfferId) {
+      startCounter({ id: seed.counterOfferId });
+      return;
+    }
     const partner = (data.partners || []).find((p) => p.franchiseId === seed.partnerFranchiseId);
     const target = partner && partner.players.find((pl) => String(pl.id) === String(seed.targetPlayerId));
     if (target) setReceive({ [target.id]: target });
     applySuggestion(seed.targetPlayerId, seed.partnerFranchiseId);
-  }, [data, seed, applySuggestion]);
+  }, [data, seed, applySuggestion, startCounter]);
 
   async function submitProposal() {
     setSending(true);
@@ -129,9 +153,14 @@ export default function TradesScreen({ league, onBack, initialTab, seed }) {
         give: sendList.map((a) => a.id),
         receive: receiveList.map((a) => a.id),
       });
-      Alert.alert('Trade proposed', `Sent to ${res.offer.withName}.`);
+      // Countering means declining their exact terms: once ours is sent, reject theirs.
+      if (counterInfo) {
+        try { await api.respondTrade(league.leagueId, counterInfo.offerId, 'reject'); } catch (e) { /* leave it */ }
+      }
+      Alert.alert(counterInfo ? 'Counter sent' : 'Trade proposed', `Sent to ${res.offer.withName}.${counterInfo ? ' Their original offer was declined.' : ''}`);
       setSend({});
       setReceive({});
+      setCounterInfo(null);
       setTab('offers');
       await load();
     } catch (e) {
@@ -193,12 +222,18 @@ export default function TradesScreen({ league, onBack, initialTab, seed }) {
             <Text style={styles.empty}>No pending trade offers in this league.</Text>
           ) : (
             data.offers.map((o) => (
-              <OfferCard key={o.id} offer={o} busy={busy === o.id} onRespond={respond} />
+              <OfferCard key={o.id} offer={o} busy={busy === o.id} onRespond={respond} onCounter={startCounter} />
             ))
           )}
         </ScrollView>
       ) : (
         <ScrollView contentContainerStyle={styles.list}>
+          {counterInfo ? (
+            <View style={styles.counterBanner}>
+              <Text style={styles.counterTitle}>↩ Countering their offer</Text>
+              <Text style={styles.counterText}>{counterInfo.rationale}</Text>
+            </View>
+          ) : null}
           <Text style={styles.label}>Trade with</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.partnerRow}>
             {(data.partners || []).map((p) => (
@@ -262,7 +297,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed }) {
             onPress={submitProposal}
             disabled={!sendList.length || !receiveList.length || sending}
           >
-            {sending ? <ActivityIndicator color="#fff" /> : <Text style={styles.sendText}>Propose Trade</Text>}
+            {sending ? <ActivityIndicator color="#fff" /> : <Text style={styles.sendText}>{counterInfo ? 'Send Counter' : 'Propose Trade'}</Text>}
           </Pressable>
         </View>
       ) : null}
@@ -270,7 +305,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed }) {
   );
 }
 
-function OfferCard({ offer, busy, onRespond }) {
+function OfferCard({ offer, busy, onRespond, onCounter }) {
   const v = VERDICT[offer.analysis.verdict] || VERDICT.fair;
   return (
     <View style={styles.card}>
@@ -293,6 +328,11 @@ function OfferCard({ offer, busy, onRespond }) {
           {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.acceptText}>Accept</Text>}
         </Pressable>
       </View>
+      {onCounter ? (
+        <Pressable style={({ pressed }) => [styles.counterBtn, pressed && { opacity: 0.7 }]} onPress={() => onCounter(offer)} disabled={busy}>
+          <Text style={styles.counterBtnText}>↩ Counter with a balanced offer</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -348,6 +388,11 @@ const styles = StyleSheet.create({
   fitLine: { color: colors.text, fontSize: 12, marginTop: 2 },
   fitNeed: { color: colors.bad, fontSize: 10, fontWeight: '800' },
   fitSurp: { color: colors.good, fontSize: 10, fontWeight: '800' },
+  counterBanner: { backgroundColor: colors.cardAlt, borderRadius: 12, borderWidth: 1, borderColor: colors.accent, padding: 12, marginBottom: 6 },
+  counterTitle: { color: colors.accent, fontSize: 13, fontWeight: '900', marginBottom: 3 },
+  counterText: { color: colors.text, fontSize: 13, lineHeight: 18 },
+  counterBtn: { marginTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, paddingTop: 10, alignItems: 'center' },
+  counterBtnText: { color: colors.accent, fontSize: 14, fontWeight: '800' },
   sendHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   suggestBtn: { borderWidth: 1, borderColor: colors.accent, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, marginTop: 8 },
   suggestOff: { opacity: 0.4 },

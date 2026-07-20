@@ -72,9 +72,14 @@ Cross-league management is the moat; these deepen it.
   **Suggest** button (and the seed) build a package that's fair by **league-specific
   value** (format-aware: scoring/roster) AND biased to the partner's needs from your
   surplus (`lib/tradefit` + `GET /trades/suggest`). Value updates live as you adjust.
-- [ ] **Trade negotiation: counter-offers.** Trades support propose / accept / reject
-  and cross-league "trade for" today; add counter-offer (respond to an incoming
-  offer with a modified package) via MFL `import?TYPE=tradeProposal` threading.
+- [x] **Trade counter-offers + trade-bait-aware suggestions.** Incoming offers now have a
+  **Counter** action (on the league desk and the cross-league hub) that seeds the builder
+  with a value-balanced counter of the **same construction** — keeps their players, and if
+  their offer left you light, asks for one more of theirs (preferring one on **their** MFL
+  Trade Bait board, or at your need) to reach fair; sending it declines their original.
+  Both the initial "trade for" suggestion and the counter now lean on **both teams' trade
+  bait** — your shopped players are preferred in the give, their shopped players in the ask
+  (`counterFor` + `tradeBaitByFranchise` reading MFL's `tradeBait` export / demo fixture).
 - [~] **Waiver Wizard flexibility + lock awareness.** Done: position-filter chips +
   a deeper candidate pool (pick a different player, filter by position), and it
   now detects leagues where waivers aren't running — **calendar-first** (MFL

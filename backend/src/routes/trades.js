@@ -55,6 +55,16 @@ router.get('/leagues/:leagueId/trades/suggest', async (req, res, next) => {
   }
 });
 
+// GET /api/leagues/:leagueId/trades/counter?offer= — a value-balanced counter to an
+// incoming offer, keeping its construction (same players + one balancing tweak).
+router.get('/leagues/:leagueId/trades/counter', async (req, res, next) => {
+  try {
+    res.json(await trades.counterFor(req.mflCookie, req.token, req.params.leagueId, req.query.offer));
+  } catch (err) {
+    next(err);
+  }
+});
+
 // POST /api/leagues/:leagueId/trades — propose a trade.
 router.post('/leagues/:leagueId/trades', async (req, res, next) => {
   try {

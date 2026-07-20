@@ -75,24 +75,31 @@ function needsSurplus(franchises, requirements) {
   return out;
 }
 
-// A fair give-package for acquiring `targetValue`, biased to players at the partner's
-// NEED positions (so the offer actually helps them). Prefers a fair single, else a small
-// package; never a gross overpay. `mine` = [{ id, name, position, value }].
-function suggestGive(mine, targetValue, partnerNeeds) {
+// A fair give-package for acquiring `targetValue`, biased to (a) players at the partner's
+// NEED positions — so the offer actually helps them — and (b) players YOU'RE already
+// shopping (your trade bait), since you want to move them anyway. Prefers a fair single,
+// else a small package; never a gross overpay. `mine` = [{ id, name, position, value }].
+function suggestGive(mine, targetValue, partnerNeeds, myBait) {
   const needSet = new Set((partnerNeeds || []).map((n) => n.pos));
-  const pool = mine.filter((p) => (p.value || 0) > 0).map((p) => ({ ...p, fit: needSet.has(p.position) }));
+  const bait = myBait instanceof Set ? myBait : new Set(myBait || []);
+  const pool = mine
+    .filter((p) => (p.value || 0) > 0)
+    .map((p) => ({ ...p, fit: needSet.has(p.position), bait: bait.has(String(p.id)) }));
   if (!pool.length) return [];
-  if (!targetValue) return [pool.sort((a, b) => (b.value || 0) - (a.value || 0))[0]];
+  // Priority: a player who both fits their need and is on your block outranks one that
+  // does only one, which outranks a plain filler.
+  const prio = (p) => (p.fit ? 1 : 0) + (p.bait ? 1 : 0);
+  if (!targetValue) return [pool.sort((a, b) => prio(b) - prio(a) || (b.value || 0) - (a.value || 0))[0]];
 
-  // A fair single (85–125% of target), fit first, then closest by value.
+  // A fair single (85–125% of target): highest priority, then closest by value.
   const singles = pool
     .filter((p) => p.value >= targetValue * 0.85 && p.value <= targetValue * 1.25)
-    .sort((a, b) => b.fit - a.fit || Math.abs(a.value - targetValue) - Math.abs(b.value - targetValue));
+    .sort((a, b) => prio(b) - prio(a) || Math.abs(a.value - targetValue) - Math.abs(b.value - targetValue));
   if (singles.length) return [singles[0]];
 
-  // Otherwise assemble: fit players first (value desc), stopping when fair. Don't lead
-  // with a whale worth more than the target, and never overpay past ~125%.
-  const ordered = pool.slice().sort((a, b) => b.fit - a.fit || b.value - a.value);
+  // Otherwise assemble: priority first (value desc), stopping when fair. Don't lead with
+  // a whale worth more than the target, and never overpay past ~125%.
+  const ordered = pool.slice().sort((a, b) => prio(b) - prio(a) || b.value - a.value);
   const pkg = [];
   let sum = 0;
   for (const p of ordered) {
