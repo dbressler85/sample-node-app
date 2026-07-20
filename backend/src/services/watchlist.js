@@ -16,6 +16,7 @@ const demo = require('../demo/fixtures');
 const leaguesService = require('./leagues');
 const rosterService = require('./roster');
 const waiversService = require('./waivers');
+const standingLib = require('../lib/standing');
 const watchStore = require('../store/watchlist');
 
 async function ctxFor(cookie) {
@@ -42,13 +43,12 @@ async function gather(cookie, token) {
   return data.filter((d) => d.roster);
 }
 
-// Where a watched player stands in one league.
+// Where a watched player stands in one league — the watchlist's labels over the shared
+// canonical standing: "mine" (on my roster), "free", or "rostered" (on another team).
 function relationIn(roster, faSet, id) {
-  if (roster.starters.some((p) => p.id === id)) return { relation: 'mine', bucket: 'starter' };
-  if (roster.bench.some((p) => p.id === id)) return { relation: 'mine', bucket: 'bench' };
-  if (roster.ir.some((p) => p.id === id)) return { relation: 'mine', bucket: 'ir' };
-  if (roster.taxi.some((p) => p.id === id)) return { relation: 'mine', bucket: 'taxi' };
-  if (faSet.has(id)) return { relation: 'free', bucket: null };
+  const s = standingLib.standing(roster, faSet, id);
+  if (s.mine) return { relation: 'mine', bucket: s.bucket };
+  if (s.where === 'free') return { relation: 'free', bucket: null };
   return { relation: 'rostered', bucket: null }; // on another team → trade target
 }
 

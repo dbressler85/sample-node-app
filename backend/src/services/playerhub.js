@@ -16,6 +16,7 @@ const nflLib = require('../lib/nfl');
 const newsLib = require('../lib/news');
 const enrichmentLib = require('../lib/enrichment');
 const leagueFormat = require('../lib/leagueformat');
+const standingLib = require('../lib/standing');
 const leaguesService = require('./leagues');
 const rosterService = require('./roster');
 const waiversService = require('./waivers');
@@ -292,14 +293,18 @@ async function profile(cookie, token, playerId) {
   const { data } = await gather(cookie);
   const crossLeague = await Promise.all(
     data.map(async ({ league, roster, faSet }) => {
+      // The profile's labels over the shared canonical standing: a player I've dropped
+      // here, "rostered" (on MY roster, with the slot), "free", or "unavailable" (owned
+      // by another team). Same classification the watchlist uses, different vocabulary.
       let relation = 'unavailable';
       let bucket = null;
-      if (dropStore.has(token, league.leagueId, playerId)) relation = 'dropped';
-      else if (roster.starters.some((p) => p.id === playerId)) { relation = 'rostered'; bucket = 'starter'; }
-      else if (roster.bench.some((p) => p.id === playerId)) { relation = 'rostered'; bucket = 'bench'; }
-      else if (roster.ir.some((p) => p.id === playerId)) { relation = 'rostered'; bucket = 'ir'; }
-      else if (roster.taxi.some((p) => p.id === playerId)) { relation = 'rostered'; bucket = 'taxi'; }
-      else if (faSet.has(playerId)) relation = 'free';
+      if (dropStore.has(token, league.leagueId, playerId)) {
+        relation = 'dropped';
+      } else {
+        const s = standingLib.standing(roster, faSet, playerId);
+        if (s.mine) { relation = 'rostered'; bucket = s.bucket; }
+        else if (s.where === 'free') relation = 'free';
+      }
       const proj = config.demoMode
         ? leagueProjection(playerId, base.position, league.leagueId)
         : await liveLeagueProjection(cookie, league, playerId);

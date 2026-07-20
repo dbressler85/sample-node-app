@@ -170,9 +170,15 @@ Grouped into four "synergy systems", highest-leverage first:
   screen** (⚙ on Home) now lets the owner explicitly toggle each push channel (draft
   clock / trade offers / lineup attention / watchlist); choices save immediately and
   persist even before the device registers a push token (`GET`/`POST /api/push/prefs`).
-- [ ] **Unify the "where does this player stand" computation.** profile `crossLeague`,
-  watchlist `relationIn`, and exposure are three silos of the same concept; Watch tab's
-  `free`/`tradeTarget` and the profile's "Trade for" should share one action pathway.
+- [x] **Unify the "where does this player stand" computation.** The profile's `crossLeague`
+  card, the watchlist `relationIn`, and exposure each rolled their own roster/FA
+  classification — with *conflicting* vocabularies (the watchlist called my roster "mine"
+  and another team "rostered"; the profile called my roster "rostered" and another team
+  "unavailable"). Extracted `lib/standing.js` — one canonical `standing()` returning
+  `{ where, mine, bucket }` (starter/bench/ir/taxi/free/other) plus the shared `BUCKETS`
+  constant. Each caller now maps that to its own existing labels, so no API changed;
+  behavior is identical (all three suites still pass) and there's a `standing-test`
+  locking the vocabulary so they can't drift apart again.
 
 ### System 4 — In-season chains that stop one link short
 - [ ] **Lineup hole → waiver board (filtered by position).** The `initialPosition`
