@@ -20,6 +20,7 @@ const leaguesService = require('./leagues');
 const waiversService = require('./waivers');
 const rosterService = require('./roster');
 const draftStore = require('../store/draft');
+const playerTags = require('../store/playerTags');
 
 function resolvePlayer(byId, id, enr) {
   const p = playersLib.resolve(byId, id);
@@ -248,6 +249,8 @@ async function getLeague(cookie, token, leagueId, { position } = {}) {
   const clock = onClockSlot(status, slots);
   const drafted = new Set(slots.filter((s) => s.playerId).map((s) => s.playerId));
   const available = await buildPool(cookie, league, drafted, byId, enr, position);
+  // Overlay personal tags so the board can highlight your Targets and dim your Avoids.
+  for (const p of available) p.tag = playerTags.get(token, p.id) || null;
 
   return {
     leagueId: league.leagueId,

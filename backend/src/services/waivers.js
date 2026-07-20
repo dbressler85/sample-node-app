@@ -23,6 +23,7 @@ const rosterService = require('./roster');
 const playersLib = require('../lib/players');
 const { createMemo } = require('../lib/memo');
 const store = require('../store/waivers');
+const playerTags = require('../store/playerTags');
 
 // Free-agent reads are heavy (the freeAgents + projectedScores exports, then
 // enrichment/availability over up to ~300 players) and re-run across the waivers
@@ -273,7 +274,11 @@ async function getBoard(cookie, token, leagueId, { position, sort } = {}) {
   // seasons. Now that the enrichment layer supplies values in live too, value is
   // the right default for both modes.
   const key = SORT_KEYS[sort] || 'value';
-  freeAgents.sort((a, b) => (b[key] || 0) - (a[key] || 0));
+  // Personal tags float a Target free agent to the top and sink an Avoid, while the
+  // chosen sort still orders within each group.
+  for (const p of freeAgents) p.tag = playerTags.get(token, p.id) || null;
+  const tagRank = (p) => (p.tag === 'target' ? 0 : p.tag === 'avoid' ? 2 : 1);
+  freeAgents.sort((a, b) => tagRank(a) - tagRank(b) || (b[key] || 0) - (a[key] || 0));
 
   const pending = store.list(token, leagueId, config.demoMode ? demo.pendingClaims(leagueId) : []).map((c) => claimView(c, byId));
   const results = config.demoMode ? demo.waiverResults(leagueId) : [];

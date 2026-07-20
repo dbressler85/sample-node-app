@@ -179,7 +179,7 @@ export default function DraftScreen({ league, onBack, onOpenPlayer }) {
             <Text style={styles.empty}>No available players{position ? ` at ${position}` : ''}.</Text>
           ) : (
             pool.map((p, i) => (
-              <View key={p.id} style={[styles.avRow, myTurn && styles.avRowLive]}>
+              <View key={p.id} style={[styles.avRow, myTurn && styles.avRowLive, p.tag === 'target' && styles.avRowTarget, p.tag === 'avoid' && styles.avRowAvoid]}>
                 <Pressable
                   style={styles.avIdentity}
                   onPress={onOpenPlayer ? () => onOpenPlayer(p.id) : undefined}
@@ -188,7 +188,10 @@ export default function DraftScreen({ league, onBack, onOpenPlayer }) {
                   <Text style={styles.avRank}>{i + 1}</Text>
                   <View style={[styles.dot, { backgroundColor: positionColors[p.position] || colors.textDim }]} />
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.avName} numberOfLines={1}>{p.name}</Text>
+                    <View style={styles.avNameRow}>
+                      <Text style={styles.avName} numberOfLines={1}>{p.name}</Text>
+                      {p.tag ? <Text style={[styles.tagMark, { color: p.tag === 'target' ? colors.good : colors.bad }]}>{p.tag === 'target' ? '◎' : '⊘'}</Text> : null}
+                    </View>
                     <Text style={styles.avMeta}>{p.position}{p.team ? ` · ${p.team}` : ''}{p.age != null ? ` · ${p.age}y` : ''}{p.adp != null ? ` · ADP ${p.adp}` : ''}</Text>
                   </View>
                   <Text style={styles.avValue}>{p.value != null ? p.value : '—'}</Text>
@@ -264,6 +267,10 @@ const styles = StyleSheet.create({
   posText: { color: colors.textDim, fontSize: 13, fontWeight: '700' },
   avRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 11, marginBottom: 8 },
   avRowLive: { borderColor: colors.gold },
+  avRowTarget: { borderColor: colors.good, backgroundColor: colors.good + '10' },
+  avRowAvoid: { opacity: 0.5 },
+  avNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  tagMark: { fontSize: 13, fontWeight: '900' },
   avIdentity: { flex: 1, flexDirection: 'row', alignItems: 'center' },
   avDraftBtn: { marginLeft: 10, backgroundColor: colors.gold, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 7, minWidth: 58, alignItems: 'center' },
   avDraftTxt: { color: colors.bg, fontSize: 13, fontWeight: '900' },
