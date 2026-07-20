@@ -44,4 +44,8 @@ jobs:
       - name: Publish the OTA update
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          # EXPO_PUBLIC_* vars are inlined into the JS bundle at publish time. Unlike a
+          # build, `eas update` does NOT read the eas.json build profile's env, so the
+          # backend URL must be set here or the bundle falls back to localhost:4000.
+          EXPO_PUBLIC_API_URL: https://dynasty-central-backend.onrender.com
         run: eas update --branch "${{ inputs.branch }}" --message "${{ inputs.message }}" --non-interactive

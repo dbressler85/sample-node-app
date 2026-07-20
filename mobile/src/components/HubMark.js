@@ -43,20 +43,21 @@ export default function HubMark({ size = 88 }) {
           strokeWidth={1.4}
         />
 
-        {/* roundel medallion (the "head") — carries the DC monogram */}
-        <Circle cx={100} cy={132} r={38} fill="#0C1322" stroke="url(#dcGold)" strokeWidth={3} />
-        <Circle cx={100} cy={132} r={30} fill="none" stroke="rgba(243,193,74,0.28)" strokeWidth={1.3} />
+        {/* roundel medallion (the "head") — carries the DC monogram. Sits a touch above
+            the shield's midline so the crown+roundel emblem reads centered, not bottom-heavy. */}
+        <Circle cx={100} cy={120} r={38} fill="#0C1322" stroke="url(#dcGold)" strokeWidth={3} />
+        <Circle cx={100} cy={120} r={30} fill="none" stroke="rgba(243,193,74,0.28)" strokeWidth={1.3} />
 
         {/* coronet — rests directly ON the roundel like a crown on a head, tipped a few
             degrees askew so it reads hand-set rather than stamped. Three points = your
             leagues, center jewel = your title team. Drawn after the roundel so it sits on
             top and clips a sliver of the rim. */}
-        <G transform="rotate(-8 100 98)">
-          <Rect x={64} y={92} width={72} height={9} rx={3} fill="url(#dcGold)" />
-          <Path d="M64 94 L74 70 L88 84 L100 62 L112 84 L126 70 L136 94 Z" fill="url(#dcGold)" />
-          <Circle cx={74} cy={70} r={5} fill="#5C9BFF" />
-          <Circle cx={100} cy={62} r={6.5} fill="#FCE38F" stroke="#7A5A18" strokeWidth={1} />
-          <Circle cx={126} cy={70} r={5} fill="#5C9BFF" />
+        <G transform="rotate(-8 100 86)">
+          <Rect x={64} y={80} width={72} height={9} rx={3} fill="url(#dcGold)" />
+          <Path d="M64 82 L74 58 L88 72 L100 50 L112 72 L126 58 L136 82 Z" fill="url(#dcGold)" />
+          <Circle cx={74} cy={58} r={5} fill="#5C9BFF" />
+          <Circle cx={100} cy={50} r={6.5} fill="#FCE38F" stroke="#7A5A18" strokeWidth={1} />
+          <Circle cx={126} cy={58} r={5} fill="#5C9BFF" />
         </G>
 
         {/* gridiron hash-marks */}
@@ -67,11 +68,11 @@ export default function HubMark({ size = 88 }) {
         </G>
       </Svg>
 
-      {/* DC monogram — real glyphs, centered on the roundel (y≈132/220 of the height) */}
+      {/* DC monogram — real glyphs, centered on the roundel (now at y≈120/220 of the height) */}
       <View pointerEvents="none" style={styles.overlay}>
         <Text
           allowFontScaling={false}
-          style={[styles.dc, { fontSize: Math.round(w * 0.25), transform: [{ translateY: (132 / 220 - 0.5) * h }] }]}
+          style={[styles.dc, { fontSize: Math.round(w * 0.25), transform: [{ translateY: (120 / 220 - 0.5) * h }] }]}
         >
           DC
         </Text>
