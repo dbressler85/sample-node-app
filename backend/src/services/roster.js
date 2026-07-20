@@ -31,42 +31,62 @@ function enrich(player, ctx) {
   };
 }
 
-// Team-level dynasty snapshot: total asset value, average age, and a rough
-// contender/rebuild outlook from the age of the most valuable core.
-function teamSummary(all) {
+// Dynasty outlook from TWO signals, not age alone:
+//   * strengthPct — where this roster's total value ranks among the league's teams
+//     (0..1; 1.0 = the strongest roster). "Are you actually good?"
+//   * coreAge — average age of the five most valuable players. "Which way is the
+//     window pointing?"
+// Age-only was misleading: two young teams looked identical even if one was stacked
+// and the other threadbare. Blending strength fixes that. Four exhaustive buckets so
+// they always sum to your league count:
+//   Win-now window — strong roster, core not young → contend now (urgent if aging).
+//   Ascending      — young core that isn't bottom-tier → a winner is forming.
+//   Rebuilding     — bottom-half roster → accumulate youth & picks.
+//   Balanced       — middling on both axes.
+// When strength is unknown (can't read the league's other rosters), it degrades to
+// an age lean (young → Ascending, else Balanced) rather than guessing win-now/rebuild.
+function computeOutlook(coreAge, strengthPct) {
+  if (coreAge == null) return 'Balanced';
+  const strong = strengthPct != null && strengthPct >= 0.55;
+  const weak = strengthPct != null && strengthPct <= 0.45;
+  const young = coreAge <= 24.5;
+  if (strong && !young) return 'Win-now window';
+  if (young && !weak) return 'Ascending';
+  if (weak) return 'Rebuilding';
+  return 'Balanced';
+}
+
+// Team-level dynasty snapshot: total asset value, average age, core age, this
+// roster's strength percentile in its league, and the blended outlook.
+function teamSummary(all, strengthPct) {
   const valued = all.filter((p) => p.value != null);
   const rosterValue = valued.reduce((s, p) => s + p.value, 0);
   const avgAge = valued.length ? Math.round((valued.reduce((s, p) => s + (p.age || 0), 0) / valued.length) * 10) / 10 : null;
   const core = valued.slice().sort((a, b) => b.value - a.value).slice(0, 5);
   const coreAge = core.length ? Math.round((core.reduce((s, p) => s + (p.age || 0), 0) / core.length) * 10) / 10 : null;
-  let outlook = 'Balanced';
-  if (coreAge != null) outlook = coreAge <= 24.5 ? 'Ascending' : coreAge >= 28 ? 'Win-now window' : 'Balanced';
-  return { rosterValue, avgAge, coreAge, outlook };
+  const strength = strengthPct != null ? Math.round(strengthPct * 100) / 100 : null;
+  return { rosterValue, avgAge, coreAge, strengthPct: strength, outlook: computeOutlook(coreAge, strengthPct) };
 }
 
-async function findLeague(cookie, leagueId) {
-  const leagues = await leaguesService.listLeagues(cookie);
-  return leagues.find((l) => l.leagueId === String(leagueId)) || null;
+// My roster's value rank among all franchises in the league (0..1; 1.0 = strongest).
+// Each franchise's strength is the sum of its players' dynasty values (same enrichment
+// snapshot the rest of the roster uses). Returns null if we can't see enough teams.
+function leagueStrengthPct(franchises, myId, enr) {
+  if (!Array.isArray(franchises) || franchises.length < 2) return null;
+  const totals = franchises.map((f) => ({
+    id: String(f.id),
+    total: mfl.toArray(f.player).reduce((s, p) => s + (enr.value(String(p.id)) || 0), 0),
+  }));
+  const mine = totals.find((t) => t.id === String(myId));
+  if (!mine || !mine.total) return null;
+  const atOrBelow = totals.filter((t) => t.total <= mine.total).length;
+  return atOrBelow / totals.length;
 }
 
-// Pull raw roster id-lists for my franchise (starters/bench/ir/taxi).
-async function rawRoster(league, cookie) {
-  if (config.demoMode) return demo.roster(league.leagueId);
-
-  const res = await mfl.exportRequest('rosters', {
-    host: league.host,
-    cookie,
-    L: league.leagueId,
-    FRANCHISE: league.franchiseId,
-  });
-  const franchises = mfl.toArray(res && res.rosters && res.rosters.franchise);
-  const mine = franchises.find((f) => String(f.id) === league.franchiseId) || franchises[0];
-  if (!mine) return { starters: [], bench: [], ir: [], taxi: [] };
-
-  // MFL marks lineup status per player: status "starter", plus roster_status
-  // flags for IR / taxi squad. We bucket by those flags.
+// Bucket one franchise's player id-list into starters/bench/ir/taxi.
+function bucketPlayers(franchisePlayers) {
   const buckets = { starters: [], bench: [], ir: [], taxi: [] };
-  for (const p of mfl.toArray(mine.player)) {
+  for (const p of mfl.toArray(franchisePlayers)) {
     const id = String(p.id);
     if (p.status === 'INJURED_RESERVE' || p.roster_status === 'INJURED_RESERVE') buckets.ir.push(id);
     else if (p.status === 'TAXI_SQUAD' || p.roster_status === 'TAXI_SQUAD') buckets.taxi.push(id);
@@ -74,6 +94,29 @@ async function rawRoster(league, cookie) {
     else buckets.bench.push(id);
   }
   return buckets;
+}
+
+async function findLeague(cookie, leagueId) {
+  const leagues = await leaguesService.listLeagues(cookie);
+  return leagues.find((l) => l.leagueId === String(leagueId)) || null;
+}
+
+// Pull every franchise's raw roster in the league (one MFL read). We need the whole
+// league — not just my team — to rank roster strength. Returns the franchise array
+// (each { id, player: [...] }). Demo returns null (no full league in fixtures; we use
+// a strength fixture instead).
+async function allFranchiseRosters(league, cookie) {
+  if (config.demoMode) return null;
+  const res = await mfl.exportRequest('rosters', { host: league.host, cookie, L: league.leagueId });
+  return mfl.toArray(res && res.rosters && res.rosters.franchise);
+}
+
+// My raw roster id-lists (starters/bench/ir/taxi), from the all-franchise response
+// in live mode or the fixture in demo.
+function myBuckets(franchises, league) {
+  if (config.demoMode) return demo.roster(league.leagueId) || { starters: [], bench: [], ir: [], taxi: [] };
+  const mine = (franchises || []).find((f) => String(f.id) === league.franchiseId) || (franchises || [])[0];
+  return mine ? bucketPlayers(mine.player) : { starters: [], bench: [], ir: [], taxi: [] };
 }
 
 async function getRoster(cookie, leagueId) {
@@ -101,16 +144,15 @@ async function buildRoster(cookie, leagueId) {
   // Chain format -> snapshot inside the Promise.all so format's league/rules reads
   // (on a cold cache) overlap the roster/injury/bye/picks reads instead of running
   // serially ahead of them.
-  const [raw, byId, statusMap, byeMap, picks, enr] = await Promise.all([
-    rawRoster(league, cookie),
+  const [franchises, byId, statusMap, byeMap, picks, enr] = await Promise.all([
+    allFranchiseRosters(league, cookie),
     players.load(cookie),
     config.demoMode ? Promise.resolve(demo.playerStatus()) : nflLib.injuryMap(cookie, week),
     config.demoMode ? Promise.resolve(demo.byes()) : nflLib.byeMap(cookie, week),
     picksLib.franchisePicks(cookie, league).then((list) => list.map((p) => p.label)),
     leagueFormat.format(cookie, league).then((fmt) => enrichmentLib.snapshot(fmt, cookie)),
   ]);
-  const empty = { starters: [], bench: [], ir: [], taxi: [] };
-  const src = raw || empty;
+  const src = myBuckets(franchises, league);
 
   const ctx = { week, statusMap, byeMap, enr };
   const map = (ids) => (ids || []).map((id) => enrich(players.resolve(byId, id), ctx));
@@ -126,8 +168,11 @@ async function buildRoster(cookie, leagueId) {
     taxi: map(src.taxi),
     picks,
   };
-  roster.summary = teamSummary([...roster.starters, ...roster.bench, ...roster.ir, ...roster.taxi]);
+  // Strength percentile: demo uses a fixture (no full league in fixtures); live ranks
+  // my roster value against every franchise's, using the same enrichment snapshot.
+  const strengthPct = config.demoMode ? demo.teamStrength(leagueId) : leagueStrengthPct(franchises, league.franchiseId, enr);
+  roster.summary = teamSummary([...roster.starters, ...roster.bench, ...roster.ir, ...roster.taxi], strengthPct);
   return roster;
 }
 
-module.exports = { getRoster, invalidate };
+module.exports = { getRoster, invalidate, computeOutlook };

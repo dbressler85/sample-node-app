@@ -27,6 +27,16 @@ Cross-league management is the moat; these deepen it.
   (past a position-aware decline age), with the biggest at-risk holdings listed
   (tap → profile) and a per-league breakdown. *(Next: expiring-contract risk where
   MFL exposes it; a value-trend sparkline once we retain snapshots.)*
+- [x] **Strength-aware dynasty outlook.** Outlook (Win-now / Ascending / Rebuilding /
+  Balanced) now blends **roster strength** — where a team's total value ranks among
+  all franchises in its league — with **core age**, instead of age alone. Age-only
+  mislabeled two similarly-young teams identically even if one was stacked and the
+  other threadbare; strength separates them (young + strongest → Ascending, young +
+  weakest → Rebuilding). Live ranks my roster value against every franchise's; demo
+  uses a strength fixture. The four buckets are exhaustive (sum to league count) and
+  the Portfolio "By league" row shows the strength tag that explains each label.
+  *(Next: fold in actual on-field results (standings/points) alongside dynasty value
+  once we're reading `leagueStandings`.)*
 - [ ] **League switcher / mute / pin.** Let the owner pin the leagues they care about
   to the top of every cross-league view, and mute leagues (e.g. finished or
   bye-week teams) so they drop out of Home triage, On Deck, and exposure.

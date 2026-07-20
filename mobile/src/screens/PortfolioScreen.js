@@ -4,6 +4,16 @@ import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import useAndroidBack from '../useAndroidBack';
 
+// Roster strength as a plain qualitative tag (from where its value ranks in the
+// league), so the outlook label is explainable rather than a bare number. Thresholds
+// mirror the backend model (strong ≥ 0.55, thin ≤ 0.45).
+const strengthLabel = (pct) => {
+  if (pct == null) return null;
+  if (pct >= 0.55) return 'strong roster';
+  if (pct <= 0.45) return 'thin roster';
+  return 'middle of the pack';
+};
+
 // Cross-league dynasty portfolio: total invested value, how it's spread by age, and
 // the value "at risk" — tied up in hurt starters or players aging past their
 // position's decline curve. The strategic counterpart to the Home action list.
@@ -110,7 +120,7 @@ export default function PortfolioScreen({ onBack, onOpenPlayer }) {
               <View style={{ flex: 1 }}>
                 <Text style={styles.leagueName} numberOfLines={1}>{l.name}</Text>
                 <Text style={styles.leagueSub} numberOfLines={1}>
-                  {l.coreAge != null ? `core ${l.coreAge}y` : ''}{l.outlook ? ` · ${l.outlook}` : ''}
+                  {[l.outlook, l.coreAge != null ? `core ${l.coreAge}y` : null, strengthLabel(l.strengthPct)].filter(Boolean).join(' · ')}
                 </Text>
               </View>
               {l.atRiskPct > 0 ? <Text style={[styles.leagueRisk, l.atRiskPct >= 20 && { color: colors.bad }]}>{l.atRiskPct}% risk</Text> : null}

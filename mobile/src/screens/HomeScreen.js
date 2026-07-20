@@ -149,7 +149,6 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
     const items = vals.flatMap((v) => v.items || []);
     const ph = (vals.find((v) => v.phase) || {}).phase || 'in_season';
     const dyn = vals.map((v) => v.dynasty).filter(Boolean);
-    const coreAges = dyn.map((d) => d.coreAge).filter((a) => a != null);
     return {
       phase: ph,
       allItems: items,
@@ -164,11 +163,11 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
         lineupsToSet: vals.filter((v) => v.status === 'unset').length,
         tradeOffers: items.filter((i) => i.type === 'trade_offer').length,
         waiversPending: items.filter((i) => i.type === 'waiver_pending').length,
-        avgCoreAge: coreAges.length ? Math.round((coreAges.reduce((s, a) => s + a, 0) / coreAges.length) * 10) / 10 : null,
+        // Outlook now blends roster strength (value vs the league) with core age, so
+        // the four buckets are exhaustive and add up to your league count.
         contenders: dyn.filter((d) => d.outlook === 'Win-now window').length,
         ascending: dyn.filter((d) => d.outlook === 'Ascending').length,
-        // The middle bucket (core age between the two thresholds). Surfaced so the
-        // three windows add up to your league count instead of silently dropping.
+        rebuilding: dyn.filter((d) => d.outlook === 'Rebuilding').length,
         balanced: dyn.filter((d) => d.outlook === 'Balanced').length,
         actionItems: items.length,
       },
@@ -339,10 +338,10 @@ function Portfolio({ p, phase, loading, onLeagues, onPortfolio, onTrades }) {
       <View style={styles.chips}>
         {offseason ? (
           <>
-            <Chip label="Avg core age" value={p.avgCoreAge != null ? `${p.avgCoreAge}y` : '—'} loading={loading} />
             <Chip label="Win-now" value={p.contenders} loading={loading} />
-            <Chip label="Balanced" value={p.balanced} loading={loading} />
             <Chip label="Ascending" value={p.ascending} loading={loading} />
+            <Chip label="Rebuilding" value={p.rebuilding} loading={loading} />
+            <Chip label="Balanced" value={p.balanced} loading={loading} />
             <Chip label="Trades ›" value={p.tradeOffers} bad={p.tradeOffers > 0} loading={loading} onPress={onTrades} />
             <Chip label="Waivers" value={p.waiversPending} loading={loading} />
           </>

@@ -129,6 +129,18 @@ const ROSTERS = {
   },
 };
 
+// My roster's strength percentile within each demo league (0..1; 1.0 = strongest
+// team in the league). Live mode computes this by ranking my roster value against
+// every franchise's; demo can't (fixtures don't carry full opponent rosters), so we
+// pin plausible values. Chosen to show the model separating two similarly-YOUNG
+// rosters by strength: 64097 (young + strong → Ascending) vs 40750 (young + weak →
+// Rebuilding), plus 19622 (strong, older core → Win-now window).
+const TEAM_STRENGTH = {
+  '64097': 0.75,
+  '40750': 0.3,
+  '19622': 0.8,
+};
+
 // Projected RAW stats for the current week, keyed by player id. These are
 // format-independent — the per-league scoring settings below turn them into
 // points, so the same player is worth different points in different leagues.
@@ -479,6 +491,7 @@ module.exports = {
   leagues: () => LEAGUES.map((l) => ({ ...l })),
   dashboard: (leagueId) => DASHBOARD[leagueId] || null,
   roster: (leagueId) => ROSTERS[leagueId] || null,
+  teamStrength: (leagueId) => (TEAM_STRENGTH[leagueId] != null ? TEAM_STRENGTH[leagueId] : null),
   statProjections: () => ({ ...STAT_PROJECTIONS }),
   scoring: (leagueId) => (SCORING[leagueId] ? { ...SCORING[leagueId] } : null),
   lineupRequirements: (leagueId) => LINEUP_REQS[leagueId] || null,
