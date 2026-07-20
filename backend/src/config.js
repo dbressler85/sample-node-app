@@ -32,8 +32,14 @@ const config = {
   userAgent: process.env.MFL_USER_AGENT || 'dynasty-central/0.1 (personal multi-league manager)',
   apiKey: process.env.MFL_API_KEY || null,
 
-  // Minimum milliseconds between outbound MFL requests (simple client-side throttle).
-  mflMinRequestIntervalMs: int(process.env.MFL_MIN_REQUEST_INTERVAL_MS, 700),
+  // Outbound MFL requests run with bounded concurrency plus a small stagger between
+  // starts (polite, avoids bursts) — NOT strict serialization. Cold first-load fans
+  // out many per-league reads; serializing them at a big gap was the dominant
+  // latency. The 429/503 backoff handles it if MFL pushes back; dial these down via
+  // env if you see rate limiting.
+  mflMaxConcurrent: int(process.env.MFL_MAX_CONCURRENT, 4),
+  // Minimum milliseconds between the START of one outbound MFL request and the next.
+  mflMinRequestIntervalMs: int(process.env.MFL_MIN_REQUEST_INTERVAL_MS, 150),
 
   // Short-lived cache for volatile MFL export responses (rosters, projections),
   // so the many services that build one screen don't re-fetch the same data and
