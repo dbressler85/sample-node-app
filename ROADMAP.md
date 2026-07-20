@@ -166,7 +166,10 @@ Grouped into four "synergy systems", highest-leverage first:
   free agent / on another owner's block. Each channel is an independent pref and is only
   polled when enabled (`buildFor` + `tick` in `notifications.js`). *(Still open: injuries to
   a starter and waiver-run times — the latter has no machine-readable MFL timestamp; a
-  mobile prefs UI to toggle the channels.)*
+  waiver-run times — the latter has no machine-readable MFL timestamp.)* A **Settings
+  screen** (⚙ on Home) now lets the owner explicitly toggle each push channel (draft
+  clock / trade offers / lineup attention / watchlist); choices save immediately and
+  persist even before the device registers a push token (`GET`/`POST /api/push/prefs`).
 - [ ] **Unify the "where does this player stand" computation.** profile `crossLeague`,
   watchlist `relationIn`, and exposure are three silos of the same concept; Watch tab's
   `free`/`tradeTarget` and the profile's "Trade for" should share one action pathway.
