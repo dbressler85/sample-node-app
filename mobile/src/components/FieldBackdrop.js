@@ -55,7 +55,8 @@ export default function FieldBackdrop({ hero = false, watermark = true }) {
           <G opacity={0.055} stroke="#F3C14A" strokeWidth="2.5" fill="none" strokeLinejoin="round">
             <Path d="M100 14 C66 28 44 32 28 34 L28 112 C28 164 62 196 100 210 C138 196 172 164 172 112 L172 34 C156 32 134 28 100 14 Z" />
             <Circle cx="100" cy="132" r="38" />
-            <Path d="M64 96 L74 72 L88 86 L100 64 L112 86 L126 72 L136 96 Z" />
+            {/* coronet tipped askew, matching the crest */}
+            <Path d="M64 96 L74 72 L88 86 L100 64 L112 86 L126 72 L136 96 Z" transform="rotate(-8 100 98)" />
           </G>
         </Svg>
       ) : null}
