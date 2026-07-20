@@ -232,7 +232,7 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
                 <Text style={styles.teamChev}>›</Text>
               </Pressable>
             ) : null}
-            <Portfolio p={portfolio} phase={phase} loading={summaryLoading} onLeagues={onOpenLeagues} onPortfolio={onOpenPortfolio} />
+            <Portfolio p={portfolio} phase={phase} loading={summaryLoading} onLeagues={onOpenLeagues} onPortfolio={onOpenPortfolio} onTrades={onOpenTradeInbox} />
             {drafts.length ? (
               <View>
                 <Pressable style={styles.sectionRow} onPress={onOpenDraftHub}>
@@ -262,20 +262,22 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
                 ))}
               </View>
             ) : null}
-            {portfolio.tradeOffers ? (
-              <Pressable
-                style={({ pressed }) => [styles.inboxRow, pressed && { opacity: 0.7 }]}
-                onPress={onOpenTradeInbox}
-              >
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.inboxName}>📥 Trade inbox</Text>
-                  <Text style={styles.inboxSub} numberOfLines={1}>
-                    {portfolio.tradeOffers} offer{portfolio.tradeOffers === 1 ? '' : 's'} across your leagues
-                  </Text>
-                </View>
-                <Text style={styles.teamChev}>›</Text>
-              </Pressable>
-            ) : null}
+            <Pressable
+              style={({ pressed }) => [styles.inboxRow, pressed && { opacity: 0.7 }]}
+              onPress={onOpenTradeInbox}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={styles.inboxName}>
+                  {portfolio.tradeOffers ? '📥 Trade inbox' : '🔁 Trades'}
+                </Text>
+                <Text style={styles.inboxSub} numberOfLines={1}>
+                  {portfolio.tradeOffers
+                    ? `${portfolio.tradeOffers} offer${portfolio.tradeOffers === 1 ? '' : 's'} across your leagues`
+                    : 'Review offers or propose a trade in any league'}
+                </Text>
+              </View>
+              <Text style={styles.teamChev}>›</Text>
+            </Pressable>
             {error ? <Text style={styles.error}>{error}</Text> : null}
             <Text style={styles.section}>
               Needs attention{summaryLoading ? '  ·  updating…' : ` · ${portfolio.actionItems}`}
@@ -309,7 +311,7 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
   );
 }
 
-function Portfolio({ p, phase, loading, onLeagues, onPortfolio }) {
+function Portfolio({ p, phase, loading, onLeagues, onPortfolio, onTrades }) {
   const offseason = phase === 'offseason';
   // The Leagues count is known as soon as the league list loads, so keep it live.
   return (
@@ -332,7 +334,7 @@ function Portfolio({ p, phase, loading, onLeagues, onPortfolio }) {
             <Chip label="Avg core age" value={p.avgCoreAge != null ? `${p.avgCoreAge}y` : '—'} loading={loading} />
             <Chip label="Win-now" value={p.contenders} loading={loading} />
             <Chip label="Ascending" value={p.ascending} loading={loading} />
-            <Chip label="Trades" value={p.tradeOffers} bad={p.tradeOffers > 0} loading={loading} />
+            <Chip label="Trades ›" value={p.tradeOffers} bad={p.tradeOffers > 0} loading={loading} onPress={onTrades} />
             <Chip label="Waivers" value={p.waiversPending} loading={loading} />
           </>
         ) : (
@@ -340,7 +342,7 @@ function Portfolio({ p, phase, loading, onLeagues, onPortfolio }) {
             <Chip label="Lineups to set" value={p.lineupsToSet} warn={p.lineupsToSet > 0} loading={loading} />
             <Chip label="Holes" value={p.holes} bad={p.holes > 0} loading={loading} />
             <Chip label="Injuries" value={p.injuries} bad={p.injuries > 0} loading={loading} />
-            <Chip label="Trades" value={p.tradeOffers} bad={p.tradeOffers > 0} loading={loading} />
+            <Chip label="Trades ›" value={p.tradeOffers} bad={p.tradeOffers > 0} loading={loading} onPress={onTrades} />
             <Chip label="Waivers" value={p.waiversPending} loading={loading} />
           </>
         )}
@@ -365,10 +367,11 @@ function Tile({ label, value, accent, gold, loading, onPress }) {
   );
 }
 
-function Chip({ label, value, bad, warn, loading }) {
+function Chip({ label, value, bad, warn, loading, onPress }) {
   const c = bad ? colors.bad : warn ? colors.warn : colors.textDim;
+  const Wrap = onPress ? Pressable : View;
   return (
-    <View style={styles.chip}>
+    <Wrap style={({ pressed } = {}) => [styles.chip, onPress && pressed && { opacity: 0.7 }]} onPress={onPress}>
       {loading ? (
         <View style={styles.chipSpinner}>
           <ActivityIndicator size="small" color={colors.textDim} />
@@ -377,7 +380,7 @@ function Chip({ label, value, bad, warn, loading }) {
         <Text style={[styles.chipValue, { color: c }]}>{value}</Text>
       )}
       <Text style={styles.chipLabel}>{label}</Text>
-    </View>
+    </Wrap>
   );
 }
 

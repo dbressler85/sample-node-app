@@ -105,7 +105,7 @@ export default function App() {
   const openLineup = (league) => pushOverlay({ type: 'lineupEditor', league });
   const openWizard = (leagues, mode) => pushOverlay({ type: 'lineupWizard', leagues, mode });
   const openWaiverWizard = (leagues) => pushOverlay({ type: 'waiverWizard', leagues });
-  const openTrades = (league) => pushOverlay({ type: 'trades', league });
+  const openTrades = (league, initialTab) => pushOverlay({ type: 'trades', league, initialTab });
   const openTradeInbox = () => pushOverlay({ type: 'tradeInbox' });
   const openDraft = (league) => pushOverlay({ type: 'draft', league });
   const openDraftHub = () => pushOverlay({ type: 'draftHub' });
@@ -191,10 +191,16 @@ export default function App() {
       return <WaiverWizardScreen leagues={overlay.leagues} onBack={popOverlay} />;
     }
     if (overlay && overlay.type === 'trades') {
-      return <TradesScreen league={overlay.league} onBack={popOverlay} />;
+      return <TradesScreen league={overlay.league} initialTab={overlay.initialTab} onBack={popOverlay} />;
     }
     if (overlay && overlay.type === 'tradeInbox') {
-      return <TradeInboxScreen onBack={popOverlay} onOpenLeague={openTrades} />;
+      return (
+        <TradeInboxScreen
+          onBack={popOverlay}
+          onOpenLeague={openTrades}
+          onProposeInLeague={(league) => openTrades(league, 'propose')}
+        />
+      );
     }
     if (overlay && overlay.type === 'draft') {
       return <DraftScreen league={overlay.league} onBack={popOverlay} />;

@@ -15,7 +15,7 @@ const VERDICT = {
 };
 const VRANK = { favorable: 0, fair: 1, unfavorable: 2 };
 
-export default function TradeInboxScreen({ onBack, onOpenLeague }) {
+export default function TradeInboxScreen({ onBack, onOpenLeague, onProposeInLeague }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -60,6 +60,27 @@ export default function TradeInboxScreen({ onBack, onOpenLeague }) {
     [data]
   );
   const summary = data && data.summary;
+  const leagues = (data && data.leagues) || [];
+
+  // The hub is also where you START a trade: pick any league and open its desk on
+  // the Propose tab. Without this, an empty inbox is a dead end and proposing is
+  // buried under a league's roster.
+  const startTrade = (
+    <View style={styles.startWrap}>
+      <Text style={styles.startTitle}>Start a trade</Text>
+      <Text style={styles.startSub}>Pick a league to build and send an offer.</Text>
+      {leagues.map((l) => (
+        <Pressable
+          key={l.leagueId}
+          style={({ pressed }) => [styles.startRow, pressed && { opacity: 0.7 }]}
+          onPress={() => (onProposeInLeague || onOpenLeague)({ leagueId: l.leagueId, name: l.name })}
+        >
+          <Text style={styles.startName} numberOfLines={1}>{l.name}</Text>
+          <Text style={styles.startCta}>Propose ›</Text>
+        </Pressable>
+      ))}
+    </View>
+  );
 
   return (
     <View style={styles.container}>
@@ -101,6 +122,7 @@ export default function TradeInboxScreen({ onBack, onOpenLeague }) {
               <Text style={styles.emptyText}>No pending trade offers across your leagues right now.</Text>
             </View>
           }
+          ListFooterComponent={leagues.length ? startTrade : null}
         />
       )}
     </View>
@@ -188,4 +210,10 @@ const styles = StyleSheet.create({
   emptyWrap: { paddingTop: 60, alignItems: 'center' },
   emptyTitle: { color: colors.text, fontSize: 17, fontWeight: '800', marginBottom: 8 },
   emptyText: { color: colors.textDim, fontSize: 14, textAlign: 'center', paddingHorizontal: 20 },
+  startWrap: { marginTop: 8, paddingTop: 18, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+  startTitle: { color: colors.text, fontSize: 15, fontWeight: '900', letterSpacing: 0.3, textTransform: 'uppercase' },
+  startSub: { color: colors.textDim, fontSize: 13, marginTop: 3, marginBottom: 12 },
+  startRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 13, marginBottom: 10 },
+  startName: { color: colors.text, fontSize: 15, fontWeight: '700', flex: 1, marginRight: 10 },
+  startCta: { color: colors.accent, fontSize: 14, fontWeight: '800' },
 });

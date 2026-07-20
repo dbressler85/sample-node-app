@@ -168,6 +168,9 @@ async function getOverview(cookie, token) {
   const offers = groups.flat().filter((o) => o.direction === 'incoming');
   return {
     offers,
+    // Every league you're in, so the hub can start a NEW trade in any of them —
+    // not just respond to offers that happen to be sitting in the inbox.
+    leagues: leagues.map((l) => ({ leagueId: l.leagueId, name: l.name })),
     summary: {
       count: offers.length,
       favorable: offers.filter((o) => o.analysis.verdict === 'favorable').length,
