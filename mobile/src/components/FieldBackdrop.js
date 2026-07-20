@@ -1,67 +1,26 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import Svg, { Defs, LinearGradient, RadialGradient, Stop, Rect, Line, G, Path, Circle, Text as SvgText } from 'react-native-svg';
 
-// The app-wide backdrop: a championship gold-to-navy gradient, faint gridiron yard-lines,
-// and a large, ghosted crest watermark. Two intensities share one look:
-//   • hero  (login) — a bold band of clear gold at the very top melting down into deep
-//                     navy. Dramatic, because the login content is vertically centered so
-//                     the gold sits behind empty space and the crest, never behind text.
-//   • ambient (app) — a navy field lit by a soft gold glow up top, so header text stays
-//                     readable while the whole app still reads gold-over-navy.
-// Drawn in a 0–100 square stretched to fill (preserveAspectRatio none) so it adapts to any
-// container without measuring. Purely decorative — never intercepts touches.
-export default function FieldBackdrop({ hero = false, watermark = true }) {
+// SVG-FREE backdrop. A full-screen react-native-svg surface at the app root was the prime
+// suspect for the native launch crash (it paints the instant the app opens — the "navy
+// flash then crash"), and a native SVG crash can't be caught by a JS error boundary. This
+// version uses only plain Views: a deep-navy base with a few translucent gold bands up top
+// to fake the gold→navy glow. Not a true gradient, but it carries the look with zero native
+// SVG risk. If the app now launches, the backdrop SVG was the culprit and we can bring back
+// a smooth gradient via a static image (still no SVG) next.
+export default function FieldBackdrop({ hero = false }) {
+  const g = (a) => `rgba(243,193,74,${a})`;
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      <Svg style={StyleSheet.absoluteFill} viewBox="0 0 100 100" preserveAspectRatio="none">
-        <Defs>
-          {/* hero — clear gold at the crown of the screen, dramatic fall to navy */}
-          <LinearGradient id="fbHero" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor="#F8CB53" />
-            <Stop offset="0.07" stopColor="#E3B245" />
-            <Stop offset="0.16" stopColor="#93712F" />
-            <Stop offset="0.30" stopColor="#33344C" />
-            <Stop offset="0.50" stopColor="#17223E" />
-            <Stop offset="0.75" stopColor="#0B1121" />
-            <Stop offset="1" stopColor="#05070E" />
-          </LinearGradient>
-          {/* ambient — navy field for content screens */}
-          <LinearGradient id="fbBase" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor="#111C34" />
-            <Stop offset="0.5" stopColor="#0A1120" />
-            <Stop offset="1" stopColor="#05070E" />
-          </LinearGradient>
-          {/* soft gold glow up top (drives the ambient gold, absent in hero) */}
-          <RadialGradient id="fbGlow" cx="0.5" cy="0.14" r="0.72">
-            <Stop offset="0" stopColor="#F3C14A" stopOpacity={hero ? '0' : '0.34'} />
-            <Stop offset="1" stopColor="#F3C14A" stopOpacity="0" />
-          </RadialGradient>
-        </Defs>
-        <Rect x="0" y="0" width="100" height="100" fill={hero ? 'url(#fbHero)' : 'url(#fbBase)'} />
-        <Rect x="0" y="0" width="100" height="100" fill="url(#fbGlow)" />
-        {/* faint yard-lines */}
-        <G stroke="rgba(255,255,255,0.03)" strokeWidth="0.35">
-          {[16, 30, 44, 58, 72, 86].map((y) => (
-            <Line key={y} x1="0" y1={y} x2="100" y2={y} />
-          ))}
-        </G>
-      </Svg>
-
-      {/* Ghosted crest watermark — aspect-preserved and centered so it never squishes.
-          The viewBox pads the 200×220 crest into a larger frame so the mark reads small. */}
-      {watermark ? (
-        <Svg style={StyleSheet.absoluteFill} viewBox="-110 -80 420 480" preserveAspectRatio="xMidYMid meet">
-          <G opacity={0.055} stroke="#F3C14A" strokeWidth="2.5" fill="none" strokeLinejoin="round">
-            <Path d="M100 14 C66 28 44 32 28 34 L28 112 C28 164 62 196 100 210 C138 196 172 164 172 112 L172 34 C156 32 134 28 100 14 Z" />
-            <Circle cx="100" cy="132" r="38" />
-            {/* coronet tipped askew, matching the crest */}
-            <Path d="M64 96 L74 72 L88 86 L100 64 L112 86 L126 72 L136 96 Z" transform="rotate(-8 100 98)" />
-            {/* DC monogram — the letters are part of the mark, so the watermark carries them too */}
-            <SvgText x="100" y="146" fill="#F3C14A" stroke="none" fontSize="40" fontWeight="bold" textAnchor="middle">DC</SvgText>
-          </G>
-        </Svg>
-      ) : null}
+    <View style={[StyleSheet.absoluteFill, styles.base]} pointerEvents="none">
+      <View style={[styles.band, { top: 0, height: '16%', backgroundColor: g(hero ? 0.5 : 0.16) }]} />
+      <View style={[styles.band, { top: '12%', height: '14%', backgroundColor: g(hero ? 0.3 : 0.09) }]} />
+      <View style={[styles.band, { top: '22%', height: '16%', backgroundColor: g(hero ? 0.16 : 0.04) }]} />
+      <View style={[styles.band, { top: '34%', height: '14%', backgroundColor: g(hero ? 0.07 : 0.015) }]} />
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  base: { backgroundColor: '#0A0F1C' },
+  band: { position: 'absolute', left: 0, right: 0 },
+});
