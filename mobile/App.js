@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, Pressable, StyleSheet, StatusBar, ActivityIndicator, SafeAreaView, Platform, Dimensions } from 'react-native';
+import { View, Text, Pressable, StyleSheet, StatusBar, ActivityIndicator, SafeAreaView, Platform, Dimensions, Animated, Easing } from 'react-native';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import useAndroidBack from './src/useAndroidBack';
 import { api, setAuthLostHandler } from './src/api';
@@ -62,6 +62,23 @@ export default function App() {
   // Draft opened from a roster returns to that roster, not Home).
   const [overlayStack, setOverlayStack] = useState([]);
   const [waiversTarget, setWaiversTarget] = useState(null); // {leagueId, position}
+
+  // Login → Home handoff: the login lockup flies up and fades, then the app flies in.
+  // `enter` starts settled (1) so a restored session on cold boot doesn't animate.
+  const enter = useRef(new Animated.Value(1)).current;
+  const leave = useRef(new Animated.Value(0)).current;
+
+  function handleLoggedIn(info) {
+    if (info && typeof info.demoMode === 'boolean') setDemoMode(info.demoMode);
+    // Fly the login out, then swap to the app and fly it in.
+    Animated.timing(leave, { toValue: 1, duration: 360, easing: Easing.in(Easing.cubic), useNativeDriver: true }).start(() => {
+      enter.setValue(0);
+      setAuthed(true);
+      Animated.timing(enter, { toValue: 1, duration: 520, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start(() => {
+        leave.setValue(0);
+      });
+    });
+  }
 
   const overlay = overlayStack[overlayStack.length - 1] || null;
   const pushOverlay = (o) => setOverlayStack((s) => [...s, o]);
@@ -202,13 +219,17 @@ export default function App() {
       );
     }
     if (!authed) {
+      const leaveStyle = {
+        opacity: leave.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
+        transform: [
+          { translateY: leave.interpolate({ inputRange: [0, 1], outputRange: [0, -70] }) },
+          { scale: leave.interpolate({ inputRange: [0, 1], outputRange: [1, 0.96] }) },
+        ],
+      };
       return (
-        <LoginScreen
-          onLoggedIn={(info) => {
-            if (info && typeof info.demoMode === 'boolean') setDemoMode(info.demoMode);
-            setAuthed(true);
-          }}
-        />
+        <Animated.View style={[styles.flex, leaveStyle]}>
+          <LoginScreen onLoggedIn={handleLoggedIn} />
+        </Animated.View>
       );
     }
 
@@ -297,13 +318,25 @@ export default function App() {
   // The gold-over-navy field sits behind the whole app; screens render on transparent
   // containers so it shows through, with opaque cards floating on top. Login draws its
   // own hero-intensity backdrop over this one.
+  // The app flies in after login; identity transform once settled (enter=1), so
+  // ordinary navigation isn't animated.
+  const enterStyle = authed
+    ? {
+        opacity: enter,
+        transform: [
+          { translateY: enter.interpolate({ inputRange: [0, 1], outputRange: [44, 0] }) },
+          { scale: enter.interpolate({ inputRange: [0, 1], outputRange: [0.98, 1] }) },
+        ],
+      }
+    : null;
+
   return (
     <View style={styles.root}>
       <FieldBackdrop />
       <SafeAreaView style={styles.safe}>
         <ExpoStatusBar style="light" />
         {Platform.OS === 'android' ? <StatusBar translucent backgroundColor="transparent" barStyle="light-content" /> : null}
-        {render()}
+        <Animated.View style={[styles.flex, enterStyle]}>{render()}</Animated.View>
       </SafeAreaView>
     </View>
   );
