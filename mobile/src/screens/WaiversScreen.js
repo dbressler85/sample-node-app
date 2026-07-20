@@ -16,6 +16,7 @@ import { colors, positionColors } from '../theme';
 import AvailabilityBadge from '../components/AvailabilityBadge';
 import AddAcrossSheet from '../components/AddAcrossSheet';
 import useAndroidBack from '../useAndroidBack';
+import { getValue, setValue } from '../cache';
 
 const SORTS = [
   { key: 'value', label: 'Value' },
@@ -26,7 +27,6 @@ const SORTS = [
 
 export default function WaiversScreen({ initialLeagueId, initialPosition, onStartWizard }) {
   const [overview, setOverview] = useState(null);
-  const [ovLoading, setOvLoading] = useState(true);
   const [ovRefreshing, setOvRefreshing] = useState(false);
   const [wizardLoading, setWizardLoading] = useState(false);
   const [segment, setSegment] = useState('leagues'); // 'leagues' | 'best' | 'pending'
@@ -69,21 +69,29 @@ export default function WaiversScreen({ initialLeagueId, initialPosition, onStar
     return false;
   }, [addPlayer, claim, openLeagueId]));
 
-  // Landing list: one card per league.
+  // Landing list: one card per league. Stale-while-revalidate — paint the last
+  // overview from disk instantly, then refetch in the background.
   const loadOverview = useCallback(async () => {
     setError(null);
+    setOvRefreshing(true);
     try {
-      setOverview(await api.waiversOverview());
+      const res = await api.waiversOverview();
+      setOverview(res);
+      setValue('waivers:overview', res);
     } catch (e) {
       setError(e.message);
     } finally {
-      setOvLoading(false);
       setOvRefreshing(false);
     }
   }, []);
 
   useEffect(() => {
-    loadOverview();
+    let alive = true;
+    getValue('waivers:overview').then((cached) => {
+      if (alive && cached != null) setOverview(cached);
+      if (alive) loadOverview();
+    });
+    return () => { alive = false; };
   }, [loadOverview]);
 
   // Board for the drilled-in league.
@@ -207,14 +215,11 @@ export default function WaiversScreen({ initialLeagueId, initialPosition, onStar
               ) : null}
               <OverviewView
                 overview={overview}
-                loading={ovLoading}
+                loading={overview == null}
                 refreshing={ovRefreshing}
                 error={error}
                 onOpen={setOpenLeagueId}
-                onRefresh={() => {
-                  setOvRefreshing(true);
-                  loadOverview();
-                }}
+                onRefresh={loadOverview}
               />
             </>
           ) : segment === 'best' ? (
