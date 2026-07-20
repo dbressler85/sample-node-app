@@ -38,6 +38,7 @@ const TESTS = [
   'waiver-lock-test',
   'waiver-calendar-test',
   'dynasty-outlook-test',
+  'tradebait-test',
 ];
 
 let failed = 0;

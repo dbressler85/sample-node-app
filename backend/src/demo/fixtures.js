@@ -141,6 +141,14 @@ const TEAM_STRENGTH = {
   '19622': 0.8,
 };
 
+// Example "on the block" so the centralized trade-bait view demos populated. Each is a
+// player the demo rosters actually hold (bench depth you'd shop). Real use replaces
+// this the moment the user blocks their own player.
+const TRADE_BAIT = [
+  { leagueId: '64097', playerId: '11686', note: 'Selling high — open to a young WR + pick' },
+  { leagueId: '40750', playerId: '13593', note: null },
+];
+
 // Projected RAW stats for the current week, keyed by player id. These are
 // format-independent — the per-league scoring settings below turn them into
 // points, so the same player is worth different points in different leagues.
@@ -492,6 +500,7 @@ module.exports = {
   dashboard: (leagueId) => DASHBOARD[leagueId] || null,
   roster: (leagueId) => ROSTERS[leagueId] || null,
   teamStrength: (leagueId) => (TEAM_STRENGTH[leagueId] != null ? TEAM_STRENGTH[leagueId] : null),
+  tradeBait: () => TRADE_BAIT.map((e) => ({ ...e })),
   statProjections: () => ({ ...STAT_PROJECTIONS }),
   scoring: (leagueId) => (SCORING[leagueId] ? { ...SCORING[leagueId] } : null),
   lineupRequirements: (leagueId) => LINEUP_REQS[leagueId] || null,

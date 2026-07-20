@@ -15,7 +15,7 @@ const VERDICT = {
 };
 const VRANK = { favorable: 0, fair: 1, unfavorable: 2 };
 
-export default function TradeInboxScreen({ onBack, onOpenLeague, onProposeInLeague }) {
+export default function TradeInboxScreen({ onBack, onOpenLeague, onProposeInLeague, onOpenBlock }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -89,7 +89,13 @@ export default function TradeInboxScreen({ onBack, onOpenLeague, onProposeInLeag
           <Text style={styles.back}>‹ Home</Text>
         </Pressable>
         <Text style={styles.title}>Trade Inbox</Text>
-        <View style={{ width: 54 }} />
+        {onOpenBlock ? (
+          <Pressable onPress={onOpenBlock} hitSlop={10}>
+            <Text style={styles.blockLink}>⇄ Block</Text>
+          </Pressable>
+        ) : (
+          <View style={{ width: 54 }} />
+        )}
       </View>
       {summary ? (
         <Text style={styles.subtitle}>
@@ -182,6 +188,7 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8 },
   back: { color: colors.accent, fontSize: 16, fontWeight: '600', width: 54 },
+  blockLink: { color: colors.accent, fontSize: 14, fontWeight: '800', width: 54, textAlign: 'right' },
   title: { color: colors.text, fontSize: 20, fontWeight: '900' },
   subtitle: { color: colors.textDim, fontSize: 13, textAlign: 'center', marginTop: 4 },
   list: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 32 },
