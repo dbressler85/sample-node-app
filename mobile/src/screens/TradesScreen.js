@@ -5,6 +5,11 @@ import { colors, positionColors } from '../theme';
 import useAndroidBack from '../useAndroidBack';
 
 const posList = (arr) => (arr && arr.length ? arr.map((x) => x.pos).join(', ') : '—');
+const CONSTRUCTION = {
+  good: { color: colors.good, icon: '✓' },
+  caution: { color: colors.bad, icon: '⚠' },
+  neutral: { color: colors.textDim, icon: '•' },
+};
 
 const VERDICT = {
   favorable: { label: 'You gain value', color: colors.good },
@@ -323,6 +328,13 @@ function OfferCard({ offer, busy, onRespond, onCounter }) {
       <Text style={styles.estCaption}>
         Dynasty value estimate · net {offer.analysis.net > 0 ? '+' : ''}{offer.analysis.net}
       </Text>
+      {offer.construction ? (
+        <View style={[styles.construction, { borderColor: (CONSTRUCTION[offer.construction.rating] || CONSTRUCTION.neutral).color }]}>
+          <Text style={[styles.constructionText, { color: (CONSTRUCTION[offer.construction.rating] || CONSTRUCTION.neutral).color }]}>
+            {(CONSTRUCTION[offer.construction.rating] || CONSTRUCTION.neutral).icon} {offer.construction.reason}
+          </Text>
+        </View>
+      ) : null}
       <View style={styles.cardActions}>
         <Pressable style={[styles.act, styles.reject]} onPress={() => onRespond(offer, 'reject')} disabled={busy}>
           <Text style={styles.rejectText}>Reject</Text>
@@ -413,6 +425,8 @@ const styles = StyleSheet.create({
   sideName: { color: colors.text, fontSize: 14, fontWeight: '600', flex: 1 },
   sideMeta: { color: colors.textDim, fontSize: 12 },
   estCaption: { color: colors.textDim, fontSize: 11, fontStyle: 'italic', opacity: 0.8, marginTop: 8 },
+  construction: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, marginTop: 8 },
+  constructionText: { fontSize: 13, fontWeight: '700', lineHeight: 18 },
   cardActions: { flexDirection: 'row', gap: 10, marginTop: 12 },
   act: { flex: 1, borderRadius: 10, paddingVertical: 11, alignItems: 'center' },
   reject: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
