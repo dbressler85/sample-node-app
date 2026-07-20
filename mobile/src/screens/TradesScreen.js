@@ -176,6 +176,13 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
       startCounter({ id: seed.counterOfferId });
       return;
     }
+    // "Shop <my player>" from On the Block: pre-load him on the SEND side and select the
+    // suggested partner (defaulted in load()). The user then picks what to ask for.
+    if (seed.sendPlayerId) {
+      const mine = (data.myPlayers || []).find((pl) => String(pl.id) === String(seed.sendPlayerId));
+      if (mine) setSend({ [mine.id]: mine });
+      return;
+    }
     const partner = (data.partners || []).find((p) => p.franchiseId === seed.partnerFranchiseId);
     const target = partner && partner.players.find((pl) => String(pl.id) === String(seed.targetPlayerId));
     if (target) setReceive({ [target.id]: target });

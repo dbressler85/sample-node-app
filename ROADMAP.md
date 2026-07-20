@@ -139,10 +139,12 @@ Grouped into four "synergy systems", highest-leverage first:
 - [ ] **Need-adjusted draft board.** DraftScreen ranks by pure value with no roster
   context; badge available players that fill the manager's thin positions (needs/surplus
   already computed in trades).
-- [ ] **Seed On the Block → trade desk.** "Best fits" partners and `Shop ›` should
-  deep-link into the builder pre-seeded (the `seed` API already supports
-  `partnerFranchiseId` + `targetPlayerId`); today `Shop ›` opens an empty builder and
-  you rebuild by hand.
+- [x] **Seed On the Block → trade desk.** Each "Best fits" partner is now a tappable chip
+  that opens the league's trade desk with the shopped player pre-loaded on the "you send"
+  side and that partner selected (new `seed.sendPlayerId` branch in TradesScreen; the
+  suggestion already carries the partner `franchiseId`). No more rebuilding the trade by
+  hand. *(`Shop ›` at the league level still opens the empty builder — there's no single
+  player context there.)*
 - [ ] **Annotate the inbox "Start a trade" list** — "you have N on the block here" /
   "they need RB, you're deep" instead of blind league names.
 

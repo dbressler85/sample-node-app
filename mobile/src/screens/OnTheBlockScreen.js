@@ -9,7 +9,7 @@ const NOTE_MAX = 120;
 // Centralized trade bait: every player you're shopping, grouped by league, with value /
 // slot / an asking-price note and a jump to that league's trade desk to actually build
 // the offer. Add players to the block from a roster (the ⇄ Block toggle on each player).
-export default function OnTheBlockScreen({ onBack, onShopLeague, onOpenPlayer }) {
+export default function OnTheBlockScreen({ onBack, onShopLeague, onOpenPlayer, onShopPlayer }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -143,9 +143,20 @@ export default function OnTheBlockScreen({ onBack, onShopLeague, onOpenPlayer })
                   {p.suggestions && p.suggestions.length ? (
                     <View style={styles.fitRow}>
                       <Text style={styles.fitLabel}>Best fits</Text>
-                      <Text style={styles.fitText} numberOfLines={2}>
-                        {p.suggestions.map((s) => `${s.name} (${s.reason})`).join(' · ')}
-                      </Text>
+                      <View style={styles.fitChips}>
+                        {p.suggestions.map((s, si) => {
+                          const Chip = onShopPlayer ? Pressable : View;
+                          const chipProps = onShopPlayer
+                            ? { onPress: () => onShopPlayer({ leagueId: lg.leagueId, name: lg.name, sendPlayerId: p.id, partnerFranchiseId: s.franchiseId }) }
+                            : {};
+                          return (
+                            <Chip key={si} style={({ pressed }) => [styles.fitChip, pressed && { opacity: 0.7 }]} {...chipProps}>
+                              <Text style={styles.fitChipName} numberOfLines={1}>{s.name}</Text>
+                              <Text style={styles.fitChipReason} numberOfLines={1}>{s.reason}{onShopPlayer ? '  ›' : ''}</Text>
+                            </Chip>
+                          );
+                        })}
+                      </View>
                     </View>
                   ) : null}
                 </View>
@@ -224,6 +235,10 @@ const styles = StyleSheet.create({
   fitRow: { flexDirection: 'row', alignItems: 'flex-start', marginLeft: 18, marginBottom: 8, marginTop: 2, gap: 8 },
   fitLabel: { color: colors.accent, fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4, marginTop: 1 },
   fitText: { color: colors.textDim, fontSize: 12, flex: 1, lineHeight: 16 },
+  fitChips: { flex: 1, gap: 6 },
+  fitChip: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.cardAlt, borderRadius: 8, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 10, paddingVertical: 7, gap: 8 },
+  fitChipName: { color: colors.text, fontSize: 12, fontWeight: '800', flexShrink: 0 },
+  fitChipReason: { color: colors.textDim, fontSize: 11, flexShrink: 1, textAlign: 'right' },
   error: { color: colors.bad, textAlign: 'center' },
   emptyWrap: { paddingTop: 60, alignItems: 'center' },
   emptyTitle: { color: colors.text, fontSize: 17, fontWeight: '800', marginBottom: 8 },
