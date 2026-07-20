@@ -52,7 +52,7 @@ async function runPool(items, limit, worker) {
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, next));
 }
 
-export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpenLeagues, onOpenPortfolio, onOpenWaivers, onOpenTrades, onOpenTradeInbox, onOpenDraft, onOpenDraftHub, onOpenOnDeck, onOpenPlayer, onLogout }) {
+export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpenLeagues, onOpenPortfolio, onOpenWaivers, onOpenTrades, onOpenTradeInbox, onOpenDraft, onOpenDraftHub, onOpenOnDeck, onOpenPlayer, onOpenSettings, onLogout }) {
   const [leagues, setLeagues] = useState([]);
   const [statuses, setStatuses] = useState({}); // leagueId -> { name, status, items }
   const [drafts, setDrafts] = useState([]); // only ACTIONABLE drafts (on the clock / live / imminent)
@@ -224,9 +224,16 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
               : `${portfolio.leagues} leagues${phase === 'offseason' ? ' · Offseason' : ''}${demoMode ? ' · DEMO' : ''}`}
           </Text>
         </View>
-        <Pressable onPress={onLogout} hitSlop={10}>
-          <Text style={styles.logout}>Log out</Text>
-        </Pressable>
+        <View style={styles.topActions}>
+          {onOpenSettings ? (
+            <Pressable onPress={onOpenSettings} hitSlop={10} accessibilityLabel="Settings">
+              <Text style={styles.gear}>⚙</Text>
+            </Pressable>
+          ) : null}
+          <Pressable onPress={onLogout} hitSlop={10}>
+            <Text style={styles.logout}>Log out</Text>
+          </Pressable>
+        </View>
       </View>
 
       <FlatList
@@ -451,6 +458,8 @@ const styles = StyleSheet.create({
   topbar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8 },
   title: { color: colors.text, fontSize: 26, fontWeight: '900' },
   subtitle: { color: colors.textDim, fontSize: 13, marginTop: 2 },
+  topActions: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  gear: { color: colors.textDim, fontSize: 20 },
   logout: { color: colors.accent, fontSize: 14, fontWeight: '600' },
   list: { paddingHorizontal: 16, paddingBottom: 32 },
   portfolio: { marginBottom: 4 },

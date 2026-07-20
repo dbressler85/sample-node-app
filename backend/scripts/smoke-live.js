@@ -51,6 +51,7 @@ const TESTS = [
   'adp-test',
   'trade-fit-summary-test',
   'watchlist-alerts-test',
+  'push-prefs-test',
 ];
 
 let failed = 0;

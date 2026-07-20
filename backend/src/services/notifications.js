@@ -26,6 +26,12 @@ const watchlistService = require('./watchlist');
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 const db = () => persist.ns('push'); // token -> { expoPushToken, prefs, primed, clockLeagues[], offerIds[] }
 
+// The push channels the owner can toggle, all on by default. The keys are the source of
+// truth for both the register merge and the prefs GET/POST, so a new channel is added in
+// exactly one place.
+const DEFAULT_PREFS = { draftClock: true, tradeOffer: true, lineupAttention: true, watchlist: true };
+const CHANNELS = Object.keys(DEFAULT_PREFS);
+
 function registerToken(token, expoPushToken, prefs) {
   if (!token || !expoPushToken) {
     const e = new Error('An Expo push token is required.');
@@ -36,7 +42,7 @@ function registerToken(token, expoPushToken, prefs) {
   const existing = d[token] || {};
   d[token] = {
     expoPushToken,
-    prefs: { draftClock: true, tradeOffer: true, lineupAttention: true, watchlist: true, ...(existing.prefs || {}), ...(prefs || {}) },
+    prefs: { ...DEFAULT_PREFS, ...(existing.prefs || {}), ...(prefs || {}) },
     // If the token changed (new device/reinstall) re-prime so we don't replay
     // history to a fresh device.
     primed: existing.primed && existing.expoPushToken === expoPushToken ? existing.primed : false,
@@ -56,6 +62,25 @@ function unregister(token) {
     persist.touch();
   }
   return { ok: true };
+}
+
+// Current push-channel prefs for this session (defaults when nothing's stored yet).
+function getPrefs(token) {
+  const e = db()[token];
+  return { prefs: { ...DEFAULT_PREFS, ...(e && e.prefs) } };
+}
+
+// Update push-channel prefs. Accepts only known boolean channels (ignores junk). Works
+// even before a device has registered a push token — the choice is stored and merged in
+// when registerToken later runs, so the Settings screen is usable regardless of order.
+function setPrefs(token, incoming) {
+  const clean = {};
+  for (const k of CHANNELS) if (incoming && typeof incoming[k] === 'boolean') clean[k] = incoming[k];
+  const d = db();
+  const e = d[token] || {};
+  d[token] = { ...e, prefs: { ...DEFAULT_PREFS, ...(e.prefs || {}), ...clean } };
+  persist.touch();
+  return { ok: true, prefs: d[token].prefs };
 }
 
 // Default Expo push sender (POST to Expo's service). Swapped out in tests.
@@ -158,6 +183,7 @@ async function tick(deps = {}) {
   let sent = 0;
   for (const token of tokens) {
     const state = d[token];
+    if (!state.expoPushToken) continue; // prefs-only stub (no device token yet) — nothing to send to
     const session = sessions.get(token);
     if (!session) continue; // login expired — can't poll their MFL, skip (keep the registration)
     const prefs = state.prefs || {};
@@ -188,4 +214,4 @@ async function tick(deps = {}) {
   return { tokens: tokens.length, sent };
 }
 
-module.exports = { registerToken, unregister, tick, buildFor, _setSender };
+module.exports = { registerToken, unregister, getPrefs, setPrefs, tick, buildFor, _setSender, DEFAULT_PREFS };
