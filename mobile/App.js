@@ -7,6 +7,7 @@ import { registerForPush, unregisterPush } from './src/push';
 import { clearAll as clearCache } from './src/cache';
 import LoginScreen from './src/screens/LoginScreen';
 import HomeScreen from './src/screens/HomeScreen';
+import LeaguesScreen from './src/screens/LeaguesScreen';
 import ScoresScreen from './src/screens/ScoresScreen';
 import WaiversScreen from './src/screens/WaiversScreen';
 import PlayersScreen from './src/screens/PlayersScreen';
@@ -107,6 +108,7 @@ export default function App() {
   const openTradeInbox = () => pushOverlay({ type: 'tradeInbox' });
   const openDraft = (league) => pushOverlay({ type: 'draft', league });
   const openDraftHub = () => pushOverlay({ type: 'draftHub' });
+  const openLeagues = () => pushOverlay({ type: 'leagues' });
   const openOnDeck = () => pushOverlay({ type: 'onDeck' });
   const openPlayer = (playerId) => pushOverlay({ type: 'playerProfile', playerId });
   const openWaivers = (target) => {
@@ -138,6 +140,7 @@ export default function App() {
             demoMode={demoMode}
             onOpenLineup={openLineup}
             onOpenLeague={openRoster}
+            onOpenLeagues={openLeagues}
             onOpenWaivers={(league) => openWaivers({ leagueId: league.leagueId, position: league.position })}
             onOpenTrades={openTrades}
             onOpenTradeInbox={openTradeInbox}
@@ -196,6 +199,9 @@ export default function App() {
     if (overlay && overlay.type === 'draftHub') {
       return <DraftHubScreen onBack={popOverlay} onOpenDraft={openDraft} />;
     }
+    if (overlay && overlay.type === 'leagues') {
+      return <LeaguesScreen onBack={popOverlay} onOpenLeague={openRoster} onOpenDraftHub={openDraftHub} />;
+    }
     if (overlay && overlay.type === 'onDeck') {
       return (
         <OnDeckScreen
@@ -244,7 +250,10 @@ function TabBar({ tab, onChange }) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.bg },
+  // SafeAreaView only insets on iOS; on Android the (translucent) status bar would
+  // otherwise overlap the top of every screen (search box, tab menus). Pad the root
+  // by the Android status-bar height so all content clears the OS ribbon.
+  safe: { flex: 1, backgroundColor: colors.bg, paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0 },
   flex: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   tabbar: {
