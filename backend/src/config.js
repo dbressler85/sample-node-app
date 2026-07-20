@@ -41,10 +41,20 @@ const config = {
   // Minimum milliseconds between the START of one outbound MFL request and the next.
   mflMinRequestIntervalMs: int(process.env.MFL_MIN_REQUEST_INTERVAL_MS, 150),
 
-  // Short-lived cache for volatile MFL export responses (rosters, projections),
+  // Cache for moderately volatile MFL export responses (rosters, free agents),
   // so the many services that build one screen don't re-fetch the same data and
-  // pull-to-refresh doesn't hammer MFL. Keyed by URL + session.
-  mflCacheTtlMs: int(process.env.MFL_CACHE_TTL_MS, 60 * 1000),
+  // revisiting a screen doesn't re-fan-out every league. Keyed by URL + session.
+  // In-app writes invalidate the affected league's reads immediately, so this can
+  // be generous without showing stale data after an action; dynasty rosters/pools
+  // otherwise change on the order of hours, not seconds.
+  mflCacheTtlMs: int(process.env.MFL_CACHE_TTL_MS, 5 * 60 * 1000),
+
+  // Cache for slow-changing per-league scoring reads (weekly projected scores,
+  // past-week player scores). Projections move at most weekly and completed weeks
+  // never change, yet a player profile fans these across all your leagues — so a
+  // longer TTL keeps profiles fast after warm-up and slashes the burst that trips
+  // MFL's rate limiter. Live in-week scoring uses mflLiveTtlMs instead.
+  mflSlowTtlMs: int(process.env.MFL_SLOW_TTL_MS, 30 * 60 * 1000),
 
   // Very short cache for reads that back live-polled screens (live scoring, live
   // draft board). These are polled every 15–45s and must reflect changes on that
