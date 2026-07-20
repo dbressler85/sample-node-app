@@ -111,7 +111,12 @@ build, and is memoized per cookie so switching rank type / refining search /
 opening a profile reuses one gather; **player DB persisted to disk** — with a
 real `DATA_DIR` (mounted disk) the big MFL `players` export is saved to the
 durable store, so a restart rehydrates it from disk instead of re-downloading the
-whole NFL universe (`MFL_PERSIST_PLAYERS`, auto-on when `DATA_DIR` is set)).
+whole NFL universe (`MFL_PERSIST_PLAYERS`, auto-on when `DATA_DIR` is set);
+**Waivers landing lightened** — the per-league overview used the full `getRoster`
+(all-franchise valuation + strength) and the full free-agent board build
+(`projectedScores` fetch + per-player enrichment for ~300 players) just to show a
+roster count + FA count + top 3; it now uses `myRosterLight` and a light
+`freeAgentSummary` (memoized ids + values, no projections/board build)).
 Remaining, in rough priority order:
 
 - [ ] **DraftScreen: virtualize the player pool.** `DraftScreen` renders the

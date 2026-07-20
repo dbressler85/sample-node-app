@@ -45,6 +45,7 @@ const TESTS = [
   'trade-construction-test',
   'players-perf-test',
   'players-persist-test',
+  'waivers-perf-test',
 ];
 
 let failed = 0;
