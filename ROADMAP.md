@@ -107,6 +107,45 @@ Cross-league management is the moat; these deepen it.
   unverified response shape — text-scans lock/unlock semantics tolerant of
   field-name/format variation; tighten once verified against a real league's
   calendar response.)*
+- [ ] **Target / Avoid personal player tags (±10% value overlay).** Let the owner tag any
+  player **Target** (+10%) or **Avoid** (−10%) to encode personal conviction, so the app's
+  value-based decisions lean the way they lean. Spec:
+  - **Two lenses — the core principle.** Keep the existing enrichment `value` as the
+    honest **market value** (it drives fairness and, crucially, the *partner's* perception
+    and their needs/surplus — they don't share your tags). Add a **personal value** overlay
+    = `market × modifier` (Target ×1.10, Avoid ×0.90). Never fold the modifier into the one
+    shared value, or the "fair deal" verdict stops telling the truth and the partner gets
+    mis-modeled.
+  - **Mechanic.** Multiplicative (a Target stud swings more than a Target scrub, for free),
+    applied to the player wherever he lands on **your** side of a deal — symmetric and
+    self-correct in all four directions (acquire/send × Target/Avoid). Applies to
+    value-based surfaces only.
+  - **Data model.** A token-keyed `store/playerTags` (`token → { [playerId]: 'target' |
+    'avoid' }`), **global across leagues** (conviction is player-level), mirroring
+    `watchlist`/`tradebait`/`leaguePrefs`. A tiny `personalValue(id) = marketValue(id) ×
+    mod(tag)` helper the surfaces opt into. Tag toggle lives on the **player profile**
+    (`◎ Target` / `⊘ Avoid`) — reachable everywhere now (System 1).
+  - **Integration (ranked).** *Core — trades:* your-side value in the builder + inbox
+    verdict, showing **both** market and your value; bias `suggestFor`/`counterFor` to put
+    **Avoids** in the give and protect **Targets**; inbox flag "they're asking for a Target"
+    / "you'd take on an Avoid". *Waivers:* a **Target** who's a free agent floats to the top
+    with a star (ties into watchlist alerts + push — "your Target just hit waivers");
+    Avoids sink. *Draft board:* Targets highlighted, Avoids dimmed (the opt-in, owner-
+    declared personalization — distinct from the rejected *need-adjusted* board, which
+    guessed). *On the Block:* offer to add an Avoid to the block; surface "your Avoids —
+    shop these". *Rankings/Players:* a tier badge + optional "my values" sort. *Portfolio:*
+    "you roster N Avoids across leagues".
+  - **Explicitly NOT lineups / start-sit.** Those stay projection-driven — starting a worse
+    player because you like him loses points. The modifier has no business there.
+  - **Cross-wire** (keep the concepts distinct — tag = value lens, watch = track, block =
+    shopping — but link them): tagging Target offers "watch him"; tagging Avoid offers "add
+    to block".
+  - **Open decisions.** Ship **binary** ±10% but store a numeric modifier so a stronger
+    "Cornerstone" (+25%) / "Hard Avoid" (−25%) tier is later config, not a rewrite; show
+    **both** values in trades, personalize silently elsewhere.
+  - **MVP slice.** Store + profile toggle → trades only (your-value in builder & inbox,
+    both values shown, suggestions biased) → waivers/draft highlights → rankings/portfolio
+    polish.
 
 ## Cross-screen synergy (UX pass — reviewed 2026-07-20)
 
