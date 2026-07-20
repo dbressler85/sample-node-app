@@ -57,6 +57,7 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
   const [statuses, setStatuses] = useState({}); // leagueId -> { name, status, items }
   const [drafts, setDrafts] = useState([]); // only ACTIONABLE drafts (on the clock / live / imminent)
   const [onDeck, setOnDeck] = useState(null); // time-sorted deadlines across leagues
+  const [watchAlerts, setWatchAlerts] = useState([]); // watched players now free / on the block
   const [expanded, setExpanded] = useState(new Set(GROUP_ORDER.filter((t) => GROUPS[t].open)));
   const [progress, setProgress] = useState(null); // { done, total }
   const [error, setError] = useState(null);
@@ -105,6 +106,10 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
 
       // On Deck — time-sorted deadlines across leagues (the proactive layer).
       api.onDeck().then(setOnDeck).catch(() => {});
+
+      // Watchlist alerts — a player you track just became a free agent or was put on the
+      // block by another owner. Background, best-effort; empty (fast) if you track no one.
+      api.watchlistAlerts().then((r) => setWatchAlerts(r.alerts || [])).catch(() => {});
 
       setProgress({ done: 0, total: list.length });
       const collected = {};
@@ -274,6 +279,27 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
                       </Text>
                     </View>
                     {d.myOnClock ? <Text style={styles.draftPill}>PICK</Text> : <Text style={styles.teamChev}>›</Text>}
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
+            {watchAlerts.length ? (
+              <View>
+                <Text style={styles.section}>Watchlist · {watchAlerts.length}</Text>
+                {watchAlerts.slice(0, 6).map((a, i) => (
+                  <Pressable
+                    key={`${a.playerId}-${a.leagueId}-${i}`}
+                    style={({ pressed }) => [styles.watchRow, pressed && { opacity: 0.7 }]}
+                    onPress={() => onOpenPlayer(a.playerId)}
+                  >
+                    <Text style={styles.watchIcon}>⭐</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.watchName} numberOfLines={1}>{a.name}</Text>
+                      <Text style={[styles.watchSub, a.type === 'free' && { color: colors.good }]} numberOfLines={1}>
+                        {a.type === 'free' ? `Now a free agent in ${a.leagueName}` : `On the block in ${a.leagueName}`}
+                      </Text>
+                    </View>
+                    <Text style={styles.teamChev}>›</Text>
                   </Pressable>
                 ))}
               </View>
@@ -464,6 +490,10 @@ const styles = StyleSheet.create({
   onDeckIcon: { fontSize: 20, marginRight: 12 },
   onDeckName: { color: colors.text, fontSize: 15, fontWeight: '900', letterSpacing: 0.2 },
   onDeckSub: { color: colors.textDim, fontSize: 12, marginTop: 3 },
+  watchRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, paddingVertical: 12, paddingHorizontal: 14, marginBottom: 8 },
+  watchIcon: { fontSize: 16, marginRight: 12 },
+  watchName: { color: colors.text, fontSize: 15, fontWeight: '700' },
+  watchSub: { color: colors.textDim, fontSize: 12, marginTop: 2 },
   inboxRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 14, marginTop: 12 },
   inboxName: { color: colors.text, fontSize: 15, fontWeight: '800' },
   inboxSub: { color: colors.textDim, fontSize: 12, marginTop: 3 },

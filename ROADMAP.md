@@ -154,8 +154,12 @@ Grouped into four "synergy systems", highest-leverage first:
   to propose now leads with where a deal is most likely to click.
 
 ### System 3 — Signals computed and thrown away
-- [ ] **Surface "watched player is now a free agent" on Home.** Watchlist already
-  computes `summary.free`; Home triage only detects `trade_offer` / `waiver_pending`.
+- [x] **Surface watchlist events on Home.** A new **Watchlist** section on Home flags a
+  tracked player who just became a **free agent** you could claim, or whom **another owner
+  put on the block** (their MFL trade bait), in any of your (non-muted) leagues. Backend
+  `watchlist.alerts` + `GET /api/watchlist/alerts` cross the watchlist ids with the
+  memoized free-agent sets and the trade-bait board; each row opens that player's profile
+  (add/trade from there). Fetched in the background, empty-fast with no watchlist.
 - [ ] **Expand push beyond draft-clock + trade-offer.** On Deck / exposure / news
   already detect lineup holes before lock, injuries to *your starters*, and waiver runs;
   the detection exists, push just doesn't subscribe to it.

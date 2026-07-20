@@ -115,6 +115,7 @@ export const api = {
 
   // Cross-league watchlist
   watchlist: () => request('/api/watchlist'),
+  watchlistAlerts: () => request('/api/watchlist/alerts'),
   watchAdd: (id) => request(`/api/watchlist/${id}`, { method: 'POST' }),
   watchRemove: (id) => request(`/api/watchlist/${id}`, { method: 'DELETE' }),
 

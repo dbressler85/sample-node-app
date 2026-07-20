@@ -16,6 +16,16 @@ router.get('/watchlist', async (req, res, next) => {
   }
 });
 
+// GET /api/watchlist/alerts — watched players who just became actionable (a free agent
+// you could claim, or on another owner's trade bait) in one of your leagues.
+router.get('/watchlist/alerts', async (req, res, next) => {
+  try {
+    res.json(await watchlist.alerts(req.mflCookie, req.token));
+  } catch (err) {
+    next(err);
+  }
+});
+
 // POST /api/watchlist/:id — star a player.
 router.post('/watchlist/:id', (req, res, next) => {
   try {
