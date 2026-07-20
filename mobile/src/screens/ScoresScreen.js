@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, FlatList, StyleSheet, RefreshControl, ActivityIndicator } from 'react-native';
 import { api } from '../api';
 import { colors } from '../theme';
+import { ScreenTitle } from '../components/Brand';
 import usePoll from '../usePoll';
 
 const STATUS = {
@@ -50,7 +51,7 @@ export default function ScoresScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Scoreboard</Text>
+        <ScreenTitle>Scoreboard</ScreenTitle>
         {s ? (
           <Text style={styles.subtitle}>
             Week {data.week} · {s.live} live · {s.winning} winning · {s.close} close

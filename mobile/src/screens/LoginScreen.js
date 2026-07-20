@@ -52,7 +52,7 @@ export default function LoginScreen({ onLoggedIn }) {
         </View>
         <Text style={styles.brandTop}>DYNASTY</Text>
         <Text style={styles.brandMain}>Central</Text>
-        <Text style={styles.tagline}>Many leagues, one hub.</Text>
+        <Text style={styles.tagline}>Your dynasty, one command.</Text>
 
         {demoMode ? (
           <View style={styles.demoPill}>
