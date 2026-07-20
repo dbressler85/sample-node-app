@@ -28,7 +28,8 @@ export default function TradeInboxScreen({ onBack, onOpenLeague, onProposeInLeag
   const [busy, setBusy] = useState(null); // `${leagueId}:${offerId}` being responded to
   const [baitByLeague, setBaitByLeague] = useState({}); // leagueId -> # players you're shopping
 
-  useAndroidBack(useCallback(() => { onBack(); return true; }, [onBack]));
+  // As a top-level tab there's no onBack — let the app's handler take hardware back to Home.
+  useAndroidBack(useCallback(() => { if (onBack) { onBack(); return true; } return false; }, [onBack]));
 
   const load = useCallback(async () => {
     setError(null);
@@ -109,10 +110,14 @@ export default function TradeInboxScreen({ onBack, onOpenLeague, onProposeInLeag
   return (
     <View style={styles.container}>
       <View style={styles.topbar}>
-        <Pressable onPress={onBack} hitSlop={10}>
-          <Text style={styles.back}>‹ Home</Text>
-        </Pressable>
-        <Text style={styles.title}>Trade Inbox</Text>
+        {onBack ? (
+          <Pressable onPress={onBack} hitSlop={10}>
+            <Text style={styles.back}>‹ Home</Text>
+          </Pressable>
+        ) : (
+          <View style={{ width: 54 }} />
+        )}
+        <Text style={styles.title}>Trades</Text>
         {onOpenBlock ? (
           <Pressable onPress={onOpenBlock} hitSlop={10}>
             <Text style={styles.blockLink}>⇄ Block</Text>
