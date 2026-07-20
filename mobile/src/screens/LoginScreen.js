@@ -16,6 +16,7 @@ import { colors } from '../theme';
 import HubMark from '../components/HubMark';
 import FieldBackdrop from '../components/FieldBackdrop';
 import PressableScale from '../components/PressableScale';
+import { displayXL, displayLabel } from '../typography';
 
 export default function LoginScreen({ onLoggedIn }) {
   const [username, setUsername] = useState('');
@@ -69,8 +70,8 @@ export default function LoginScreen({ onLoggedIn }) {
         </Animated.View>
 
         <Animated.View style={[fade, rise]}>
-          <Text style={styles.brandTop}>DYNASTY</Text>
-          <Text style={styles.brandMain}>Central</Text>
+          <Text style={[styles.brandTop, displayLabel()]}>DYNASTY</Text>
+          <Text style={[styles.brandMain, displayXL()]}>Central</Text>
           <Animated.View style={[styles.rule, rule]} />
           <Text style={styles.tagline}>Your dynasty, one command.</Text>
 
