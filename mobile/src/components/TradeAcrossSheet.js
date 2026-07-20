@@ -7,8 +7,17 @@ import { colors } from '../theme';
 // he's on another team; picking one opens that league's trade desk seeded with the target
 // and a needs-fitting suggested offer you then craft. If he's only a target in one league,
 // the caller opens it directly (this sheet is for choosing among several).
-export default function TradeAcrossSheet({ player, onClose, onCraft }) {
+export default function TradeAcrossSheet({ player, onClose, onCraft, onStartWizard }) {
   const [preview, setPreview] = useState(null);
+  const [selected, setSelected] = useState(new Set());
+
+  const ctxFor = (l) => ({ leagueId: l.leagueId, name: l.name, targetPlayerId: player.id, partnerFranchiseId: l.partnerFranchiseId });
+  function start() {
+    const chosen = (preview.leagues || []).filter((l) => selected.has(l.leagueId)).map(ctxFor);
+    if (!chosen.length) return;
+    if (chosen.length === 1) onCraft(chosen[0]);
+    else onStartWizard(chosen);
+  }
 
   useEffect(() => {
     let alive = true;
@@ -37,20 +46,30 @@ export default function TradeAcrossSheet({ player, onClose, onCraft }) {
           <Text style={styles.empty}>He isn't on another team in any of your leagues — nothing to offer for.</Text>
         ) : (
           <>
-            <Text style={styles.sub}>Pick a league to craft an offer. Each opens that league's trade desk with a suggested, needs-fitting package you can adjust.</Text>
-            {preview.leagues.map((l) => (
-              <Pressable
-                key={l.leagueId}
-                style={({ pressed }) => [styles.row, pressed && { opacity: 0.7 }]}
-                onPress={() => onCraft({ leagueId: l.leagueId, name: l.name, targetPlayerId: player.id, partnerFranchiseId: l.partnerFranchiseId })}
-              >
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.league} numberOfLines={1}>{l.name}</Text>
-                  <Text style={styles.owner} numberOfLines={1}>held by {l.partnerName}</Text>
-                </View>
-                <Text style={styles.craft}>Craft offer ›</Text>
-              </Pressable>
-            ))}
+            <Text style={styles.sub}>Check the leagues you want to shop him in. One opens that league's trade desk; several step you through a suggested, needs-fitting offer in each.</Text>
+            {preview.leagues.map((l) => {
+              const on = selected.has(l.leagueId);
+              return (
+                <Pressable
+                  key={l.leagueId}
+                  style={({ pressed }) => [styles.row, pressed && { opacity: 0.7 }]}
+                  onPress={() => setSelected((s) => { const n = new Set(s); n.has(l.leagueId) ? n.delete(l.leagueId) : n.add(l.leagueId); return n; })}
+                >
+                  <View style={[styles.check, on && styles.checkOn]}>{on ? <Text style={styles.checkMark}>✓</Text> : null}</View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.league} numberOfLines={1}>{l.name}</Text>
+                    <Text style={styles.owner} numberOfLines={1}>held by {l.partnerName}</Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+            <Pressable
+              style={({ pressed }) => [styles.confirm, !selected.size && styles.confirmOff, pressed && selected.size && { opacity: 0.85 }]}
+              onPress={start}
+              disabled={!selected.size}
+            >
+              <Text style={styles.confirmText}>{selected.size > 1 ? `Craft offers (${selected.size}) ›` : 'Craft offer ›'}</Text>
+            </Pressable>
           </>
         )}
       </Pressable>
@@ -67,5 +86,10 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   league: { color: colors.text, fontSize: 15, fontWeight: '700' },
   owner: { color: colors.textDim, fontSize: 13, marginTop: 2 },
-  craft: { color: colors.accent, fontSize: 14, fontWeight: '800' },
+  check: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: colors.border, marginRight: 12, alignItems: 'center', justifyContent: 'center' },
+  checkOn: { backgroundColor: colors.accent, borderColor: colors.accent },
+  checkMark: { color: '#fff', fontSize: 13, fontWeight: '900' },
+  confirm: { marginTop: 16, backgroundColor: colors.accent, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
+  confirmOff: { opacity: 0.4 },
+  confirmText: { color: '#fff', fontSize: 15, fontWeight: '800' },
 });
