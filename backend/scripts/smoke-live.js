@@ -46,6 +46,7 @@ const TESTS = [
   'players-perf-test',
   'players-persist-test',
   'waivers-perf-test',
+  'waiver-multi-test',
 ];
 
 let failed = 0;

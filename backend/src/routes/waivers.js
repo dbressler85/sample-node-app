@@ -70,6 +70,25 @@ router.post('/leagues/:leagueId/waivers', async (req, res, next) => {
   }
 });
 
+// POST /api/leagues/:leagueId/waivers/multi/preview — validate a queue of claims with
+// FAAB budgeting + roster space across them. Body: { claims: [{ addId, dropId?, bid? }] }.
+router.post('/leagues/:leagueId/waivers/multi/preview', async (req, res, next) => {
+  try {
+    res.json(await waivers.previewMulti(req.mflCookie, req.token, req.params.leagueId, (req.body || {}).claims));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/leagues/:leagueId/waivers/multi — submit a whole queue at once.
+router.post('/leagues/:leagueId/waivers/multi', async (req, res, next) => {
+  try {
+    res.json(await waivers.submitMulti(req.mflCookie, req.token, req.params.leagueId, (req.body || {}).claims));
+  } catch (err) {
+    next(err);
+  }
+});
+
 // DELETE /api/leagues/:leagueId/waivers/:claimId — cancel a pending claim.
 router.delete('/leagues/:leagueId/waivers/:claimId', async (req, res, next) => {
   try {

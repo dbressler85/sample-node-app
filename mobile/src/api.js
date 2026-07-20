@@ -142,6 +142,8 @@ export const api = {
   waiverPending: () => request('/api/waivers/pending'),
   previewClaim: (leagueId, body) => request(`/api/leagues/${leagueId}/waivers/preview`, { method: 'POST', body }),
   submitClaim: (leagueId, body) => request(`/api/leagues/${leagueId}/waivers`, { method: 'POST', body }),
+  previewMultiClaim: (leagueId, claims) => request(`/api/leagues/${leagueId}/waivers/multi/preview`, { method: 'POST', body: { claims } }),
+  submitMultiClaim: (leagueId, claims) => request(`/api/leagues/${leagueId}/waivers/multi`, { method: 'POST', body: { claims } }),
   cancelClaim: (leagueId, claimId) => request(`/api/leagues/${leagueId}/waivers/${claimId}`, { method: 'DELETE' }),
 
   // Lineups (M2 / M2.5). mode: 'auto' | 'safe' | 'balanced' | 'aggressive'

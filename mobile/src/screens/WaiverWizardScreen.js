@@ -14,6 +14,7 @@ export default function WaiverWizardScreen({ leagues, onBack }) {
   const [addId, setAddId] = useState(null);
   const [dropId, setDropId] = useState(null);
   const [bid, setBid] = useState(null); // string, faab only
+  const [queue, setQueue] = useState([]); // extra claims staged for THIS league (multi-add)
   const [browsing, setBrowsing] = useState(false); // candidate picker open
   const [posFilter, setPosFilter] = useState(null); // position filter in the add picker
   const [changingDrop, setChangingDrop] = useState(false); // bench picker open
@@ -35,6 +36,7 @@ export default function WaiverWizardScreen({ leagues, onBack }) {
     setAddId(seedAdd);
     setDropId(rec && rec.drop ? rec.drop.id : null);
     setBid(rec && rec.bid != null ? String(rec.bid) : current.system === 'faab' ? String(current.minBid || 1) : null);
+    setQueue([]);
     setBrowsing(false);
     setPosFilter(null);
     setChangingDrop(false);
@@ -47,9 +49,11 @@ export default function WaiverWizardScreen({ leagues, onBack }) {
     for (const c of current.candidates) if (!seen.includes(c.position)) seen.push(c.position);
     return seen;
   }, [current && current.leagueId]);
+  const queuedAddIds = useMemo(() => new Set(queue.map((q) => q.addId)), [queue]);
+  const queuedDropIds = useMemo(() => new Set(queue.map((q) => q.dropId).filter(Boolean)), [queue]);
   const filteredCandidates = useMemo(
-    () => (current ? current.candidates.filter((c) => !posFilter || c.position === posFilter) : []),
-    [current && current.leagueId, posFilter]
+    () => (current ? current.candidates.filter((c) => (!posFilter || c.position === posFilter) && !queuedAddIds.has(c.id)) : []),
+    [current && current.leagueId, posFilter, queuedAddIds]
   );
 
   const candById = useMemo(() => {
@@ -81,20 +85,54 @@ export default function WaiverWizardScreen({ leagues, onBack }) {
   }
   const valid = errors.length === 0;
 
+  // Running totals across the queue + the claim in progress (multi-add). The backend
+  // re-validates the whole queue on submit; these are the live client-side hints.
+  const queuedBidTotal = queue.reduce((s, q) => s + (q.bid || 0), 0);
+  const addsCount = queue.length + (add ? 1 : 0);
+  const dropsCount = queuedDropIds.size + (dropId ? 1 : 0);
+  const rosterAfter = current ? current.rosterCount + addsCount - dropsCount : 0;
+  const overRoster = current && rosterAfter > current.rosterSize;
+  const totalSpend = queuedBidTotal + (isFaab && bidNum ? bidNum : 0);
+  const budgetLeftAll = isFaab && current && current.faabRemaining != null ? current.faabRemaining - totalSpend : null;
+  const overBudget = budgetLeftAll != null && budgetLeftAll < 0;
+  // Total claims we'd submit = queued + the current one (if it's complete).
+  const pendingCount = queue.length + (valid ? 1 : 0);
+  const canSubmit = pendingCount > 0 && !overRoster && !overBudget;
+
   function advance(result) {
     setResults((r) => [...r, result]);
     setIndex((i) => i + 1);
   }
 
+  // Stash the current (valid) claim and reset the builder for another in this league.
+  function addToQueue() {
+    if (!valid || !add) return;
+    const q = { addId, dropId: dropId || null, bid: isFaab && bidNum != null ? bidNum : null, add: { name: add.name, position: add.position, value: add.value }, drop: drop ? { name: drop.name } : null };
+    const nextQueue = [...queue, q];
+    setQueue(nextQueue);
+    const nextAdd = current.candidates.find((c) => !nextQueue.some((x) => x.addId === c.id));
+    setAddId(nextAdd ? nextAdd.id : null);
+    setDropId(null);
+    setBid(current.system === 'faab' ? String(current.minBid || 1) : null);
+    setBrowsing(false);
+    setChangingDrop(false);
+    setPosFilter(null);
+  }
+  function removeFromQueue(id) {
+    setQueue((qs) => qs.filter((q) => q.addId !== id));
+  }
+
   async function submitAndNext() {
-    if (!valid || !current) return;
+    if (!canSubmit || !current) return;
+    const claims = queue.map((q) => ({ addId: q.addId, dropId: q.dropId || undefined, bid: q.bid != null ? q.bid : undefined }));
+    if (valid && add) claims.push({ addId, dropId: dropId || undefined, bid: isFaab && bidNum != null ? bidNum : undefined });
+    if (!claims.length) return;
     setSubmitting(true);
     try {
-      const body = { addId };
-      if (dropId) body.dropId = dropId;
-      if (isFaab && bidNum != null) body.bid = bidNum;
-      await api.submitClaim(current.leagueId, body);
-      advance({ leagueId: current.leagueId, name: current.name, action: 'claimed', add: add.name, bid: isFaab ? bidNum : null });
+      const names = [...queue.map((q) => q.add.name), ...(valid && add ? [add.name] : [])].map((n) => n.split(',')[0]);
+      if (claims.length === 1) await api.submitClaim(current.leagueId, claims[0]);
+      else await api.submitMultiClaim(current.leagueId, claims);
+      advance({ leagueId: current.leagueId, name: current.name, action: 'claimed', add: names.join(', '), count: names.length, bid: isFaab ? totalSpend : null });
     } catch (e) {
       Alert.alert('Could not submit', e.message);
     } finally {
@@ -230,7 +268,39 @@ export default function WaiverWizardScreen({ leagues, onBack }) {
           </>
         ) : null}
 
-        {!valid ? <Text style={styles.errorText}>{errors[0]}</Text> : null}
+        {/* MULTI-ADD: stage this claim, then queue another in the same league */}
+        <Pressable
+          style={({ pressed }) => [styles.queueBtn, !valid && styles.queueBtnOff, pressed && valid && { opacity: 0.85 }]}
+          onPress={addToQueue}
+          disabled={!valid}
+        >
+          <Text style={[styles.queueBtnText, !valid && { color: colors.textDim }]}>+ Queue this & add another</Text>
+        </Pressable>
+
+        {queue.length ? (
+          <View style={styles.queuePanel}>
+            <Text style={styles.queueTitle}>Queued in {current.name.split(' ')[0]} · {queue.length}</Text>
+            {queue.map((q) => (
+              <View key={q.addId} style={styles.queueRow}>
+                <Text style={styles.queueName} numberOfLines={1}>
+                  + {q.add.name.split(',')[0]}
+                  <Text style={styles.queueMeta}>
+                    {`  ${q.add.position}`}{q.drop ? ` · − ${q.drop.name.split(',')[0]}` : ''}{q.bid != null ? ` · $${q.bid}` : ''}
+                  </Text>
+                </Text>
+                <Pressable onPress={() => removeFromQueue(q.addId)} hitSlop={8}>
+                  <Text style={styles.queueRemove}>✕</Text>
+                </Pressable>
+              </View>
+            ))}
+            <Text style={[styles.runTotals, (overRoster || overBudget) && { color: colors.bad }]}>
+              {isFaab && current.faabRemaining != null ? `Bids $${totalSpend} · $${budgetLeftAll} left${overBudget ? ' — over budget!' : ''}  ·  ` : ''}
+              Roster {rosterAfter}/{current.rosterSize}{overRoster ? ' — over!' : ''}
+            </Text>
+          </View>
+        ) : null}
+
+        {!valid && !queue.length ? <Text style={styles.errorText}>{errors[0]}</Text> : null}
         </>
         )}
       </ScrollView>
@@ -246,15 +316,15 @@ export default function WaiverWizardScreen({ leagues, onBack }) {
               <Text style={styles.skipInlineText}>Skip</Text>
             </Pressable>
             <Pressable
-              style={({ pressed }) => [styles.submit, (!valid || submitting) && styles.submitOff, pressed && valid && { opacity: 0.85 }]}
+              style={({ pressed }) => [styles.submit, (!canSubmit || submitting) && styles.submitOff, pressed && canSubmit && { opacity: 0.85 }]}
               onPress={submitAndNext}
-              disabled={!valid || submitting}
+              disabled={!canSubmit || submitting}
             >
               {submitting ? (
                 <ActivityIndicator color="#fff" />
               ) : (
                 <Text style={styles.submitText}>
-                  {current.system === 'free' ? 'Add' : 'Claim'}{index + 1 === total ? ' & Finish' : ' & Next'}
+                  {current.system === 'free' ? 'Add' : 'Claim'}{pendingCount > 1 ? ` ${pendingCount}` : ''}{index + 1 === total ? ' & Finish' : ' & Next'}
                 </Text>
               )}
             </Pressable>
@@ -294,12 +364,13 @@ function PlayerLine({ p, showValue, compact }) {
 function Summary({ results, onBack }) {
   const claimed = results.filter((r) => r.action === 'claimed');
   const skipped = results.filter((r) => r.action === 'skipped');
+  const totalClaims = claimed.reduce((s, r) => s + (r.count || 1), 0);
   return (
     <View style={styles.container}>
       <View style={styles.center}>
         <Text style={styles.doneMark}>✓</Text>
         <Text style={styles.doneTitle}>
-          {claimed.length ? `${claimed.length} claim${claimed.length === 1 ? '' : 's'} submitted` : 'No claims submitted'}
+          {totalClaims ? `${totalClaims} claim${totalClaims === 1 ? '' : 's'} submitted` : 'No claims submitted'}
         </Text>
         {skipped.length ? <Text style={styles.doneSub}>{skipped.length} skipped</Text> : null}
         <View style={styles.summaryList}>
@@ -308,7 +379,7 @@ function Summary({ results, onBack }) {
               <Text style={styles.summaryName} numberOfLines={1}>{r.name}</Text>
               {r.action === 'claimed' ? (
                 <Text style={styles.summarySet} numberOfLines={1}>
-                  + {r.add.split(',')[0]}{r.bid != null ? ` · $${r.bid}` : ''}
+                  + {r.add}{r.bid ? ` · $${r.bid}` : ''}
                 </Text>
               ) : r.action === 'locked' ? (
                 <Text style={styles.summaryLocked}>🔒 locked</Text>
@@ -392,6 +463,16 @@ const styles = StyleSheet.create({
   bidInput: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14, color: colors.text, fontSize: 18, fontWeight: '800', minWidth: 70, textAlign: 'center' },
   budgetAfter: { color: colors.textDim, fontSize: 12, fontWeight: '600' },
   errorText: { color: colors.bad, fontSize: 13, marginTop: 16, fontWeight: '600' },
+  queueBtn: { marginTop: 20, borderWidth: 1, borderColor: colors.accent, borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
+  queueBtnOff: { borderColor: colors.border },
+  queueBtnText: { color: colors.accent, fontSize: 14, fontWeight: '800' },
+  queuePanel: { marginTop: 14, backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 12 },
+  queueTitle: { color: colors.textDim, fontSize: 11, fontWeight: '900', letterSpacing: 0.4, textTransform: 'uppercase', marginBottom: 6 },
+  queueRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+  queueName: { color: colors.text, fontSize: 14, fontWeight: '700', flex: 1, marginRight: 10 },
+  queueMeta: { color: colors.textDim, fontSize: 12, fontWeight: '600' },
+  queueRemove: { color: colors.textDim, fontSize: 15, fontWeight: '800' },
+  runTotals: { color: colors.gold, fontSize: 12, fontWeight: '800', marginTop: 10 },
   actions: { flexDirection: 'row', paddingHorizontal: 16, paddingBottom: 16, paddingTop: 4, gap: 12 },
   skipInline: { paddingHorizontal: 22, borderRadius: 14, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
   skipInlineText: { color: colors.textDim, fontSize: 15, fontWeight: '700' },

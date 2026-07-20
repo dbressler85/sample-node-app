@@ -300,8 +300,10 @@ async function getBoard(cookie, token, leagueId, { position, sort } = {}) {
   };
 }
 
-// Build a validated claim preview (also fills in suggested drop/bid).
-async function preview(cookie, token, leagueId, payload) {
+// Shared per-league context for validating one or more claims: settings, my roster,
+// values, and the available free-agent set. Loaded once so a multi-claim queue validates
+// against a single snapshot.
+async function loadClaimCtx(cookie, leagueId) {
   const league = await findLeague(cookie, leagueId);
   const settings = await loadSettings(league, cookie);
   const [byId, roster, enr, faIds] = await Promise.all([
@@ -310,11 +312,18 @@ async function preview(cookie, token, leagueId, payload) {
     enrichmentLib.snapshot(await leagueFormat.format(cookie, league), cookie),
     freeAgentIds(cookie, league),
   ]);
-  // Free-agent set is now validated in live too (from MFL freeAgents), not only
-  // in demo — so you can't submit a claim for a player who's on another roster.
+  // Free-agent set is validated in live too (from MFL freeAgents), not only in demo — so
+  // you can't submit a claim for a player who's on another roster.
   const available = new Set(faIds);
   const rosterIds = new Set([...roster.starters, ...roster.bench, ...roster.ir, ...roster.taxi].map((p) => p.id));
+  return { league, settings, byId, roster, enr, available, rosterIds };
+}
 
+// Validate ONE claim {addId, dropId?, bid?, priority?} against the shared context. Returns
+// the resolved add/drop/bid + per-claim validity. Budget is checked against the FULL
+// remaining here; a multi-claim queue also checks the SUM of bids separately.
+function validateClaim(payload, ctx) {
+  const { settings, byId, roster, enr, available, rosterIds } = ctx;
   const errors = [];
   const addId = String(payload.addId || '');
   const add = addId ? { ...playersLib.resolve(byId, addId), value: enr.value(addId), age: enr.age(addId), trend: enr.trend(addId) } : null;
@@ -330,7 +339,6 @@ async function preview(cookie, token, leagueId, payload) {
   if (dropId && !rosterIds.has(dropId)) errors.push('Chosen drop is not on your roster.');
   if (full && !dropId) errors.push('Your roster is full — a drop is required.');
 
-  // System-specific.
   let bid = null;
   let priority = null;
   let budgetAfter = null;
@@ -347,21 +355,127 @@ async function preview(cookie, token, leagueId, payload) {
   }
 
   return {
-    leagueId: league.leagueId,
-    name: league.name,
-    system: settings.system,
-    immediate: settings.system === 'free',
     add: add ? { id: add.id, name: add.name, position: add.position, team: add.team, value: add.value } : null,
     drop: drop ? { id: drop.id, name: drop.name, position: drop.position, value: enr.value(drop.id) } : null,
+    dropId,
     dropRequired: full,
     suggestedDrop: suggestedDrop ? { id: suggestedDrop.id, name: suggestedDrop.name, position: suggestedDrop.position, value: suggestedDrop.value } : null,
     bid,
     suggestedBid,
     priority,
     budgetAfter,
-    clearTime: settings.clearTime || null,
     valid: errors.length === 0,
     errors,
+  };
+}
+
+// Build a validated claim preview (also fills in suggested drop/bid).
+async function preview(cookie, token, leagueId, payload) {
+  const ctx = await loadClaimCtx(cookie, leagueId);
+  const c = validateClaim(payload, ctx);
+  return {
+    leagueId: ctx.league.leagueId,
+    name: ctx.league.name,
+    system: ctx.settings.system,
+    immediate: ctx.settings.system === 'free',
+    clearTime: ctx.settings.clearTime || null,
+    ...c,
+  };
+}
+
+// Validate a QUEUE of claims in one league, with FAAB budgeting across them: each bid can
+// fit alone yet the total bust the budget, and N adds on a full roster need N drops. Also
+// catches duplicate adds/drops and add-and-drop-the-same-player.
+async function previewMulti(cookie, token, leagueId, claims) {
+  const ctx = await loadClaimCtx(cookie, leagueId);
+  const list = (Array.isArray(claims) ? claims : []).filter((c) => c && c.addId);
+  const previews = list.map((c) => validateClaim(c, ctx));
+
+  const errors = [];
+  const addIds = previews.map((p) => p.add && p.add.id).filter(Boolean);
+  const dropIds = previews.map((p) => p.dropId).filter(Boolean);
+  if (addIds.some((id, i) => addIds.indexOf(id) !== i)) errors.push('The same player is queued to add more than once.');
+  if (dropIds.some((id, i) => dropIds.indexOf(id) !== i)) errors.push('The same player is queued to drop more than once.');
+  if (addIds.some((id) => dropIds.includes(id))) errors.push("You can't add and drop the same player.");
+
+  // Roster space if every claim clears: start + adds - unique drops must fit.
+  const rosterSize = ctx.settings.rosterSize || 99;
+  const uniqueDrops = new Set(dropIds).size;
+  const rosterAfter = activeCount(ctx.roster) + addIds.length - uniqueDrops;
+  if (rosterAfter > rosterSize) {
+    const need = rosterAfter - rosterSize;
+    errors.push(`This would put you ${need} over your ${rosterSize} roster spots — queue ${need} more drop${need === 1 ? '' : 's'}.`);
+  }
+
+  // FAAB: the SUM of bids can't exceed remaining, even if each fits alone.
+  let totalBid = 0;
+  let budgetRemaining = null;
+  let budgetAfter = null;
+  if (ctx.settings.system === 'faab') {
+    totalBid = previews.reduce((s, p) => s + (p.bid || 0), 0);
+    budgetRemaining = ctx.settings.faabRemaining || 0;
+    budgetAfter = budgetRemaining - totalBid;
+    if (totalBid > budgetRemaining) errors.push(`Total bids ($${totalBid}) exceed your remaining budget ($${budgetRemaining}).`);
+  }
+
+  const valid = previews.length > 0 && previews.every((p) => p.valid) && errors.length === 0;
+  return {
+    leagueId: ctx.league.leagueId,
+    name: ctx.league.name,
+    system: ctx.settings.system,
+    immediate: ctx.settings.system === 'free',
+    clearTime: ctx.settings.clearTime || null,
+    claims: previews,
+    summary: { count: previews.length, adds: addIds.length, drops: uniqueDrops, rosterAfter, rosterSize, totalBid, budgetRemaining, budgetAfter, valid, errors },
+  };
+}
+
+// Submit a whole queue (validated together). Claims fire in order so FAAB priority is
+// preserved; each result is reported so a partial failure is visible.
+async function submitMulti(cookie, token, leagueId, claims) {
+  const pv = await previewMulti(cookie, token, leagueId, claims);
+  if (!pv.summary.valid) {
+    const msgs = [...pv.summary.errors, ...pv.claims.flatMap((c) => c.errors)];
+    const err = new Error(msgs.join(' ') || 'This queue is not valid.');
+    err.status = 400;
+    err.errors = msgs;
+    throw err;
+  }
+  const league = await findLeague(cookie, leagueId);
+  const results = [];
+  for (const c of pv.claims) {
+    try {
+      if (!config.demoMode) {
+        const type = pv.system === 'faab' ? 'blindBidWaiver' : pv.system === 'fcfs' ? 'fcfsWaiver' : 'waiverRequest';
+        await mfl.importRequest(type, {
+          host: league.host,
+          cookie,
+          L: league.leagueId,
+          FRANCHISE: league.franchiseId,
+          ADD: c.add.id,
+          DROP: c.drop ? c.drop.id : undefined,
+          BID: c.bid != null ? c.bid : undefined,
+        });
+      }
+      const claim = store.add(token, leagueId, config.demoMode ? demo.pendingClaims(leagueId) : [], {
+        system: pv.system,
+        add: c.add,
+        drop: c.drop,
+        bid: c.bid,
+        priority: c.priority,
+        status: pv.immediate ? 'processed' : 'pending',
+        processTime: pv.immediate ? 'immediate' : pv.clearTime,
+      });
+      results.push({ add: c.add, ok: true, claim });
+    } catch (e) {
+      results.push({ add: c.add, ok: false, error: e.message });
+    }
+  }
+  if (pv.immediate) invalidate(cookie, leagueId);
+  return {
+    results,
+    summary: { requested: results.length, submitted: results.filter((r) => r.ok).length, totalBid: pv.summary.totalBid, budgetAfter: pv.summary.budgetAfter },
+    board: await getBoard(cookie, token, leagueId, {}),
   };
 }
 
@@ -678,4 +792,4 @@ async function getPending(cookie, token) {
   return { pending, results, summary: { pending: pending.length, results: results.length } };
 }
 
-module.exports = { getBoard, getOverview, getSuggestions, preview, submit, cancel, getBestAvailable, getPending, freeAgentIds, invalidate };
+module.exports = { getBoard, getOverview, getSuggestions, preview, submit, previewMulti, submitMulti, cancel, getBestAvailable, getPending, freeAgentIds, invalidate };
