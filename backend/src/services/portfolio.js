@@ -145,15 +145,20 @@ async function getLeagueTriage(cookie, token, leagueId) {
 
 async function getHome(cookie, token) {
   const phase = await seasonPhase(cookie);
-  const leagues = await leaguesService.listLeagues(cookie);
+  // Muted leagues drop out of Home triage; pinned sort first.
+  const leagues = await leaguesService.orderedLeagues(cookie, token, { hideMuted: true });
   const items = [];
   const counts = { injuries: 0, holes: 0, lineupsToSet: 0 };
   const teams = [];
   const dynastyList = [];
 
   if (phase === 'in_season') {
+    // The lineup overview does its own (unfiltered) league read, so restrict it to the
+    // visible set here — otherwise a muted league's lineup status would leak into triage.
+    const visible = new Set(leagues.map((l) => String(l.leagueId)));
     const overview = await lineupsService.getOverview(cookie, token, 'auto', { light: true });
     for (const l of overview.leagues) {
+      if (!visible.has(String(l.leagueId))) continue;
       if (l.status === 'risk') counts.injuries += 1;
       else if (l.status === 'incomplete') counts.holes += 1;
       else if (l.status === 'unset') counts.lineupsToSet += 1;
@@ -243,7 +248,8 @@ const pct = (part, whole) => (whole > 0 ? Math.round((part / whole) * 100) : 0);
 // counts, so a player you hold in three leagues counts three times (that IS your
 // portfolio exposure). Reuses the enriched rosters (value + age + availability).
 async function getDashboard(cookie, token) {
-  const leagues = await leaguesService.listLeagues(cookie);
+  // Pinned leagues sort first in the per-league breakdown (muting is a Home/On Deck/exposure concern).
+  const leagues = await leaguesService.orderedLeagues(cookie, token);
   const loaded = await Promise.all(
     leagues.map((l) => rosterService.getRoster(cookie, l.leagueId).then((roster) => ({ league: l, roster })).catch(() => null))
   );

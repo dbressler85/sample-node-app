@@ -47,6 +47,7 @@ const TESTS = [
   'players-persist-test',
   'waivers-perf-test',
   'waiver-multi-test',
+  'league-prefs-test',
 ];
 
 let failed = 0;

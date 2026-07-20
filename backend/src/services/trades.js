@@ -200,7 +200,7 @@ async function findLeague(cookie, leagueId) {
 
 // All pending incoming offers across every league, value-analyzed.
 async function getOverview(cookie, token) {
-  const leagues = await leaguesService.listLeagues(cookie);
+  const leagues = await leaguesService.orderedLeagues(cookie, token);
   const byId = await playersLib.load(cookie);
   const groups = await Promise.all(
     leagues.map(async (league) => {

@@ -59,7 +59,7 @@ router.get('/scoreboard', async (req, res, next) => {
 // GET /api/players/exposure — every league you roster each player in.
 router.get('/players/exposure', async (req, res, next) => {
   try {
-    res.json(await exposure.getExposure(req.mflCookie));
+    res.json(await exposure.getExposure(req.mflCookie, req.token));
   } catch (err) {
     next(err);
   }
@@ -68,7 +68,7 @@ router.get('/players/exposure', async (req, res, next) => {
 // GET /api/news — league news mapped to which of your teams it affects.
 router.get('/news', async (req, res, next) => {
   try {
-    res.json(await exposure.getNews(req.mflCookie));
+    res.json(await exposure.getNews(req.mflCookie, req.token));
   } catch (err) {
     next(err);
   }

@@ -10,8 +10,9 @@ const newsLib = require('../lib/news');
 const leaguesService = require('./leagues');
 const rosterService = require('./roster');
 
-async function gather(cookie) {
-  const leagues = await leaguesService.listLeagues(cookie);
+async function gather(cookie, token) {
+  // Muted leagues drop out of exposure — you've told us they don't need attention.
+  const leagues = await leaguesService.orderedLeagues(cookie, token, { hideMuted: true });
   const rosters = (
     await Promise.all(
       leagues.map((l) =>
@@ -25,8 +26,8 @@ async function gather(cookie) {
   return { totalLeagues: leagues.length, rosters };
 }
 
-async function getExposure(cookie) {
-  const { totalLeagues, rosters } = await gather(cookie);
+async function getExposure(cookie, token) {
+  const { totalLeagues, rosters } = await gather(cookie, token);
   const map = new Map(); // playerId -> aggregate record
 
   for (const { league, roster } of rosters) {
@@ -84,8 +85,8 @@ async function getExposure(cookie) {
 
 // News mapped to impact: which of your teams each item affects, and where you're
 // starting the player. One glance instead of eight message boards.
-async function getNews(cookie) {
-  const exposure = await getExposure(cookie);
+async function getNews(cookie, token) {
+  const exposure = await getExposure(cookie, token);
   const byPlayer = new Map(exposure.players.map((p) => [p.id, p]));
   // Demo has a fixture; live pulls ESPN news mapped to MFL players by name.
   const items = config.demoMode ? demo.news() : await newsLib.mflNews(cookie);
