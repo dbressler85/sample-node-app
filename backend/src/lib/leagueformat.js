@@ -124,7 +124,10 @@ async function buildFormat(cookie, league) {
   if (config.demoMode) {
     const s = demo.scoring(league.leagueId) || {};
     const ppr = s.ppr != null ? s.ppr : 1;
-    return { numQbs: numQbs(reqs), ppr, tePpr: s.tePpr != null ? s.tePpr : ppr, pprDetected: true };
+    // The demo scoring fixture states the TE bump as `tePremium` (extra points per TE
+    // reception); tePpr is the TE's total per-reception points.
+    const tePpr = s.tePpr != null ? s.tePpr : ppr + (s.tePremium || 0);
+    return { numQbs: numQbs(reqs), ppr, tePpr, pprDetected: true };
   }
   const rules = await scoringRules(cookie, league);
   return {

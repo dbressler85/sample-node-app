@@ -19,12 +19,32 @@
 const config = require('../config');
 const demo = require('../demo/fixtures');
 const mfl = require('./mfl');
+const players = require('./players');
 const { createMemo } = require('./memo');
 
 const TTL_MS = 6 * 60 * 60 * 1000; // 6h — dynasty values/trends change slowly
 const SLEEPER_TREND_URL = 'https://api.sleeper.app/v1/players/nfl/trending/add?lookback_hours=48&limit=300';
 
-const DEFAULT_FORMAT = { numQbs: 1, ppr: 1 };
+const DEFAULT_FORMAT = { numQbs: 1, ppr: 1, tePpr: 1 };
+
+// Position value adjustments for the dimensions the base value source doesn't already
+// encode. A QB is worth far more in superflex/2QB; a TE is worth more when it scores
+// extra per reception (TE premium). Live FantasyCalc already bakes in the superflex QB
+// premium (fetched per numQbs), so we only add TE premium there; demo values are flat,
+// so we apply both.
+const SUPERFLEX_QB_MULT = 1.7;
+function teMult(fmt) {
+  const premium = Math.max(0, (fmt.tePpr != null ? fmt.tePpr : fmt.ppr) - fmt.ppr);
+  return 1 + Math.min(premium, 1) * 0.5; // up to +50% at a full +1.0 per-reception TE premium
+}
+// applyQb: apply the superflex QB premium here (true for demo; false for live FantasyCalc).
+function adjustValue(base, position, fmt, applyQb) {
+  if (base == null) return null;
+  let m = 1;
+  if (position === 'QB' && applyQb && fmt.numQbs === 2) m *= SUPERFLEX_QB_MULT;
+  if (position === 'TE') m *= teMult(fmt);
+  return m === 1 ? base : Math.max(1, Math.round(base * m));
+}
 
 // FantasyCalc value map cache, keyed by format; Sleeper trending cached once.
 const fcCache = new Map(); // "numQbs|ppr" -> { at, value, age, rank, sleeperToMfl }
@@ -44,26 +64,38 @@ async function fetchJson(url, ms = 10000) {
   }
 }
 
+function bucketPpr(v, fallback) {
+  if (!Number.isFinite(v)) return fallback;
+  if (v >= 2) return 2;
+  if (v >= 1.5) return 1.5;
+  if (v >= 1) return 1;
+  if (v >= 0.5) return 0.5;
+  return 0;
+}
 function normalizeFormat(f) {
   const numQbs = Number(f && f.numQbs) === 2 ? 2 : 1;
-  const raw = Number(f && f.ppr);
-  const ppr = raw >= 1 ? 1 : raw >= 0.5 ? 0.5 : 0; // FantasyCalc accepts 0 / 0.5 / 1
-  return { numQbs, ppr };
+  const ppr = bucketPpr(Number(f && f.ppr), 1); // FantasyCalc accepts 0 / 0.5 / 1; default full PPR
+  const fcPpr = ppr > 1 ? 1 : ppr; // FantasyCalc caps at 1
+  const tePpr = bucketPpr(Number(f && f.tePpr), ppr); // TE per-reception points (>= ppr means premium)
+  return { numQbs, ppr: fcPpr, tePpr };
 }
 function formatKey(f) {
-  return `${f.numQbs}|${f.ppr}`;
+  return `${f.numQbs}|${f.ppr}|${f.tePpr}`;
 }
 
 // FantasyCalc values for one format (values normalized to 0-100), plus age, rank,
 // and the Sleeper->MFL crosswalk (crosswalk is identical across formats).
 async function getFantasyCalc(format) {
-  const key = formatKey(format);
+  // FantasyCalc only varies by numQbs + ppr (no TE-premium param), so key on those —
+  // TE premium is applied afterward as a value multiplier.
+  const key = `${format.numQbs}|${format.ppr}`;
   const hit = fcCache.get(key);
   if (hit && Date.now() - hit.at < TTL_MS) return hit;
 
   const value = new Map();
   const age = new Map();
   const rank = new Map();
+  const pos = new Map();
   const sleeperToMfl = new Map();
   try {
     const url = `https://api.fantasycalc.com/values/current?isDynasty=true&numQbs=${format.numQbs}&ppr=${format.ppr}`;
@@ -79,6 +111,7 @@ async function getFantasyCalc(format) {
       if (!mflId) continue;
       if (maxVal > 0 && r.value != null) value.set(mflId, Math.max(1, Math.round((Number(r.value) / maxVal) * 100)));
       if (r.overallRank != null) rank.set(mflId, Number(r.overallRank));
+      if (p.position) pos.set(mflId, String(p.position).toUpperCase());
       const a = p.maybeAge != null ? Number(p.maybeAge) : NaN;
       if (Number.isFinite(a) && a > 0) age.set(mflId, Math.round(a * 10) / 10);
     }
@@ -89,7 +122,7 @@ async function getFantasyCalc(format) {
     // keep serving the last-good snapshot (even if a bit stale) and retry later.
     if (hit) return hit;
   }
-  const entry = { at: Date.now(), value, age, rank, sleeperToMfl };
+  const entry = { at: Date.now(), value, age, rank, pos, sleeperToMfl };
   fcCache.set(key, entry);
   return entry;
 }
@@ -189,6 +222,8 @@ async function buildLive(format, cookie) {
     getMflOwnership(cookie),
     getMflAdds(cookie),
   ]);
+  // Position for the value multiplier comes from FantasyCalc's own rows — no extra fetch.
+  const posOf = (id) => fc.pos.get(String(id)) || '';
   // Combined add "heat": Sleeper trending adds (via crosswalk) + MFL topAdds.
   const trend = new Map();
   for (const [sleeperId, count] of sleeperRaw) {
@@ -199,7 +234,8 @@ async function buildLive(format, cookie) {
     trend.set(mflId, (trend.get(mflId) || 0) + adds);
   }
   return {
-    value: (id) => (fc.value.has(String(id)) ? fc.value.get(String(id)) : null),
+    // FantasyCalc already returns superflex-specific QB values; we only add TE premium.
+    value: (id) => adjustValue(fc.value.has(String(id)) ? fc.value.get(String(id)) : null, posOf(id), format, false),
     age: (id) => (fc.age.has(String(id)) ? fc.age.get(String(id)) : null),
     trend: (id) => trend.get(String(id)) || 0,
     ownership: (id) => (owned.has(String(id)) ? owned.get(String(id)) : null), // MFL topOwns site-wide %
@@ -207,12 +243,15 @@ async function buildLive(format, cookie) {
   };
 }
 
-// Demo snapshot delegates to the fixtures, so demo behavior is unchanged.
-function demoSnapshot() {
+// Demo values are format-flat, so we apply both the superflex QB premium and TE premium
+// here — making the demo showcase league-specific values the way live does.
+async function buildDemo(format, cookie) {
+  const byId = await players.load(cookie);
+  const posOf = (id) => { const p = byId.get(String(id)); return p ? p.position : ''; };
   return {
     value: (id) => {
       const d = demo.dynasty(id);
-      return d && d.value != null ? d.value : null;
+      return adjustValue(d && d.value != null ? d.value : null, posOf(id), format, true);
     },
     age: (id) => {
       const d = demo.dynasty(id);
@@ -236,8 +275,8 @@ const snapshotMemo = createMemo({ ttlMs: config.mflCacheTtlMs });
 // `await snapshot(format)` once per request, then look players up synchronously.
 // Omit `format` for the neutral default (1QB, full PPR) used by global views.
 async function snapshot(format, cookie) {
-  if (config.demoMode) return demoSnapshot();
   const fmt = normalizeFormat(format || DEFAULT_FORMAT);
+  if (config.demoMode) return snapshotMemo.get(`demo|${formatKey(fmt)}`, () => buildDemo(fmt, cookie));
   return snapshotMemo.get(`${cookie || ''}|${formatKey(fmt)}`, () => buildLive(fmt, cookie));
 }
 
