@@ -13,7 +13,7 @@ const CONSTRUCTION = {
 
 // Live roster-construction read for the builder (mirrors the backend tradefit verdict).
 // give/receive are asset lists from THIS team's side; subject phrases it ('you' | 'they').
-function constructionOf(give, receive, needs, surplus, subject) {
+function constructionOf(give, receive, needs, surplus, subject, posDepth) {
   const you = subject !== 'they';
   const needSet = new Set((needs || []).map((n) => n.pos));
   const surSet = new Set((surplus || []).map((s) => s.pos));
@@ -26,6 +26,22 @@ function constructionOf(give, receive, needs, surplus, subject) {
   const thins = [...new Set(gNeed.map((p) => p.position))];
   const depth = [...new Set(gSurp.map((p) => p.position))];
   const j = (a) => a.join('/');
+  // Hole detection (mirrors backend tradefit): a deal that drops a starting spot below
+  // its startable count, even when that spot wasn't a pre-existing need.
+  const holes = [];
+  if (posDepth) {
+    const byPos = {};
+    for (const p of give) if (p && p.position) (byPos[p.position] || (byPos[p.position] = [])).push(p);
+    for (const pos of Object.keys(byPos)) {
+      const d = posDepth[pos];
+      if (!d) continue;
+      const gaveStartable = byPos[pos].filter((p) => p.value != null && p.value >= d.threshold).length;
+      if (!gaveStartable) continue;
+      const recvStartable = receive.filter((p) => p.position === pos && p.value != null && p.value >= d.threshold).length;
+      if (d.startable - gaveStartable + recvStartable < d.slots) holes.push(pos);
+    }
+  }
+  if (holes.length) return { rating: 'caution', reason: you ? `Leaves you with no startable ${j(holes)} — replace the spot first` : `Strips their ${j(holes)} starter` };
   if (thins.length && !fills.length) return { rating: 'caution', reason: you ? `Ships a ${j(thins)} you're thin at` : `Costs them a ${j(thins)} they need` };
   if (score >= 2) {
     if (you) return { rating: 'good', reason: fills.length ? `Fills your ${j(fills)} need${depth.length ? ` from ${j(depth)} depth` : ''}` : `From your ${j(depth)} depth` };
@@ -121,8 +137,8 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
   const buildFit = useMemo(() => {
     if (!partner || !sendList.length || !receiveList.length) return null;
     return {
-      me: constructionOf(sendList, receiveList, data && data.me && data.me.needs, data && data.me && data.me.surplus, 'you'),
-      them: constructionOf(receiveList, sendList, partner.needs, partner.surplus, 'they'),
+      me: constructionOf(sendList, receiveList, data && data.me && data.me.needs, data && data.me && data.me.surplus, 'you', data && data.me && data.me.depth),
+      them: constructionOf(receiveList, sendList, partner.needs, partner.surplus, 'they', partner.depth),
     };
   }, [partner, sendList, receiveList, data]);
 
@@ -449,7 +465,9 @@ function Side({ label, assets, total, tint, onOpenPlayer }) {
           <Row key={a.id} style={styles.sideRow} {...rowProps}>
             <View style={[styles.dot, { backgroundColor: positionColors[a.position] || colors.textDim }]} />
             <Text style={styles.sideName} numberOfLines={1}>{a.name}</Text>
-            <Text style={styles.sideMeta}>{a.position}{a.value != null ? ` · ${a.value}` : ''}</Text>
+            {/* Picks show "val N" (dynasty value 0–100), never a bare number that reads as a
+                pick slot — future picks have no known slot until the draft order is set. */}
+            <Text style={styles.sideMeta}>{a.kind === 'pick' ? (a.value != null ? `val ${a.value}` : 'pick') : `${a.position}${a.value != null ? ` · ${a.value}` : ''}`}</Text>
           </Row>
         );
       })}
@@ -463,8 +481,8 @@ function AssetRow({ asset, on, onPress, tint }) {
       <View style={[styles.check, on && { backgroundColor: tint, borderColor: tint }]}>{on ? <Text style={styles.checkMark}>✓</Text> : null}</View>
       <View style={[styles.dot, { backgroundColor: positionColors[asset.position] || colors.textDim }]} />
       <Text style={styles.assetName} numberOfLines={1}>{asset.name}</Text>
-      <Text style={styles.assetMeta}>{asset.position}{asset.team ? ` · ${asset.team}` : ''}</Text>
-      <Text style={styles.assetValue}>{asset.value != null ? asset.value : '—'}</Text>
+      <Text style={styles.assetMeta}>{asset.kind === 'pick' ? 'Draft pick' : `${asset.position}${asset.team ? ` · ${asset.team}` : ''}`}</Text>
+      <Text style={styles.assetValue}>{asset.value != null ? (asset.kind === 'pick' ? `val ${asset.value}` : asset.value) : '—'}</Text>
     </Pressable>
   );
 }

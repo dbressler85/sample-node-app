@@ -120,11 +120,11 @@ function buildOffer(raw, league, byId, enr) {
 // `acquire`, they get `send` — so an outgoing offer shows whether it also helps them (i.e.
 // whether they're likely to bite).
 function annotateConstruction(offers, ns, franchiseId) {
-  const mine = ns[String(franchiseId)] || { needs: [], surplus: [] };
+  const mine = ns[String(franchiseId)] || { needs: [], surplus: [], depth: {} };
   for (const o of offers) {
-    o.construction = tradefit.constructionVerdict(o.send, o.acquire, mine.needs, mine.surplus);
+    o.construction = tradefit.constructionVerdict(o.send, o.acquire, mine.needs, mine.surplus, 'you', mine.depth);
     const theirs = o.withFranchiseId ? ns[String(o.withFranchiseId)] : null;
-    if (theirs) o.partnerConstruction = tradefit.constructionVerdict(o.acquire, o.send, theirs.needs, theirs.surplus, 'they');
+    if (theirs) o.partnerConstruction = tradefit.constructionVerdict(o.acquire, o.send, theirs.needs, theirs.surplus, 'they', theirs.depth);
   }
   return offers;
 }
@@ -330,12 +330,13 @@ async function getLeague(cookie, token, leagueId) {
     name: pt.name,
     needs: (ns[String(pt.franchiseId)] || {}).needs || [],
     surplus: (ns[String(pt.franchiseId)] || {}).surplus || [],
+    depth: (ns[String(pt.franchiseId)] || {}).depth || {},
     players: (pt.roster || [])
       .map((id) => { const a = asset(id, byId, enr); if (a.kind !== 'pick') a.tag = playerTags.get(token, a.id) || null; return a; })
       .sort((a, b) => (b.value || 0) - (a.value || 0)),
   }));
 
-  const mine = ns[String(league.franchiseId)] || { needs: [], surplus: [] };
+  const mine = ns[String(league.franchiseId)] || { needs: [], surplus: [], depth: {} };
   return {
     leagueId: league.leagueId,
     name: league.name,
@@ -343,7 +344,7 @@ async function getLeague(cookie, token, leagueId) {
     myPlayers,
     myPicks,
     partners,
-    me: { name: roster.franchiseName || 'My Team', needs: mine.needs, surplus: mine.surplus },
+    me: { name: roster.franchiseName || 'My Team', needs: mine.needs, surplus: mine.surplus, depth: mine.depth },
     // The scoring/roster format these values reflect (e.g. "Superflex · TE-premium").
     format: leagueFormat.label(fmt),
   };

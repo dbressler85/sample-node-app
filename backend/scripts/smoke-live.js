@@ -43,6 +43,7 @@ const TESTS = [
   'trade-counter-test',
   'format-value-test',
   'trade-construction-test',
+  'trade-hole-test',
   'players-perf-test',
   'players-persist-test',
   'waivers-perf-test',

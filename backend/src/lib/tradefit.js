@@ -33,7 +33,7 @@ function breakdown(players, slots) {
     const starters = vals.slice(0, nStart);
     const starterVal = starters.length ? starters.reduce((s, v) => s + v, 0) / starters.length : 0;
     const bench = vals.slice(nStart);
-    out[pos] = { count: vals.length, nStart, starterVal, depthVal: bench.length ? bench[0] : 0 };
+    out[pos] = { count: vals.length, nStart, starterVal, depthVal: bench.length ? bench[0] : 0, vals };
   }
   return out;
 }
@@ -58,8 +58,9 @@ function needsSurplus(franchises, requirements) {
   for (const { franchiseId, bd } of bds) {
     const needs = [];
     const surplus = [];
+    const depth = {};
     for (const pos of started) {
-      const b = bd[pos] || { count: 0, nStart: Math.max(1, Math.round(slots[pos])), starterVal: 0, depthVal: 0 };
+      const b = bd[pos] || { count: 0, nStart: Math.max(1, Math.round(slots[pos])), starterVal: 0, depthVal: 0, vals: [] };
       const med = medStarter[pos] || 0;
       if (b.count < b.nStart || (med > 0 && b.starterVal < med * 0.85)) {
         needs.push({ pos, gap: Math.round(Math.max(1, med - b.starterVal)) });
@@ -67,10 +68,17 @@ function needsSurplus(franchises, requirements) {
       if (b.depthVal > 0 && med > 0 && b.depthVal >= med * 0.6 && b.starterVal >= med * 0.9) {
         surplus.push({ pos, depth: Math.round(b.depthVal) });
       }
+      // Depth for hole detection: how many startable-quality players you hold here vs how
+      // many you must start. A "startable" bar of 60% of the league-median starter keeps
+      // deep-bench scrubs from counting. When there's no league median (thin data), any
+      // rostered player counts so we don't invent holes.
+      const threshold = med > 0 ? med * 0.6 : 0;
+      const startable = (b.vals || []).filter((v) => v >= threshold).length;
+      depth[pos] = { slots: b.nStart, threshold, startable };
     }
     needs.sort((a, b) => b.gap - a.gap);
     surplus.sort((a, b) => b.depth - a.depth);
-    out[franchiseId] = { needs: needs.slice(0, 4), surplus: surplus.slice(0, 4) };
+    out[franchiseId] = { needs: needs.slice(0, 4), surplus: surplus.slice(0, 4), depth };
   }
   return out;
 }
@@ -121,7 +129,7 @@ function suggestGive(mine, targetValue, partnerNeeds, myBait) {
 // phrases the reason: 'you' (default, your side) or 'they' (the other team, e.g. on an
 // outgoing offer — a "good" for them means they're likely to accept).
 // Returns { rating: 'good'|'neutral'|'caution', reason, fills:[pos], thins:[pos] }.
-function constructionVerdict(give, receive, needs, surplus, subject) {
+function constructionVerdict(give, receive, needs, surplus, subject, depth) {
   const you = subject !== 'they';
   const needSet = new Set((needs || []).map((n) => n.pos));
   const surSet = new Set((surplus || []).map((s) => s.pos));
@@ -129,6 +137,25 @@ function constructionVerdict(give, receive, needs, surplus, subject) {
   const giveFromSurplus = (give || []).filter((p) => surSet.has(p.position));
   const recvFillsNeed = (receive || []).filter((p) => needSet.has(p.position));
   const recvOntoSurplus = (receive || []).filter((p) => surSet.has(p.position));
+
+  // Holes: a deal that drops a starting position below the number of startable-quality
+  // players you must field — even when it wasn't a pre-existing "need". This is what
+  // catches "trading your only good RB": RB isn't flagged a need (your one starter is
+  // fine), but sending him leaves zero startable RBs. Backfilled if you receive a
+  // startable player at the same spot.
+  const holes = [];
+  if (depth) {
+    const givenByPos = {};
+    for (const p of give || []) if (p && p.position) (givenByPos[p.position] || (givenByPos[p.position] = [])).push(p);
+    for (const [pos, gaveList] of Object.entries(givenByPos)) {
+      const d = depth[pos];
+      if (!d) continue;
+      const gaveStartable = gaveList.filter((p) => p.value != null && p.value >= d.threshold).length;
+      if (!gaveStartable) continue;
+      const recvStartable = (receive || []).filter((p) => p.position === pos && p.value != null && p.value >= d.threshold).length;
+      if (d.startable - gaveStartable + recvStartable < d.slots) holes.push(pos);
+    }
+  }
 
   let score = 0;
   score += recvFillsNeed.length * 2;     // getting what they're thin at — strong plus
@@ -143,7 +170,13 @@ function constructionVerdict(give, receive, needs, surplus, subject) {
 
   let rating;
   let reason;
-  if (thins.length && !fills.length) {
+  if (holes.length) {
+    // Most severe: takes precedence over the softer need/score reads.
+    rating = 'caution';
+    reason = you
+      ? `Leaves you with no startable ${j(holes)} — don't do it unless you're replacing the spot.`
+      : `Strips their ${j(holes)} starter — a tough sell.`;
+  } else if (thins.length && !fills.length) {
     rating = 'caution';
     reason = you
       ? `Sends a ${j(thins)} you're already thin at — don't do it unless the value is a steal.`
@@ -166,7 +199,7 @@ function constructionVerdict(give, receive, needs, surplus, subject) {
     rating = 'neutral';
     reason = you ? 'Roster-neutral — it comes down to value.' : 'Roster-neutral for them.';
   }
-  return { rating, reason, fills, thins };
+  return { rating, reason, fills, thins, holes };
 }
 
 module.exports = { positionSlots, needsSurplus, suggestGive, constructionVerdict };
