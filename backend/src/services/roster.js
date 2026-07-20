@@ -119,6 +119,26 @@ function myBuckets(franchises, league) {
   return mine ? bucketPlayers(mine.player) : { starters: [], bench: [], ir: [], taxi: [] };
 }
 
+// A LIGHT read of just my roster's buckets ({starters,bench,ir,taxi} of {id}) — no
+// enrichment, no all-franchise valuation, no strength, no availability. For cross-league
+// "where do I own this player" sets (Players screen, watchlist) that only need ids, this
+// is far cheaper than the full getRoster build. Live reads only my franchise (FRANCHISE=me).
+async function myRosterLight(cookie, leagueId) {
+  const league = await findLeague(cookie, leagueId);
+  if (!league) return null;
+  let buckets;
+  if (config.demoMode) {
+    buckets = demo.roster(leagueId) || { starters: [], bench: [], ir: [], taxi: [] };
+  } else {
+    const res = await mfl.exportRequest('rosters', { host: league.host, cookie, L: league.leagueId, FRANCHISE: league.franchiseId });
+    const franchises = mfl.toArray(res && res.rosters && res.rosters.franchise);
+    const mine = franchises.find((f) => String(f.id) === league.franchiseId) || franchises[0];
+    buckets = mine ? bucketPlayers(mine.player) : { starters: [], bench: [], ir: [], taxi: [] };
+  }
+  const wrap = (ids) => (ids || []).map((id) => ({ id: String(id) }));
+  return { leagueId: String(leagueId), starters: wrap(buckets.starters), bench: wrap(buckets.bench), ir: wrap(buckets.ir), taxi: wrap(buckets.taxi) };
+}
+
 async function getRoster(cookie, leagueId) {
   if (config.demoMode) return buildRoster(cookie, leagueId);
   return rosterMemo.get(`${cookie}|${leagueId}`, () => buildRoster(cookie, leagueId));
@@ -225,4 +245,4 @@ async function leagueFranchises(cookie, leagueId) {
   });
 }
 
-module.exports = { getRoster, invalidate, computeOutlook, leagueFranchises };
+module.exports = { getRoster, invalidate, computeOutlook, leagueFranchises, myRosterLight };

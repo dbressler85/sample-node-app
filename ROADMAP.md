@@ -104,7 +104,11 @@ The big wins are shipped (parallelized per-league fan-outs; cached `listLeagues`
 `franchiseNames`; promise-coalescing MFL read cache; memoized `getRoster` /
 free-agent reads; memoized enrichment snapshot, `leagueFormat.format`, player
 ranks, news crosswalk, bye map; compiled scoring; slice-before-annotate in the
-player hub). Remaining, in rough priority order:
+player hub; **Players-screen gather memoized + light roster read** — the
+cross-league "mine/free" gather now uses a franchise-scoped `myRosterLight`
+(no all-franchise valuation / strength / picks) instead of the full `getRoster`
+build, and is memoized per cookie so switching rank type / refining search /
+opening a profile reuses one gather). Remaining, in rough priority order:
 
 - [ ] **DraftScreen: virtualize the player pool.** `DraftScreen` renders the
   undrafted pool with `ScrollView` + `.map` (hundreds of rows, re-rendered on a

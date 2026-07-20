@@ -21,6 +21,7 @@ const rosterService = require('./roster');
 const waiversService = require('./waivers');
 const dropStore = require('../store/drops');
 const watchStore = require('../store/watchlist');
+const { createMemo } = require('../lib/memo');
 
 // A neutral scoring baseline for the headline projection on a profile (each of
 // your leagues can differ — those per-league numbers appear in cross-league).
@@ -66,18 +67,39 @@ function computeRanks(byId, enr) {
 
 // Gather my rosters + free-agent sets across all leagues once. Free agents come
 // from MFL's freeAgents export in live (the cross-league "available where" moat).
-async function gather(cookie) {
+// This per-league fan-out (a full roster build + free-agent read for EVERY league) is
+// the dominant cost of the Players screen, and search / rankings / profile each call it.
+// Memoize the assembled result per cookie so switching rank type, refining a search, or
+// opening a profile in quick succession share ONE gather (and concurrent calls coalesce)
+// instead of re-fanning-out every time. Roster/waiver writes invalidate it; the short TTL
+// bounds staleness of the "mine / free" badges to seconds otherwise.
+const gatherMemo = createMemo({ ttlMs: config.mflCacheTtlMs });
+
+async function gatherUncached(cookie) {
   const leagues = await leaguesService.listLeagues(cookie);
   const data = await Promise.all(
     leagues.map(async (league) => {
+      // A LIGHT roster read — just my player ids by bucket. gather's consumers only test
+      // which bucket a player is in; they never touch value/age/strength, so the full
+      // (all-franchise, enriched, strength-scored) getRoster build would be wasted here.
       const [roster, faIds] = await Promise.all([
-        rosterService.getRoster(cookie, league.leagueId).catch(() => null),
+        rosterService.myRosterLight(cookie, league.leagueId).catch(() => null),
         waiversService.freeAgentIds(cookie, league).catch(() => []),
       ]);
       return { league, roster, faSet: new Set(faIds) };
     })
   );
   return { leagues, data: data.filter((d) => d.roster) };
+}
+
+function gather(cookie) {
+  return gatherMemo.get(cookie || '', () => gatherUncached(cookie));
+}
+
+// Drop the cross-league sets after a write that changes a roster / free-agent pool, so the
+// next Players read reflects it immediately instead of waiting out the TTL.
+function invalidateGather(cookie) {
+  gatherMemo.invalidate(cookie || '');
 }
 
 function annotate(player, byId, ranks, myRostered, freeBy, enr, ctx) {
@@ -380,6 +402,7 @@ async function submitAdd(cookie, token, playerId, selections) {
       }
     })
   );
+  if (results.some((r) => r.ok)) invalidateGather(cookie); // a claim can change rosters/FAs
   return { results, summary: { requested: results.length, submitted: results.filter((r) => r.ok).length } };
 }
 
@@ -405,6 +428,7 @@ async function submitDrop(cookie, token, playerId, leagueIds) {
       }
     })
   );
+  if (results.some((r) => r.ok)) invalidateGather(cookie); // roster shrank / player now free
   return { results, summary: { requested: results.length, dropped: results.filter((r) => r.ok).length } };
 }
 
