@@ -26,13 +26,20 @@ export default function TradeInboxScreen({ onBack, onOpenLeague, onProposeInLeag
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(null); // `${leagueId}:${offerId}` being responded to
+  const [baitByLeague, setBaitByLeague] = useState({}); // leagueId -> # players you're shopping
 
   useAndroidBack(useCallback(() => { onBack(); return true; }, [onBack]));
 
   const load = useCallback(async () => {
     setError(null);
     try {
-      setData(await api.trades());
+      // Fetch offers + your trade-bait alongside, so the "Start a trade" list can flag
+      // the leagues where you already have players on the block (a head start on picking one).
+      const [d, block] = await Promise.all([api.trades(), api.tradeBait().catch(() => null)]);
+      setData(d);
+      if (block && block.leagues) {
+        setBaitByLeague(Object.fromEntries(block.leagues.map((l) => [String(l.leagueId), l.count])));
+      }
     } catch (e) {
       setError(e.message);
     } finally {
@@ -74,16 +81,22 @@ export default function TradeInboxScreen({ onBack, onOpenLeague, onProposeInLeag
     <View style={styles.startWrap}>
       <Text style={styles.startTitle}>Start a trade</Text>
       <Text style={styles.startSub}>Pick a league to build and send an offer.</Text>
-      {leagues.map((l) => (
-        <Pressable
-          key={l.leagueId}
-          style={({ pressed }) => [styles.startRow, pressed && { opacity: 0.7 }]}
-          onPress={() => (onProposeInLeague || onOpenLeague)({ leagueId: l.leagueId, name: l.name })}
-        >
-          <Text style={styles.startName} numberOfLines={1}>{l.name}</Text>
-          <Text style={styles.startCta}>Propose ›</Text>
-        </Pressable>
-      ))}
+      {leagues.map((l) => {
+        const onBlock = baitByLeague[String(l.leagueId)] || 0;
+        return (
+          <Pressable
+            key={l.leagueId}
+            style={({ pressed }) => [styles.startRow, pressed && { opacity: 0.7 }]}
+            onPress={() => (onProposeInLeague || onOpenLeague)({ leagueId: l.leagueId, name: l.name })}
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={styles.startName} numberOfLines={1}>{l.name}</Text>
+              {onBlock ? <Text style={styles.startBait}>{onBlock} on the block here</Text> : null}
+            </View>
+            <Text style={styles.startCta}>Propose ›</Text>
+          </Pressable>
+        );
+      })}
     </View>
   );
 
@@ -249,6 +262,7 @@ const styles = StyleSheet.create({
   startTitle: { color: colors.text, fontSize: 15, fontWeight: '900', letterSpacing: 0.3, textTransform: 'uppercase' },
   startSub: { color: colors.textDim, fontSize: 13, marginTop: 3, marginBottom: 12 },
   startRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 13, marginBottom: 10 },
-  startName: { color: colors.text, fontSize: 15, fontWeight: '700', flex: 1, marginRight: 10 },
+  startName: { color: colors.text, fontSize: 15, fontWeight: '700', marginRight: 10 },
+  startBait: { color: colors.gold, fontSize: 12, fontWeight: '700', marginTop: 2 },
   startCta: { color: colors.accent, fontSize: 14, fontWeight: '800' },
 });
