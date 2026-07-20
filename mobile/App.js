@@ -64,19 +64,26 @@ export default function App() {
   const [waiversTarget, setWaiversTarget] = useState(null); // {leagueId, position}
 
   // Login → Home handoff: the login lockup flies up and fades, then the app flies in.
-  // `enter` starts settled (1) so a restored session on cold boot doesn't animate.
-  const enter = useRef(new Animated.Value(1)).current;
+  // `enter` starts hidden and plays every time the app first shows the authed UI —
+  // whether from a live login or a restored session on cold boot — so opening the app
+  // always has the fly-in moment (not just right after typing a password).
+  const enter = useRef(new Animated.Value(0)).current;
   const leave = useRef(new Animated.Value(0)).current;
+
+  // Fly the authed app in whenever we transition into it (login OR restored session).
+  useEffect(() => {
+    if (authed && !booting) {
+      enter.setValue(0);
+      Animated.timing(enter, { toValue: 1, duration: 560, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+    }
+  }, [authed, booting, enter]);
 
   function handleLoggedIn(info) {
     if (info && typeof info.demoMode === 'boolean') setDemoMode(info.demoMode);
-    // Fly the login out, then swap to the app and fly it in.
-    Animated.timing(leave, { toValue: 1, duration: 360, easing: Easing.in(Easing.cubic), useNativeDriver: true }).start(() => {
-      enter.setValue(0);
+    // Fly the login lockup up and out, then swap to the app (the effect above flies it in).
+    Animated.timing(leave, { toValue: 1, duration: 380, easing: Easing.in(Easing.cubic), useNativeDriver: true }).start(() => {
       setAuthed(true);
-      Animated.timing(enter, { toValue: 1, duration: 520, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start(() => {
-        leave.setValue(0);
-      });
+      leave.setValue(0);
     });
   }
 
@@ -322,10 +329,10 @@ export default function App() {
   // ordinary navigation isn't animated.
   const enterStyle = authed
     ? {
-        opacity: enter,
+        opacity: enter.interpolate({ inputRange: [0, 0.6, 1], outputRange: [0, 1, 1] }),
         transform: [
-          { translateY: enter.interpolate({ inputRange: [0, 1], outputRange: [44, 0] }) },
-          { scale: enter.interpolate({ inputRange: [0, 1], outputRange: [0.98, 1] }) },
+          { translateY: enter.interpolate({ inputRange: [0, 1], outputRange: [90, 0] }) },
+          { scale: enter.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1] }) },
         ],
       }
     : null;
