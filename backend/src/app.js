@@ -13,6 +13,7 @@ const waiverRoutes = require('./routes/waivers');
 const playerHubRoutes = require('./routes/playerhub');
 const watchlistRoutes = require('./routes/watchlist');
 const tradeRoutes = require('./routes/trades');
+const tradeBaitRoutes = require('./routes/tradebait');
 const draftRoutes = require('./routes/draft');
 const pushRoutes = require('./routes/push');
 
@@ -32,6 +33,7 @@ app.use('/api', playerHubRoutes);
 app.use('/api', watchlistRoutes);
 app.use('/api', waiverRoutes);
 app.use('/api', tradeRoutes);
+app.use('/api', tradeBaitRoutes);
 app.use('/api', draftRoutes);
 app.use('/api', pushRoutes);
 app.use('/api', lineupRoutes);

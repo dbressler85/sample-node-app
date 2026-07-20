@@ -128,6 +128,12 @@ export const api = {
   respondTrade: (leagueId, tradeId, action) =>
     request(`/api/leagues/${leagueId}/trades/${tradeId}/respond`, { method: 'POST', body: { action } }),
 
+  // Trade bait ("on the block") — centralized across leagues.
+  tradeBait: () => request('/api/tradebait'),
+  leagueBait: (leagueId) => request(`/api/leagues/${leagueId}/tradebait`),
+  addBait: (leagueId, playerId, note) => request(`/api/leagues/${leagueId}/tradebait/${playerId}`, { method: 'POST', body: { note } }),
+  removeBait: (leagueId, playerId) => request(`/api/leagues/${leagueId}/tradebait/${playerId}`, { method: 'DELETE' }),
+
   waiversOverview: () => request('/api/waivers/overview'),
   waiverSuggestions: () => request('/api/waivers/suggestions'),
   bestAvailable: () => request('/api/waivers/best-available'),

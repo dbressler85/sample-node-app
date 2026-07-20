@@ -46,6 +46,16 @@ Cross-league management is the moat; these deepen it.
   a league's roster. Now: a persistent Trades row on Home (opens the hub whether or
   not you have offers), the Trades chip is tappable, and the hub itself lists every
   league under **Start a trade** → opens that league's desk on the **Propose** tab.
+- [x] **Centralized trade bait ("On the Block").** Flag players you're shopping in any
+  league (⇄ Block toggle on each roster player) and manage them all in one place:
+  `/api/tradebait` + OnTheBlockScreen (reached from the Trade hub's **⇄ Block**),
+  grouped by league with value / roster slot / your note, stale detection (flags a
+  player you've since traded or dropped), and a **Shop ›** jump to that league's trade
+  desk on the Propose tab. Adds are ownership-guarded (only players you roster).
+  Durable via `store/tradebait`. *(Next: an optional asking-price/note editor in the
+  UI — the backend already stores a note; and suggested partners per bait player from
+  the all-franchise roster data. Syncing to MFL's native Trade Bait board if the
+  import shape proves reliable.)*
 - [ ] **Trade negotiation: counter-offers.** Trades support propose / accept / reject
   and cross-league "trade for" today; add counter-offer (respond to an incoming
   offer with a modified package) via MFL `import?TYPE=tradeProposal` threading.

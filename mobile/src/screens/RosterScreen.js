@@ -8,13 +8,20 @@ export default function RosterScreen({ league, onBack, onOpenTrades, onOpenDraft
   const [roster, setRoster] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [baited, setBaited] = useState(() => new Set()); // player ids on the block here
 
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
-        const r = await api.roster(league.leagueId);
-        if (alive) setRoster(r);
+        const [r, bait] = await Promise.all([
+          api.roster(league.leagueId),
+          api.leagueBait(league.leagueId).catch(() => ({ ids: [] })),
+        ]);
+        if (alive) {
+          setRoster(r);
+          setBaited(new Set((bait.ids || []).map(String)));
+        }
       } catch (e) {
         if (alive) setError(e.message);
       } finally {
@@ -25,6 +32,27 @@ export default function RosterScreen({ league, onBack, onOpenTrades, onOpenDraft
       alive = false;
     };
   }, [league.leagueId]);
+
+  // Optimistically flip the block state, then persist; revert on failure.
+  const toggleBait = async (player) => {
+    const id = String(player.id);
+    const on = baited.has(id);
+    setBaited((cur) => {
+      const next = new Set(cur);
+      on ? next.delete(id) : next.add(id);
+      return next;
+    });
+    try {
+      if (on) await api.removeBait(league.leagueId, id);
+      else await api.addBait(league.leagueId, id, null);
+    } catch (e) {
+      setBaited((cur) => {
+        const next = new Set(cur);
+        on ? next.add(id) : next.delete(id);
+        return next;
+      });
+    }
+  };
 
   const sections = roster
     ? [
@@ -88,7 +116,9 @@ export default function RosterScreen({ league, onBack, onOpenTrades, onOpenDraft
               {section.title} · {section.data.length}
             </Text>
           )}
-          renderItem={({ item }) => <PlayerRow player={item} />}
+          renderItem={({ item }) => (
+            <PlayerRow player={item} baited={baited.has(String(item.id))} onToggleBait={toggleBait} />
+          )}
           ListFooterComponent={
             roster && roster.picks && roster.picks.length ? (
               <View>

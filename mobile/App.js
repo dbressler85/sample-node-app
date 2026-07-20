@@ -20,6 +20,7 @@ import LineupWizardScreen from './src/screens/LineupWizardScreen';
 import WaiverWizardScreen from './src/screens/WaiverWizardScreen';
 import TradesScreen from './src/screens/TradesScreen';
 import TradeInboxScreen from './src/screens/TradeInboxScreen';
+import OnTheBlockScreen from './src/screens/OnTheBlockScreen';
 import DraftScreen from './src/screens/DraftScreen';
 import DraftHubScreen from './src/screens/DraftHubScreen';
 import OnDeckScreen from './src/screens/OnDeckScreen';
@@ -107,6 +108,7 @@ export default function App() {
   const openWaiverWizard = (leagues) => pushOverlay({ type: 'waiverWizard', leagues });
   const openTrades = (league, initialTab) => pushOverlay({ type: 'trades', league, initialTab });
   const openTradeInbox = () => pushOverlay({ type: 'tradeInbox' });
+  const openBlock = () => pushOverlay({ type: 'block' });
   const openDraft = (league) => pushOverlay({ type: 'draft', league });
   const openDraftHub = () => pushOverlay({ type: 'draftHub' });
   const openLeagues = () => pushOverlay({ type: 'leagues' });
@@ -199,8 +201,12 @@ export default function App() {
           onBack={popOverlay}
           onOpenLeague={openTrades}
           onProposeInLeague={(league) => openTrades(league, 'propose')}
+          onOpenBlock={openBlock}
         />
       );
+    }
+    if (overlay && overlay.type === 'block') {
+      return <OnTheBlockScreen onBack={popOverlay} onShopLeague={(league) => openTrades(league, 'propose')} />;
     }
     if (overlay && overlay.type === 'draft') {
       return <DraftScreen league={overlay.league} onBack={popOverlay} />;
