@@ -36,6 +36,7 @@ const TESTS = [
   'throttle-test',
   'portfolio-dashboard-test',
   'waiver-lock-test',
+  'waiver-calendar-test',
 ];
 
 let failed = 0;

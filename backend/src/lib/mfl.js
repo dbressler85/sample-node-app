@@ -138,7 +138,7 @@ const readCache = new Map(); // key -> { at, promise }
 
 // Slow-changing data gets a long TTL; live-polled data a very short one so it
 // keeps up with its poll cadence; everything else a moderate short one.
-const STATIC_TYPES = new Set(['league', 'rules', 'myleagues', 'players', 'nflSchedule']);
+const STATIC_TYPES = new Set(['league', 'rules', 'myleagues', 'players', 'nflSchedule', 'calendar']);
 const LIVE_TYPES = new Set(['liveScoring', 'draftResults']);
 
 // Read data via the export command (cached, TTL depends on how volatile it is).

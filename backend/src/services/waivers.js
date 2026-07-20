@@ -424,23 +424,74 @@ async function getBestAvailable(cookie, token) {
   return { totalLeagues: leagues.length, players };
 }
 
-// Waivers/free-agency don't run in every league at every moment — most commonly
-// they're locked until a league's draft has happened (a startup or rookie draft
-// pending). MFL doesn't expose a clean "FA locked" flag, so we infer it from draft
-// state: a scheduled or in-progress draft means free agency isn't open yet.
+// Best plausible timestamp (ms) on an MFL calendar event, tolerant of format:
+// epoch seconds (number or "1725000000") or an ISO/parseable date string.
+function eventTimeMs(ev) {
+  for (const v of Object.values(ev)) {
+    if (typeof v === 'number' && v > 1e9 && v < 2e10) return v * 1000;
+    if (typeof v === 'string') {
+      if (/^\d{9,10}$/.test(v)) return Number(v) * 1000;
+      const t = Date.parse(v);
+      if (!Number.isNaN(t)) return t;
+    }
+  }
+  return null;
+}
+
+// The DIRECT signal: MFL's league calendar holds the events that actually control
+// transactions — "Lock All Free Agents" / "Allow Add/Drops" / "No Add/Drops". The
+// most recent past lock/unlock event tells us if free agency is open right now.
+// Best-effort + fully guarded: we scan each event's text for lock/unlock semantics
+// (rather than a fixed field name, since the shape varies), so an unfamiliar
+// response just yields null and we fall back to the draft heuristic.
+async function calendarLock(cookie, league) {
+  try {
+    const res = await mfl.exportRequest('calendar', { host: league.host, cookie, L: league.leagueId });
+    const events = mfl.toArray(res && res.calendar && res.calendar.event);
+    if (!events.length) return null;
+    const now = Date.now();
+    let latest = null;
+    for (const ev of events) {
+      const text = Object.values(ev).filter((v) => typeof v === 'string').join(' ').toLowerCase();
+      if (!/free agent|add\s*\/?\s*drop|waiver|transaction/.test(text)) continue;
+      const unlocks = /unlock|allow|enable|open/.test(text);
+      const locks = !unlocks && /lock|no add|freeze|disable|close/.test(text);
+      if (!locks && !unlocks) continue;
+      const t = eventTimeMs(ev);
+      if (t == null || t > now) continue; // only events that have already happened
+      if (!latest || t > latest.t) latest = { t, locked: locks };
+    }
+    return latest && latest.locked ? 'Free agency is locked right now (per the league calendar).' : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+// Waivers/free-agency don't run in every league at every moment. The authoritative
+// source is the league CALENDAR (lock/unlock free-agent events); when a league
+// doesn't set those, we fall back to inferring from DRAFT state (a scheduled or
+// in-progress draft means free agency isn't open yet — the common pre-draft case).
 // Returns Map(leagueId -> reason). (Lazy-require draft to avoid a require cycle.)
 async function waiverLocks(cookie, token) {
   const map = new Map();
   if (config.demoMode) return map; // demo is a healthy mid-season state
   try {
+    const leagues = await leaguesService.listLeagues(cookie);
     const draftService = require('./draft');
-    const ov = await draftService.getOverview(cookie, token);
-    for (const d of ov.drafts || []) {
-      if (d.status === 'in_progress') map.set(String(d.leagueId), 'Draft in progress — free agency is locked until it finishes.');
-      else if (d.status === 'scheduled') map.set(String(d.leagueId), 'Draft hasn’t happened yet — free agency opens after the draft.');
+    const [draftOv, cal] = await Promise.all([
+      draftService.getOverview(cookie, token).catch(() => ({ drafts: [] })),
+      Promise.all(leagues.map((l) => calendarLock(cookie, l).then((reason) => [String(l.leagueId), reason]).catch(() => [String(l.leagueId), null]))),
+    ]);
+    // Calendar first (direct), draft state as the fallback.
+    for (const [id, reason] of cal) if (reason) map.set(id, reason);
+    for (const d of draftOv.drafts || []) {
+      const id = String(d.leagueId);
+      if (map.has(id)) continue;
+      if (d.status === 'in_progress') map.set(id, 'Draft in progress — free agency is locked until it finishes.');
+      else if (d.status === 'scheduled') map.set(id, 'Draft hasn’t happened yet — free agency opens after the draft.');
     }
   } catch (e) {
-    /* no draft info -> assume waivers are open */
+    /* no lock info -> assume waivers are open */
   }
   return map;
 }
