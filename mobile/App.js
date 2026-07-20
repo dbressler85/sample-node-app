@@ -209,7 +209,14 @@ export default function App() {
       );
     }
     if (overlay && overlay.type === 'block') {
-      return <OnTheBlockScreen onBack={popOverlay} onShopLeague={(league) => openTrades(league, 'propose')} onOpenPlayer={openPlayer} />;
+      return (
+        <OnTheBlockScreen
+          onBack={popOverlay}
+          onShopLeague={(league) => openTrades(league, 'propose')}
+          onShopPlayer={({ leagueId, name, sendPlayerId, partnerFranchiseId }) => openTrades({ leagueId, name }, 'propose', { sendPlayerId, partnerFranchiseId })}
+          onOpenPlayer={openPlayer}
+        />
+      );
     }
     if (overlay && overlay.type === 'draft') {
       return <DraftScreen league={overlay.league} onBack={popOverlay} onOpenPlayer={openPlayer} />;
