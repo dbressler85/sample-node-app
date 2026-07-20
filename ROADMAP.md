@@ -30,6 +30,12 @@ Cross-league management is the moat; these deepen it.
 - [ ] **League switcher / mute / pin.** Let the owner pin the leagues they care about
   to the top of every cross-league view, and mute leagues (e.g. finished or
   bye-week teams) so they drop out of Home triage, On Deck, and exposure.
+- [x] **Trades are discoverable (the trade hub).** The cross-league Trade hub used
+  to be reachable only when an offer happened to be waiting (Home row gated on
+  `tradeOffers`); the "Trades" chip was a dead count and proposing was buried under
+  a league's roster. Now: a persistent Trades row on Home (opens the hub whether or
+  not you have offers), the Trades chip is tappable, and the hub itself lists every
+  league under **Start a trade** → opens that league's desk on the **Propose** tab.
 - [ ] **Trade negotiation: counter-offers.** Trades support propose / accept / reject
   and cross-league "trade for" today; add counter-offer (respond to an incoming
   offer with a modified package) via MFL `import?TYPE=tradeProposal` threading.

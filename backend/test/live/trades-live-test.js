@@ -64,7 +64,11 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   assert(o.acquire[0].value === 100 && o.send[0].value === 50, 'enrichment values on assets');
   assert(o.analysis.verdict === 'favorable', `favorable (100 vs 50), got ${o.analysis.verdict}`);
   assert(o.withName === 'Rival Squad', 'offering team name resolved');
-  console.log('✓ live overview: offer analyzed (get 100 vs give 50 -> favorable)');
+  // The hub lists every league so you can START a trade in any of them, not just
+  // respond to offers sitting in the inbox.
+  assert(Array.isArray(ov.leagues) && ov.leagues.length === 1, 'overview carries the league list for proposing');
+  assert(ov.leagues[0].leagueId === '1000' && ov.leagues[0].name === 'Dynasty', 'league entry has id + name');
+  console.log('✓ live overview: offer analyzed (get 100 vs give 50 -> favorable) + league list for proposing');
 
   // League detail: partners from live rosters + my players.
   const lg = await trades.getLeague(CK, TK, '1000');

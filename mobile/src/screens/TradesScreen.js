@@ -24,11 +24,11 @@ function analyze(receive, send) {
   return { acquireValue, sendValue, net, verdict };
 }
 
-export default function TradesScreen({ league, onBack }) {
+export default function TradesScreen({ league, onBack, initialTab }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState('offers');
+  const [tab, setTab] = useState(initialTab === 'propose' ? 'propose' : 'offers');
   const [busy, setBusy] = useState(null); // offerId being responded to
 
   // Propose builder state.
