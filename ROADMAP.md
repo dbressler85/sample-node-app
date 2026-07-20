@@ -136,9 +136,11 @@ Grouped into four "synergy systems", highest-leverage first:
   are now enriched with per-league outlook · value · %risk via a background `/api/portfolio`
   fetch that merges in when it lands, so the switcher keeps its instant open (names +
   pin/mute first, dynasty badges a beat later).
-- [ ] **Need-adjusted draft board.** DraftScreen ranks by pure value with no roster
-  context; badge available players that fill the manager's thin positions (needs/surplus
-  already computed in trades).
+- [x] **Draft board ordered by ADP** (chosen over a need-adjusted board — need-weighting
+  is owner-dependent, so we went with an objective market order instead). The available
+  pool is ordered by MFL's global `adp` export (`lib/adp.js`, memoized, best-effort with a
+  tolerant parse), each row shows its ADP, and players without an ADP fall to a
+  value-ranked tail so the board is never arbitrary. Demo uses an ADP fixture.
 - [x] **Seed On the Block → trade desk.** Each "Best fits" partner is now a tappable chip
   that opens the league's trade desk with the shopped player pre-loaded on the "you send"
   side and that partner selected (new `seed.sendPlayerId` branch in TradesScreen; the

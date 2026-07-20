@@ -164,7 +164,7 @@ export default function DraftScreen({ league, onBack, onOpenPlayer }) {
           ) : null}
 
           {/* Available pool */}
-          <Text style={styles.section}>Available{myTurn ? ' · tap a name to scout, Draft to pick' : ''}</Text>
+          <Text style={styles.section}>Available · by ADP{myTurn ? ' · tap a name to scout, Draft to pick' : ''}</Text>
           <View style={styles.posRow}>
             <Pressable style={[styles.posChip, !position && styles.posChipActive]} onPress={() => setPosition(null)}>
               <Text style={[styles.posText, !position && { color: colors.text }]}>All</Text>
@@ -189,7 +189,7 @@ export default function DraftScreen({ league, onBack, onOpenPlayer }) {
                   <View style={[styles.dot, { backgroundColor: positionColors[p.position] || colors.textDim }]} />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.avName} numberOfLines={1}>{p.name}</Text>
-                    <Text style={styles.avMeta}>{p.position}{p.team ? ` · ${p.team}` : ''}{p.age != null ? ` · ${p.age}y` : ''}</Text>
+                    <Text style={styles.avMeta}>{p.position}{p.team ? ` · ${p.team}` : ''}{p.age != null ? ` · ${p.age}y` : ''}{p.adp != null ? ` · ADP ${p.adp}` : ''}</Text>
                   </View>
                   <Text style={styles.avValue}>{p.value != null ? p.value : '—'}</Text>
                 </Pressable>

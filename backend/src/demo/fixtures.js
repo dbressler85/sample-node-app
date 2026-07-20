@@ -318,6 +318,18 @@ const DYNASTY = {
 // Rookie draft class (ids into PLAYERS) — the shared pool for rookie drafts.
 const DRAFT_CLASS = ['19003', '19002', '19001', '19005', '19006', '19004'];
 
+// Average draft position for the class — the market-consensus order, deliberately NOT
+// the same as dynasty value (e.g. the RB goes 1st by ADP even though a superflex QB is
+// worth more), so the board's ADP ordering is visibly its own signal.
+const ADP = {
+  '19002': 1.4, // Okafor RB
+  '19003': 2.1, // Bellamy WR
+  '19001': 3.3, // Marliss QB
+  '19006': 4.6, // Cormier RB
+  '19005': 5.2, // Ridley WR
+  '19004': 6.8, // Voss TE
+};
+
 // Per-league drafts in different states: one scheduled (future), one live (with
 // me on the clock), one complete. franchiseId matches my team in each league.
 const DRAFTS = {
@@ -534,6 +546,7 @@ module.exports = {
   schedule: (team) => (SCHEDULE[team] || []).map((s) => ({ ...s })),
   allPlayers: () => PLAYERS.map((p) => ({ ...p })),
   draftClass: () => DRAFT_CLASS.slice(),
+  adp: () => ({ ...ADP }),
   draft: (leagueId) => (DRAFTS[leagueId] ? JSON.parse(JSON.stringify(DRAFTS[leagueId])) : null),
   week: () => WEEK,
 };
