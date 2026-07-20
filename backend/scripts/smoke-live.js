@@ -43,6 +43,7 @@ const TESTS = [
   'trade-counter-test',
   'format-value-test',
   'trade-construction-test',
+  'players-perf-test',
 ];
 
 let failed = 0;
