@@ -7,6 +7,7 @@
 // stale so you can clear it. Adding is guarded — you can only block a player you roster.
 
 const config = require('../config');
+const mfl = require('../lib/mfl');
 const playersLib = require('../lib/players');
 const enrichmentLib = require('../lib/enrichment');
 const availabilityLib = require('../lib/availability');
@@ -15,6 +16,64 @@ const demo = require('../demo/fixtures');
 const leaguesService = require('./leagues');
 const rosterService = require('./roster');
 const baitStore = require('../store/tradebait');
+
+const NO_SUGGEST = new Set(['PK', 'DEF', 'K', '?']); // kickers/defenses: skip partner fits
+
+// Which rival franchises would most want this player: those thin at his position (a
+// need) or who'd upgrade their best there. Contenders (stronger rosters) break ties —
+// they're likelier to pay for a win-now piece. A heuristic, labeled as such in the UI.
+function suggestPartners(franchises, player) {
+  if (!player.position || NO_SUGGEST.has(player.position)) return [];
+  const V = player.value || 0;
+  const scored = franchises
+    .filter((f) => !f.mine)
+    .map((f) => {
+      const ps = f.byPos[player.position] || { best: 0, depth: 0 };
+      const upgrade = Math.max(0, V - ps.best); // how much he'd raise their best at the spot
+      const thin = ps.depth <= 1;
+      const interest = upgrade * 2 + (thin ? 25 : 0);
+      let reason;
+      if (ps.depth === 0) reason = `no ${player.position} of note`;
+      else if (upgrade > 0) reason = `upgrades their ${player.position} (best ${ps.best})`;
+      else if (thin) reason = `thin at ${player.position}`;
+      else reason = `${player.position} depth`;
+      return { franchiseId: f.franchiseId, name: f.name, reason, interest: Math.round(interest), totalValue: f.totalValue };
+    })
+    .filter((s) => s.interest > 0);
+  scored.sort((a, b) => b.interest - a.interest || b.totalValue - a.totalValue);
+  return scored.slice(0, 3).map(({ totalValue, interest, ...s }) => s);
+}
+
+async function findLeague(cookie, leagueId) {
+  return (await leaguesService.listLeagues(cookie)).find((l) => l.leagueId === String(leagueId)) || null;
+}
+
+// Push the FULL current block for one league to MFL's native Trade Bait board, so the
+// players you're shopping show up there for the rest of the league. MFL keeps ONE bait
+// listing per franchise, so every change re-sends the whole set (an empty set clears
+// it). Best-effort: a failure never breaks the local block — our store is the source of
+// truth. No-op in demo (no real MFL). Uses the documented tradeBait import shape
+// (WILL_GIVE_UP + IN_EXCHANGE_FOR), pending verification against a live account.
+async function syncLeagueToMfl(cookie, token, league) {
+  if (config.demoMode || !league) return { synced: false };
+  const entries = baitStore.list(token).filter((e) => e.leagueId === String(league.leagueId));
+  const ids = entries.map((e) => e.playerId);
+  const notes = entries.map((e) => e.note).filter(Boolean);
+  try {
+    await mfl.importRequest('tradeBait', {
+      host: league.host,
+      cookie,
+      L: league.leagueId,
+      FRANCHISE: league.franchiseId,
+      WILL_GIVE_UP: ids.join(','),
+      IN_EXCHANGE_FOR: notes.join('; '),
+    });
+    return { synced: true };
+  } catch (e) {
+    console.log(`[tradebait] MFL sync failed for L=${league.leagueId}: ${e.message}`);
+    return { synced: false, error: e.message };
+  }
+}
 
 async function ctxFor(cookie) {
   if (config.demoMode) return { week: demo.week(), statusMap: demo.playerStatus(), byeMap: demo.byes() };
@@ -63,12 +122,15 @@ async function getBlock(cookie, token) {
   const leagues = await Promise.all(
     [...byLeague.entries()].map(async ([leagueId, es]) => {
       const league = leagueById.get(String(leagueId));
-      const roster = league ? await rosterService.getRoster(cookie, leagueId).catch(() => null) : null;
+      const [roster, franchises] = await Promise.all([
+        league ? rosterService.getRoster(cookie, leagueId).catch(() => null) : null,
+        league ? rosterService.leagueFranchises(cookie, leagueId).catch(() => []) : [],
+      ]);
       const players = es
         .map((e) => {
           const base = playersLib.resolve(byId, e.playerId);
           const bucket = bucketOf(roster, String(e.playerId));
-          return {
+          const player = {
             id: base.id,
             name: base.name,
             position: base.position,
@@ -81,6 +143,9 @@ async function getBlock(cookie, token) {
             // Only call it stale when we could actually read the roster and he's absent.
             stale: roster ? bucket === null : false,
           };
+          // Which rivals would most want him (thin/upgrade at his position).
+          player.suggestions = suggestPartners(franchises, player);
+          return player;
         })
         .sort((a, b) => (b.value || 0) - (a.value || 0));
       return {
@@ -110,6 +175,7 @@ function leagueIds(token, leagueId) {
 }
 
 async function add(cookie, token, leagueId, playerId, note) {
+  const league = await findLeague(cookie, leagueId);
   // You can only shop a player you actually roster. Best-effort: if we can't read the
   // roster (transient), allow it rather than blocking a legitimate add.
   let owns = true;
@@ -126,12 +192,15 @@ async function add(cookie, token, leagueId, playerId, note) {
     throw err;
   }
   baitStore.add(token, leagueId, playerId, note);
-  return { ok: true, onBlock: true, leagueId: String(leagueId), id: String(playerId) };
+  const sync = await syncLeagueToMfl(cookie, token, league);
+  return { ok: true, onBlock: true, leagueId: String(leagueId), id: String(playerId), synced: sync.synced };
 }
 
-function remove(token, leagueId, playerId) {
+async function remove(cookie, token, leagueId, playerId) {
   baitStore.remove(token, leagueId, playerId);
-  return { ok: true, onBlock: false, leagueId: String(leagueId), id: String(playerId) };
+  const league = await findLeague(cookie, leagueId);
+  const sync = await syncLeagueToMfl(cookie, token, league);
+  return { ok: true, onBlock: false, leagueId: String(leagueId), id: String(playerId), synced: sync.synced };
 }
 
 module.exports = { getBlock, leagueIds, add, remove };

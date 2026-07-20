@@ -175,4 +175,54 @@ async function buildRoster(cookie, leagueId) {
   return roster;
 }
 
-module.exports = { getRoster, invalidate, computeOutlook };
+// Every franchise in a league with its roster valued and broken out by position —
+// the basis for "which rival would want this player" suggestions. Live reads all
+// rosters (one call, cached); demo composes from my roster + the partner fixtures.
+async function leagueFranchises(cookie, leagueId) {
+  const league = await findLeague(cookie, leagueId);
+  if (!league) return [];
+  const [byId, enr] = await Promise.all([
+    players.load(cookie),
+    leagueFormat.format(cookie, league).then((fmt) => enrichmentLib.snapshot(fmt, cookie)),
+  ]);
+
+  let raw; // [{ franchiseId, name, mine, playerIds }]
+  if (config.demoMode) {
+    const b = demo.roster(leagueId) || { starters: [], bench: [], ir: [], taxi: [] };
+    const mineIds = [...b.starters, ...b.bench, ...b.ir, ...b.taxi].map(String);
+    raw = [{ franchiseId: league.franchiseId, name: league.franchiseName || 'My Team', mine: true, playerIds: mineIds }];
+    for (const p of demo.tradePartners(leagueId)) {
+      raw.push({ franchiseId: String(p.franchiseId), name: p.name, mine: false, playerIds: (p.roster || []).map(String) });
+    }
+  } else {
+    const [franchises, names] = await Promise.all([
+      allFranchiseRosters(league, cookie),
+      leaguesService.franchiseNames(cookie, league),
+    ]);
+    raw = (franchises || []).map((f) => ({
+      franchiseId: String(f.id),
+      name: names.get(String(f.id)) || `Team ${f.id}`,
+      mine: String(f.id) === league.franchiseId,
+      playerIds: mfl.toArray(f.player).map((p) => String(p.id)),
+    }));
+  }
+
+  return raw.map((fr) => {
+    const byPos = {};
+    let totalValue = 0;
+    for (const id of fr.playerIds) {
+      const pos = players.resolve(byId, id).position || '?';
+      const v = enr.value(id) || 0;
+      totalValue += v;
+      (byPos[pos] || (byPos[pos] = [])).push(v);
+    }
+    const posStats = {};
+    for (const [pos, vals] of Object.entries(byPos)) {
+      vals.sort((a, b) => b - a);
+      posStats[pos] = { best: vals[0] || 0, depth: vals.length };
+    }
+    return { franchiseId: fr.franchiseId, name: fr.name, mine: fr.mine, totalValue: Math.round(totalValue), byPos: posStats };
+  });
+}
+
+module.exports = { getRoster, invalidate, computeOutlook, leagueFranchises };

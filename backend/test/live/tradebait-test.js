@@ -40,6 +40,11 @@ const FC = [
 ];
 global.fetch = async (url) => ({ ok: true, json: async () => (url.includes('fantasycalc') ? FC : []) });
 
+// Capture the native-MFL Trade Bait sync (import TYPE=tradeBait) so we can assert the
+// full block is pushed on every change.
+const imports = [];
+mfl.importRequest = async (type, params) => { imports.push({ type, params }); return {}; };
+
 const tradebait = require('../../src/services/tradebait');
 const store = require('../../src/store/tradebait');
 const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
@@ -60,20 +65,33 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   console.log('✓ add is ownership-guarded (can only block a player you roster)');
 
   // Block a player I roster, with a note.
+  imports.length = 0;
   const added = await tradebait.add(CK, TOK, '1000', '1', 'Selling high');
   assert(added.ok && added.onBlock, 'add returns onBlock');
   assert(store.has(TOK, '1000', '1'), 'store records the bait');
   assert(JSON.stringify(tradebait.leagueIds(TOK, '1000').ids) === JSON.stringify(['1']), 'league ids reflect the block');
 
-  // Roll-up shows him with value, slot, and note.
+  // The add pushed the full block to MFL's native Trade Bait board.
+  const push = imports.find((i) => i.type === 'tradeBait');
+  console.log('MFL sync:', JSON.stringify(push && { WILL_GIVE_UP: push.params.WILL_GIVE_UP, IN_EXCHANGE_FOR: push.params.IN_EXCHANGE_FOR, L: push.params.L }));
+  assert(push && push.params.WILL_GIVE_UP === '1', 'add syncs WILL_GIVE_UP=1 to MFL tradeBait');
+  assert(push.params.IN_EXCHANGE_FOR === 'Selling high', 'note carried as IN_EXCHANGE_FOR');
+  assert(push.params.L === '1000' && push.params.FRANCHISE === '0001', 'sync targets the right league/franchise');
+  assert(added.synced === true, 'add reports synced');
+  console.log('✓ sync: putting a player on the block pushes the full set to MFL native Trade Bait');
+
+  // Roll-up shows him with value, slot, note, and suggested partners.
   block = await tradebait.getBlock(CK, TOK);
   assert(block.totals.count === 1 && block.totals.leagues === 1, 'roll-up counts one player in one league');
   const lg = block.leagues[0];
   const p = lg.players[0];
-  console.log('block player:', JSON.stringify({ name: p.name, value: p.value, bucket: p.bucket, note: p.note, stale: p.stale }));
+  console.log('block player:', JSON.stringify({ name: p.name, value: p.value, bucket: p.bucket, note: p.note, stale: p.stale, suggestions: p.suggestions }));
   assert(p.id === '1' && p.value === 100 && p.bucket === 'starter' && p.note === 'Selling high' && p.stale === false, 'player resolved with value/slot/note, not stale');
   assert(lg.value === 100, 'league bait value summed');
-  console.log('✓ roll-up: on-the-block player grouped by league with value, slot, and note');
+  // Rival 0002 rosters no WR, so my shopped WR should surface them as a fit.
+  assert(Array.isArray(p.suggestions) && p.suggestions.some((s) => s.franchiseId === '0002'), 'suggests the WR-needy rival');
+  assert(p.suggestions.every((s) => s.name && s.reason), 'each suggestion has a name and a reason');
+  console.log('✓ roll-up: player carries value/slot/note + suggested trade partners —', p.suggestions.map((s) => `${s.name} (${s.reason})`).join(', '));
 
   // Re-adding updates the note (idempotent per league+player).
   await tradebait.add(CK, TOK, '1000', '1', 'Firm ask: a 1st');
@@ -82,12 +100,15 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   assert(block.leagues[0].players[0].note === 'Firm ask: a 1st', 'note updated on re-add');
   console.log('✓ re-adding the same player updates the note instead of duplicating');
 
-  // Remove.
-  const removed = tradebait.remove(TOK, '1000', '1');
+  // Remove — clears the bait locally AND re-syncs an empty set to MFL.
+  imports.length = 0;
+  const removed = await tradebait.remove(CK, TOK, '1000', '1');
   assert(removed.ok && !removed.onBlock && !store.has(TOK, '1000', '1'), 'remove clears the bait');
+  const clearPush = imports.find((i) => i.type === 'tradeBait');
+  assert(clearPush && clearPush.params.WILL_GIVE_UP === '', 'remove re-syncs an empty block to MFL (clears the board)');
   block = await tradebait.getBlock(CK, TOK);
   assert(block.totals.count === 0, 'block empty after remove');
-  console.log('✓ remove takes a player off the block');
+  console.log('✓ remove takes a player off the block and clears it on MFL');
 
   console.log('\nTRADE BAIT HARNESS PASSED');
 })().catch((e) => { console.error(e.message); process.exit(1); });

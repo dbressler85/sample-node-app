@@ -52,10 +52,15 @@ Cross-league management is the moat; these deepen it.
   grouped by league with value / roster slot / your note, stale detection (flags a
   player you've since traded or dropped), and a **Shop ›** jump to that league's trade
   desk on the Propose tab. Adds are ownership-guarded (only players you roster).
-  Durable via `store/tradebait`. *(Next: an optional asking-price/note editor in the
-  UI — the backend already stores a note; and suggested partners per bait player from
-  the all-franchise roster data. Syncing to MFL's native Trade Bait board if the
-  import shape proves reliable.)*
+  Durable via `store/tradebait`. **Suggested partners:** each bait player lists the
+  rivals who'd most want him — thin at his position or an upgrade to their best there,
+  contenders breaking ties — from the all-franchise roster data (`roster.leagueFranchises`).
+  **MFL sync:** blocking/unblocking a player re-pushes the league's full set to MFL's
+  native Trade Bait board (`import TYPE=tradeBait`, `WILL_GIVE_UP`/`IN_EXCHANGE_FOR`),
+  best-effort so a sync failure never breaks the local block. *(The MFL import param
+  names follow the documented convention but need verification against a live account —
+  MFL blocks its own API docs to us; tighten once confirmed on-device. Next: an in-UI
+  asking-price/note editor — the backend already stores the note.)*
 - [ ] **Trade negotiation: counter-offers.** Trades support propose / accept / reject
   and cross-league "trade for" today; add counter-offer (respond to an incoming
   offer with a modified package) via MFL `import?TYPE=tradeProposal` threading.
