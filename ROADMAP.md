@@ -108,7 +108,11 @@ player hub; **Players-screen gather memoized + light roster read** — the
 cross-league "mine/free" gather now uses a franchise-scoped `myRosterLight`
 (no all-franchise valuation / strength / picks) instead of the full `getRoster`
 build, and is memoized per cookie so switching rank type / refining search /
-opening a profile reuses one gather). Remaining, in rough priority order:
+opening a profile reuses one gather; **player DB persisted to disk** — with a
+real `DATA_DIR` (mounted disk) the big MFL `players` export is saved to the
+durable store, so a restart rehydrates it from disk instead of re-downloading the
+whole NFL universe (`MFL_PERSIST_PLAYERS`, auto-on when `DATA_DIR` is set)).
+Remaining, in rough priority order:
 
 - [ ] **DraftScreen: virtualize the player pool.** `DraftScreen` renders the
   undrafted pool with `ScrollView` + `.map` (hundreds of rows, re-rendered on a

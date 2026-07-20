@@ -63,6 +63,12 @@ const config = {
   // How long to cache the (large) global player database before refetching.
   playersCacheTtlMs: int(process.env.MFL_PLAYERS_TTL_MS, 24 * 60 * 60 * 1000),
 
+  // Persist the (large) player database to the durable store so a restart reloads it
+  // from disk instead of re-downloading the whole NFL universe from MFL. Defaults on
+  // only when a real DATA_DIR (mounted disk) is configured — so it's on in production
+  // and off for local/test runs (which share the default data dir).
+  persistPlayers: bool(process.env.MFL_PERSIST_PLAYERS, !!process.env.DATA_DIR),
+
   // Host used for account-level, non-league requests (login, myleagues, players).
   apiHost: process.env.MFL_API_HOST || 'api.myfantasyleague.com',
 

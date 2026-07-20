@@ -44,6 +44,7 @@ const TESTS = [
   'format-value-test',
   'trade-construction-test',
   'players-perf-test',
+  'players-persist-test',
 ];
 
 let failed = 0;
