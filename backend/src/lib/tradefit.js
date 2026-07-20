@@ -86,9 +86,10 @@ function suggestGive(mine, targetValue, partnerNeeds, myBait) {
     .filter((p) => (p.value || 0) > 0)
     .map((p) => ({ ...p, fit: needSet.has(p.position), bait: bait.has(String(p.id)) }));
   if (!pool.length) return [];
-  // Priority: a player who both fits their need and is on your block outranks one that
-  // does only one, which outranks a plain filler.
-  const prio = (p) => (p.fit ? 1 : 0) + (p.bait ? 1 : 0);
+  // Priority: a player who fits their need and/or is on your block outranks a plain
+  // filler. Personal tags lean it further — an AVOID is preferred to ship (+1), a TARGET
+  // is protected (−2, so it's used only when nothing else makes a fair package).
+  const prio = (p) => (p.fit ? 1 : 0) + (p.bait ? 1 : 0) + (p.tag === 'avoid' ? 1 : 0) - (p.tag === 'target' ? 2 : 0);
   if (!targetValue) return [pool.sort((a, b) => prio(b) - prio(a) || (b.value || 0) - (a.value || 0))[0]];
 
   // A fair single (85–125% of target): highest priority, then closest by value.
