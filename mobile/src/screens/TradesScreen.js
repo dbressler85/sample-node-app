@@ -55,6 +55,16 @@ function analyze(receive, send) {
   return { acquireValue, sendValue, net, verdict };
 }
 
+// Personal-value lens: the same analysis over Target/Avoid-adjusted values. Returns null
+// when nothing in the deal is tagged (so the UI only shows the "for you" line when it
+// actually differs from the market read).
+const TAG_MOD = { target: 1.1, avoid: 0.9 };
+function personalAnalyze(receive, send) {
+  if (![...receive, ...send].some((x) => x.tag)) return null;
+  const scale = (arr) => arr.map((x) => ({ ...x, value: (x.value || 0) * (TAG_MOD[x.tag] || 1) }));
+  return analyze(scale(receive), scale(send));
+}
+
 export default function TradesScreen({ league, onBack, initialTab, seed, onOpenPlayer }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
@@ -106,6 +116,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
   const sendList = Object.values(send);
   const receiveList = Object.values(receive);
   const preview = useMemo(() => analyze(receiveList, sendList), [receiveList, sendList]);
+  const personalPreview = useMemo(() => personalAnalyze(receiveList, sendList), [receiveList, sendList]);
   // Live construction for BOTH sides of the offer being built.
   const buildFit = useMemo(() => {
     if (!partner || !sendList.length || !receiveList.length) return null;
@@ -349,6 +360,11 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
             </Text>
             <Text style={[styles.previewVerdict, { color: VERDICT[preview.verdict].color }]}>{VERDICT[preview.verdict].label}</Text>
           </View>
+          {personalPreview ? (
+            <Text style={[styles.personalLine, { textAlign: 'right', color: VERDICT[personalPreview.verdict].color }]}>
+              For you · net {personalPreview.net > 0 ? '+' : ''}{personalPreview.net} · {VERDICT[personalPreview.verdict].label}
+            </Text>
+          ) : null}
           <Pressable
             style={({ pressed }) => [styles.send, (!sendList.length || !receiveList.length || sending) && styles.sendOff, pressed && { opacity: 0.85 }]}
             onPress={submitProposal}
@@ -375,8 +391,22 @@ function OfferCard({ offer, busy, onRespond, onCounter, onOpenPlayer }) {
       <Side label="You get" assets={offer.acquire} total={offer.analysis.acquireValue} tint={colors.good} onOpenPlayer={onOpenPlayer} />
       <Side label="You give" assets={offer.send} total={offer.analysis.sendValue} tint={colors.textDim} onOpenPlayer={onOpenPlayer} />
       <Text style={styles.estCaption}>
-        Dynasty value estimate · net {offer.analysis.net > 0 ? '+' : ''}{offer.analysis.net}
+        Market value · net {offer.analysis.net > 0 ? '+' : ''}{offer.analysis.net}
       </Text>
+      {offer.personal ? (
+        <Text style={[styles.personalLine, { color: (VERDICT[offer.personal.verdict] || VERDICT.fair).color }]}>
+          For you · net {offer.personal.net > 0 ? '+' : ''}{offer.personal.net} · {(VERDICT[offer.personal.verdict] || VERDICT.fair).label}
+        </Text>
+      ) : null}
+      {offer.tagNotes && offer.tagNotes.length ? (
+        <View style={styles.tagNotes}>
+          {offer.tagNotes.map((n, i) => (
+            <Text key={i} style={[styles.tagNote, { color: n.level === 'good' ? colors.good : colors.warn }]}>
+              {n.level === 'good' ? '✓' : '⚠'} {n.text}
+            </Text>
+          ))}
+        </View>
+      ) : null}
       {offer.construction ? (
         <View style={[styles.construction, { borderColor: (CONSTRUCTION[offer.construction.rating] || CONSTRUCTION.neutral).color }]}>
           <Text style={[styles.constructionText, { color: (CONSTRUCTION[offer.construction.rating] || CONSTRUCTION.neutral).color }]}>
@@ -484,7 +514,10 @@ const styles = StyleSheet.create({
   dot: { width: 8, height: 8, borderRadius: 4, marginRight: 8 },
   sideName: { color: colors.text, fontSize: 14, fontWeight: '600', flex: 1 },
   sideMeta: { color: colors.textDim, fontSize: 12 },
-  estCaption: { color: colors.textDim, fontSize: 11, fontStyle: 'italic', opacity: 0.8, marginTop: 8 },
+  estCaption: { color: colors.textDim, fontSize: 11, marginTop: 8 },
+  personalLine: { fontSize: 12, fontWeight: '800', marginTop: 3 },
+  tagNotes: { marginTop: 6, gap: 3 },
+  tagNote: { fontSize: 12, fontWeight: '700' },
   construction: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, marginTop: 8 },
   constructionText: { fontSize: 13, fontWeight: '700', lineHeight: 18 },
   buildFit: { marginBottom: 8, gap: 2 },
