@@ -134,7 +134,9 @@ export default function WaiversScreen({ initialLeagueId, initialPosition, onStar
     setWizardLoading(true);
     try {
       const res = await api.waiverSuggestions();
-      const queue = (res.leagues || []).filter((l) => !l.error && l.candidates && l.candidates.length);
+      // Include locked leagues so the wizard can explain them (draft pending, etc.)
+      // rather than silently omitting them.
+      const queue = (res.leagues || []).filter((l) => !l.error && (l.locked || (l.candidates && l.candidates.length)));
       if (!queue.length) {
         Alert.alert('Nothing to pick up', 'No free agents worth a claim across your leagues right now.');
         return;
@@ -294,7 +296,7 @@ function LeagueCard({ item, onPress }) {
     <Pressable style={({ pressed }) => [styles.ovCard, pressed && { opacity: 0.7 }]} onPress={onPress}>
       <View style={styles.ovTop}>
         <Text style={styles.ovName} numberOfLines={1}>{item.name}</Text>
-        <SystemBadge system={item.system} />
+        {item.locked ? <Text style={styles.lockBadge}>🔒 LOCKED</Text> : <SystemBadge system={item.system} />}
       </View>
       <Text style={styles.ovMeta}>
         {[
@@ -304,6 +306,7 @@ function LeagueCard({ item, onPress }) {
           .filter(Boolean)
           .join('  ·  ')}
       </Text>
+      {item.locked ? <Text style={styles.lockReason} numberOfLines={2}>{item.lockReason}</Text> : null}
       {item.topAvailable && item.topAvailable.length ? (
         <Text style={styles.ovTop3} numberOfLines={1}>
           Top: {item.topAvailable.map((p) => `${p.name.split(',')[0]}${p.value != null ? ` (${p.value})` : ''}`).join(', ')}
@@ -649,6 +652,8 @@ const styles = StyleSheet.create({
   ovName: { color: colors.text, fontSize: 16, fontWeight: '700', flex: 1, marginRight: 10 },
   ovMeta: { color: colors.textDim, fontSize: 12, fontWeight: '700', marginTop: 8 },
   ovTop3: { color: colors.textDim, fontSize: 12, marginTop: 6 },
+  lockBadge: { color: colors.warn, fontSize: 10, fontWeight: '900', borderWidth: 1, borderColor: colors.warn, borderRadius: 5, paddingHorizontal: 6, paddingVertical: 1, overflow: 'hidden' },
+  lockReason: { color: colors.warn, fontSize: 12, marginTop: 6, lineHeight: 16 },
   ovBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 },
   ovCount: { color: colors.text, fontSize: 13, fontWeight: '700' },
   ovPending: { color: colors.accent, fontWeight: '800' },

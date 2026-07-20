@@ -15,6 +15,7 @@ export default function WaiverWizardScreen({ leagues, onBack }) {
   const [dropId, setDropId] = useState(null);
   const [bid, setBid] = useState(null); // string, faab only
   const [browsing, setBrowsing] = useState(false); // candidate picker open
+  const [posFilter, setPosFilter] = useState(null); // position filter in the add picker
   const [changingDrop, setChangingDrop] = useState(false); // bench picker open
   const [submitting, setSubmitting] = useState(false);
   const [results, setResults] = useState([]); // {leagueId, name, action, add?, bid?}
@@ -35,8 +36,21 @@ export default function WaiverWizardScreen({ leagues, onBack }) {
     setDropId(rec && rec.drop ? rec.drop.id : null);
     setBid(rec && rec.bid != null ? String(rec.bid) : current.system === 'faab' ? String(current.minBid || 1) : null);
     setBrowsing(false);
+    setPosFilter(null);
     setChangingDrop(false);
   }, [current && current.leagueId]);
+
+  // Positions present in this league's candidate pool, for the filter chips.
+  const posOptions = useMemo(() => {
+    if (!current) return [];
+    const seen = [];
+    for (const c of current.candidates) if (!seen.includes(c.position)) seen.push(c.position);
+    return seen;
+  }, [current && current.leagueId]);
+  const filteredCandidates = useMemo(
+    () => (current ? current.candidates.filter((c) => !posFilter || c.position === posFilter) : []),
+    [current && current.leagueId, posFilter]
+  );
 
   const candById = useMemo(() => {
     const m = new Map();
@@ -91,6 +105,9 @@ export default function WaiverWizardScreen({ leagues, onBack }) {
   function skip() {
     advance({ leagueId: current.leagueId, name: current.name, action: 'skipped' });
   }
+  function nextLocked() {
+    advance({ leagueId: current.leagueId, name: current.name, action: 'locked' });
+  }
 
   if (done) return <Summary results={results} onBack={onBack} />;
   if (!current) return null;
@@ -123,6 +140,13 @@ export default function WaiverWizardScreen({ leagues, onBack }) {
           </Text>
         ) : null}
 
+        {current.locked ? (
+          <View style={styles.lockedPanel}>
+            <Text style={styles.lockedTitle}>🔒 Waivers locked</Text>
+            <Text style={styles.lockedText}>{current.lockReason || 'Free agency isn’t running in this league right now.'}</Text>
+          </View>
+        ) : (
+        <>
         {/* ADD */}
         <Text style={styles.fieldLabel}>Add</Text>
         {add ? (
@@ -135,7 +159,15 @@ export default function WaiverWizardScreen({ leagues, onBack }) {
         </Pressable>
         {browsing ? (
           <View style={styles.picker}>
-            {current.candidates.map((c) => (
+            {posOptions.length > 1 ? (
+              <View style={styles.posChips}>
+                <PosChip label="All" active={!posFilter} onPress={() => setPosFilter(null)} />
+                {posOptions.map((p) => (
+                  <PosChip key={p} label={p} active={posFilter === p} onPress={() => setPosFilter(p)} />
+                ))}
+              </View>
+            ) : null}
+            {filteredCandidates.map((c) => (
               <Pressable
                 key={c.id}
                 style={[styles.pickRow, c.id === addId && styles.pickRowOn]}
@@ -144,6 +176,7 @@ export default function WaiverWizardScreen({ leagues, onBack }) {
                 <PlayerLine p={c} showValue compact />
               </Pressable>
             ))}
+            {filteredCandidates.length === 0 ? <Text style={styles.benchName}>No {posFilter} available in this league.</Text> : null}
           </View>
         ) : null}
 
@@ -198,25 +231,35 @@ export default function WaiverWizardScreen({ leagues, onBack }) {
         ) : null}
 
         {!valid ? <Text style={styles.errorText}>{errors[0]}</Text> : null}
+        </>
+        )}
       </ScrollView>
 
       <View style={styles.actions}>
-        <Pressable style={styles.skipInline} onPress={skip} disabled={submitting}>
-          <Text style={styles.skipInlineText}>Skip</Text>
-        </Pressable>
-        <Pressable
-          style={({ pressed }) => [styles.submit, (!valid || submitting) && styles.submitOff, pressed && valid && { opacity: 0.85 }]}
-          onPress={submitAndNext}
-          disabled={!valid || submitting}
-        >
-          {submitting ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.submitText}>
-              {current.system === 'free' ? 'Add' : 'Claim'}{index + 1 === total ? ' & Finish' : ' & Next'}
-            </Text>
-          )}
-        </Pressable>
+        {current.locked ? (
+          <Pressable style={styles.submit} onPress={nextLocked}>
+            <Text style={styles.submitText}>{index + 1 === total ? 'Finish' : 'Next league ›'}</Text>
+          </Pressable>
+        ) : (
+          <>
+            <Pressable style={styles.skipInline} onPress={skip} disabled={submitting}>
+              <Text style={styles.skipInlineText}>Skip</Text>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [styles.submit, (!valid || submitting) && styles.submitOff, pressed && valid && { opacity: 0.85 }]}
+              onPress={submitAndNext}
+              disabled={!valid || submitting}
+            >
+              {submitting ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.submitText}>
+                  {current.system === 'free' ? 'Add' : 'Claim'}{index + 1 === total ? ' & Finish' : ' & Next'}
+                </Text>
+              )}
+            </Pressable>
+          </>
+        )}
       </View>
     </View>
   );
@@ -267,6 +310,8 @@ function Summary({ results, onBack }) {
                 <Text style={styles.summarySet} numberOfLines={1}>
                   + {r.add.split(',')[0]}{r.bid != null ? ` · $${r.bid}` : ''}
                 </Text>
+              ) : r.action === 'locked' ? (
+                <Text style={styles.summaryLocked}>🔒 locked</Text>
               ) : (
                 <Text style={styles.summarySkip}>skipped</Text>
               )}
@@ -290,6 +335,13 @@ function Stepper({ onPress, label }) {
   return (
     <Pressable style={styles.stepper} onPress={onPress}>
       <Text style={styles.stepperText}>{label}</Text>
+    </Pressable>
+  );
+}
+function PosChip({ label, active, onPress }) {
+  return (
+    <Pressable style={[styles.posChip, active && styles.posChipOn]} onPress={onPress}>
+      <Text style={[styles.posChipText, active && styles.posChipTextOn]}>{label}</Text>
     </Pressable>
   );
 }
@@ -318,6 +370,15 @@ const styles = StyleSheet.create({
   noneText: { color: colors.textDim, fontSize: 14, fontStyle: 'italic' },
   changeRow: { paddingTop: 8 },
   changeText: { color: colors.accent, fontSize: 13, fontWeight: '700' },
+  lockedPanel: { backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.warn, padding: 16, marginTop: 16 },
+  lockedTitle: { color: colors.warn, fontSize: 15, fontWeight: '900' },
+  lockedText: { color: colors.textDim, fontSize: 13, marginTop: 6, lineHeight: 18 },
+  posChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, padding: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+  posChip: { paddingHorizontal: 11, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bg },
+  posChipOn: { backgroundColor: colors.cardAlt, borderColor: colors.accent },
+  posChipText: { color: colors.textDim, fontSize: 12, fontWeight: '800' },
+  posChipTextOn: { color: colors.text },
+  summaryLocked: { color: colors.warn, fontSize: 13, fontWeight: '700' },
   picker: { marginTop: 8, backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, overflow: 'hidden' },
   pickRow: { paddingHorizontal: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   pickRowOn: { backgroundColor: colors.cardAlt },

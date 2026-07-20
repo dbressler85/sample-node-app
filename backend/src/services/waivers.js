@@ -424,12 +424,35 @@ async function getBestAvailable(cookie, token) {
   return { totalLeagues: leagues.length, players };
 }
 
+// Waivers/free-agency don't run in every league at every moment — most commonly
+// they're locked until a league's draft has happened (a startup or rookie draft
+// pending). MFL doesn't expose a clean "FA locked" flag, so we infer it from draft
+// state: a scheduled or in-progress draft means free agency isn't open yet.
+// Returns Map(leagueId -> reason). (Lazy-require draft to avoid a require cycle.)
+async function waiverLocks(cookie, token) {
+  const map = new Map();
+  if (config.demoMode) return map; // demo is a healthy mid-season state
+  try {
+    const draftService = require('./draft');
+    const ov = await draftService.getOverview(cookie, token);
+    for (const d of ov.drafts || []) {
+      if (d.status === 'in_progress') map.set(String(d.leagueId), 'Draft in progress — free agency is locked until it finishes.');
+      else if (d.status === 'scheduled') map.set(String(d.leagueId), 'Draft hasn’t happened yet — free agency opens after the draft.');
+    }
+  } catch (e) {
+    /* no draft info -> assume waivers are open */
+  }
+  return map;
+}
+
 // Per-league waiver summary for the landing list (mirrors the Lineups overview):
 // one card per league showing system, budget/priority, roster space, how many
 // free agents are worth a look, top available by value, and pending claims.
 async function getOverview(cookie, token) {
   const leagues = await leaguesService.listLeagues(cookie);
-  const out = await Promise.all(
+  const [locks, out] = await Promise.all([
+    waiverLocks(cookie, token),
+    Promise.all(
     leagues.map(async (league) => {
       try {
         const settings = await loadSettings(league, cookie);
@@ -459,11 +482,17 @@ async function getOverview(cookie, token) {
         return { leagueId: league.leagueId, name: league.name, error: e.message };
       }
     })
-  );
+    ),
+  ]);
+  for (const l of out) {
+    const reason = locks.get(String(l.leagueId));
+    if (reason) { l.locked = true; l.lockReason = reason; }
+  }
   const summary = {
     total: out.length,
     pending: out.reduce((s, l) => s + (l.pendingCount || 0), 0),
     rostersFull: out.filter((l) => l.rosterFull).length,
+    locked: out.filter((l) => l.locked).length,
   };
   return { leagues: out, summary };
 }
@@ -475,7 +504,9 @@ async function getOverview(cookie, token) {
 // wizard walks these, letting the owner tweak each before submitting.
 async function getSuggestions(cookie, token) {
   const leagues = await leaguesService.listLeagues(cookie);
-  const out = await Promise.all(
+  const [locks, out] = await Promise.all([
+    waiverLocks(cookie, token),
+    Promise.all(
     leagues.map(async (league) => {
       try {
         const settings = await loadSettings(league, cookie);
@@ -489,7 +520,9 @@ async function getSuggestions(cookie, token) {
 
         const full = rosterIsFull(roster, settings);
         const drop = suggestDrop(roster);
-        const candidates = freeAgents.slice(0, 8).map((p) => ({
+        // A deeper, position-diverse pool so the wizard can filter by position and
+        // pick a different player — not just the single best add.
+        const candidates = freeAgents.slice(0, 30).map((p) => ({
           id: p.id, name: p.name, position: p.position, team: p.team,
           value: p.value, projection: p.projection, trend: p.trend, ownership: p.ownership, availability: p.availability,
         }));
@@ -538,11 +571,17 @@ async function getSuggestions(cookie, token) {
         return { leagueId: league.leagueId, name: league.name, error: e.message };
       }
     })
-  );
+    ),
+  ]);
+  for (const l of out) {
+    const reason = locks.get(String(l.leagueId));
+    if (reason) { l.locked = true; l.lockReason = reason; l.recommended = null; }
+  }
   const summary = {
     total: out.length,
     withSuggestions: out.filter((l) => l.recommended && l.recommended.upgrade).length,
     withCandidates: out.filter((l) => l.candidates && l.candidates.length).length,
+    locked: out.filter((l) => l.locked).length,
   };
   return { leagues: out, summary };
 }
