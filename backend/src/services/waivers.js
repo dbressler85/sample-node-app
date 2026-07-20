@@ -192,6 +192,30 @@ async function buildFreeAgents(cookie, league, settings) {
   return ids.map((id) => makeFreeAgent(id, byId, scoring, statMap, ctx, settings.system, settings, liveProj, enr));
 }
 
+// Lightweight free-agent summary for the LANDING (count + top 3 by value). The landing
+// only shows those, so it doesn't need the full board build — no projectedScores fetch and
+// no per-player makeFreeAgent (availability bands, etc.). Just the memoized id list + names
+// + dynasty values. The heavy build stays for the board / wizard, which actually use it.
+async function freeAgentSummary(cookie, league) {
+  const [byId, enr] = await Promise.all([
+    playersLib.load(cookie),
+    enrichmentLib.snapshot(await leagueFormat.format(cookie, league), cookie),
+  ]);
+  const ids = await freeAgentIds(cookie, league);
+  const valid = [];
+  for (const id of ids) {
+    const p = playersLib.resolve(byId, id);
+    if (config.demoMode || (p.name && !/^Player \d+$/.test(p.name))) {
+      valid.push({ id: p.id, name: p.name, position: p.position, value: enr.value(id) });
+    }
+  }
+  valid.sort((a, b) => (b.value || 0) - (a.value || 0));
+  return {
+    faCount: valid.length,
+    topAvailable: valid.slice(0, 3).map((p) => ({ id: p.id, name: p.name, position: p.position, value: p.value })),
+  };
+}
+
 function activeCount(roster) {
   return roster.starters.length + roster.bench.length;
 }
@@ -507,13 +531,13 @@ async function getOverview(cookie, token) {
     leagues.map(async (league) => {
       try {
         const settings = await loadSettings(league, cookie);
-        const [roster, fas] = await Promise.all([
-          rosterService.getRoster(cookie, league.leagueId),
-          loadFreeAgents(cookie, league, settings),
+        // The landing only needs roster SIZE + a free-agent count/top-3, so use the light
+        // roster read (no all-franchise valuation / strength) and the light FA summary
+        // (no projections / per-player build) instead of the full getRoster + board build.
+        const [roster, fa] = await Promise.all([
+          rosterService.myRosterLight(cookie, league.leagueId),
+          freeAgentSummary(cookie, league),
         ]);
-        let freeAgents = fas;
-        if (!config.demoMode) freeAgents = freeAgents.filter((p) => p.name && !/^Player \d+$/.test(p.name));
-        freeAgents.sort((a, b) => (b.value || 0) - (a.value || 0));
         const pending = store.list(token, league.leagueId, config.demoMode ? demo.pendingClaims(league.leagueId) : []);
         const pendingCount = pending.filter((c) => (c.status || 'pending') === 'pending').length;
         return {
@@ -525,9 +549,9 @@ async function getOverview(cookie, token) {
           rosterSize: settings.rosterSize || null,
           rosterCount: activeCount(roster),
           rosterFull: rosterIsFull(roster, settings),
-          faCount: freeAgents.length,
+          faCount: fa.faCount,
           pendingCount,
-          topAvailable: freeAgents.slice(0, 3).map((p) => ({ id: p.id, name: p.name, position: p.position, value: p.value })),
+          topAvailable: fa.topAvailable,
         };
       } catch (e) {
         return { leagueId: league.leagueId, name: league.name, error: e.message };
