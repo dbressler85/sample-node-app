@@ -5,20 +5,28 @@ import AvailabilityBadge from './AvailabilityBadge';
 
 // `onToggleBait` (+ `baited`) opts a row into a trailing "on the block" toggle. When
 // it's not passed the row renders exactly as before, so every other screen is unaffected.
-export default function PlayerRow({ player, baited, onToggleBait }) {
+// `onOpenPlayer` makes the player identity (everything but the bait toggle) tappable to
+// open his cross-league profile — the app's standard "tap a player" gesture.
+export default function PlayerRow({ player, baited, onToggleBait, onOpenPlayer }) {
   const posColor = positionColors[player.position] || colors.textDim;
+  const Identity = onOpenPlayer ? Pressable : View;
+  const identityProps = onOpenPlayer
+    ? { onPress: () => onOpenPlayer(player.id), accessibilityRole: 'button', accessibilityLabel: `Open ${player.name}` }
+    : {};
   return (
     <View style={styles.row}>
-      <View style={[styles.posBadge, { backgroundColor: posColor + '22', borderColor: posColor }]}>
-        <Text style={[styles.pos, { color: posColor }]}>{player.position || '—'}</Text>
-      </View>
-      <Text style={styles.name} numberOfLines={1}>
-        {player.name}
-      </Text>
-      <AvailabilityBadge availability={player.availability} style={{ marginRight: 8 }} />
-      {player.age != null ? <Text style={styles.age}>{player.age}y</Text> : null}
-      <Text style={styles.team}>{player.team || 'FA'}</Text>
-      {player.value != null ? <Text style={styles.value}>{player.value}</Text> : null}
+      <Identity style={styles.identity} {...identityProps}>
+        <View style={[styles.posBadge, { backgroundColor: posColor + '22', borderColor: posColor }]}>
+          <Text style={[styles.pos, { color: posColor }]}>{player.position || '—'}</Text>
+        </View>
+        <Text style={styles.name} numberOfLines={1}>
+          {player.name}
+        </Text>
+        <AvailabilityBadge availability={player.availability} style={{ marginRight: 8 }} />
+        {player.age != null ? <Text style={styles.age}>{player.age}y</Text> : null}
+        <Text style={styles.team}>{player.team || 'FA'}</Text>
+        {player.value != null ? <Text style={styles.value}>{player.value}</Text> : null}
+      </Identity>
       {onToggleBait ? (
         <Pressable
           onPress={() => onToggleBait(player)}
@@ -41,6 +49,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
+  identity: { flex: 1, flexDirection: 'row', alignItems: 'center' },
   posBadge: {
     width: 42,
     paddingVertical: 2,

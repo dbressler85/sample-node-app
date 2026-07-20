@@ -26,7 +26,7 @@ const SORTS = [
   { key: 'trend', label: 'Trend' },
 ];
 
-export default function WaiversScreen({ initialLeagueId, initialPosition, onStartWizard }) {
+export default function WaiversScreen({ initialLeagueId, initialPosition, onStartWizard, onOpenPlayer }) {
   const [overview, setOverview] = useState(null);
   const [ovRefreshing, setOvRefreshing] = useState(false);
   const [wizardLoading, setWizardLoading] = useState(false);
@@ -186,6 +186,7 @@ export default function WaiversScreen({ initialLeagueId, initialPosition, onStar
           sort={sort}
           setSort={setSort}
           onPick={(addId) => setClaim({ leagueId: openLeagueId, addId })}
+          onOpenPlayer={onOpenPlayer}
         />
       ) : (
         <>
@@ -323,7 +324,7 @@ function LeagueCard({ item, onPress }) {
   );
 }
 
-function BoardView({ board, loading, error, position, setPosition, sort, setSort, onPick, onBack, leagueName }) {
+function BoardView({ board, loading, error, position, setPosition, sort, setSort, onPick, onBack, leagueName, onOpenPlayer }) {
   const header = onBack ? (
     <Pressable style={styles.backRow} onPress={onBack} hitSlop={8}>
       <Text style={styles.backChev}>‹</Text>
@@ -369,42 +370,51 @@ function BoardView({ board, loading, error, position, setPosition, sort, setSort
         data={board.freeAgents}
         keyExtractor={(p) => p.id}
         contentContainerStyle={styles.list}
-        renderItem={({ item }) => <FaRow p={item} onPress={() => onPick(item.id)} />}
+        renderItem={({ item }) => <FaRow p={item} onPress={() => onPick(item.id)} onOpenPlayer={onOpenPlayer} />}
         ListEmptyComponent={<Text style={styles.empty}>No free agents match.</Text>}
       />
     </View>
   );
 }
 
-function FaRow({ p, onPress }) {
+function FaRow({ p, onPress, onOpenPlayer }) {
   const posColor = positionColors[p.position] || colors.textDim;
+  // Identity (badge + name + meta + value) opens the cross-league profile to research the
+  // player; the "+ Claim" pill is the action. Falls back to a whole-row claim if no profile
+  // handler is wired.
+  const Identity = onOpenPlayer ? Pressable : View;
+  const idProps = onOpenPlayer ? { onPress: () => onOpenPlayer(p.id) } : {};
   return (
-    <Pressable style={({ pressed }) => [styles.faRow, pressed && { opacity: 0.7 }]} onPress={onPress}>
-      <View style={[styles.posBadge, { backgroundColor: posColor + '22', borderColor: posColor }]}>
-        <Text style={[styles.pos, { color: posColor }]}>{p.position}</Text>
-      </View>
-      <View style={{ flex: 1 }}>
-        <View style={styles.faNameRow}>
-          <Text style={styles.faName} numberOfLines={1}>
-            {p.name}
-          </Text>
-          <AvailabilityBadge availability={p.availability} style={{ marginLeft: 6 }} />
+    <View style={styles.faRow}>
+      <Identity style={styles.faIdentity} {...idProps}>
+        <View style={[styles.posBadge, { backgroundColor: posColor + '22', borderColor: posColor }]}>
+          <Text style={[styles.pos, { color: posColor }]}>{p.position}</Text>
         </View>
-        <Text style={styles.faMeta}>
-          {[
-            p.team,
-            p.projection != null ? `proj ${p.projection}` : null,
-            p.ownership != null ? `${p.ownership}% rost` : null,
-            p.trend ? `+${(p.trend / 1000).toFixed(1)}k adds` : null,
-            p.onWaivers ? `waivers${p.clearTime ? ` ${p.clearTime}` : ''}` : 'free agent',
-          ]
-            .filter(Boolean)
-            .join(' · ')}
-        </Text>
-      </View>
-      {p.value != null ? <Text style={styles.faValue}>{p.value}</Text> : null}
-      <Text style={styles.addBtn}>+ Claim</Text>
-    </Pressable>
+        <View style={{ flex: 1 }}>
+          <View style={styles.faNameRow}>
+            <Text style={styles.faName} numberOfLines={1}>
+              {p.name}
+            </Text>
+            <AvailabilityBadge availability={p.availability} style={{ marginLeft: 6 }} />
+          </View>
+          <Text style={styles.faMeta}>
+            {[
+              p.team,
+              p.projection != null ? `proj ${p.projection}` : null,
+              p.ownership != null ? `${p.ownership}% rost` : null,
+              p.trend ? `+${(p.trend / 1000).toFixed(1)}k adds` : null,
+              p.onWaivers ? `waivers${p.clearTime ? ` ${p.clearTime}` : ''}` : 'free agent',
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+          </Text>
+        </View>
+        {p.value != null ? <Text style={styles.faValue}>{p.value}</Text> : null}
+      </Identity>
+      <Pressable onPress={onPress} hitSlop={6} style={({ pressed }) => [styles.addBtnPill, pressed && { opacity: 0.7 }]}>
+        <Text style={styles.addBtn}>+ Claim</Text>
+      </Pressable>
+    </View>
   );
 }
 
@@ -684,6 +694,8 @@ const styles = StyleSheet.create({
   faName: { color: colors.text, fontSize: 15, fontWeight: '700', flexShrink: 1 },
   faMeta: { color: colors.textDim, fontSize: 12, marginTop: 2 },
   faValue: { color: colors.gold, fontSize: 15, fontWeight: '900', marginHorizontal: 10 },
+  faIdentity: { flex: 1, flexDirection: 'row', alignItems: 'center' },
+  addBtnPill: { borderWidth: 1, borderColor: colors.good, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, marginLeft: 4 },
   addBtn: { color: colors.good, fontSize: 12, fontWeight: '800' },
   leagueChoices: { marginTop: -4, marginBottom: 10, marginLeft: 12, gap: 6 },
   leagueChoice: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.cardAlt, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10 },

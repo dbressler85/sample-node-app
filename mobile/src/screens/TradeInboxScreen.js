@@ -20,7 +20,7 @@ const CONSTRUCTION = {
   neutral: { color: colors.textDim, icon: '•' },
 };
 
-export default function TradeInboxScreen({ onBack, onOpenLeague, onProposeInLeague, onOpenBlock, onCounter }) {
+export default function TradeInboxScreen({ onBack, onOpenLeague, onProposeInLeague, onOpenBlock, onCounter, onOpenPlayer }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -126,6 +126,7 @@ export default function TradeInboxScreen({ onBack, onOpenLeague, onProposeInLeag
               onRespond={respond}
               onOpenLeague={() => onOpenLeague({ leagueId: item.leagueId, name: item.leagueName })}
               onCounter={onCounter ? () => onCounter({ leagueId: item.leagueId, name: item.leagueName, offerId: item.id }) : null}
+              onOpenPlayer={onOpenPlayer}
             />
           )}
           ListEmptyComponent={
@@ -141,7 +142,7 @@ export default function TradeInboxScreen({ onBack, onOpenLeague, onProposeInLeag
   );
 }
 
-function OfferCard({ offer, busy, onRespond, onOpenLeague, onCounter }) {
+function OfferCard({ offer, busy, onRespond, onOpenLeague, onCounter, onOpenPlayer }) {
   const v = VERDICT[offer.analysis.verdict] || VERDICT.fair;
   return (
     <View style={styles.card}>
@@ -156,8 +157,8 @@ function OfferCard({ offer, busy, onRespond, onOpenLeague, onCounter }) {
         </View>
       </View>
 
-      <Side label="You get" assets={offer.acquire} total={offer.analysis.acquireValue} />
-      <Side label="You give" assets={offer.send} total={offer.analysis.sendValue} />
+      <Side label="You get" assets={offer.acquire} total={offer.analysis.acquireValue} onOpenPlayer={onOpenPlayer} />
+      <Side label="You give" assets={offer.send} total={offer.analysis.sendValue} onOpenPlayer={onOpenPlayer} />
       <Text style={styles.estCaption}>
         Dynasty value estimate · net {offer.analysis.net > 0 ? '+' : ''}{offer.analysis.net}
       </Text>
@@ -186,17 +187,22 @@ function OfferCard({ offer, busy, onRespond, onOpenLeague, onCounter }) {
   );
 }
 
-function Side({ label, assets, total }) {
+function Side({ label, assets, total, onOpenPlayer }) {
   return (
     <View style={styles.side}>
       <Text style={styles.sideLabel}>{label} · {total}</Text>
-      {assets.map((a) => (
-        <View key={a.id} style={styles.sideRow}>
-          <View style={[styles.dot, { backgroundColor: positionColors[a.position] || colors.textDim }]} />
-          <Text style={styles.sideName} numberOfLines={1}>{a.name}</Text>
-          <Text style={styles.sideMeta}>{a.position}{a.value != null ? ` · ${a.value}` : ''}</Text>
-        </View>
-      ))}
+      {assets.map((a) => {
+        const tappable = onOpenPlayer && a.kind !== 'pick';
+        const Row = tappable ? Pressable : View;
+        const rowProps = tappable ? { onPress: () => onOpenPlayer(a.id) } : {};
+        return (
+          <Row key={a.id} style={styles.sideRow} {...rowProps}>
+            <View style={[styles.dot, { backgroundColor: positionColors[a.position] || colors.textDim }]} />
+            <Text style={styles.sideName} numberOfLines={1}>{a.name}</Text>
+            <Text style={styles.sideMeta}>{a.position}{a.value != null ? ` · ${a.value}` : ''}</Text>
+          </Row>
+        );
+      })}
     </View>
   );
 }

@@ -22,7 +22,7 @@ function fmtDate(iso) {
   }
 }
 
-export default function DraftScreen({ league, onBack }) {
+export default function DraftScreen({ league, onBack, onOpenPlayer }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -54,6 +54,16 @@ export default function DraftScreen({ league, onBack }) {
     if (!data || !data.available) return [];
     return position ? data.available.filter((p) => p.position === position) : data.available;
   }, [data, position]);
+
+  // A draft pick is irreversible, so confirm before committing (the pool rows now open
+  // a profile on tap, and the explicit Draft button routes through here).
+  function confirmDraft(p) {
+    if (!myTurn || picking != null) return;
+    Alert.alert('Draft this player?', `${p.name} — ${p.position}${p.team ? ` · ${p.team}` : ''}${p.value != null ? ` · value ${p.value}` : ''}`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Draft', style: 'default', onPress: () => draftPlayer(p) },
+    ]);
+  }
 
   async function draftPlayer(p) {
     if (!myTurn) return;
@@ -154,7 +164,7 @@ export default function DraftScreen({ league, onBack }) {
           ) : null}
 
           {/* Available pool */}
-          <Text style={styles.section}>Available{myTurn ? ' · tap to draft' : ''}</Text>
+          <Text style={styles.section}>Available{myTurn ? ' · tap a name to scout, Draft to pick' : ''}</Text>
           <View style={styles.posRow}>
             <Pressable style={[styles.posChip, !position && styles.posChipActive]} onPress={() => setPosition(null)}>
               <Text style={[styles.posText, !position && { color: colors.text }]}>All</Text>
@@ -169,20 +179,34 @@ export default function DraftScreen({ league, onBack }) {
             <Text style={styles.empty}>No available players{position ? ` at ${position}` : ''}.</Text>
           ) : (
             pool.map((p, i) => (
-              <Pressable
-                key={p.id}
-                style={({ pressed }) => [styles.avRow, myTurn && styles.avRowLive, pressed && myTurn && { opacity: 0.7 }]}
-                onPress={() => (myTurn ? draftPlayer(p) : null)}
-                disabled={!myTurn || picking != null}
-              >
-                <Text style={styles.avRank}>{i + 1}</Text>
-                <View style={[styles.dot, { backgroundColor: positionColors[p.position] || colors.textDim }]} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.avName} numberOfLines={1}>{p.name}</Text>
-                  <Text style={styles.avMeta}>{p.position}{p.team ? ` · ${p.team}` : ''}{p.age != null ? ` · ${p.age}y` : ''}</Text>
-                </View>
-                {picking === p.id ? <ActivityIndicator color={colors.accent} /> : <Text style={styles.avValue}>{p.value != null ? p.value : '—'}</Text>}
-              </Pressable>
+              <View key={p.id} style={[styles.avRow, myTurn && styles.avRowLive]}>
+                <Pressable
+                  style={styles.avIdentity}
+                  onPress={onOpenPlayer ? () => onOpenPlayer(p.id) : undefined}
+                  disabled={!onOpenPlayer}
+                >
+                  <Text style={styles.avRank}>{i + 1}</Text>
+                  <View style={[styles.dot, { backgroundColor: positionColors[p.position] || colors.textDim }]} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.avName} numberOfLines={1}>{p.name}</Text>
+                    <Text style={styles.avMeta}>{p.position}{p.team ? ` · ${p.team}` : ''}{p.age != null ? ` · ${p.age}y` : ''}</Text>
+                  </View>
+                  <Text style={styles.avValue}>{p.value != null ? p.value : '—'}</Text>
+                </Pressable>
+                {myTurn ? (
+                  picking === p.id ? (
+                    <ActivityIndicator color={colors.accent} style={styles.avDraftBtn} />
+                  ) : (
+                    <Pressable
+                      style={({ pressed }) => [styles.avDraftBtn, pressed && { opacity: 0.7 }]}
+                      onPress={() => confirmDraft(p)}
+                      disabled={picking != null}
+                    >
+                      <Text style={styles.avDraftTxt}>Draft</Text>
+                    </Pressable>
+                  )
+                ) : null}
+              </View>
             ))
           )}
 
@@ -240,6 +264,9 @@ const styles = StyleSheet.create({
   posText: { color: colors.textDim, fontSize: 13, fontWeight: '700' },
   avRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 11, marginBottom: 8 },
   avRowLive: { borderColor: colors.gold },
+  avIdentity: { flex: 1, flexDirection: 'row', alignItems: 'center' },
+  avDraftBtn: { marginLeft: 10, backgroundColor: colors.gold, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 7, minWidth: 58, alignItems: 'center' },
+  avDraftTxt: { color: colors.bg, fontSize: 13, fontWeight: '900' },
   avRank: { color: colors.textDim, fontSize: 13, fontWeight: '800', width: 22 },
   avName: { color: colors.text, fontSize: 15, fontWeight: '700' },
   avMeta: { color: colors.textDim, fontSize: 12, marginTop: 2 },

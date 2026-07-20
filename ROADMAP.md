@@ -108,6 +108,83 @@ Cross-league management is the moat; these deepen it.
   field-name/format variation; tighten once verified against a real league's
   calendar response.)*
 
+## Cross-screen synergy (UX pass — reviewed 2026-07-20)
+
+A full PO/UX pass found the app computes two rich shared objects — a **cross-league
+player object** (the profile: where a player stands in every league, format-aware
+value per league, value range) and **per-league dynasty intelligence** (needs/surplus,
+outlook, strength, value-at-risk) — but each screen renders flat text and dead-ends
+instead of routing into them. The work is plumbing that intelligence between screens.
+Grouped into four "synergy systems", highest-leverage first:
+
+### System 1 — Every player is a doorway (tap → PlayerProfile)
+- [ ] **Thread `onOpenPlayer` into every player list.** Player names are dead text on
+  ~11 of 18 screens despite `PlayerProfileScreen` being the app's richest cross-league
+  object. Wire it through: **Roster** (tap a rostered player — the worst dead end),
+  **Scores**, **Lineups / LineupEditor / LineupWizard** (warning players carry
+  `playerId`), **Waivers board / WaiverWizard** (research a FA before claiming),
+  **Trades desk / TradeInbox** (offer players), **On the Block**, **Draft room**.
+- [ ] **Draft room: separate research from drafting.** Once rows open a profile, a
+  single tap can't also = instant pick. Add an explicit "Draft him" action / confirm
+  (also fixes today's accidental-pick risk).
+
+### System 2 — Needs/surplus + outlook should follow you everywhere
+- [ ] **Make dead-end aggregates tappable.** Portfolio "By league" rows (outlook · core
+  age · strength · %risk — the richest per-league data in the app, currently inert) →
+  open that league. Home outlook chips (Win-now/Ascending/…) → list the leagues in that
+  bucket. Enrich bare **Leagues** rows with the per-league status those downstream
+  screens already compute.
+- [ ] **Need-adjusted draft board.** DraftScreen ranks by pure value with no roster
+  context; badge available players that fill the manager's thin positions (needs/surplus
+  already computed in trades).
+- [ ] **Seed On the Block → trade desk.** "Best fits" partners and `Shop ›` should
+  deep-link into the builder pre-seeded (the `seed` API already supports
+  `partnerFranchiseId` + `targetPlayerId`); today `Shop ›` opens an empty builder and
+  you rebuild by hand.
+- [ ] **Annotate the inbox "Start a trade" list** — "you have N on the block here" /
+  "they need RB, you're deep" instead of blind league names.
+
+### System 3 — Signals computed and thrown away
+- [ ] **Surface "watched player is now a free agent" on Home.** Watchlist already
+  computes `summary.free`; Home triage only detects `trade_offer` / `waiver_pending`.
+- [ ] **Expand push beyond draft-clock + trade-offer.** On Deck / exposure / news
+  already detect lineup holes before lock, injuries to *your starters*, and waiver runs;
+  the detection exists, push just doesn't subscribe to it.
+- [ ] **Unify the "where does this player stand" computation.** profile `crossLeague`,
+  watchlist `relationIn`, and exposure are three silos of the same concept; Watch tab's
+  `free`/`tradeTarget` and the profile's "Trade for" should share one action pathway.
+
+### System 4 — In-season chains that stop one link short
+- [ ] **Lineup hole → waiver board (filtered by position).** The `initialPosition`
+  deep-link already exists (Home/On Deck use it); Lineups/Editor know the empty slot's
+  position but never call it.
+- [ ] **Scores → LineupEditor for the same league** (close game + benched players who
+  can still move); show *which* players are yet-to-play, not just a count.
+- [ ] **After a waiver claim, offer to set the lineup** if the add needs a starting slot
+  (today it dead-ends back to Waivers).
+- [ ] **Draft picks ↔ trade assets.** Draft room/hub never link to the trade desk, and
+  the desk can only *send* picks, never *receive* them — a real functional gap for a
+  core dynasty currency.
+
+### Per-screen polish (from the same pass)
+- [ ] **Players lists show no age** (the key dynasty attribute) — the shared `PlayerRow`
+  shows it but the local row on PlayersScreen doesn't; also "Trending" shows no
+  direction/magnitude, and `ownership` is platform-wide, not "% in your leagues".
+- [ ] **Waiver claim: add-vs-drop value delta** side by side (the core dynasty claim
+  decision); `FaRow` vs `PlayerLine` render the same entity two different ways.
+- [ ] **Trades: de-emphasized "Dynasty value estimate"** (italic/low-opacity — the most
+  important number); value verdict and construction verdict can visually contradict with
+  no reconciliation; inbox shows one-sided construction, desk two-sided.
+- [ ] **Home label collision:** "Needs attention" names two different numbers (leagues
+  vs items); the tile isn't tappable; `onOpenPlayer` is passed in but unused.
+- [ ] **Consolidate duplicated UX:** one primary bulk-lineup path (wizard vs auto-set
+  sheet), one shared claim builder (WaiverWizard vs ClaimSheet), one matchup component
+  (recomputed in Scores/Lineups/Editor/Wizard with wording drift), shared `PlayerRow`.
+- [ ] **Portfolio `strengthLabel` thresholds are re-hardcoded client-side** (drift risk
+  from the backend model) — source them from the backend.
+- [ ] **Roster: rookie picks are inert text** — no value, not tappable, can't add to a
+  trade; and no positional value breakdown.
+
 ## Performance & caching backlog
 
 The big wins are shipped (parallelized per-league fan-outs; cached `listLeagues` /

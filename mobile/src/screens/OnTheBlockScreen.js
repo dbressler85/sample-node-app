@@ -9,7 +9,7 @@ const NOTE_MAX = 120;
 // Centralized trade bait: every player you're shopping, grouped by league, with value /
 // slot / an asking-price note and a jump to that league's trade desk to actually build
 // the offer. Add players to the block from a roster (the ⇄ Block toggle on each player).
-export default function OnTheBlockScreen({ onBack, onShopLeague }) {
+export default function OnTheBlockScreen({ onBack, onShopLeague, onOpenPlayer }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -112,17 +112,23 @@ export default function OnTheBlockScreen({ onBack, onShopLeague }) {
               {lg.players.map((p) => (
                 <View key={p.id} style={styles.playerBlock}>
                   <View style={styles.playerRow}>
-                    <View style={[styles.dot, { backgroundColor: positionColors[p.position] || colors.textDim }]} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.playerName} numberOfLines={1}>
-                        {p.name}
-                        {p.stale ? <Text style={styles.stale}>  · no longer rostered</Text> : null}
-                      </Text>
-                      <Text style={styles.playerMeta} numberOfLines={1}>
-                        {[p.position, p.bucket, p.age != null ? `${p.age}y` : null].filter(Boolean).join(' · ')}
-                      </Text>
-                    </View>
-                    {p.value != null ? <Text style={styles.playerVal}>{p.value}</Text> : null}
+                    <Pressable
+                      style={styles.blockIdentity}
+                      onPress={onOpenPlayer ? () => onOpenPlayer(p.id) : undefined}
+                      disabled={!onOpenPlayer}
+                    >
+                      <View style={[styles.dot, { backgroundColor: positionColors[p.position] || colors.textDim }]} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.playerName} numberOfLines={1}>
+                          {p.name}
+                          {p.stale ? <Text style={styles.stale}>  · no longer rostered</Text> : null}
+                        </Text>
+                        <Text style={styles.playerMeta} numberOfLines={1}>
+                          {[p.position, p.bucket, p.age != null ? `${p.age}y` : null].filter(Boolean).join(' · ')}
+                        </Text>
+                      </View>
+                      {p.value != null ? <Text style={styles.playerVal}>{p.value}</Text> : null}
+                    </Pressable>
                     <Pressable onPress={() => removeOne(lg.leagueId, p)} hitSlop={8} style={styles.remove} disabled={busy === `${lg.leagueId}:${p.id}`}>
                       {busy === `${lg.leagueId}:${p.id}` ? <ActivityIndicator size="small" color={colors.textDim} /> : <Text style={styles.removeTxt}>✕</Text>}
                     </Pressable>
@@ -203,6 +209,7 @@ const styles = StyleSheet.create({
   shopLink: { color: colors.accent, fontSize: 13, fontWeight: '700' },
   playerBlock: { paddingVertical: 4 },
   playerRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6 },
+  blockIdentity: { flex: 1, flexDirection: 'row', alignItems: 'center' },
   dot: { width: 8, height: 8, borderRadius: 4, marginRight: 10 },
   playerName: { color: colors.text, fontSize: 15, fontWeight: '600' },
   stale: { color: colors.warn, fontSize: 12, fontWeight: '700' },
