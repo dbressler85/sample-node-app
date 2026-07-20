@@ -1,0 +1,29 @@
+name: EAS Build Status
+
+# Lists recent EAS builds and their status (queued / in progress / finished / errored)
+# with install URLs — WITHOUT starting a new build. Runnable from the GitHub mobile app
+# (Actions → EAS Build Status → Run workflow), and readable from the build log.
+# Uses the same EXPO_TOKEN repository secret.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  status:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install EAS CLI
+        run: npm install -g eas-cli
+      - name: List recent builds
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: eas build:list --platform android --limit 5 --non-interactive
