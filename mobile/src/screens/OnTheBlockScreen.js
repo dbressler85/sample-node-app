@@ -1,20 +1,29 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, FlatList, RefreshControl, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, FlatList, RefreshControl, ActivityIndicator, Alert, Modal, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import useAndroidBack from '../useAndroidBack';
 
+const NOTE_MAX = 120;
+
 // Centralized trade bait: every player you're shopping, grouped by league, with value /
-// slot / note and a jump to that league's trade desk to actually build the offer. Add
-// players to the block from a roster (the ⇄ Block toggle on each player).
+// slot / an asking-price note and a jump to that league's trade desk to actually build
+// the offer. Add players to the block from a roster (the ⇄ Block toggle on each player).
 export default function OnTheBlockScreen({ onBack, onShopLeague }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(null); // `${leagueId}:${playerId}` being removed
+  const [editing, setEditing] = useState(null); // { leagueId, player } whose note is open
+  const [draft, setDraft] = useState('');
+  const [saving, setSaving] = useState(false);
 
-  useAndroidBack(useCallback(() => { onBack(); return true; }, [onBack]));
+  useAndroidBack(useCallback(() => {
+    if (editing) { setEditing(null); return true; }
+    onBack();
+    return true;
+  }, [editing, onBack]));
 
   const load = useCallback(async () => {
     setError(null);
@@ -39,6 +48,27 @@ export default function OnTheBlockScreen({ onBack, onShopLeague }) {
       Alert.alert('Could not remove', e.message);
     } finally {
       setBusy(null);
+    }
+  }
+
+  function openEditor(leagueId, player) {
+    setEditing({ leagueId, player });
+    setDraft(player.note || '');
+  }
+
+  // Re-add with the note — the backend treats add as idempotent-with-note-update and
+  // re-syncs the league's bait (IN_EXCHANGE_FOR) to MFL.
+  async function saveNote() {
+    if (!editing) return;
+    setSaving(true);
+    try {
+      await api.addBait(editing.leagueId, editing.player.id, draft.trim() || null);
+      setEditing(null);
+      await load();
+    } catch (e) {
+      Alert.alert('Could not save note', e.message);
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -90,7 +120,6 @@ export default function OnTheBlockScreen({ onBack, onShopLeague }) {
                       </Text>
                       <Text style={styles.playerMeta} numberOfLines={1}>
                         {[p.position, p.bucket, p.age != null ? `${p.age}y` : null].filter(Boolean).join(' · ')}
-                        {p.note ? <Text style={styles.note}>{`  ·  “${p.note}”`}</Text> : null}
                       </Text>
                     </View>
                     {p.value != null ? <Text style={styles.playerVal}>{p.value}</Text> : null}
@@ -98,6 +127,13 @@ export default function OnTheBlockScreen({ onBack, onShopLeague }) {
                       {busy === `${lg.leagueId}:${p.id}` ? <ActivityIndicator size="small" color={colors.textDim} /> : <Text style={styles.removeTxt}>✕</Text>}
                     </Pressable>
                   </View>
+                  <Pressable style={({ pressed }) => [styles.noteRow, pressed && { opacity: 0.7 }]} onPress={() => openEditor(lg.leagueId, p)}>
+                    {p.note ? (
+                      <Text style={styles.noteText} numberOfLines={2}>{`“${p.note}”`}<Text style={styles.noteEdit}>  ✎</Text></Text>
+                    ) : (
+                      <Text style={styles.noteAdd}>+ Asking price / target</Text>
+                    )}
+                  </Pressable>
                   {p.suggestions && p.suggestions.length ? (
                     <View style={styles.fitRow}>
                       <Text style={styles.fitLabel}>Best fits</Text>
@@ -118,6 +154,36 @@ export default function OnTheBlockScreen({ onBack, onShopLeague }) {
           }
         />
       )}
+
+      <Modal visible={!!editing} transparent animationType="fade" onRequestClose={() => setEditing(null)}>
+        <Pressable style={styles.backdrop} onPress={() => (saving ? null : setEditing(null))}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            <Pressable style={styles.sheet} onPress={() => {}}>
+              <Text style={styles.sheetTitle} numberOfLines={1}>{editing ? editing.player.name : ''}</Text>
+              <Text style={styles.sheetSub}>What you're asking in return (shown to your league on MFL as your bait).</Text>
+              <TextInput
+                style={styles.input}
+                value={draft}
+                onChangeText={(t) => setDraft(t.slice(0, NOTE_MAX))}
+                placeholder="e.g. a 1st + a young WR"
+                placeholderTextColor={colors.textDim}
+                multiline
+                autoFocus
+                maxLength={NOTE_MAX}
+              />
+              <Text style={styles.counter}>{draft.length}/{NOTE_MAX}</Text>
+              <View style={styles.sheetActions}>
+                <Pressable style={[styles.sheetBtn, styles.cancel]} onPress={() => setEditing(null)} disabled={saving}>
+                  <Text style={styles.cancelTxt}>Cancel</Text>
+                </Pressable>
+                <Pressable style={[styles.sheetBtn, styles.save]} onPress={saveNote} disabled={saving}>
+                  {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveTxt}>{draft.trim() ? 'Save' : 'Clear note'}</Text>}
+                </Pressable>
+              </View>
+            </Pressable>
+          </KeyboardAvoidingView>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -141,10 +207,13 @@ const styles = StyleSheet.create({
   playerName: { color: colors.text, fontSize: 15, fontWeight: '600' },
   stale: { color: colors.warn, fontSize: 12, fontWeight: '700' },
   playerMeta: { color: colors.textDim, fontSize: 12, marginTop: 2 },
-  note: { color: colors.textDim, fontStyle: 'italic' },
   playerVal: { color: colors.gold, fontSize: 15, fontWeight: '900', marginRight: 12, minWidth: 30, textAlign: 'right' },
   remove: { width: 26, height: 26, alignItems: 'center', justifyContent: 'center' },
   removeTxt: { color: colors.textDim, fontSize: 16, fontWeight: '800' },
+  noteRow: { marginLeft: 18, marginTop: 2, marginBottom: 4 },
+  noteText: { color: colors.text, fontSize: 13, fontStyle: 'italic', lineHeight: 18 },
+  noteEdit: { color: colors.accent, fontStyle: 'normal', fontWeight: '800' },
+  noteAdd: { color: colors.accent, fontSize: 12, fontWeight: '700' },
   fitRow: { flexDirection: 'row', alignItems: 'flex-start', marginLeft: 18, marginBottom: 8, marginTop: 2, gap: 8 },
   fitLabel: { color: colors.accent, fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4, marginTop: 1 },
   fitText: { color: colors.textDim, fontSize: 12, flex: 1, lineHeight: 16 },
@@ -152,4 +221,16 @@ const styles = StyleSheet.create({
   emptyWrap: { paddingTop: 60, alignItems: 'center' },
   emptyTitle: { color: colors.text, fontSize: 17, fontWeight: '800', marginBottom: 8 },
   emptyText: { color: colors.textDim, fontSize: 14, textAlign: 'center', paddingHorizontal: 24, lineHeight: 20 },
+  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', paddingHorizontal: 24 },
+  sheet: { backgroundColor: colors.card, borderRadius: 16, borderWidth: 1, borderColor: colors.border, padding: 18 },
+  sheetTitle: { color: colors.text, fontSize: 18, fontWeight: '900' },
+  sheetSub: { color: colors.textDim, fontSize: 13, marginTop: 4, marginBottom: 14, lineHeight: 18 },
+  input: { backgroundColor: colors.cardAlt, borderRadius: 12, borderWidth: 1, borderColor: colors.border, color: colors.text, fontSize: 15, padding: 12, minHeight: 72, textAlignVertical: 'top' },
+  counter: { color: colors.textDim, fontSize: 11, textAlign: 'right', marginTop: 4 },
+  sheetActions: { flexDirection: 'row', gap: 10, marginTop: 14 },
+  sheetBtn: { flex: 1, borderRadius: 12, paddingVertical: 13, alignItems: 'center' },
+  cancel: { backgroundColor: colors.cardAlt, borderWidth: 1, borderColor: colors.border },
+  cancelTxt: { color: colors.textDim, fontSize: 15, fontWeight: '700' },
+  save: { backgroundColor: colors.accent },
+  saveTxt: { color: '#fff', fontSize: 15, fontWeight: '800' },
 });

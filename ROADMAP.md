@@ -57,10 +57,12 @@ Cross-league management is the moat; these deepen it.
   contenders breaking ties — from the all-franchise roster data (`roster.leagueFranchises`).
   **MFL sync:** blocking/unblocking a player re-pushes the league's full set to MFL's
   native Trade Bait board (`import TYPE=tradeBait`, `WILL_GIVE_UP`/`IN_EXCHANGE_FOR`),
-  best-effort so a sync failure never breaks the local block. *(The MFL import param
-  names follow the documented convention but need verification against a live account —
-  MFL blocks its own API docs to us; tighten once confirmed on-device. Next: an in-UI
-  asking-price/note editor — the backend already stores the note.)*
+  best-effort so a sync failure never breaks the local block. **Note editor:** tap a
+  block player's note to set an asking price / target in a modal; it saves via the
+  idempotent add (updating the note, no duplicate) and re-syncs `IN_EXCHANGE_FOR` to
+  MFL. *(The MFL import param names follow the documented convention but need
+  verification against a live account — MFL blocks its own API docs to us; tighten
+  once confirmed on-device.)*
 - [ ] **Trade negotiation: counter-offers.** Trades support propose / accept / reject
   and cross-league "trade for" today; add counter-offer (respond to an incoming
   offer with a modified package) via MFL `import?TYPE=tradeProposal` threading.
