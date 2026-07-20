@@ -7,6 +7,7 @@
 process.env.MFL_DEMO_MODE = 'true';
 
 const trades = require('../../src/services/trades');
+const tradefit = require('../../src/lib/tradefit');
 const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
 
 // A dead-even market deal: I get p1 (60), I give p2 (60).
@@ -39,6 +40,18 @@ const send = [{ kind: 'player', id: 'p2', position: 'RB', value: 60 }];
   assert(notes.some((n) => n.level === 'caution' && /Target of yours/.test(n.text)), 'flags "they want a Target of yours"');
   assert(notes.some((n) => n.level === 'caution' && /Avoid/.test(n.text)), 'flags taking on an Avoid');
 
-  console.log('✓ trade tags: personal re-score (all 4 directions), null when untagged, notes');
+  // Suggestion bias: among equal-value givers, ship the Avoid and protect the Target.
+  const givers = [
+    { id: 'a', position: 'RB', value: 50, tag: 'avoid' },
+    { id: 'b', position: 'RB', value: 50, tag: 'target' },
+    { id: 'c', position: 'RB', value: 50 },
+  ];
+  const give = tradefit.suggestGive(givers, 50, [], new Set());
+  assert(give.length === 1 && give[0].id === 'a', 'suggestGive ships the Avoid (a), not the plain or the Target');
+  // The Target is the last resort — only picked when it's the sole option.
+  const onlyTarget = tradefit.suggestGive([{ id: 'b', position: 'RB', value: 50, tag: 'target' }], 50, [], new Set());
+  assert(onlyTarget[0].id === 'b', 'a Target is still used when it is the only fair option (protected, not untouchable)');
+
+  console.log('✓ trade tags: personal re-score (all 4 directions), null when untagged, notes, suggestion bias');
   console.log('\nTRADE TAGS HARNESS PASSED');
 })().catch((e) => { console.error(e.message); process.exit(1); });

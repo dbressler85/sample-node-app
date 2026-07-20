@@ -361,13 +361,13 @@ async function suggestFor(cookie, token, leagueId, targetId, partnerFranchiseId)
   const baitMap = await tradeBaitByFranchise(cookie, token, league);
   const myBait = baitMap.get(String(league.franchiseId)) || new Set();
   const mine = [...roster.starters, ...roster.bench]
-    .map((p) => ({ id: p.id, name: p.name, position: p.position, value: enr.value(p.id) || 0 }));
+    .map((p) => ({ id: p.id, name: p.name, position: p.position, value: enr.value(p.id) || 0, tag: playerTags.get(token, p.id) }));
   const give = tradefit.suggestGive(mine, targetValue, partnerNeeds, myBait);
   return {
     leagueId: league.leagueId,
     targetId: tid,
     targetValue,
-    give: give.map((g) => ({ id: g.id, name: g.name, position: g.position, value: g.value, bait: myBait.has(String(g.id)) })),
+    give: give.map((g) => ({ id: g.id, name: g.name, position: g.position, value: g.value, bait: myBait.has(String(g.id)), tag: g.tag || null })),
     giveValue: Math.round(give.reduce((s, g) => s + (g.value || 0), 0) * 10) / 10,
     partnerNeeds,
   };
@@ -398,7 +398,7 @@ async function counterFor(cookie, token, leagueId, offerId) {
   const inRecv = new Set(receive.map((a) => String(a.id)));
   // Their other tradeable players (not already in the deal, and not mine) I could ask for.
   const partnerPool = (partner ? partner.roster : [])
-    .map((id) => asset(id, byId, enr))
+    .map((id) => { const a = asset(id, byId, enr); a.tag = playerTags.get(token, a.id) || null; return a; })
     .filter((a) => (a.value || 0) > 0 && !inRecv.has(String(a.id)) && !myIds.has(String(a.id)));
 
   const FAIR = 0.06;
@@ -419,7 +419,8 @@ async function counterFor(cookie, token, leagueId, offerId) {
       const overshoot = v > deficit * 1.4 ? -(v - deficit * 1.4) : 0;
       const baitBonus = theirBait.has(String(a.id)) ? 30 : 0;
       const needBonus = myNeeds.has(a.position) ? 15 : 0;
-      return near * 0.5 + overshoot + baitBonus + needBonus;
+      const targetBonus = a.tag === 'target' ? 25 : a.tag === 'avoid' ? -25 : 0; // ask for your Targets, not your Avoids
+      return near * 0.5 + overshoot + baitBonus + needBonus + targetBonus;
     };
     cands.sort((a, b) => score(b) - score(a));
     const pick = cands[0];
