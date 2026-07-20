@@ -21,6 +21,7 @@ import LineupWizardScreen from './src/screens/LineupWizardScreen';
 import WaiverWizardScreen from './src/screens/WaiverWizardScreen';
 import TradesScreen from './src/screens/TradesScreen';
 import TradeInboxScreen from './src/screens/TradeInboxScreen';
+import TradeWizardScreen from './src/screens/TradeWizardScreen';
 import OnTheBlockScreen from './src/screens/OnTheBlockScreen';
 import DraftScreen from './src/screens/DraftScreen';
 import DraftHubScreen from './src/screens/DraftHubScreen';
@@ -161,6 +162,7 @@ export default function App() {
   const openSettings = () => pushOverlay({ type: 'settings' });
   const openOnDeck = () => pushOverlay({ type: 'onDeck' });
   const openPlayer = (playerId) => pushOverlay({ type: 'playerProfile', playerId });
+  const openTradeWizard = (queue) => pushOverlay({ type: 'tradeWizard', queue });
   const openWaivers = (target) => {
     setWaiversTarget(target || null);
     setTab('waivers');
@@ -310,8 +312,12 @@ export default function App() {
           playerId={overlay.playerId}
           onBack={popOverlay}
           onOpenTradeDesk={(ctx) => openTrades({ leagueId: ctx.leagueId, name: ctx.name }, 'propose', { targetPlayerId: ctx.targetPlayerId, partnerFranchiseId: ctx.partnerFranchiseId })}
+          onOpenTradeWizard={openTradeWizard}
         />
       );
+    }
+    if (overlay && overlay.type === 'tradeWizard') {
+      return <TradeWizardScreen queue={overlay.queue} onExit={popOverlay} onOpenPlayer={openPlayer} />;
     }
 
     return (

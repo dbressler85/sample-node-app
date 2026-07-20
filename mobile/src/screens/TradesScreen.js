@@ -96,7 +96,7 @@ function personalAnalyze(receive, send) {
   return analyze(scale(receive), scale(send));
 }
 
-export default function TradesScreen({ league, onBack, initialTab, seed, onOpenPlayer }) {
+export default function TradesScreen({ league, onBack, initialTab, seed, onOpenPlayer, onSent }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -245,6 +245,12 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
       // Countering means declining their exact terms: once ours is sent, reject theirs.
       if (counterInfo) {
         try { await api.respondTrade(league.leagueId, counterInfo.offerId, 'reject'); } catch (e) { /* leave it */ }
+      }
+      // In the multi-league wizard, advance to the next league on OK instead of
+      // resetting this desk (it unmounts as the wizard steps forward).
+      if (onSent) {
+        Alert.alert('Trade proposed', `Sent to ${res.offer.withName}.`, [{ text: 'Next league ›', onPress: onSent }]);
+        return;
       }
       Alert.alert(counterInfo ? 'Counter sent' : 'Trade proposed', `Sent to ${res.offer.withName}.${counterInfo ? ' Their original offer was declined.' : ''}`);
       setSend({});

@@ -21,7 +21,7 @@ function diffColor(d) {
   return colors.bad;
 }
 
-export default function PlayerProfileScreen({ playerId, onBack, onOpenTradeDesk }) {
+export default function PlayerProfileScreen({ playerId, onBack, onOpenTradeDesk, onOpenTradeWizard }) {
   const [p, setP] = useState(null);
   const [error, setError] = useState(null);
   const [sheet, setSheet] = useState(null); // 'add' | 'drop' | 'trade'
@@ -235,6 +235,7 @@ export default function PlayerProfileScreen({ playerId, onBack, onOpenTradeDesk 
           player={p}
           onClose={() => setSheet(null)}
           onCraft={(ctx) => { setSheet(null); onOpenTradeDesk && onOpenTradeDesk(ctx); }}
+          onStartWizard={(queue) => { setSheet(null); onOpenTradeWizard && onOpenTradeWizard(queue); }}
         />
       ) : null}
       {sheet === 'drop' ? <DropSheet player={p} onClose={() => setSheet(null)} onDone={() => { setSheet(null); load(); }} /> : null}
