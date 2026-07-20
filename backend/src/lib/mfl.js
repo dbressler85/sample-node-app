@@ -140,6 +140,10 @@ const readCache = new Map(); // key -> { at, promise }
 // keeps up with its poll cadence; everything else a moderate short one.
 const STATIC_TYPES = new Set(['league', 'rules', 'myleagues', 'players', 'nflSchedule', 'calendar']);
 const LIVE_TYPES = new Set(['liveScoring', 'draftResults']);
+// Slow-changing scoring reads: weekly projections and past-week actuals. A player
+// profile fans these across every league, so a longer TTL keeps profiles fast and
+// avoids the rate-limit burst. (Current-week live scoring uses LIVE_TYPES instead.)
+const SLOW_TYPES = new Set(['projectedScores', 'playerScores']);
 
 // Read data via the export command (cached, TTL depends on how volatile it is).
 async function exportRequest(type, { host = config.apiHost, cookie = null, ...params } = {}) {
@@ -148,6 +152,8 @@ async function exportRequest(type, { host = config.apiHost, cookie = null, ...pa
     ? config.mflStaticTtlMs
     : LIVE_TYPES.has(type)
     ? config.mflLiveTtlMs
+    : SLOW_TYPES.has(type)
+    ? config.mflSlowTtlMs
     : config.mflCacheTtlMs;
   const hit = readCache.get(key);
   if (hit && Date.now() - hit.at < ttl) return hit.promise;
