@@ -9,6 +9,7 @@ const demo = require('../demo/fixtures');
 const newsLib = require('../lib/news');
 const leaguesService = require('./leagues');
 const rosterService = require('./roster');
+const standingLib = require('../lib/standing');
 
 async function gather(cookie, token) {
   // Muted leagues drop out of exposure — you've told us they don't need attention.
@@ -31,15 +32,11 @@ async function getExposure(cookie, token) {
   const map = new Map(); // playerId -> aggregate record
 
   for (const { league, roster } of rosters) {
-    // Iterate each bucket with its label so we know a player's bucket directly,
-    // instead of re-scanning all four arrays per player (was O(rosterSize^2)).
-    const buckets = [
-      ['starter', roster.starters],
-      ['bench', roster.bench],
-      ['ir', roster.ir],
-      ['taxi', roster.taxi],
-    ];
-    for (const [bucket, list] of buckets) {
+    // Iterate each bucket with its label so we know a player's bucket directly, instead
+    // of re-scanning all four arrays per player (was O(rosterSize^2)). Bucket names come
+    // from the shared standing definition so exposure and the profile/watchlist agree.
+    for (const [key, bucket] of standingLib.BUCKETS) {
+      const list = roster[key] || [];
       for (const p of list) {
         if (!map.has(p.id)) {
           map.set(p.id, {
