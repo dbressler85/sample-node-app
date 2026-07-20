@@ -72,12 +72,13 @@ Cross-league management is the moat; these deepen it.
   **Suggest** button (and the seed) build a package that's fair by **league-specific
   value** (format-aware: scoring/roster) AND biased to the partner's needs from your
   surplus (`lib/tradefit` + `GET /trades/suggest`). Value updates live as you adjust.
-- [x] **Trade construction verdict on incoming offers.** Every incoming offer (Trade hub +
-  league desk) now carries a roster-construction read alongside the value verdict: **caution**
-  ("Sends a WR you're already thin at — don't do it") when it deals away a position you need,
-  **good** ("Fills your WR need from RB depth") when it addresses a need from your surplus, else
-  **neutral** ("comes down to value"). From `tradefit.constructionVerdict` over your league-relative
-  needs/surplus; computed only for leagues that actually have an offer.
+- [x] **Trade construction verdict (both teams, incoming + outgoing).** Every offer carries a
+  roster-construction read alongside the value verdict: **caution** ("Sends a WR you're already
+  thin at — don't do it") when it deals away a need, **good** ("Fills your WR need from RB depth")
+  when it addresses a need from surplus, else **neutral**. Incoming offers show your read; **outgoing
+  offers show BOTH teams** (yours + theirs, phrased "likely to bite" / "a tough sell"), and the
+  **live builder** shows both sides' construction as you add/remove players. From
+  `tradefit.constructionVerdict` (subject-aware) over each team's league-relative needs/surplus.
 - [x] **Trade counter-offers + trade-bait-aware suggestions.** Incoming offers now have a
   **Counter** action (on the league desk and the cross-league hub) that seeds the builder
   with a value-balanced counter of the **same construction** — keeps their players, and if

@@ -94,5 +94,10 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   assert(C.construction.rating === 'neutral', 'an RB-for-RB that touches neither edge is neutral');
   console.log('✓ construction read: caution when it thins a need, good when it fills one from depth, else neutral');
 
+  // Both teams: every offer also carries the PARTNER's construction (mirror), phrased for them.
+  assert(['good', 'neutral', 'caution'].includes(A.partnerConstruction.rating), 'offer carries the partner construction verdict');
+  assert(/them|their/i.test(A.partnerConstruction.reason), 'partner verdict is phrased from their side');
+  console.log('✓ both teams: offers also carry the partner’s construction read —', A.partnerConstruction.reason);
+
   console.log('\nTRADE CONSTRUCTION HARNESS PASSED');
 })().catch((e) => { console.error(e.message); process.exit(1); });

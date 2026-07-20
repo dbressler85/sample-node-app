@@ -113,13 +113,17 @@ function buildOffer(raw, league, byId, enr) {
   };
 }
 
-// Attach a roster-construction read (does this offer fix a hole or open one?) to each
-// incoming offer, from MY needs/surplus in that league. `send` = what I'd give, `acquire`
-// = what I'd get.
+// Attach a roster-construction read (does this deal fix a hole or open one?) to each
+// offer. `construction` is from MY side — I give `send`, I get `acquire`. For offers where
+// the other team is known, `partnerConstruction` is the mirror from THEIR side — they give
+// `acquire`, they get `send` — so an outgoing offer shows whether it also helps them (i.e.
+// whether they're likely to bite).
 function annotateConstruction(offers, ns, franchiseId) {
   const mine = ns[String(franchiseId)] || { needs: [], surplus: [] };
   for (const o of offers) {
-    if (o.direction === 'incoming') o.construction = tradefit.constructionVerdict(o.send, o.acquire, mine.needs, mine.surplus);
+    o.construction = tradefit.constructionVerdict(o.send, o.acquire, mine.needs, mine.surplus);
+    const theirs = o.withFranchiseId ? ns[String(o.withFranchiseId)] : null;
+    if (theirs) o.partnerConstruction = tradefit.constructionVerdict(o.acquire, o.send, theirs.needs, theirs.surplus, 'they');
   }
   return offers;
 }
