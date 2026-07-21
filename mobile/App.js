@@ -277,6 +277,7 @@ export default function App() {
           onShopLeague={(league) => openTrades(league, 'propose')}
           onShopPlayer={({ leagueId, name, sendPlayerId, partnerFranchiseId }) => openTrades({ leagueId, name }, 'propose', { sendPlayerId, partnerFranchiseId })}
           onOpenPlayer={openPlayer}
+          onOpenInbox={() => { popOverlay(); setTab('trades'); }}
         />
       );
     }

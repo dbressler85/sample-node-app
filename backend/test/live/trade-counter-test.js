@@ -101,6 +101,12 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   console.log('incoming:', JSON.stringify({ get: offer.analysis.acquireValue, give: offer.analysis.sendValue, verdict: offer.analysis.verdict }));
   assert(offer.analysis.verdict === 'unfavorable', 'the incoming offer is unfavorable to me');
 
+  // Inbox cards carry league format + both teams' outlook/age (1QB league here).
+  assert(typeof offer.format === 'string' && /1QB|Superflex/.test(offer.format), `offer carries a format label, got ${offer.format}`);
+  assert(offer.me && offer.me.outlook && offer.me.avgAge != null, 'offer carries MY outlook + average age');
+  assert(offer.partner && offer.partner.outlook && offer.partner.avgAge != null, "offer carries the partner's outlook + average age");
+  console.log(`✓ inbox card context — format ${offer.format} · you ${offer.me.outlook} (age ${offer.me.avgAge}) vs ${offer.partner.outlook} (age ${offer.partner.avgAge})`);
+
   const c = await trades.counterFor(CK, TOK, '1000', offer.id);
   console.log('counter receive:', JSON.stringify(c.receive.map((a) => `${a.name} $${a.value}${a.bait ? ' [their bait]' : ''}`)), '=', c.receiveValue);
   console.log('counter give:', JSON.stringify(c.give.map((a) => `${a.name} $${a.value}`)), '=', c.giveValue);

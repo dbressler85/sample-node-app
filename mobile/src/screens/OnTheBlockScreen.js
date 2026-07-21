@@ -9,7 +9,7 @@ const NOTE_MAX = 120;
 // Centralized trade bait: every player you're shopping, grouped by league, with value /
 // slot / an asking-price note and a jump to that league's trade desk to actually build
 // the offer. Add players to the block from a roster (the ⇄ Block toggle on each player).
-export default function OnTheBlockScreen({ onBack, onShopLeague, onOpenPlayer, onShopPlayer }) {
+export default function OnTheBlockScreen({ onBack, onShopLeague, onOpenPlayer, onShopPlayer, onOpenInbox }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -81,7 +81,11 @@ export default function OnTheBlockScreen({ onBack, onShopLeague, onOpenPlayer, o
           <Text style={styles.back}>‹ Trades</Text>
         </Pressable>
         <Text style={styles.title}>On the Block</Text>
-        <View style={{ width: 60 }} />
+        {onOpenInbox ? (
+          <Pressable onPress={onOpenInbox} hitSlop={10}>
+            <Text style={styles.inboxLink}>Inbox ›</Text>
+          </Pressable>
+        ) : <View style={{ width: 60 }} />}
       </View>
       {totals && totals.count > 0 ? (
         <>
@@ -210,6 +214,7 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8 },
   back: { color: colors.accent, fontSize: 16, fontWeight: '600', width: 60 },
+  inboxLink: { color: colors.accent, fontSize: 14, fontWeight: '800', width: 60, textAlign: 'right' },
   title: { color: colors.text, fontSize: 20, fontWeight: '900' },
   subtitle: { color: colors.textDim, fontSize: 13, textAlign: 'center', marginTop: 4 },
   syncNote: { color: colors.textDim, fontSize: 11, textAlign: 'center', marginTop: 2, opacity: 0.7 },

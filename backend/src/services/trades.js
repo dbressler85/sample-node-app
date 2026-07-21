@@ -274,8 +274,12 @@ async function getOverview(cookie, token) {
         const raw = await rawOffers(cookie, token, league);
         if (!raw.length) return { offers: [], fit: null, leagueId: String(league.leagueId) };
 
-        const enr = await enrichmentLib.snapshot(await leagueFormat.format(cookie, league), cookie);
+        const fmt = await leagueFormat.format(cookie, league);
+        const enr = await enrichmentLib.snapshot(fmt, cookie);
         const offers = annotateTags(raw.map((o) => buildOffer(o, league, byId, enr)), token);
+        // League format (SF/1QB · PPR) is cheap and always useful on the card.
+        const fmtLabel = leagueFormat.label(fmt);
+        offers.forEach((o) => { o.format = fmtLabel; });
         // The "start a trade here" fit hint is computed on demand when you open the
         // league (getLeague). Best-effort: a roster-read failure just means value-only.
         let fit = null;
@@ -283,6 +287,9 @@ async function getOverview(cookie, token) {
           const d = await tradeData(cookie, token, league.leagueId);
           annotateConstruction(offers, d.ns, league.franchiseId);
           fit = tradeFitSummary(d.ns, league.franchiseId);
+          // Both sides' dynasty context so the inbox shows each team's outlook + age.
+          const meCtx = d.teamOutlook[String(league.franchiseId)] || null;
+          offers.forEach((o) => { o.me = meCtx; o.partner = d.teamOutlook[String(o.withFranchiseId)] || null; });
         } catch (e) { /* value-only */ }
         return { offers, fit, leagueId: String(league.leagueId) };
       } catch (e) {
