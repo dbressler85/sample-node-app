@@ -22,7 +22,7 @@ import { getValue, setValue } from '../cache';
 import { ScreenTitle } from '../components/Brand';
 
 const SORTS = [
-  { key: 'value', label: 'Value' },
+  { key: 'value', label: 'Market' },
   { key: 'projection', label: 'Proj' },
   { key: 'ownership', label: 'Own%' },
   { key: 'trend', label: 'Trend' },

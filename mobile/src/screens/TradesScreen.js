@@ -20,7 +20,7 @@ function sortAssets(list, key) {
     return pa - pb || (b.value || 0) - (a.value || 0);
   });
 }
-const SORTS = [['position', 'Pos'], ['value', 'Value'], ['name', 'Name']];
+const SORTS = [['position', 'Pos'], ['value', 'Market'], ['name', 'Name']];
 const CONSTRUCTION = {
   good: { color: colors.good, icon: '✓' },
   caution: { color: colors.bad, icon: '⚠' },
