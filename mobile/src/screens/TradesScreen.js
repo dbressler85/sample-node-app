@@ -250,6 +250,12 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
       if (mine) setSend({ [mine.id]: mine });
       return;
     }
+    // "Trade this pick" from the roster: pre-load the pick on the SEND side.
+    if (seed.sendPickToken) {
+      const pick = (data.myPicks || []).find((pk) => String(pk.id) === String(seed.sendPickToken));
+      if (pick) setSend({ [pick.id]: pick });
+      return;
+    }
     const partner = (data.partners || []).find((p) => p.franchiseId === seed.partnerFranchiseId);
     const target = partner && partner.players.find((pl) => String(pl.id) === String(seed.targetPlayerId));
     if (target) setReceive({ [target.id]: target });

@@ -63,6 +63,11 @@ export default function RosterScreen({ league, onBack, onOpenTrades, onOpenDraft
       ].filter((s) => s.data && s.data.length > 0)
     : [];
 
+  // Combined dynasty value of the draft picks (when they're the enriched objects).
+  const picksTotal = roster && roster.picks && roster.picks.length && typeof roster.picks[0] === 'object'
+    ? roster.picks.reduce((sum, p) => sum + (p.value || 0), 0)
+    : null;
+
   return (
     <View style={styles.container}>
       <View style={styles.topbar}>
@@ -122,14 +127,37 @@ export default function RosterScreen({ league, onBack, onOpenTrades, onOpenDraft
           ListFooterComponent={
             roster && roster.picks && roster.picks.length ? (
               <View>
-                <Text style={styles.sectionHeader}>Rookie picks · {roster.picks.length}</Text>
+                <Text style={styles.sectionHeader}>
+                  Draft picks · {roster.picks.length}
+                  {picksTotal != null ? <Text style={styles.picksTotal}>{`  ·  ${picksTotal} value`}</Text> : null}
+                </Text>
                 <View style={styles.picks}>
-                  {roster.picks.map((pick, i) => (
-                    <View key={i} style={styles.pickChip}>
-                      <Text style={styles.pickText}>{pick}</Text>
-                    </View>
-                  ))}
+                  {roster.picks.map((pick, i) => {
+                    // Backend now sends pick objects ({token,label,value}); tolerate an old
+                    // cached string just in case.
+                    const label = typeof pick === 'string' ? pick : pick.label;
+                    const token = typeof pick === 'string' ? null : pick.token;
+                    const value = typeof pick === 'string' ? null : pick.value;
+                    const tappable = token && onOpenTrades;
+                    const Chip = tappable ? Pressable : View;
+                    const chipProps = tappable
+                      ? { onPress: () => onOpenTrades(league, 'propose', { sendPickToken: token }) }
+                      : {};
+                    return (
+                      <Chip
+                        key={i}
+                        style={({ pressed }) => [styles.pickChip, tappable && styles.pickChipTappable, pressed && { opacity: 0.7 }]}
+                        {...chipProps}
+                      >
+                        <Text style={styles.pickText}>{label}</Text>
+                        {value != null ? (
+                          <Text style={styles.pickMeta}>val {value}{tappable ? '  ·  Trade ›' : ''}</Text>
+                        ) : null}
+                      </Chip>
+                    );
+                  })}
                 </View>
+                <Text style={styles.picksHint}>Tap a pick to shop it — opens the trade desk with it on your side.</Text>
               </View>
             ) : null
           }
@@ -164,8 +192,12 @@ const styles = StyleSheet.create({
   summaryLabel: { color: colors.textDim, fontSize: 11, fontWeight: '700' },
   summaryValue: { color: colors.text, fontSize: 16, fontWeight: '900', marginTop: 3 },
   picks: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
-  pickChip: { backgroundColor: colors.cardAlt, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: colors.border },
+  pickChip: { backgroundColor: colors.cardAlt, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7, borderWidth: 1, borderColor: colors.border },
+  pickChipTappable: { borderColor: colors.accent + '77' },
   pickText: { color: colors.text, fontSize: 13, fontWeight: '700' },
+  pickMeta: { color: colors.accent, fontSize: 11, fontWeight: '700', marginTop: 2 },
+  picksTotal: { color: colors.gold, fontSize: 13, fontWeight: '800' },
+  picksHint: { color: colors.textDim, fontSize: 11, marginTop: 8, lineHeight: 15 },
   subtitle: { color: colors.textDim, fontSize: 14, marginTop: 2 },
   list: { paddingHorizontal: 20, paddingBottom: 32 },
   sectionHeader: {

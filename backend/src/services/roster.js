@@ -169,7 +169,11 @@ async function buildRoster(cookie, leagueId) {
     players.load(cookie),
     config.demoMode ? Promise.resolve(demo.playerStatus()) : nflLib.injuryMap(cookie, week),
     config.demoMode ? Promise.resolve(demo.byes()) : nflLib.byeMap(cookie, week),
-    picksLib.franchisePicks(cookie, league).then((list) => list.map((p) => p.label)),
+    // Picks as first-class assets: token (so they can be shopped/traded), label, year/round,
+    // and dynasty value — sorted soonest-first (year, then round).
+    picksLib.franchisePicks(cookie, league).then((list) => list
+      .map((p) => ({ token: p.token, label: p.label, year: p.year, round: p.round, value: picksLib.value(p.label) }))
+      .sort((a, b) => (a.year || 9999) - (b.year || 9999) || (a.round || 99) - (b.round || 99))),
     leagueFormat.format(cookie, league).then((fmt) => enrichmentLib.snapshot(fmt, cookie)),
   ]);
   const src = myBuckets(franchises, league);

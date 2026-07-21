@@ -270,8 +270,11 @@ Grouped into four "synergy systems", highest-leverage first:
   (recomputed in Scores/Lineups/Editor/Wizard with wording drift), shared `PlayerRow`.
 - [ ] **Portfolio `strengthLabel` thresholds are re-hardcoded client-side** (drift risk
   from the backend model) — source them from the backend.
-- [ ] **Roster: rookie picks are inert text** — no value, not tappable, can't add to a
-  trade; and no positional value breakdown.
+- [~] **Roster: rookie picks are inert text** — done: draft picks on the roster are now
+  first-class assets (dynasty value each + combined total, sorted soonest-first) and each is
+  **tappable to shop it** — opens that league's trade desk on Propose with the pick pre-loaded
+  on your side (`seed.sendPickToken`; pick value centralized in `lib/picks.value` so the roster
+  and desk always agree). *(Remaining: a positional value breakdown of the roster.)*
 
 ## Design & motion
 

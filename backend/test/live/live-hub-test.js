@@ -74,7 +74,10 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   // ROSTER: live picks + byes.
   const r = await roster.getRoster(CK, '1000');
   console.log('picks:', r.picks);
-  assert(JSON.stringify(r.picks) === JSON.stringify(['2027 1st', '2027 2nd']), 'future draft picks resolved');
+  // Picks are now first-class asset objects (token + label + year/round + value), sorted
+  // soonest-first, so they can be shopped/traded straight from the roster.
+  assert(r.picks.map((p) => p.label).join(',') === '2027 1st,2027 2nd', 'future draft picks resolved (labels)');
+  assert(r.picks.every((p) => p.token && p.value > 0 && p.year === 2027), 'each pick carries a trade token + value + year');
   const bravo = r.starters.find((p) => p.id === '2');
   assert(bravo && bravo.availability.status === 'BYE', `bye applied to roster player, got ${bravo && bravo.availability.status}`);
   const alpha = r.starters.find((p) => p.id === '1');

@@ -9,6 +9,27 @@ const config = require('../config');
 const demo = require('../demo/fixtures');
 const mfl = require('./mfl');
 
+// Estimated dynasty value (0-100 scale) for a draft pick from its label. This is a
+// model, not a market price: a round-based baseline plus a dynasty time-value discount
+// for picks further out (a 1st two years away is worth less than this year's). Pick slot
+// isn't known for future picks, so round is the best signal. Single source of truth so the
+// roster's pick chips and the trade desk always show the same number.
+const PICK_VALUE_BY_ROUND = { 1: 55, 2: 28, 3: 14, 4: 7 };
+function value(label) {
+  const s = String(label);
+  // Known-slot picks read "2026 1.11" (round.pick); future picks read "2027 1st".
+  const slot = /\b(\d+)\.(\d{1,2})\b/.exec(s);
+  const rm = /(\d+)\s*(?:st|nd|rd|th)/i.exec(s);
+  const round = slot ? parseInt(slot[1], 10) : rm ? parseInt(rm[1], 10) : 4;
+  let base = PICK_VALUE_BY_ROUND[round] != null ? PICK_VALUE_BY_ROUND[round] : Math.max(3, 8 - round);
+  const ym = /(20\d{2})/.exec(s);
+  if (ym) {
+    const yearsOut = parseInt(ym[1], 10) - (config.season || parseInt(ym[1], 10));
+    if (yearsOut > 0) base = Math.round(base * Math.pow(0.88, Math.min(yearsOut, 4))); // ~12%/yr
+  }
+  return Math.max(2, base);
+}
+
 function ordinal(round) {
   const n = parseInt(round, 10);
   if (!Number.isFinite(n)) return String(round);
@@ -94,4 +115,4 @@ async function franchisePicksMap(cookie, league) {
   }
 }
 
-module.exports = { franchisePicks, franchisePicksMap, ordinal, labelForToken };
+module.exports = { franchisePicks, franchisePicksMap, ordinal, labelForToken, value };
