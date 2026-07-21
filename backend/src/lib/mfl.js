@@ -238,9 +238,10 @@ async function login(username, password) {
   } catch (e) {
     /* ignore */
   }
-  const snippet = text.slice(0, 200).replace(/\s+/g, ' ').trim();
-  // Logged to the server console (Render logs). Never logs the password.
-  console.log(`[MFL login] status=${res.status} setCookie=${setCookie ? 'present' : 'none'} bodyLen=${text.length} body="${snippet}"`);
+  // Log only non-sensitive shape. The body is NOT logged: on some MFL responses it
+  // carries the session cookie / user id (that's why extractMflUserId reads it below),
+  // and these lines land in Render's logs.
+  console.log(`[MFL login] status=${res.status} setCookie=${setCookie ? 'present' : 'none'} bodyLen=${text.length}`);
 
   const cookie = extractMflUserId(setCookie) || extractMflUserId(text);
   if (cookie) return cookie;
