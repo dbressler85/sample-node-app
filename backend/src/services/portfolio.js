@@ -22,6 +22,7 @@ const rosterService = require('./roster');
 const nflLib = require('../lib/nfl');
 const waiverStore = require('../store/waivers');
 const playerTags = require('../store/playerTags');
+const historyStore = require('../store/portfolioHistory');
 
 const SEV = { high: 3, medium: 2, low: 1 };
 
@@ -280,6 +281,10 @@ async function getDashboard(cookie, token) {
   let riskValue = 0;
   const byLeague = [];
   const outlookMix = { winNow: 0, ascending: 0, rebuilding: 0, balanced: 0 };
+  // Your positions, stock-portfolio style: each PLAYER aggregated across every league you hold
+  // him in (that total value is your real exposure), and value grouped by position (allocation).
+  const holdMap = new Map(); // playerId -> { id, name, position, team, total, leagues, top }
+  const allocMap = new Map(); // position -> value
   // Distinct rostered players you've tagged — "shop your Avoids" / "your Targets are safe".
   const tags = playerTags.all(token);
   const taggedRostered = { target: new Set(), avoid: new Set() };
@@ -295,6 +300,11 @@ async function getDashboard(cookie, token) {
       if (!v) continue;
       totalValue += v;
       playerCount += 1;
+      // Aggregate this player across leagues into a single holding (position).
+      const h = holdMap.get(p.id) || { id: p.id, name: p.name, position: p.position, team: p.team, total: 0, leagues: 0, top: 0 };
+      h.total += v; h.leagues += 1; if (v > h.top) h.top = v;
+      holdMap.set(p.id, h);
+      allocMap.set(p.position, (allocMap.get(p.position) || 0) + v);
       if (p.age != null) {
         ageValueSum += p.age * v;
         ageValueWeight += v;
@@ -334,6 +344,31 @@ async function getDashboard(cookie, token) {
   const top = [...injured, ...aging].sort(bySizeDesc).slice(0, 8);
   byLeague.sort((a, b) => (b.value || 0) - (a.value || 0));
 
+  // Top holdings: your biggest positions by aggregate value across all leagues, with exposure
+  // (how many of your leagues roster them) and what share of the whole portfolio each is.
+  const holdings = [...holdMap.values()]
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 12)
+    .map((h) => ({
+      id: h.id, name: h.name, position: h.position, team: h.team,
+      value: Math.round(h.total), leagues: h.leagues,
+      avg: Math.round(h.total / h.leagues), pct: pct(h.total, totalValue),
+    }));
+
+  // Allocation by position — the "sectors" of the portfolio.
+  const allocation = [...allocMap.entries()]
+    .map(([position, value]) => ({ position, value: Math.round(value), pct: pct(value, totalValue) }))
+    .sort((a, b) => b.value - a.value);
+
+  // Value-over-time: record today's point and read back the series. Demo mode seeds a
+  // synthetic ramp the first time so the sparkline isn't empty on a fresh account.
+  const totalRounded = Math.round(totalValue);
+  if (config.demoMode && historyStore.history(token).length === 0 && totalRounded > 0) {
+    historyStore.seed(token, syntheticHistory(totalRounded));
+  }
+  const series = historyStore.record(token, totalRounded);
+  const change = seriesChange(series);
+
   return {
     totals: {
       leagues: leagues.length,
@@ -355,8 +390,40 @@ async function getDashboard(cookie, token) {
     },
     outlookMix,
     tags: { avoids: taggedRostered.avoid.size, targets: taggedRostered.target.size },
+    holdings,
+    allocation,
+    history: series,
+    change,
     byLeague,
   };
+}
+
+// Change over the recorded window: latest value vs the earliest point we have, as an
+// absolute delta, a percentage, and how many days the window spans. Null until there are
+// at least two points to compare.
+function seriesChange(series) {
+  if (!series || series.length < 2) return null;
+  const first = series[0];
+  const last = series[series.length - 1];
+  const abs = last.value - first.value;
+  const days = Math.max(1, Math.round((Date.parse(last.date) - Date.parse(first.date)) / 86400000));
+  return { absolute: abs, pct: first.value > 0 ? round1((abs / first.value) * 100) : 0, days };
+}
+
+// A smooth synthetic value history ending at `end` (today's value), ramping up over ~30 days
+// with a gentle wave, so the demo sparkline reads like a real portfolio. Deterministic.
+function syntheticHistory(end, days = 30) {
+  const start = Math.round(end * 0.84);
+  const out = [];
+  const base = new Date();
+  for (let i = days - 1; i >= 1; i -= 1) {
+    const d = new Date(base.getTime() - i * 86400000);
+    const t = (days - 1 - i) / (days - 1); // 0 → ~1 across the window
+    const ramp = start + (end - start) * t;
+    const wave = Math.sin(i * 0.7) * end * 0.012; // ±1.2% ripple
+    out.push({ date: historyStore.dayKey(d), value: Math.round(ramp + wave) });
+  }
+  return out; // today's real point is appended by the caller's record()
 }
 
 module.exports = { getHome, getLeagueTriage, getDashboard };

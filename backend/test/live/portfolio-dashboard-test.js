@@ -74,5 +74,23 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   assert(d.byLeague.length === 1 && d.byLeague[0].atRiskValue === 75, `per-league risk carried, got ${JSON.stringify(d.byLeague[0])}`);
   console.log('✓ per-league breakdown present');
 
+  // Top holdings: each player aggregated across leagues, biggest first, with exposure + share.
+  assert(d.holdings.length === 3, `3 holdings, got ${d.holdings.length}`);
+  assert(d.holdings[0].id === '1' && d.holdings[0].value === 100 && d.holdings[0].leagues === 1, `top holding is the young WR at 100 in 1 league, got ${JSON.stringify(d.holdings[0])}`);
+  assert(d.holdings[0].pct === 57, `top holding is 57% of the portfolio, got ${d.holdings[0].pct}`);
+  console.log('✓ top holdings aggregated with exposure + portfolio share');
+
+  // Allocation by position: WR 100+25=125 (71%), RB 50 (29%).
+  const wr = d.allocation.find((a) => a.position === 'WR');
+  const rb = d.allocation.find((a) => a.position === 'RB');
+  assert(d.allocation[0].position === 'WR' && wr.value === 125 && wr.pct === 71, `WR allocation 125/71%, got ${JSON.stringify(wr)}`);
+  assert(rb.value === 50 && rb.pct === 29, `RB allocation 50/29%, got ${JSON.stringify(rb)}`);
+  console.log('✓ allocation by position (WR-heavy) computed');
+
+  // Value-over-time: a point is recorded today; change is null until a second day accrues.
+  assert(Array.isArray(d.history) && d.history.length >= 1, `history has at least today's point, got ${d.history.length}`);
+  assert(d.history[d.history.length - 1].value === 175, `today's point is the current total (175), got ${d.history[d.history.length - 1].value}`);
+  console.log('✓ value-over-time records the current total');
+
   console.log('\nPORTFOLIO DASHBOARD HARNESS PASSED');
 })().catch((e) => { console.error(e.message); process.exit(1); });
