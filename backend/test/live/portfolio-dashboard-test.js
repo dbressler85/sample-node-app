@@ -91,6 +91,13 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   assert(rb.value === 50 && rb.pct === 29, `RB allocation 50/29%, got ${JSON.stringify(rb)}`);
   console.log('✓ allocation by position (WR-heavy) computed');
 
+  // Concentration + movers shape (single stubbed league → one team; movers empty until a
+  // second day accrues, but the fields are always present).
+  assert(d.concentration && Array.isArray(d.concentration.byTeam) && d.concentration.byTeam[0].team === 'AAA', `concentration.byTeam present, got ${JSON.stringify(d.concentration && d.concentration.byTeam)}`);
+  assert(Array.isArray(d.movers), 'movers is always an array');
+  assert(d.seasonal && d.seasonal.label, 'seasonal advisory present');
+  console.log('✓ concentration (byTeam/byBye), movers, and seasonal advisory present');
+
   // Value-over-time: a point is recorded today; change is null until a second day accrues.
   assert(Array.isArray(d.history) && d.history.length >= 1, `history has at least today's point, got ${d.history.length}`);
   assert(d.history[d.history.length - 1].value === 175, `today's point is the current total (175), got ${d.history[d.history.length - 1].value}`);

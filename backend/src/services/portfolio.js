@@ -23,6 +23,7 @@ const nflLib = require('../lib/nfl');
 const waiverStore = require('../store/waivers');
 const playerTags = require('../store/playerTags');
 const historyStore = require('../store/portfolioHistory');
+const pvHistory = require('../store/playerValueHistory');
 const tradebaitStore = require('../store/tradebait');
 const tradebaitService = require('./tradebait');
 const season = require('../lib/season');
@@ -388,6 +389,26 @@ async function getDashboard(cookie, token) {
     .sort((a, b) => b.value - a.value)
     .slice(0, 4);
 
+  // Per-holding movers: record each holding's value today, then rank by change vs the
+  // earliest point we have — "which of your players rose/fell most." Demo seeds a mixed
+  // synthetic history (some up, some down) the first time so movers aren't empty.
+  const moverList = [];
+  holdings.forEach((h, i) => {
+    if (config.demoMode && pvHistory.series(token, h.id).length === 0 && h.value > 0) {
+      pvHistory.seed(token, h.id, syntheticPlayerHistory(h.value, i));
+    }
+    const s = pvHistory.record(token, h.id, h.value);
+    if (s.length >= 2) {
+      const first = s[0].value;
+      const delta = h.value - first;
+      if (delta !== 0) {
+        moverList.push({ id: h.id, name: h.name, position: h.position, value: h.value, delta, pct: first > 0 ? round1((delta / first) * 100) : 0 });
+      }
+    }
+  });
+  moverList.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+  const movers = moverList.slice(0, 6);
+
   // Value-over-time: record today's point and read back the series. Demo mode seeds a
   // synthetic ramp the first time so the sparkline isn't empty on a fresh account.
   const totalRounded = Math.round(totalValue);
@@ -420,6 +441,7 @@ async function getDashboard(cookie, token) {
     tags: { avoids: taggedRostered.avoid.size, targets: taggedRostered.target.size },
     holdings,
     allocation,
+    movers,
     concentration: { byTeam, byBye },
     seasonal: season.advisory(),
     history: series,
@@ -438,6 +460,23 @@ function seriesChange(series) {
   const abs = last.value - first.value;
   const days = Math.max(1, Math.round((Date.parse(last.date) - Date.parse(first.date)) / 86400000));
   return { absolute: abs, pct: first.value > 0 ? round1((abs / first.value) * 100) : 0, days };
+}
+
+// A synthetic per-player history ending at `end` (today's value). The start factor varies by
+// index so the demo shows a realistic MIX of gainers (started low) and losers (started high).
+// Deterministic — no RNG, so resume/replay is stable.
+function syntheticPlayerHistory(end, i, days = 14) {
+  const factor = 0.82 + (((i * 7) % 9) * 0.045); // ~0.82 … 1.18 across holdings
+  const start = Math.max(1, Math.round(end * factor));
+  const out = [];
+  const base = new Date();
+  for (let d = days - 1; d >= 1; d -= 1) {
+    const dt = new Date(base.getTime() - d * 86400000);
+    const t = (days - 1 - d) / (days - 1);
+    const val = Math.round(start + (end - start) * t + Math.sin(d * 0.8) * end * 0.01);
+    out.push({ date: pvHistory.dayKey(dt), value: Math.max(1, val) });
+  }
+  return out; // today's real point is appended by record()
 }
 
 // A smooth synthetic value history ending at `end` (today's value), ramping up over ~30 days
