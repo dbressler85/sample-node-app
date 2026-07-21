@@ -74,5 +74,19 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   assert(fetches === 3, `invalidated league re-fetches, got ${fetches}`);
   console.log('✓ mfl: concurrent reads coalesce; invalidateLeague drops only that league');
 
+  // --- maxAge: a caller can force a fresher read of a shared entry -------------
+  const mo = { host: 'www10.myfantasyleague.com', cookie: CK, L: '300' };
+  await mfl.exportRequest('rosters', { ...mo, maxAge: 30 });
+  const base = fetches;
+  await mfl.exportRequest('rosters', { ...mo, maxAge: 30 }); // immediate repeat -> cached
+  assert(fetches === base, `maxAge repeat within its window is cached, got ${fetches}`);
+  await sleep(40); // exceed maxAge, still far within the 5m default TTL
+  await mfl.exportRequest('rosters', { ...mo, maxAge: 30 });
+  assert(fetches === base + 1, `maxAge forces a refetch past its window, got ${fetches}`);
+  // A default (no-maxAge) read shares the SAME key and reuses the just-refreshed value.
+  await mfl.exportRequest('rosters', mo);
+  assert(fetches === base + 1, `default read reuses the fresher shared entry, got ${fetches}`);
+  console.log('✓ mfl: maxAge shortens a shared entry only, never lengthens the default');
+
   console.log('\nCACHE PRIMITIVES HARNESS PASSED');
 })().catch((e) => { console.error(e.message); process.exit(1); });

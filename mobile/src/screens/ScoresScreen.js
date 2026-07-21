@@ -36,9 +36,11 @@ export default function ScoresScreen() {
   useEffect(() => {
     load();
   }, [load]);
-  // Auto-refresh the Sunday board while games are in progress, so scores and win
-  // probabilities tick without a manual pull.
-  usePoll(load, 45000, !!(data && data.summary && data.summary.live > 0));
+  // Auto-refresh the board whenever any matchup is still unlocked — so it also starts
+  // ticking on its own if the tab was opened before kickoff, not only once a game is
+  // already live. All games final (or none scheduled) → no poll.
+  const hasUnlocked = !!(data && data.games && data.games.some((g) => !g.locked));
+  usePoll(load, 45000, hasUnlocked);
 
   // Celebrate (or commiserate) when matchups go final — a 🏆 for a win, a deadpan
   // 💀 for a loss. First-seen tracking keyed by league+week+result, persisted to

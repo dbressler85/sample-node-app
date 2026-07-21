@@ -62,6 +62,12 @@ const config = {
   // concurrent reads of the same data without lagging behind the poll.
   mflLiveTtlMs: int(process.env.MFL_LIVE_TTL_MS, 12 * 1000),
 
+  // A short freshness ceiling for reads that a caller wants near-live even though
+  // the data normally lives in a long-TTL bucket — e.g. the waiver FAAB balance,
+  // which is carved out of the 1h `league` export but changes when waivers process
+  // overnight. Passed as `maxAge` to exportRequest to force a refetch past this age.
+  mflFreshTtlMs: int(process.env.MFL_FRESH_TTL_MS, 60 * 1000),
+
   // Longer cache for slow-changing data (league rules & lineup requirements,
   // league membership, the player database). These rarely change mid-season, so
   // caching them for an hour drastically cuts calls across many leagues.
