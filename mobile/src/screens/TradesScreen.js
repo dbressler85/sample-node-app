@@ -73,6 +73,8 @@ const VERDICT = {
   fair: { label: 'Fair deal', color: colors.textDim },
   unfavorable: { label: 'You give up value', color: colors.bad },
 };
+// Reconciled bottom-line tone → color (value verdict × roster construction).
+const TONE = { good: colors.good, warn: colors.warn, bad: colors.bad, neutral: colors.textDim };
 
 // Local value analysis for the live proposal preview (mirrors the backend).
 function analyze(receive, send) {
@@ -528,6 +530,11 @@ function OfferCard({ offer, busy, onRespond, onCounter, onOpenPlayer }) {
           ) : null}
         </View>
       ) : null}
+      {offer.bottomLine ? (
+        <View style={[styles.bottomLine, { borderLeftColor: TONE[offer.bottomLine.tone] || colors.textDim }]}>
+          <Text style={[styles.bottomLineText, { color: TONE[offer.bottomLine.tone] || colors.text }]}>{offer.bottomLine.text}</Text>
+        </View>
+      ) : null}
       <View style={styles.cardActions}>
         <Pressable style={[styles.act, styles.reject]} onPress={() => onRespond(offer, 'reject')} disabled={busy}>
           <Text style={styles.rejectText}>Reject</Text>
@@ -668,6 +675,8 @@ const styles = StyleSheet.create({
   tagNote: { fontSize: 12, fontWeight: '700' },
   construction: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, marginTop: 8 },
   constructionText: { fontSize: 13, fontWeight: '700', lineHeight: 18 },
+  bottomLine: { marginTop: 8, backgroundColor: colors.bg, borderLeftWidth: 3, borderRadius: 8, paddingHorizontal: 11, paddingVertical: 9 },
+  bottomLineText: { fontSize: 13, fontWeight: '800', lineHeight: 18 },
   buildFit: { marginBottom: 8, gap: 2 },
   buildFitLine: { fontSize: 12, fontWeight: '700' },
   cardActions: { flexDirection: 'row', gap: 10, marginTop: 12 },

@@ -116,8 +116,9 @@ function invalidateGather(cookie) {
   gatherMemo.invalidate(cookie || '');
 }
 
-function annotate(player, byId, ranks, myRostered, mineBy, freeBy, enr, ctx, tags, watchSet) {
+function annotate(player, byId, ranks, myRostered, mineBy, freeBy, enr, ctx, tags, watchSet, leagueCount = 0) {
   const id = String(player.id);
+  const free = (freeBy.get(player.id) || []).length;
   return {
     id: player.id,
     name: player.name,
@@ -127,11 +128,18 @@ function annotate(player, byId, ranks, myRostered, mineBy, freeBy, enr, ctx, tag
     value: enr.value(player.id),
     trend: enr.trend(player.id) || 0, // Sleeper add/drop momentum, for the Trending sort's magnitude
     posRank: ranks.pos.get(player.id) || null,
-    ownership: enr.ownership(player.id),
+    ownership: enr.ownership(player.id), // site-wide MFL ownership (kept for the profile)
     availability: availabilityLib.resolve(player, ctx.statusMap, ctx.byeMap, ctx.week),
     mine: myRostered.has(player.id),
     mineInLeagues: (mineBy.get(player.id) || []).length,
-    freeInLeagues: (freeBy.get(player.id) || []).length,
+    freeInLeagues: free,
+    // Personal ownership: how many of YOUR leagues roster him (by anyone) = total minus the
+    // leagues where he's a free agent. Far more useful than site-wide ownership — it tells you
+    // whether he's locked up across your book or still available somewhere. (Approximate only
+    // for a player outside a league's pool, e.g. a K/IDP in an offense-only league.)
+    leagueCount,
+    leagueOwned: leagueCount ? leagueCount - free : null,
+    leagueOwnedPct: leagueCount ? Math.round(((leagueCount - free) / leagueCount) * 100) : null,
     // Personal Target/Avoid tag + watchlist membership, so list rows can carry the
     // inline actions without a second round-trip.
     tag: (tags && tags[id]) || null,
@@ -155,13 +163,13 @@ async function buildSets(cookie) {
       freeBy.get(id).push(d.league.leagueId);
     }
   }
-  return { data, myRostered, mineBy, freeBy };
+  return { data, myRostered, mineBy, freeBy, leagueCount: data.length };
 }
 
 async function search(cookie, token, { q, position, status, format } = {}) {
   const [byId, enr, ctx] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(lensFormat(format), cookie), ctxFor(cookie)]);
   const ranks = computeRanks(byId, enr);
-  const { myRostered, mineBy, freeBy } = await buildSets(cookie);
+  const { myRostered, mineBy, freeBy, leagueCount } = await buildSets(cookie);
   const tags = playerTags.all(token);
   const watchSet = new Set(watchStore.list(token).map(String));
 
@@ -178,14 +186,14 @@ async function search(cookie, token, { q, position, status, format } = {}) {
   else if (status === 'available') light = light.filter((x) => !x.mine);
 
   light.sort((a, b) => b.value - a.value);
-  const players2 = light.slice(0, 60).map((x) => annotate(x.p, byId, ranks, myRostered, mineBy, freeBy, enr, ctx, tags, watchSet));
+  const players2 = light.slice(0, 60).map((x) => annotate(x.p, byId, ranks, myRostered, mineBy, freeBy, enr, ctx, tags, watchSet, leagueCount));
   return { total: light.length, format: lensFormat(format) && lensFormat(format).numQbs === 2 ? 'sf' : '1qb', players: players2 };
 }
 
 async function rankings(cookie, token, { type = 'value', position, format } = {}) {
   const [byId, enr, ctx] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(lensFormat(format), cookie), ctxFor(cookie)]);
   const ranks = computeRanks(byId, enr);
-  const { myRostered, mineBy, freeBy } = await buildSets(cookie);
+  const { myRostered, mineBy, freeBy, leagueCount } = await buildSets(cookie);
 
   // Filter + sort on cheap enr lookups over lightweight rows, then annotate only
   // the top slice — availability resolution over the whole universe just to
@@ -219,7 +227,7 @@ async function rankings(cookie, token, { type = 'value', position, format } = {}
     light = light.filter((x) => x.value != null).sort((a, b) => (b.value || 0) - (a.value || 0));
   }
 
-  const list = light.slice(0, 40).map((x) => annotate(x.p, byId, ranks, myRostered, mineBy, freeBy, enr, ctx, tags, watchSet));
+  const list = light.slice(0, 40).map((x) => annotate(x.p, byId, ranks, myRostered, mineBy, freeBy, enr, ctx, tags, watchSet, leagueCount));
 
   const note =
     list.length === 0

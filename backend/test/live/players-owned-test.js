@@ -18,6 +18,10 @@ const TOKEN = 'players-owned-token';
   // Every returned player is one I roster in at least one league.
   assert(owned.players.length > 0, 'I roster players across my demo leagues, so the list is non-empty');
   assert(owned.players.every((p) => p.mineInLeagues >= 1), 'every row is a player I actually roster somewhere');
+  // Personal ownership: rostered (by anyone) in your leagues = total minus where he's free,
+  // and it's >= how many you roster yourself. Percentage matches the fraction.
+  assert(owned.players.every((p) => p.leagueCount >= 1 && p.leagueOwned >= p.mineInLeagues && p.leagueOwned <= p.leagueCount), 'leagueOwned is within [mineInLeagues, leagueCount]');
+  assert(owned.players.every((p) => p.leagueOwnedPct === Math.round((p.leagueOwned / p.leagueCount) * 100)), 'leagueOwnedPct matches the owned/total fraction');
 
   // Sorted by exposure (mineInLeagues) descending; ties fall back to value descending.
   for (let i = 1; i < owned.players.length; i += 1) {

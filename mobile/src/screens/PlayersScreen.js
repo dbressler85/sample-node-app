@@ -361,7 +361,7 @@ function PlayerRow({ p, rank, sub, tag, watched, showTrend, onTag, onWatch, onPr
           {p.team}
           {p.age != null ? ` · ${p.age}y` : ''}
           {p.posRank ? ` · ${p.position}${p.posRank}` : ''}
-          {p.ownership != null ? ` · ${p.ownership}% rost` : ''}
+          {p.leagueCount > 1 && p.leagueOwned != null ? ` · rostered ${p.leagueOwned}/${p.leagueCount}` : ''}
           {sub ? ` · ${sub}` : ''}
         </Text>
       </View>

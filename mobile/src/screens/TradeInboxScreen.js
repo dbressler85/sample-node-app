@@ -18,6 +18,8 @@ const VERDICT = {
   unfavorable: { label: 'You give up value', color: colors.bad },
 };
 const VRANK = { favorable: 0, fair: 1, unfavorable: 2 };
+// Reconciled bottom-line tone → color (value verdict × roster construction).
+const TONE = { good: colors.good, warn: colors.warn, bad: colors.bad, neutral: colors.textDim };
 const CONSTRUCTION = {
   good: { color: colors.good, icon: '✓' },
   caution: { color: colors.bad, icon: '⚠' },
@@ -279,6 +281,16 @@ function OfferCard({ offer, busy, onRespond, onOpenLeague, onCounter, onManualCo
         </View>
       ) : null}
 
+      {/* The bottom line: reconciles value and roster fit into one decision, so two
+          contradicting badges (good value / hurts your roster) don't leave you guessing. */}
+      {offer.bottomLine ? (
+        <View style={[styles.bottomLine, { borderLeftColor: TONE[offer.bottomLine.tone] || colors.textDim }]}>
+          <Text style={[styles.bottomLineText, { color: TONE[offer.bottomLine.tone] || colors.text }]}>
+            {offer.bottomLine.text}
+          </Text>
+        </View>
+      ) : null}
+
       <View style={styles.actions}>
         <Pressable style={[styles.act, styles.reject]} onPress={() => onRespond(offer, 'reject')} disabled={busy}>
           <Text style={styles.rejectText}>Reject</Text>
@@ -338,6 +350,8 @@ const styles = StyleSheet.create({
   tagNote: { fontSize: 12, fontWeight: '700' },
   construction: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, marginTop: 6 },
   constructionText: { fontSize: 13, fontWeight: '700', lineHeight: 18 },
+  bottomLine: { marginTop: 10, backgroundColor: colors.bg, borderLeftWidth: 3, borderRadius: 8, paddingHorizontal: 11, paddingVertical: 9 },
+  bottomLineText: { fontSize: 13, fontWeight: '800', lineHeight: 18 },
   counterBtn: { marginTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, paddingTop: 10, alignItems: 'center' },
   counterBtnText: { color: colors.accent, fontSize: 14, fontWeight: '800' },
   manualBtn: { marginTop: 8, alignItems: 'center' },

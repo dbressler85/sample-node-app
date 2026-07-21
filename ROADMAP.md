@@ -255,14 +255,19 @@ Grouped into four "synergy systems", highest-leverage first:
   core dynasty currency.
 
 ### Per-screen polish (from the same pass)
-- [~] **Players lists show no age** — done: the PlayersScreen row now shows age, and the
-  **Trending** sort shows each player's add/drop momentum (▲ N) in place of value.
-  **Remaining:** `ownership` is still platform-wide, not "% in your leagues".
+- [x] **Players lists show no age** — the PlayersScreen row shows age, the **Trending** sort
+  shows each player's add/drop momentum (▲ N) in place of value, and ownership is now
+  **personal**: "rostered N/M" = how many of *your* leagues roster him (total minus where he's
+  a free agent), replacing MFL's site-wide ownership. Backend `annotate` carries
+  `leagueCount`/`leagueOwned`/`leagueOwnedPct`.
 - [ ] **Waiver claim: add-vs-drop value delta** side by side (the core dynasty claim
   decision); `FaRow` vs `PlayerLine` render the same entity two different ways.
-- [ ] **Trades: de-emphasized "Dynasty value estimate"** (italic/low-opacity — the most
-  important number); value verdict and construction verdict can visually contradict with
-  no reconciliation; inbox shows one-sided construction, desk two-sided.
+- [~] **Trades: value vs. construction verdicts** — done: a deterministic **bottom line**
+  (`trades.bottomLine`, value verdict × construction rating → one take + tone) now renders as a
+  colored callout above Accept/Reject on both the inbox and the desk, so "You gain value" next
+  to "⚠ hurts your roster" no longer leaves the decision ambiguous. *(Remaining: de-emphasize
+  the raw "dynasty value estimate" caption; the inbox still shows one-sided construction where
+  the desk shows two.)*
 - [ ] **Home label collision:** "Needs attention" names two different numbers (leagues
   vs items); the tile isn't tappable; `onOpenPlayer` is passed in but unused.
 - [ ] **Consolidate duplicated UX:** one primary bulk-lineup path (wizard vs auto-set

@@ -105,17 +105,44 @@ function buildOffer(raw, league, byId, enr) {
   };
 }
 
+// Reconcile the two verdicts into one bottom line, so a deal that's good on VALUE but bad for
+// ROSTER (or vice-versa) doesn't just show two contradicting badges. Deterministic over the
+// value verdict (favorable/fair/unfavorable) × construction rating (good/caution/neutral).
+// `tone` drives the color: good / warn / bad / neutral.
+const BOTTOM_LINE = {
+  favorable: {
+    good: { tone: 'good', text: 'Green light — you gain value and it fits your roster.' },
+    caution: { tone: 'warn', text: 'Value’s in your favor, but it dents your roster — weigh the need first.' },
+    neutral: { tone: 'good', text: 'A clean value gain with no roster downside.' },
+  },
+  fair: {
+    good: { tone: 'good', text: 'Even on value and it fills a need — a fair deal worth doing.' },
+    caution: { tone: 'warn', text: 'Even on value but it opens a hole — lean pass unless you can backfill.' },
+    neutral: { tone: 'neutral', text: 'A fair, roster-neutral swap.' },
+  },
+  unfavorable: {
+    good: { tone: 'warn', text: 'You’d pay a value premium, but it fills a real need — OK if you’re contending.' },
+    caution: { tone: 'bad', text: 'Loses value and weakens your roster — pass.' },
+    neutral: { tone: 'bad', text: 'You come out light on value with no roster gain — pass.' },
+  },
+};
+function bottomLine(verdict, rating) {
+  const byV = BOTTOM_LINE[verdict] || BOTTOM_LINE.fair;
+  return byV[rating] || byV.neutral;
+}
+
 // Attach a roster-construction read (does this deal fix a hole or open one?) to each
 // offer. `construction` is from MY side — I give `send`, I get `acquire`. For offers where
 // the other team is known, `partnerConstruction` is the mirror from THEIR side — they give
 // `acquire`, they get `send` — so an outgoing offer shows whether it also helps them (i.e.
-// whether they're likely to bite).
+// whether they're likely to bite). `bottomLine` reconciles value + construction into one take.
 function annotateConstruction(offers, ns, franchiseId) {
   const mine = ns[String(franchiseId)] || { needs: [], surplus: [], depth: {} };
   for (const o of offers) {
     o.construction = tradefit.constructionVerdict(o.send, o.acquire, mine.needs, mine.surplus, 'you', mine.depth);
     const theirs = o.withFranchiseId ? ns[String(o.withFranchiseId)] : null;
     if (theirs) o.partnerConstruction = tradefit.constructionVerdict(o.acquire, o.send, theirs.needs, theirs.surplus, 'they', theirs.depth);
+    o.bottomLine = bottomLine(o.analysis && o.analysis.verdict, o.construction && o.construction.rating);
   }
   return offers;
 }
