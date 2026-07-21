@@ -195,13 +195,17 @@ async function rankings(cookie, token, { type = 'value', position, format } = {}
   // Position is an independent filter — it narrows any ranking type (value, trending, …),
   // not just the legacy 'position' type.
   if (position) cand = cand.filter((p) => p.position === position);
-  let light = cand.map((p) => ({ p, value: enr.value(p.id), age: enr.age(p.id), trend: enr.trend(p.id) }));
+  let light = cand.map((p) => ({ p, value: enr.value(p.id), age: enr.age(p.id), trend: enr.trend(p.id), owned: (mineBy.get(p.id) || []).length }));
 
   // Only rank by data we actually have, so players with no signal don't float up.
   if (type === 'trending') {
     light = light.filter((x) => x.trend > 0).sort((a, b) => b.trend - a.trend);
   } else if (type === 'rookies') {
     light = light.filter((x) => x.age != null && x.age <= 23).sort((a, b) => (b.value || 0) - (a.value || 0));
+  } else if (type === 'owned') {
+    // Your exposure: players you roster in the most of your leagues first (ties broken by
+    // value). Only players you actually hold somewhere — this is "where am I most invested."
+    light = light.filter((x) => x.owned > 0).sort((a, b) => b.owned - a.owned || (b.value || 0) - (a.value || 0));
   } else if (type === 'myvalue') {
     // Your personal ranking: market value × your Target/Avoid modifier, so your Targets
     // rise and your Avoids fall. (Displayed value stays the honest market value.)
@@ -220,6 +224,8 @@ async function rankings(cookie, token, { type = 'value', position, format } = {}
         ? 'No trending players right now.'
         : type === 'rookies'
         ? 'No rookie/age data available right now.'
+        : type === 'owned'
+        ? 'You don’t roster any players yet.'
         : 'Dynasty values are unavailable right now — search and My Players still work.'
       : null;
   return { type, position: position || null, format: lensFormat(format) ? (lensFormat(format).numQbs === 2 ? 'sf' : '1qb') : '1qb', players: list, note };
