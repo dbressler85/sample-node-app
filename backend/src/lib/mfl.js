@@ -27,20 +27,48 @@ const config = require('../config');
 // 429/503 backoff in rawRequest is the safety net if MFL rate-limits.
 let active = 0;
 let lastStartAt = 0;
+let penaltyUntil = 0; // while > now, the pipe runs in gentle mode after a rate-limit
+let wakePending = false; // at most one pending timer to re-pump when a penalty lifts
 const waiters = []; // queued resolve() callbacks waiting for a slot
 
+function inPenalty() {
+  return Date.now() < penaltyUntil;
+}
+
+// Adaptive backoff: the FIRST 429/503 in a burst trips a cooldown window so the REST of the
+// burst automatically halves its concurrency and quadruples its stagger, instead of every
+// remaining request piling onto an already rate-limited MFL and cascading more 429s. This is
+// what makes a cold 15-league fan-out (waivers overview, portfolio) survive without a league
+// card erroring out. The window is at least the server's Retry-After.
+function noteRateLimit(waitMs) {
+  penaltyUntil = Math.max(penaltyUntil, Date.now() + Math.max(waitMs || 0, config.mflMinRequestIntervalMs * 8));
+}
+function effConcurrent() {
+  return inPenalty() ? Math.max(1, Math.floor(config.mflMaxConcurrent / 2)) : config.mflMaxConcurrent;
+}
+function effInterval() {
+  return inPenalty() ? config.mflMinRequestIntervalMs * 4 : config.mflMinRequestIntervalMs;
+}
+
 function pumpThrottle() {
-  while (active < config.mflMaxConcurrent && waiters.length) {
+  while (active < effConcurrent() && waiters.length) {
     const grant = waiters.shift();
     active += 1;
     // Stagger each granted start by the min interval (accumulating), so even a
     // burst of grants spreads out rather than firing simultaneously.
     const now = Date.now();
-    const startAt = Math.max(now, lastStartAt + config.mflMinRequestIntervalMs);
+    const startAt = Math.max(now, lastStartAt + effInterval());
     lastStartAt = startAt;
     const delay = startAt - now;
     if (delay > 0) setTimeout(grant, delay);
     else grant();
+  }
+  // If we're holding requests back only because of the penalty, wake the pump when it
+  // lifts so the queue drains promptly instead of waiting on the next completion.
+  if (!wakePending && waiters.length && active < config.mflMaxConcurrent && inPenalty()) {
+    wakePending = true;
+    const wake = Math.max(5, penaltyUntil - Date.now() + 5);
+    setTimeout(() => { wakePending = false; pumpThrottle(); }, wake);
   }
 }
 
@@ -109,7 +137,11 @@ async function rawRequest({ host, command, params, cookie, method = 'GET', body 
     if ((res.status === 429 || res.status === 503) && attempt < config.mflMaxRetries) {
       const retryAfter = parseInt(res.headers.get('retry-after') || '', 10);
       const waitMs = Number.isFinite(retryAfter) ? retryAfter * 1000 : Math.min(10000, 800 * 2 ** attempt);
-      await new Promise((r) => setTimeout(r, waitMs));
+      // Trip the global cooldown so the rest of an in-flight burst backs off too, and add a
+      // little jitter so many requests that 429'd together don't retry in lockstep.
+      noteRateLimit(waitMs);
+      const jitter = Math.floor(Math.random() * 250);
+      await new Promise((r) => setTimeout(r, waitMs + jitter));
       continue;
     }
     text = await res.text();
@@ -276,4 +308,6 @@ module.exports = {
   toArray,
   attr,
   hostFromLeagueUrl,
+  // Test-only window into the adaptive throttle (see throttle-test / throttle-backoff-test).
+  __throttle: { inPenalty, effConcurrent, effInterval },
 };
