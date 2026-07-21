@@ -38,6 +38,7 @@ export default function TradeInboxScreen({ onBack, onOpenLeague, onProposeInLeag
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(null); // `${leagueId}:${offerId}` being responded to
   const [baitByLeague, setBaitByLeague] = useState({}); // leagueId -> # players you're shopping
+  const [fitByLeague, setFitByLeague] = useState({}); // leagueId -> fit hint (filled in progressively)
 
   // As a top-level tab there's no onBack — let the app's handler take hardware back to Home.
   useAndroidBack(useCallback(() => { if (onBack) { onBack(); return true; } return false; }, [onBack]));
@@ -61,6 +62,28 @@ export default function TradeInboxScreen({ onBack, onOpenLeague, onProposeInLeag
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // The "deep at X" hint needs a per-league needs/surplus read (expensive), so the
+  // inbox returns offers immediately and we fill the hint in here — one league at a
+  // time, in the background, to stay gentle on MFL. Leagues that already came back
+  // with a fit (the ones with an offer) are skipped.
+  useEffect(() => {
+    if (!data || !data.leagues) return undefined;
+    const missing = data.leagues.filter((l) => l.fit == null && fitByLeague[String(l.leagueId)] === undefined);
+    if (!missing.length) return undefined;
+    let alive = true;
+    (async () => {
+      for (const l of missing) {
+        if (!alive) return;
+        try {
+          const r = await api.tradeFit(l.leagueId);
+          if (!alive) return;
+          setFitByLeague((m) => ({ ...m, [String(l.leagueId)]: r.fit || null }));
+        } catch (e) { /* skip this league's hint */ }
+      }
+    })();
+    return () => { alive = false; };
+  }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function respond(offer, action) {
     const k = `${offer.leagueId}:${offer.id}`;
@@ -96,7 +119,7 @@ export default function TradeInboxScreen({ onBack, onOpenLeague, onProposeInLeag
       <Text style={styles.startSub}>Pick a league to build and send an offer.</Text>
       {leagues.map((l) => {
         const onBlock = baitByLeague[String(l.leagueId)] || 0;
-        const fit = l.fit;
+        const fit = fitByLeague[String(l.leagueId)] !== undefined ? fitByLeague[String(l.leagueId)] : l.fit;
         return (
           <Pressable
             key={l.leagueId}
@@ -143,6 +166,12 @@ export default function TradeInboxScreen({ onBack, onOpenLeague, onProposeInLeag
           {summary.count} offer{summary.count === 1 ? '' : 's'} across your leagues
           {summary.favorable ? <Text style={{ color: colors.good, fontWeight: '800' }}>{`  ·  ${summary.favorable} favorable`}</Text> : null}
         </Text>
+      ) : null}
+      {data && data.seasonal ? (
+        <View style={styles.seasonBanner}>
+          <Text style={styles.seasonLabel}>🗓  {data.seasonal.label}</Text>
+          <Text style={styles.seasonMsg}>{data.seasonal.message}</Text>
+        </View>
       ) : null}
 
       {loading ? (
@@ -339,6 +368,9 @@ const styles = StyleSheet.create({
   emptyFace: { fontSize: 46, marginBottom: 10 },
   emptyTitle: { color: colors.text, fontSize: 17, fontWeight: '800', marginBottom: 8 },
   emptyText: { color: colors.textDim, fontSize: 14, textAlign: 'center', paddingHorizontal: 20 },
+  seasonBanner: { marginHorizontal: 16, marginTop: 10, backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, borderLeftWidth: 3, borderLeftColor: colors.gold, padding: 12 },
+  seasonLabel: { color: colors.gold, fontSize: 12, fontWeight: '800', letterSpacing: 0.4, textTransform: 'uppercase', marginBottom: 4 },
+  seasonMsg: { color: colors.textDim, fontSize: 13, lineHeight: 18 },
   startWrap: { marginTop: 8, paddingTop: 18, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
   startTitle: { color: colors.text, fontSize: 15, fontWeight: '900', letterSpacing: 0.3, textTransform: 'uppercase' },
   startSub: { color: colors.textDim, fontSize: 13, marginTop: 3, marginBottom: 12 },

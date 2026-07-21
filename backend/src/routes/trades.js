@@ -45,6 +45,16 @@ router.get('/leagues/:leagueId/trades', async (req, res, next) => {
   }
 });
 
+// GET /api/leagues/:leagueId/trades/fit — the "start a trade here" hint (where you're
+// deep and rivals need it). Fetched per league in the background by the inbox.
+router.get('/leagues/:leagueId/trades/fit', async (req, res, next) => {
+  try {
+    res.json(await trades.getLeagueFit(req.mflCookie, req.account, req.params.leagueId));
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/leagues/:leagueId/trades/suggest?target=&partner= — a fair, needs-fitting
 // give-package to acquire `target` from `partner`.
 router.get('/leagues/:leagueId/trades/suggest', async (req, res, next) => {

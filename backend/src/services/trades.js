@@ -19,6 +19,7 @@ const tradeStore = require('../store/trades');
 const playerTags = require('../store/playerTags');
 const baitStore = require('../store/tradebait');
 const tradefit = require('../lib/tradefit');
+const season = require('../lib/season');
 
 // Trade bait for every franchise in a league: my own from our store (or the demo seed),
 // everyone else's from MFL's native Trade Bait board (or a demo fixture). Returns
@@ -304,6 +305,8 @@ async function getOverview(cookie, token) {
     // Every league you're in, so the hub can start a NEW trade in any of them — not just
     // respond to offers sitting in the inbox — each with a fit hint where one exists.
     leagues: leagues.map((l) => ({ leagueId: l.leagueId, name: l.name, fit: fitByLeague.get(String(l.leagueId)) || null })),
+    // Advisory-only timing nudge (draft season vs in-season) — doesn't touch any value.
+    seasonal: season.advisory(),
     summary: {
       count: offers.length,
       favorable: offers.filter((o) => o.analysis.verdict === 'favorable').length,
@@ -753,4 +756,17 @@ function throwBad(msg) {
   throw err;
 }
 
-module.exports = { getOverview, getLeague, respond, propose, analyze, crossLeaguePreview, crossLeaguePropose, suggestFor, counterFor, tradeFitSummary, tradeBaitByFranchise, personalAnalyze, tagNotes };
+// Just the "start a trade here" fit hint for ONE league. The needs/surplus read is
+// the expensive part, so the inbox returns offers immediately and the client fetches
+// this per league in the background — spreading the MFL load instead of paying it all
+// up front (which is why the hint used to only appear on leagues that had an offer).
+async function getLeagueFit(cookie, token, leagueId) {
+  try {
+    const d = await tradeData(cookie, token, leagueId);
+    return { leagueId: String(leagueId), fit: tradeFitSummary(d.ns, d.league.franchiseId) };
+  } catch (e) {
+    return { leagueId: String(leagueId), fit: null };
+  }
+}
+
+module.exports = { getOverview, getLeague, getLeagueFit, respond, propose, analyze, crossLeaguePreview, crossLeaguePropose, suggestFor, counterFor, tradeFitSummary, tradeBaitByFranchise, personalAnalyze, tagNotes };
