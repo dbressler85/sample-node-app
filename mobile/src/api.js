@@ -69,6 +69,10 @@ export const api = {
   health: () => request('/api/health'),
   leaguesList: () => request('/api/leagues'),
   roster: (leagueId) => request(`/api/leagues/${leagueId}/roster`),
+  // League hub (M5): standings, every team's roster (scouting), and a transaction feed.
+  leagueStandings: (leagueId) => request(`/api/leagues/${leagueId}/standings`),
+  leagueTeams: (leagueId) => request(`/api/leagues/${leagueId}/teams`),
+  leagueTransactions: (leagueId) => request(`/api/leagues/${leagueId}/transactions`),
   // Pin a league to the top of every cross-league view. `on` toggles: POST sets, DELETE clears.
   setPin: (leagueId, on) => request(`/api/leagues/${leagueId}/pin`, { method: on ? 'POST' : 'DELETE' }),
 

@@ -8,6 +8,7 @@ import { clearAll as clearCache } from './src/cache';
 import LoginScreen from './src/screens/LoginScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import LeaguesScreen from './src/screens/LeaguesScreen';
+import LeagueScreen from './src/screens/LeagueScreen';
 import PortfolioScreen from './src/screens/PortfolioScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import HelpScreen from './src/screens/HelpScreen';
@@ -158,6 +159,7 @@ export default function App() {
   const openDraft = (league) => pushOverlay({ type: 'draft', league });
   const openDraftHub = () => pushOverlay({ type: 'draftHub' });
   const openLeagues = () => pushOverlay({ type: 'leagues' });
+  const openLeagueHub = (league) => pushOverlay({ type: 'league', league });
   const openPortfolio = () => pushOverlay({ type: 'portfolio' });
   const openSettings = () => pushOverlay({ type: 'settings' });
   const openHelp = () => pushOverlay({ type: 'help' });
@@ -290,7 +292,10 @@ export default function App() {
       return <DraftHubScreen onBack={popOverlay} onOpenDraft={openDraft} />;
     }
     if (overlay && overlay.type === 'leagues') {
-      return <LeaguesScreen onBack={popOverlay} onOpenLeague={openRoster} onOpenDraftHub={openDraftHub} />;
+      return <LeaguesScreen onBack={popOverlay} onOpenLeague={openLeagueHub} onOpenDraftHub={openDraftHub} />;
+    }
+    if (overlay && overlay.type === 'league') {
+      return <LeagueScreen league={overlay.league} onBack={popOverlay} onOpenPlayer={openPlayer} />;
     }
     if (overlay && overlay.type === 'portfolio') {
       return <PortfolioScreen onBack={popOverlay} onOpenPlayer={openPlayer} onOpenLeague={openRoster} />;
