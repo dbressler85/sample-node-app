@@ -5,6 +5,7 @@ const requireSession = require('../middleware/auth');
 const leaguesService = require('../services/leagues');
 const dashboardService = require('../services/dashboard');
 const rosterService = require('../services/roster');
+const leagueService = require('../services/league');
 const leaguePrefs = require('../store/leaguePrefs');
 
 const router = express.Router();
@@ -40,6 +41,24 @@ router.delete('/leagues/:leagueId/pin', (req, res, next) => {
 router.get('/leagues/:leagueId/roster', async (req, res, next) => {
   try {
     res.json(await rosterService.getRoster(req.mflCookie, req.params.leagueId));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/leagues/:leagueId/standings — every franchise ranked (record, PF/PA).
+router.get('/leagues/:leagueId/standings', async (req, res, next) => {
+  try {
+    res.json(await leagueService.getStandings(req.mflCookie, req.params.leagueId));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/leagues/:leagueId/teams — every franchise's roster (opponent scouting).
+router.get('/leagues/:leagueId/teams', async (req, res, next) => {
+  try {
+    res.json(await leagueService.getTeams(req.mflCookie, req.params.leagueId));
   } catch (err) {
     next(err);
   }

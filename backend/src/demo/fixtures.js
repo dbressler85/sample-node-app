@@ -107,6 +107,40 @@ const DASHBOARD = {
   },
 };
 
+// A pool of rival team names to flesh out demo standings/rosters without hand-typing a
+// full table per league. My franchise ("Gridiron Ghosts") is placed at its known rank.
+const FRANCHISE_POOL = [
+  'Waiver Wire Wolves', 'Dynasty Destroyers', 'Superflex Savants', 'Trade Deadline Titans',
+  'Bye Week Bandits', 'Practice Squad Heroes', 'Hail Mary Hooligans', 'Red Zone Raiders',
+  'Garbage Time Gods', 'Pigskin Prophets', 'Fourth Down Fugitives', 'Checkdown Charlies',
+];
+
+// A deterministic 10-team standings table for a demo league, anchored on my known record
+// and rank from DASHBOARD. Weeks 1–2 are complete (WEEK=3), so records run 2-0 / 1-1 / 0-2
+// by standings tier, points-for descending with rank.
+function demoStandings(leagueId) {
+  const dash = DASHBOARD[leagueId];
+  const lg = LEAGUES.find((l) => l.leagueId === leagueId);
+  if (!dash || !lg) return [];
+  const N = 10;
+  const myRank = Math.min(dash.standingRank || 1, N);
+  const names = [];
+  let pool = 0;
+  for (let rank = 1; rank <= N; rank += 1) {
+    if (rank === myRank) { names.push({ id: lg.franchiseId, name: lg.franchiseName, mine: true }); continue; }
+    names.push({ id: String(1000 + rank).padStart(4, '0'), name: FRANCHISE_POOL[pool % FRANCHISE_POOL.length], mine: false });
+    pool += 1;
+  }
+  return names.map((t, i) => {
+    const rank = i + 1;
+    const wins = rank <= 3 ? 2 : rank <= 7 ? 1 : 0;
+    const losses = 2 - wins;
+    const pf = Math.round((1360 - rank * 42) * 10) / 10; // descending with rank
+    const pa = Math.round((1180 + (rank - 5) * 18) * 10) / 10;
+    return { id: t.id, name: t.name, mine: t.mine, h2hw: wins, h2hl: losses, h2ht: 0, pf, pa };
+  });
+}
+
 // Per-league roster (ids into PLAYERS). starters/bench/ir/taxi.
 const ROSTERS = {
   '64097': {
@@ -519,6 +553,7 @@ module.exports = {
   matchupProjection: (leagueId) => (MATCHUP_PROJECTION[leagueId] ? { ...MATCHUP_PROJECTION[leagueId] } : null),
   leagues: () => LEAGUES.map((l) => ({ ...l })),
   dashboard: (leagueId) => DASHBOARD[leagueId] || null,
+  standings: (leagueId) => demoStandings(leagueId),
   roster: (leagueId) => ROSTERS[leagueId] || null,
   teamStrength: (leagueId) => (TEAM_STRENGTH[leagueId] != null ? TEAM_STRENGTH[leagueId] : null),
   tradeBait: () => TRADE_BAIT.map((e) => ({ ...e })),
