@@ -48,5 +48,16 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   }
   console.log(`✓ teams: ${teamsOut.teams.length} rosters (${teamsOut.format}), top team ${teamsOut.teams[0].name} @ ${teamsOut.teams[0].totalValue}`);
 
+  // --- transaction feed ----------------------------------------------------------
+  const txns = await league.getTransactions('demo-cookie', LG);
+  assert(Array.isArray(txns.transactions) && txns.transactions.length >= 3, 'a transaction feed');
+  const trade = txns.transactions.find((t) => t.type === 'TRADE');
+  assert(trade && trade.withFranchise && trade.withFranchise.name, 'a trade names the other franchise');
+  assert(trade.added.every((a) => a.name) && trade.dropped.every((a) => a.name), 'trade assets resolve to names');
+  const wvr = txns.transactions.find((t) => t.type === 'BBID_WAIVER');
+  assert(wvr && wvr.typeLabel === 'Waiver (FAAB)' && wvr.added.length && wvr.dropped.length, 'a waiver add/drop resolves + labels');
+  assert(txns.transactions.every((t) => t.franchise && t.franchise.name && t.typeLabel), 'every row has a franchise + label');
+  console.log(`✓ transactions: ${txns.transactions.length} rows — e.g. ${trade.franchise.name} ${trade.typeLabel} w/ ${trade.withFranchise.name} (+${trade.added.map((a) => a.name).join(', ')})`);
+
   console.log('\nSTANDINGS HARNESS PASSED');
 })().catch((e) => { console.error(e.message); process.exit(1); });
