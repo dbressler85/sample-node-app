@@ -18,7 +18,6 @@ const RANK_TYPES = [
   ['value', 'Value'],
   ['myvalue', 'My values'],
   ['trending', 'Trending'],
-  ['rookies', 'Rookies'],
 ];
 const POSITIONS = [
   [null, 'All'],
@@ -184,9 +183,10 @@ export default function PlayersScreen({ onOpenPlayer }) {
                   </Pressable>
                 ))}
               </View>
-              <PosFilter pos={pos} setPos={setPos} />
+              <PosFilter pos={pos} setPos={setPos} rankType={rankType} setRankType={setRankType} />
               <ValueLens format={format} setFormat={setFormat} />
               <FlatList
+                style={styles.grow}
                 data={rankings ? rankings.players : []}
                 keyExtractor={(p) => p.id}
                 extraData={{ tagOverride, watchOverride }}
@@ -320,14 +320,26 @@ function PlayerRow({ p, rank, sub, tag, watched, onTag, onWatch, onPress }) {
   );
 }
 
-function PosFilter({ pos, setPos }) {
+// `style={posScroll}` with flexGrow:0 (and alignItems:'center' on the row) keeps this
+// horizontal strip at chip height — without it the ScrollView stretched to fill the
+// column and the chips rendered as full-height bars while the list was loading.
+// When given rankType/setRankType (rankings tab only) it also hosts the Rookies filter.
+function PosFilter({ pos, setPos, rankType, setRankType }) {
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.posRow}>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.posScroll} contentContainerStyle={styles.posRow}>
       {POSITIONS.map(([k, label]) => (
         <Pressable key={label} style={[styles.posChip, pos === k && styles.posChipActive]} onPress={() => setPos(k)}>
           <Text style={[styles.posChipText, pos === k && { color: colors.text }]}>{label}</Text>
         </Pressable>
       ))}
+      {setRankType ? (
+        <Pressable
+          style={[styles.posChip, styles.rookChip, rankType === 'rookies' && styles.rookChipActive]}
+          onPress={() => setRankType(rankType === 'rookies' ? 'value' : 'rookies')}
+        >
+          <Text style={[styles.posChipText, rankType === 'rookies' && { color: colors.gold }]}>Rookies</Text>
+        </Pressable>
+      ) : null}
     </ScrollView>
   );
 }
@@ -412,8 +424,12 @@ const styles = StyleSheet.create({
   typeChip: { backgroundColor: colors.card, borderRadius: 8, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 6 },
   typeChipActive: { backgroundColor: colors.cardAlt, borderColor: colors.accent },
   typeText: { color: colors.textDim, fontSize: 12, fontWeight: '700' },
-  posRow: { flexDirection: 'row', paddingHorizontal: 16, gap: 8, paddingVertical: 6 },
+  posScroll: { flexGrow: 0, flexShrink: 0 },
+  posRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, gap: 8, paddingVertical: 6 },
   posChip: { backgroundColor: colors.card, borderRadius: 8, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 13, paddingVertical: 5 },
+  rookChip: { borderColor: colors.gold + '55' },
+  rookChipActive: { backgroundColor: colors.gold + '22', borderColor: colors.gold },
+  grow: { flex: 1 },
   posChipActive: { backgroundColor: colors.cardAlt, borderColor: colors.accent },
   posChipText: { color: colors.textDim, fontSize: 12, fontWeight: '800' },
   lensRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', paddingHorizontal: 16, gap: 10, paddingBottom: 6, paddingTop: 2 },

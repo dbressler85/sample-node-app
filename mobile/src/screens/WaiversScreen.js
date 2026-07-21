@@ -317,9 +317,10 @@ function LeagueCard({ item, onPress }) {
         </Text>
       ) : null}
       <View style={styles.ovBottom}>
+        {/* The raw free-agent count isn't actionable (the "Top:" line already shows what's
+            worth grabbing); keep only the pending-claims count, which is. */}
         <Text style={styles.ovCount}>
-          {item.faCount} available
-          {item.pendingCount ? <Text style={styles.ovPending}>  ·  {item.pendingCount} pending</Text> : null}
+          {item.pendingCount ? <Text style={styles.ovPending}>{item.pendingCount} pending</Text> : null}
         </Text>
         <Text style={styles.chev}>›</Text>
       </View>
