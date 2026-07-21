@@ -3,7 +3,6 @@ import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Alert
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import { celebrate } from '../components/Celebrate';
-import TradeColumns from '../components/TradeColumns';
 import useAndroidBack from '../useAndroidBack';
 
 const posList = (arr) => (arr && arr.length ? arr.map((x) => x.pos).join(', ') : '—');
@@ -398,28 +397,38 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
             </View>
           ) : null}
 
-          <Text style={styles.label}>
-            You get {receiveList.length ? `· ${preview.acquireValue}` : ''}
-            {partner && partner.baitCount > 0 ? <Text style={styles.blockHint}>{`  ⇄ ${partner.baitCount} on the block`}</Text> : null}
-          </Text>
-          {partner ? receiveOptions.map((a) => (
-            <AssetRow key={a.id} asset={a} on={!!receive[a.id]} onPress={() => toggle(setReceive, receive, a)} tint={colors.good} />
-          )) : <Text style={styles.empty}>Pick a team above.</Text>}
+          {partner ? (
+            <>
+              <Pressable
+                onPress={() => applySuggestion()}
+                disabled={!receiveList.length || suggesting}
+                style={({ pressed }) => [styles.suggestWide, (!receiveList.length || suggesting) && styles.suggestOff, pressed && { opacity: 0.85 }]}
+              >
+                {suggesting ? <ActivityIndicator size="small" color={colors.accent} /> : (
+                  <Text style={styles.suggestTxt}>✦ {receiveList.length ? 'Suggest a fair package to send' : 'Pick what you want first, then Suggest'}</Text>
+                )}
+              </Pressable>
 
-          <View style={styles.sendHead}>
-            <Text style={styles.label}>You send {sendList.length ? `· ${preview.sendValue}` : ''}</Text>
-            <Pressable
-              onPress={() => applySuggestion()}
-              disabled={!receiveList.length || suggesting}
-              style={({ pressed }) => [styles.suggestBtn, (!receiveList.length || suggesting) && styles.suggestOff, pressed && { opacity: 0.8 }]}
-            >
-              {suggesting ? <ActivityIndicator size="small" color={colors.accent} /> : <Text style={styles.suggestTxt}>✦ Suggest</Text>}
-            </Pressable>
-          </View>
-          {sendOptions.map((a) => (
-            <AssetRow key={a.id} asset={a} on={!!send[a.id]} onPress={() => toggle(setSend, send, a)} tint={colors.accent} />
-          ))}
-          <View style={{ height: 120 }} />
+              {/* The builder itself, side by side: check YOUR players/picks on the left to send,
+                  and THEIR players/picks on the right to get. */}
+              <View style={styles.buildCols}>
+                <View style={styles.buildCol}>
+                  <Text style={styles.buildColLabel} numberOfLines={1}>YOU SEND{sendList.length ? ` · ${preview.sendValue}` : ''}</Text>
+                  {sendOptions.map((a) => (
+                    <AssetRow key={a.id} asset={a} on={!!send[a.id]} onPress={() => toggle(setSend, send, a)} tint={colors.accent} compact />
+                  ))}
+                </View>
+                <View style={styles.buildColDiv} />
+                <View style={styles.buildCol}>
+                  <Text style={styles.buildColLabel} numberOfLines={1}>YOU GET{receiveList.length ? ` · ${preview.acquireValue}` : ''}</Text>
+                  {receiveOptions.map((a) => (
+                    <AssetRow key={a.id} asset={a} on={!!receive[a.id]} onPress={() => toggle(setReceive, receive, a)} tint={colors.good} compact />
+                  ))}
+                </View>
+              </View>
+            </>
+          ) : <Text style={styles.empty}>Pick a team above.</Text>}
+          <View style={{ height: 40 }} />
         </ScrollView>
       )}
 
@@ -436,7 +445,10 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
             </View>
           ) : null}
           {receiveList.length || sendList.length ? (
-            <TradeColumns give={sendList} get={receiveList} giveTotal={preview.sendValue} getTotal={preview.acquireValue} onOpenPlayer={onOpenPlayer} />
+            <View style={styles.recap}>
+              <Text style={styles.recapLine} numberOfLines={1}><Text style={styles.recapSend}>Send </Text>{sendList.map((a) => a.name.split(',')[0]).join(', ') || '—'}</Text>
+              <Text style={styles.recapLine} numberOfLines={1}><Text style={styles.recapGet}>Get </Text>{receiveList.map((a) => a.name.split(',')[0]).join(', ') || '—'}</Text>
+            </View>
           ) : null}
           {tendencyNote ? <Text style={styles.tendencyNote} numberOfLines={2}>ℹ {tendencyNote}</Text> : null}
           <View style={styles.previewRow}>
@@ -544,11 +556,30 @@ function Side({ label, assets, total, tint, onOpenPlayer }) {
   );
 }
 
-function AssetRow({ asset, on, onPress, tint }) {
+function AssetRow({ asset, on, onPress, tint, compact }) {
+  const posColor = positionColors[asset.position] || colors.textDim;
+  if (compact) {
+    // Narrow two-column builder: checkbox + last name, with pos/value on a second line so it
+    // fits ~half the screen. Position color is a left border instead of a dot to save width.
+    return (
+      <Pressable
+        style={({ pressed }) => [styles.cAssetRow, { borderLeftColor: posColor }, on && { borderColor: tint, backgroundColor: colors.cardAlt }, pressed && { opacity: 0.8 }]}
+        onPress={onPress}
+      >
+        <View style={[styles.check, on && { backgroundColor: tint, borderColor: tint }]}>{on ? <Text style={styles.checkMark}>✓</Text> : null}</View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.cAssetName} numberOfLines={1}>{String(asset.name).split(',')[0]}</Text>
+          <Text style={styles.cAssetMeta} numberOfLines={1}>
+            {asset.kind === 'pick' ? 'pick' : asset.position}{asset.value != null ? ` · ${asset.value}` : ''}{asset.bait ? ' · ⇄' : ''}
+          </Text>
+        </View>
+      </Pressable>
+    );
+  }
   return (
     <Pressable style={({ pressed }) => [styles.assetRow, on && { borderColor: tint, backgroundColor: colors.cardAlt }, pressed && { opacity: 0.8 }]} onPress={onPress}>
       <View style={[styles.check, on && { backgroundColor: tint, borderColor: tint }]}>{on ? <Text style={styles.checkMark}>✓</Text> : null}</View>
-      <View style={[styles.dot, { backgroundColor: positionColors[asset.position] || colors.textDim }]} />
+      <View style={[styles.dot, { backgroundColor: posColor }]} />
       <Text style={styles.assetName} numberOfLines={1}>{asset.name}</Text>
       {asset.bait ? <Text style={styles.baitTag}>⇄ BLOCK</Text> : null}
       <Text style={styles.assetMeta}>{asset.kind === 'pick' ? 'Draft pick' : `${asset.position}${asset.team ? ` · ${asset.team}` : ''}`}</Text>
@@ -598,6 +629,16 @@ const styles = StyleSheet.create({
   suggestBtn: { borderWidth: 1, borderColor: colors.accent, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, marginTop: 8 },
   suggestOff: { opacity: 0.4 },
   suggestTxt: { color: colors.accent, fontSize: 13, fontWeight: '800' },
+  // Full-width "suggest a package" button that sits above the two builder columns.
+  suggestWide: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.accent, borderRadius: 10, paddingVertical: 11, marginHorizontal: 16, marginTop: 12, minHeight: 42 },
+  // Two-column builder: your assets (left, check to send) vs theirs (right, check to get).
+  buildCols: { flexDirection: 'row', marginHorizontal: 16, marginTop: 14 },
+  buildCol: { flex: 1 },
+  buildColDiv: { width: StyleSheet.hairlineWidth, alignSelf: 'stretch', backgroundColor: colors.border, marginHorizontal: 8 },
+  buildColLabel: { color: colors.textDim, fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
+  cAssetRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 8, borderWidth: 1, borderColor: colors.border, borderLeftWidth: 3, paddingVertical: 8, paddingRight: 8, paddingLeft: 8, marginBottom: 7 },
+  cAssetName: { color: colors.text, fontSize: 13, fontWeight: '700' },
+  cAssetMeta: { color: colors.textDim, fontSize: 11, marginTop: 1 },
   card: { backgroundColor: colors.card, borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: 14 },
   cardTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
   cardFrom: { color: colors.text, fontSize: 16, fontWeight: '800', flex: 1, marginRight: 8 },
