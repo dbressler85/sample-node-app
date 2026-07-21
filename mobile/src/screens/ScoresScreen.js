@@ -1,8 +1,10 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, FlatList, StyleSheet, RefreshControl, ActivityIndicator } from 'react-native';
 import { api } from '../api';
 import { colors } from '../theme';
 import { ScreenTitle } from '../components/Brand';
+import { celebrate } from '../components/Celebrate';
+import { getValue, setValue } from '../cache';
 import usePoll from '../usePoll';
 
 const STATUS = {
@@ -37,6 +39,31 @@ export default function ScoresScreen() {
   // Auto-refresh the Sunday board while games are in progress, so scores and win
   // probabilities tick without a manual pull.
   usePoll(load, 45000, !!(data && data.summary && data.summary.live > 0));
+
+  // Celebrate (or commiserate) when matchups go final — a 🏆 for a win, a deadpan
+  // 💀 for a loss. First-seen tracking keyed by league+week+result, persisted to
+  // disk, so a result fires its moment exactly once and never re-fires when you
+  // reopen the tab or the board polls again. A mixed week shows the dominant mood.
+  const seenRef = useRef(null);
+  const [seenReady, setSeenReady] = useState(false);
+  useEffect(() => {
+    getValue('scores:celebrated').then((v) => {
+      seenRef.current = new Set(Array.isArray(v) ? v : []);
+      setSeenReady(true);
+    });
+  }, []);
+  useEffect(() => {
+    if (!seenReady || !data || !data.games || seenRef.current == null) return;
+    const week = data.week;
+    const finals = data.games.filter((g) => g.locked && (g.status === 'won' || g.status === 'lost'));
+    const fresh = finals.filter((g) => !seenRef.current.has(`${g.leagueId}:${week}:${g.status}`));
+    if (!fresh.length) return;
+    fresh.forEach((g) => seenRef.current.add(`${g.leagueId}:${week}:${g.status}`));
+    setValue('scores:celebrated', [...seenRef.current]);
+    const wins = fresh.filter((g) => g.status === 'won').length;
+    const losses = fresh.length - wins;
+    celebrate(losses > wins ? 'matchupLost' : 'matchupWon');
+  }, [data, seenReady]);
 
   if (loading) {
     return (
