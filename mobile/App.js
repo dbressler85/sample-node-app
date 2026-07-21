@@ -93,11 +93,11 @@ export default function App() {
     prevTabRef.current = tab;
     if (from === -1 || to === -1 || from === to) return;
     const dir = to > from ? 1 : -1; // right in the bar → enter from the right
-    tabSlide.setValue(dir * 30);
-    tabFade.setValue(0.4);
+    tabSlide.setValue(dir * 64);
+    tabFade.setValue(0.25);
     Animated.parallel([
-      Animated.timing(tabSlide, { toValue: 0, duration: 230, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-      Animated.timing(tabFade, { toValue: 1, duration: 230, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(tabSlide, { toValue: 0, duration: 360, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(tabFade, { toValue: 1, duration: 360, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
     ]).start();
   }, [tab, tabSlide, tabFade]);
 

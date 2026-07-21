@@ -18,7 +18,7 @@ const TABS = [
 const RANK_TYPES = [
   ['value', 'Market value'],
   ['myvalue', 'My value'],
-  ['owned', 'Yours'],
+  ['owned', 'Most owned'],
   ['trending', 'Trending'],
 ];
 const POSITIONS = [
@@ -308,7 +308,10 @@ function PlayerRow({ p, rank, sub, tag, watched, showTrend, onTag, onWatch, onPr
       </View>
       <View style={styles.rightCol}>
         {showTrend && p.trend ? (
-          <Text style={styles.trend}>▲ {p.trend.toLocaleString()}</Text>
+          <View style={styles.trendBox}>
+            <Text style={styles.trend}>▲ {Math.round(p.trend).toLocaleString()}</Text>
+            <Text style={styles.trendUnit}>adds/48h</Text>
+          </View>
         ) : p.value != null ? <Value size={16}>{p.value}</Value> : null}
         {acts ? (
           <View style={styles.actions}>
@@ -499,7 +502,9 @@ const styles = StyleSheet.create({
   tagMark: { fontSize: 13, fontWeight: '900', marginLeft: 6 },
   meta: { color: colors.textDim, fontSize: 12, marginTop: 2 },
   value: { color: colors.gold, fontSize: 15, fontWeight: '900', marginLeft: 10 },
-  trend: { color: colors.good, fontSize: 14, fontWeight: '900', marginLeft: 10 },
+  trendBox: { alignItems: 'flex-end', marginLeft: 10 },
+  trend: { color: colors.good, fontSize: 14, fontWeight: '900' },
+  trendUnit: { color: colors.textDim, fontSize: 9, fontWeight: '700', marginTop: 1 },
   dot: { width: 10, height: 10, borderRadius: 5, marginRight: 10 },
   newsHead: { color: colors.text, fontSize: 14, fontWeight: '700' },
   chev: { color: colors.textDim, fontSize: 20, marginLeft: 8 },
