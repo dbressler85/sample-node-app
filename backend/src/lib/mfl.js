@@ -153,22 +153,29 @@ const readCache = new Map(); // key -> { at, promise }
 // Slow-changing data gets a long TTL; live-polled data a very short one so it
 // keeps up with its poll cadence; everything else a moderate short one.
 const STATIC_TYPES = new Set(['league', 'rules', 'myleagues', 'players', 'nflSchedule', 'calendar']);
-const LIVE_TYPES = new Set(['liveScoring', 'draftResults']);
+// liveScoring/draftResults are polled; pendingTrades isn't, but an incoming offer is
+// an EXTERNAL event nothing invalidates, so a 5m cache made new offers lag on the
+// inbox — keep it short so a pull-to-refresh actually surfaces them.
+const LIVE_TYPES = new Set(['liveScoring', 'draftResults', 'pendingTrades']);
 // Slow-changing scoring reads: weekly projections and past-week actuals. A player
 // profile fans these across every league, so a longer TTL keeps profiles fast and
 // avoids the rate-limit burst. (Current-week live scoring uses LIVE_TYPES instead.)
 const SLOW_TYPES = new Set(['projectedScores', 'playerScores']);
 
 // Read data via the export command (cached, TTL depends on how volatile it is).
-async function exportRequest(type, { host = config.apiHost, cookie = null, ...params } = {}) {
+async function exportRequest(type, { host = config.apiHost, cookie = null, maxAge = null, ...params } = {}) {
   const key = `${cookie || ''}|${host}|${type}|${JSON.stringify(params)}`;
-  const ttl = STATIC_TYPES.has(type)
+  let ttl = STATIC_TYPES.has(type)
     ? config.mflStaticTtlMs
     : LIVE_TYPES.has(type)
     ? config.mflLiveTtlMs
     : SLOW_TYPES.has(type)
     ? config.mflSlowTtlMs
     : config.mflCacheTtlMs;
+  // A caller can ask for a fresher-than-default read of a shared entry (e.g. the FAAB
+  // balance inside the 1h `league` export). Only ever shortens the window, never
+  // lengthens it, and the refetched value updates the shared cache for everyone.
+  if (maxAge != null) ttl = Math.min(ttl, maxAge);
   const hit = readCache.get(key);
   if (hit && Date.now() - hit.at < ttl) return hit.promise;
 

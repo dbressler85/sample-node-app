@@ -37,6 +37,9 @@ function invalidate(cookie, leagueId) {
   faMemo.invalidate(`${cookie}|${leagueId}`);
   faIdsMemo.invalidate(`${cookie}|${leagueId}`);
   rosterService.invalidate(cookie, leagueId);
+  // A claim here changes rosters/free-agents, so the Players tab's cross-league
+  // "mine / free" map is now stale too. Lazy require avoids a playerhub↔waivers cycle.
+  require('./playerhub').invalidateGather(cookie);
 }
 
 // Availability context (current week + injury/bye maps). In live these are now
@@ -81,7 +84,10 @@ async function loadSettings(league, cookie) {
   // unlimited free-agency, which is worse than surfacing the error.
   let res;
   try {
-    res = await mfl.exportRequest('league', { host: league.host, cookie, L: league.leagueId });
+    // FAAB balance & waiver priority live in this (otherwise 1h-static) export but
+    // change when waivers process overnight — read them near-fresh so a validated bid
+    // can't exceed a budget that was already spent.
+    res = await mfl.exportRequest('league', { host: league.host, cookie, L: league.leagueId, maxAge: config.mflFreshTtlMs });
   } catch (e) {
     console.log(`[waiverSettings] league=${league.leagueId} error=${e.message}`);
     const err = new Error(`Could not load waiver settings for ${league.name || league.leagueId}.`);

@@ -478,4 +478,4 @@ async function submitDrop(cookie, token, playerId, leagueIds) {
   return { results, summary: { requested: results.length, dropped: results.filter((r) => r.ok).length } };
 }
 
-module.exports = { search, rankings, profile, previewAdd, submitAdd, submitDrop };
+module.exports = { search, rankings, profile, previewAdd, submitAdd, submitDrop, invalidateGather };
