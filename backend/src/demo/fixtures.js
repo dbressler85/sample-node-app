@@ -478,11 +478,13 @@ const WAIVERS = {
 };
 
 // League-wide news, mapped to affected teams by whichever leagues roster the player.
+// `ageMins` drives a relative publish time (computed at read time in demo), so the News tab
+// can show "how long ago" and sort by recency.
 const NEWS = [
-  { id: 'n1', playerId: '15859', headline: 'Marvin Harrison ruled OUT (ankle)', severity: 'high' },
-  { id: 'n2', playerId: '15267', headline: 'Bijan Robinson on bye this week', severity: 'medium' },
-  { id: 'n3', playerId: '14802', headline: "Ja'Marr Chase questionable, expected to play", severity: 'low' },
-  { id: 'n4', playerId: '13649', headline: 'Jahmyr Gibbs sees season-high snap share', severity: 'low' },
+  { id: 'n1', playerId: '15859', headline: 'Marvin Harrison ruled OUT (ankle)', severity: 'high', ageMins: 95 },
+  { id: 'n2', playerId: '15267', headline: 'Bijan Robinson on bye this week', severity: 'medium', ageMins: 20 },
+  { id: 'n3', playerId: '14802', headline: "Ja'Marr Chase questionable, expected to play", severity: 'low', ageMins: 600 },
+  { id: 'n4', playerId: '13649', headline: 'Jahmyr Gibbs sees season-high snap share', severity: 'low', ageMins: 1500 },
 ];
 
 // Rookie / future draft pick inventory per league (dynasty currency).
@@ -594,7 +596,7 @@ module.exports = {
   tradeOffers: (leagueId) => JSON.parse(JSON.stringify(TRADE_OFFERS[leagueId] || [])),
   tradePartners: (leagueId) => JSON.parse(JSON.stringify(TRADE_PARTNERS[leagueId] || [])),
   waivers: (leagueId) => (WAIVERS[leagueId] || []).map((w) => ({ ...w })),
-  news: () => NEWS.map((n) => ({ ...n })),
+  news: () => NEWS.map((n) => ({ ...n, published: new Date(Date.now() - (n.ageMins || 0) * 60000).toISOString() })),
   picks: (leagueId) => (PICKS[leagueId] || []).slice(),
   waiverSettings: (leagueId) => (WAIVER_SETTINGS[leagueId] ? { ...WAIVER_SETTINGS[leagueId] } : null),
   freeAgents: (leagueId) => (FREE_AGENTS[leagueId] || []).slice(),

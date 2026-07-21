@@ -37,6 +37,30 @@ function matchNews(n, q) {
   return (n.headline && n.headline.toLowerCase().includes(t)) || (n.player && n.player.name && n.player.name.toLowerCase().includes(t));
 }
 
+// Compact "how long ago" for a news item's publish time (falls back to a short date).
+function timeAgo(iso) {
+  if (!iso) return null;
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return null;
+  const mins = Math.round((Date.now() - t) / 60000);
+  if (mins < 1) return 'now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.round(hrs / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+const NEWS_SORTS = [['impact', 'Impact'], ['recent', 'Recent']];
+const SEV_RANK = { high: 3, medium: 2, low: 1 };
+function sortNews(list, key) {
+  const arr = [...list];
+  if (key === 'recent') return arr.sort((a, b) => (Date.parse(b.published) || 0) - (Date.parse(a.published) || 0));
+  // impact: severity, then how many of your teams start him, then affected count.
+  return arr.sort((a, b) => (SEV_RANK[b.severity] || 0) - (SEV_RANK[a.severity] || 0) || (b.startingCount - a.startingCount) || (b.affectedCount - a.affectedCount));
+}
+
 export default function PlayersScreen({ onOpenPlayer }) {
   const [query, setQuery] = useState('');
   const [searchRes, setSearchRes] = useState(null);
@@ -50,6 +74,7 @@ export default function PlayersScreen({ onOpenPlayer }) {
   const [pos, setPos] = useState(null); // position filter (null = All), applies to rankings/search/mine
   const [format, setFormat] = useState('1qb'); // value lens: '1qb' | 'sf' — re-prices & resorts the board
   const [newsQuery, setNewsQuery] = useState(''); // in-tab News filter
+  const [newsSort, setNewsSort] = useState('impact'); // News tab sort: 'impact' | 'recent'
   const [tagOverride, setTagOverride] = useState({}); // id -> 'target'|'avoid'|null (optimistic)
   const [watchOverride, setWatchOverride] = useState({}); // id -> bool (optimistic)
 
@@ -256,8 +281,16 @@ export default function PlayersScreen({ onOpenPlayer }) {
                   </Pressable>
                 ) : null}
               </View>
+              <View style={styles.newsSortRow}>
+                <Text style={styles.newsSortLabel}>Sort</Text>
+                {NEWS_SORTS.map(([k, label]) => (
+                  <Pressable key={k} style={[styles.newsSortChip, newsSort === k && styles.newsSortChipActive]} onPress={() => setNewsSort(k)}>
+                    <Text style={[styles.newsSortText, newsSort === k && { color: colors.text }]}>{label}</Text>
+                  </Pressable>
+                ))}
+              </View>
               <FlatList
-                data={news ? news.news.filter((n) => matchNews(n, newsQuery)) : []}
+                data={news ? sortNews(news.news.filter((n) => matchNews(n, newsQuery)), newsSort) : []}
                 keyExtractor={(n) => n.id}
                 contentContainerStyle={styles.list}
                 renderItem={({ item }) => (
@@ -427,7 +460,8 @@ function NewsRow({ n, onPress }) {
       <View style={{ flex: 1 }}>
         <Text style={styles.newsHead} numberOfLines={2}>{n.headline}</Text>
         <Text style={styles.meta}>
-          {n.affectedCount > 0 ? `Affects ${n.affectedCount} of your teams${n.startingCount ? ` · starting in ${n.startingCount}` : ''}` : 'Not on your rosters'}
+          {timeAgo(n.published) ? `${timeAgo(n.published)} · ` : ''}
+          {n.affectedCount > 0 ? `${n.affectedCount} of your teams${n.startingCount ? ` · starting in ${n.startingCount}` : ''}` : 'Not on your rosters'}
         </Text>
       </View>
       <Text style={styles.chev}>›</Text>
@@ -479,6 +513,11 @@ const styles = StyleSheet.create({
   rightCol: { alignItems: 'flex-end', marginLeft: 10, gap: 7 },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   newsSearchWrap: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, marginBottom: 6 },
+  newsSortRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, gap: 8, marginBottom: 6 },
+  newsSortLabel: { color: colors.textDim, fontSize: 12, fontWeight: '700', marginRight: 2 },
+  newsSortChip: { backgroundColor: colors.card, borderRadius: 8, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 5 },
+  newsSortChipActive: { backgroundColor: colors.cardAlt, borderColor: colors.accent },
+  newsSortText: { color: colors.textDim, fontSize: 12, fontWeight: '700' },
   newsSearch: { flex: 1, color: colors.text, fontSize: 14, paddingVertical: 9 },
   list: { paddingHorizontal: 16, paddingBottom: 32, paddingTop: 4 },
   row: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 12, marginBottom: 10 },
