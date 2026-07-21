@@ -64,6 +64,20 @@ function toArray(value) {
   return Array.isArray(value) ? value : [value];
 }
 
+// Read an MFL attribute by any of several candidate names, matching
+// case- AND underscore-insensitively. MFL's attribute naming is inconsistent
+// across (and within) export types — pendingTrades returns `offeredto` lowercase
+// but `will_give_up` / `will_receive` snake_case — so a single literal key misses.
+// Pass every plausible spelling; the first present key wins.
+function attr(obj, ...names) {
+  if (!obj || typeof obj !== 'object') return undefined;
+  const want = new Set(names.map((n) => String(n).toLowerCase().replace(/_/g, '')));
+  for (const key of Object.keys(obj)) {
+    if (want.has(key.toLowerCase().replace(/_/g, ''))) return obj[key];
+  }
+  return undefined;
+}
+
 function buildUrl(host, command, params) {
   const url = new URL(`https://${host}/${config.season}/${command}`);
   for (const [key, val] of Object.entries(params)) {
@@ -252,5 +266,6 @@ module.exports = {
   importRequest,
   invalidateLeague,
   toArray,
+  attr,
   hostFromLeagueUrl,
 };

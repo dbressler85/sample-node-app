@@ -57,8 +57,10 @@ async function tradeBaitByFranchise(cookie, token, league) {
 const PICK_VALUE_BY_ROUND = { 1: 55, 2: 28, 3: 14, 4: 7 };
 function pickValue(label) {
   const s = String(label);
+  // Known-slot picks read "2026 1.11" (round.pick); future picks read "2027 1st".
+  const slot = /\b(\d+)\.(\d{1,2})\b/.exec(s);
   const rm = /(\d+)\s*(?:st|nd|rd|th)/i.exec(s);
-  const round = rm ? parseInt(rm[1], 10) : 4;
+  const round = slot ? parseInt(slot[1], 10) : rm ? parseInt(rm[1], 10) : 4;
   let base = PICK_VALUE_BY_ROUND[round] != null ? PICK_VALUE_BY_ROUND[round] : Math.max(3, 8 - round);
   const ym = /(20\d{2})/.exec(s);
   if (ym) {
@@ -69,10 +71,11 @@ function pickValue(label) {
 }
 
 // Resolve an asset token to a display object + value. A token is a player id, a
-// demo 'pick:LABEL', or a live MFL future-pick token 'FP_<orig>_<year>_<round>'.
+// demo 'pick:LABEL', a live MFL future-pick token 'FP_<orig>_<year>_<round>', or
+// an upcoming-draft pick token 'DP_<round>_<pick>' (both zero-based).
 function asset(tok, byId, enr) {
   const t = String(tok);
-  if (t.startsWith('pick:') || t.startsWith('FP_')) {
+  if (t.startsWith('pick:') || t.startsWith('FP_') || t.startsWith('DP_')) {
     const label = t.startsWith('pick:') ? t.slice(5) : picksLib.labelForToken(t);
     return { kind: 'pick', id: t, name: label, position: 'PICK', team: null, value: pickValue(label) };
   }
@@ -168,17 +171,20 @@ async function livePendingOffers(cookie, league) {
     const names = await leaguesService.franchiseNames(cookie, league);
     const toks = (v) => String(v || '').split(/[,;|]/).map((s) => s.trim()).filter(Boolean);
     return list
-      .filter((tr) => String(tr.offeredto != null ? tr.offeredto : tr.offeredTo) === league.franchiseId)
+      .filter((tr) => String(mfl.attr(tr, 'offeredto')) === league.franchiseId)
       .map((tr, i) => {
-        const from = String(tr.offeringteam != null ? tr.offeringteam : tr.offeringTeam);
+        const from = String(mfl.attr(tr, 'offeringteam') || '');
         return {
-          id: String(tr.trade_id || tr.id || i),
+          id: String(mfl.attr(tr, 'trade_id', 'id') || i),
           direction: 'incoming',
           status: 'pending',
           withFranchiseId: from,
           withName: names.get(from) || 'Another team',
-          acquire: toks(tr.willGiveUp != null ? tr.willGiveUp : tr.will_give_up),
-          send: toks(tr.willReceiveInReturn != null ? tr.willReceiveInReturn : tr.willReceive),
+          // MFL names these `will_give_up` / `will_receive` (snake_case) here — the
+          // receive side previously only checked camelCase, so what you'd give up
+          // came back empty ("You give · 0"). attr() matches any casing.
+          acquire: toks(mfl.attr(tr, 'willgiveup')),
+          send: toks(mfl.attr(tr, 'willreceive', 'willreceiveinreturn')),
         };
       });
   } catch (e) {
@@ -208,12 +214,20 @@ async function liveRosters(cookie, league) {
   }
 }
 
-// Pending offers for one league (seeded store in demo; MFL in live).
-async function offersForLeague(cookie, token, league, byId, enr) {
+// Raw pending offers for a league (token lists, no value enrichment). Cheap enough
+// to run for every league on the inbox — just the pendingTrades read in live — so
+// the expensive format-aware values + roster reads are paid only where an offer
+// actually exists.
+async function rawOffers(cookie, token, league) {
   const raw = config.demoMode
     ? tradeStore.list(token, league.leagueId, demo.tradeOffers(league.leagueId))
     : await livePendingOffers(cookie, league);
-  const offers = raw.filter((o) => (o.status || 'pending') === 'pending').map((o) => buildOffer(o, league, byId, enr));
+  return raw.filter((o) => (o.status || 'pending') === 'pending');
+}
+
+// Pending offers for one league, value-analyzed (seeded store in demo; MFL in live).
+async function offersForLeague(cookie, token, league, byId, enr) {
+  const offers = (await rawOffers(cookie, token, league)).map((o) => buildOffer(o, league, byId, enr));
   return annotateTags(offers, token);
 }
 
@@ -253,22 +267,23 @@ async function getOverview(cookie, token) {
   const groups = await Promise.all(
     leagues.map(async (league) => {
       try {
+        // Read the pending offers first — cheap — and bail before the expensive work
+        // on the many leagues with an empty inbox. Format-aware values and the
+        // needs/surplus roster reads (~a dozen roster reads per league) are the
+        // dominant cost of this screen, so only leagues with a real offer pay them.
+        const raw = await rawOffers(cookie, token, league);
+        if (!raw.length) return { offers: [], fit: null, leagueId: String(league.leagueId) };
+
         const enr = await enrichmentLib.snapshot(await leagueFormat.format(cookie, league), cookie);
-        const offers = await offersForLeague(cookie, token, league, byId, enr);
-        // The needs/surplus model reads EVERY franchise's roster in the league — the
-        // dominant cost of this screen (~a dozen roster reads per league × every league).
-        // Only pay it where it earns its keep: a league with an incoming offer to
-        // annotate. The "start a trade here" fit hint is then computed on demand when you
-        // open that league (getLeague), so the inbox stays fast. Best-effort: a roster-read
-        // failure just means value-only offers.
+        const offers = annotateTags(raw.map((o) => buildOffer(o, league, byId, enr)), token);
+        // The "start a trade here" fit hint is computed on demand when you open the
+        // league (getLeague). Best-effort: a roster-read failure just means value-only.
         let fit = null;
-        if (offers.length) {
-          try {
-            const d = await tradeData(cookie, token, league.leagueId);
-            annotateConstruction(offers, d.ns, league.franchiseId);
-            fit = tradeFitSummary(d.ns, league.franchiseId);
-          } catch (e) { /* value-only */ }
-        }
+        try {
+          const d = await tradeData(cookie, token, league.leagueId);
+          annotateConstruction(offers, d.ns, league.franchiseId);
+          fit = tradeFitSummary(d.ns, league.franchiseId);
+        } catch (e) { /* value-only */ }
         return { offers, fit, leagueId: String(league.leagueId) };
       } catch (e) {
         return { offers: [], fit: null, leagueId: String(league.leagueId) };

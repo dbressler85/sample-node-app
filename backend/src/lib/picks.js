@@ -15,10 +15,23 @@ function ordinal(round) {
   return n === 1 ? '1st' : n === 2 ? '2nd' : n === 3 ? '3rd' : `${n}th`;
 }
 
-// "2027 1st" for an FP_ token (or the raw string if it isn't one).
+// A readable label for an MFL draft-pick token:
+//  • FP_<orig>_<year>_<round>  → "2027 1st"   (future pick — round only)
+//  • DP_<round>_<pick>         → "2026 1.11"  (upcoming draft — exact slot)
+// MFL's DP tokens are ZERO-based on BOTH round and pick, so DP_0_10 is round 1,
+// pick 11 ("1.11") and DP_2_2 is round 3, pick 3 ("3.03"). Anything else is
+// returned verbatim.
 function labelForToken(token) {
-  const m = /^FP_\d+_(\d{4})_(\d+)/.exec(String(token));
-  return m ? `${m[1]} ${ordinal(m[2])}` : String(token);
+  const t = String(token);
+  const fp = /^FP_\d+_(\d{4})_(\d+)/.exec(t);
+  if (fp) return `${fp[1]} ${ordinal(fp[2])}`;
+  const dp = /^DP_(\d+)_(\d+)$/.exec(t);
+  if (dp) {
+    const round = parseInt(dp[1], 10) + 1;
+    const pick = parseInt(dp[2], 10) + 1;
+    return `${config.season} ${round}.${String(pick).padStart(2, '0')}`;
+  }
+  return t;
 }
 
 // [{ token, label }] for a franchise's future picks. Demo tokens are 'pick:LABEL'
