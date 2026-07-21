@@ -34,6 +34,7 @@ const TESTS = [
   'cache-primitives-test',
   'watchlist-test',
   'throttle-test',
+  'throttle-backoff-test',
   'portfolio-dashboard-test',
   'waiver-lock-test',
   'waiver-calendar-test',
