@@ -497,6 +497,8 @@ async function propose(cookie, token, leagueId, payload) {
     const valid = (t) => !t.startsWith('pick:');
     const giveIds = give.filter(valid);
     const recvIds = receive.filter(valid);
+    const willGiveUp = giveIds.join(',');
+    const willReceive = recvIds.join(',');
     try {
       await mfl.importRequest('tradeProposal', {
         host: league.host,
@@ -504,12 +506,20 @@ async function propose(cookie, token, leagueId, payload) {
         L: league.leagueId,
         FRANCHISE: league.franchiseId,
         OFFEREDTO: toFranchiseId,
-        WILL_GIVE_UP: giveIds.join(','),
-        WILL_RECEIVE: recvIds.join(','),
+        WILL_GIVE_UP: willGiveUp,
+        WILL_RECEIVE: willReceive,
         COMMENTS: payload.comments || '',
       });
     } catch (e) {
-      const err = new Error(`MFL rejected the proposal: ${e.message}`);
+      // Surface MFL's actual complaint (it's on e.mflError / e.body) instead of a bare
+      // status code, and log the exact asset lists so a rejected proposal is diagnosable.
+      const detail = e.mflError || (e.body && String(e.body).replace(/<[^>]+>/g, ' ').trim().slice(0, 300)) || e.message;
+      // eslint-disable-next-line no-console
+      console.warn('[trades] tradeProposal rejected', JSON.stringify({
+        L: league.leagueId, FRANCHISE: league.franchiseId, OFFEREDTO: toFranchiseId,
+        WILL_GIVE_UP: willGiveUp, WILL_RECEIVE: willReceive, status: e.status, detail,
+      }));
+      const err = new Error(`MFL rejected the proposal: ${detail}`);
       err.status = 502;
       throw err;
     }

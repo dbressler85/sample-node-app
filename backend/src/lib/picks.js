@@ -39,7 +39,10 @@ async function franchisePicks(cookie, league) {
       // which case we're in, so a mis-derived token can't pass silently.
       const orig = p.originalPickFor || p.originalPickForFranchise || p.originalOwningFranchiseId || p.original_franchise;
       const originalKnown = orig != null && orig !== '';
-      const owner = originalKnown ? String(orig) : league.franchiseId;
+      // MFL franchise ids are 4-digit zero-padded ("0005"). tradeProposal 500s on a
+      // future-pick token whose original-owner id is unpadded, and some originalPickFor
+      // values come back short (e.g. "5"), so pad it back to MFL's canonical width.
+      const owner = String(originalKnown ? orig : league.franchiseId).padStart(4, '0');
       return { token: `FP_${owner}_${p.year}_${p.round}`, label: `${p.year} ${ordinal(p.round)}`, originalKnown };
     });
   } catch (e) {
