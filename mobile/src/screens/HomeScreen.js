@@ -167,10 +167,6 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
       allItems: items,
       portfolio: {
         leagues: leagues.length,
-        needAttention:
-          ph === 'in_season'
-            ? vals.filter((v) => v.status && v.status !== 'optimal' && v.status !== 'error' && v.status !== 'offseason').length
-            : vals.filter((v) => (v.items || []).length > 0).length,
         injuries: vals.filter((v) => v.status === 'risk').length,
         holes: vals.filter((v) => v.status === 'incomplete').length,
         lineupsToSet: vals.filter((v) => v.status === 'unset').length,
@@ -389,10 +385,12 @@ function Portfolio({ p, phase, loading, onLeagues, onPortfolio, onOpenAttention 
     <View style={styles.portfolio}>
       <View style={styles.tileRow}>
         <Tile label="Leagues ›" value={String(p.leagues)} loading={loading && !p.leagues} onPress={onLeagues} />
+        {/* Shows the number of action ITEMS (what the feed lists), so the tile's count
+            matches the feed it opens — not a separate "leagues affected" number. */}
         <Tile
           label={onOpenAttention ? 'Needs attention ›' : 'Needs attention'}
-          value={String(p.needAttention)}
-          accent={p.needAttention > 0}
+          value={String(p.actionItems)}
+          accent={p.actionItems > 0}
           loading={loading}
           onPress={onOpenAttention}
         />

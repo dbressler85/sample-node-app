@@ -186,9 +186,10 @@ Grouped into four "synergy systems", highest-leverage first:
   totals, not player rows, so there's nothing to link there. **Remaining:** the lineup
   **slot editor / wizard**, where the row IS the slot-selection target — tap-through
   needs a dedicated affordance (a small info tap) to avoid a gesture conflict.
-- [ ] **Draft room: separate research from drafting.** Once rows open a profile, a
-  single tap can't also = instant pick. Add an explicit "Draft him" action / confirm
-  (also fixes today's accidental-pick risk).
+- [x] **Draft room: separate research from drafting.** Done: a pool row taps through to the
+  player's profile to scout him; drafting is a separate explicit **Draft** button that routes
+  through a confirm Alert (`confirmDraft`), so a single tap can never = an instant/accidental
+  pick. The section header spells it out ("tap a name to scout, Draft to pick").
 
 ### System 2 — Needs/surplus + outlook should follow you everywhere
 - [x] **Make dead-end aggregates tappable.** Portfolio "By league" rows (outlook · core
@@ -268,8 +269,9 @@ Grouped into four "synergy systems", highest-leverage first:
   to "⚠ hurts your roster" no longer leaves the decision ambiguous. *(Remaining: de-emphasize
   the raw "dynasty value estimate" caption; the inbox still shows one-sided construction where
   the desk shows two.)*
-- [ ] **Home label collision:** "Needs attention" names two different numbers (leagues
-  vs items); the tile isn't tappable; `onOpenPlayer` is passed in but unused.
+- [x] **Home label collision:** fixed — the "Needs attention" tile now shows the count of
+  action **items** (matching the feed it opens on tap) instead of a separate "leagues affected"
+  number; the tile is tappable (opens the triage feed) and its player rows use `onOpenPlayer`.
 - [ ] **Consolidate duplicated UX:** one primary bulk-lineup path (wizard vs auto-set
   sheet), one shared claim builder (WaiverWizard vs ClaimSheet), one matchup component
   (recomputed in Scores/Lineups/Editor/Wizard with wording drift), shared `PlayerRow`.
