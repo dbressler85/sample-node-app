@@ -364,6 +364,16 @@ add another data source.
 - [ ] **Live projections floor/ceiling.** Floor/median/ceiling bands are a model
   estimate (position volatility around the projection), flagged as estimates in the
   UI — not a real distribution. A better source would replace the heuristic.
+- [ ] **Source tradeable picks from MFL's `assets` export.** Current-year (upcoming-draft)
+  picks are currently derived from the `draftResults` grid: ownership is authoritative
+  (MFL's per-slot `franchise`, correct even after pick trades), but the `DP_<round-1>_<pick-1>`
+  trade token is *constructed* by us from MFL's round/pick numbers — the one part that
+  needs an on-device check. MFL's `export?TYPE=assets` is purpose-built for "what can this
+  franchise trade" and should return players + current/future picks **already tokenized** in
+  the exact trade-API format, removing the construction (and covering edge cases like
+  conditional picks). Rework to use `assets` as the primary source with the `draftResults`
+  derivation as fallback. Blocked on confirming the export's exact shape against a live
+  account (MFL blocks their API docs from us), so pair with the live-MFL verification below.
 
 ## Hardening & ops
 
