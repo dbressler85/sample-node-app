@@ -343,25 +343,35 @@ async function getLeague(cookie, token, leagueId) {
   const data = await tradeData(cookie, token, leagueId);
   const { league, byId, enr, roster, rawPartners, ns, teamOutlook, fmt } = data;
   const offers = annotateConstruction(await offersForLeague(cookie, token, league, byId, enr), ns, league.franchiseId);
+  // Who's actively shopping whom: each franchise's trade-bait board (mine from our store,
+  // everyone else's from MFL's native board). Flag a player `bait` so the desk can badge
+  // the guys a team has openly put on the block — the fastest read on what's available.
+  const baitMap = await tradeBaitByFranchise(cookie, token, league);
+  const myBait = baitMap.get(String(league.franchiseId)) || new Set();
 
   const myPlayers = [...roster.starters, ...roster.bench]
-    .map((p) => ({ id: p.id, name: p.name, position: p.position, team: p.team, value: enr.value(p.id), tag: playerTags.get(token, p.id) }))
+    .map((p) => ({ id: p.id, name: p.name, position: p.position, team: p.team, value: enr.value(p.id), tag: playerTags.get(token, p.id), bait: myBait.has(String(p.id)) }))
     .sort((a, b) => (b.value || 0) - (a.value || 0));
   // Picks carry the real MFL trade token as their id, so a proposal can include them.
   const myPicks = (await picksLib.franchisePicks(cookie, league)).map((p) => asset(p.token, byId, enr));
 
-  const partners = rawPartners.map((pt) => ({
-    franchiseId: pt.franchiseId,
-    name: pt.name,
-    outlook: (teamOutlook[String(pt.franchiseId)] || {}).outlook || null,
-    avgAge: (teamOutlook[String(pt.franchiseId)] || {}).avgAge || null,
-    needs: (ns[String(pt.franchiseId)] || {}).needs || [],
-    surplus: (ns[String(pt.franchiseId)] || {}).surplus || [],
-    depth: (ns[String(pt.franchiseId)] || {}).depth || {},
-    players: (pt.roster || [])
-      .map((id) => { const a = asset(id, byId, enr); if (a.kind !== 'pick') a.tag = playerTags.get(token, a.id) || null; return a; })
-      .sort((a, b) => (b.value || 0) - (a.value || 0)),
-  }));
+  const partners = rawPartners.map((pt) => {
+    const bait = baitMap.get(String(pt.franchiseId)) || new Set();
+    const players = (pt.roster || [])
+      .map((id) => { const a = asset(id, byId, enr); if (a.kind !== 'pick') a.tag = playerTags.get(token, a.id) || null; a.bait = bait.has(String(a.id)); return a; })
+      .sort((a, b) => (b.value || 0) - (a.value || 0));
+    return {
+      franchiseId: pt.franchiseId,
+      name: pt.name,
+      outlook: (teamOutlook[String(pt.franchiseId)] || {}).outlook || null,
+      avgAge: (teamOutlook[String(pt.franchiseId)] || {}).avgAge || null,
+      baitCount: players.filter((a) => a.bait).length,
+      needs: (ns[String(pt.franchiseId)] || {}).needs || [],
+      surplus: (ns[String(pt.franchiseId)] || {}).surplus || [],
+      depth: (ns[String(pt.franchiseId)] || {}).depth || {},
+      players,
+    };
+  });
 
   const mine = ns[String(league.franchiseId)] || { needs: [], surplus: [], depth: {} };
   const myOutlook = teamOutlook[String(league.franchiseId)] || {};
