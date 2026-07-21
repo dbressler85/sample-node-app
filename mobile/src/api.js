@@ -82,6 +82,8 @@ export const api = {
   leagueTriage: (leagueId) => request(`/api/home/league/${leagueId}`),
   onDeck: () => request('/api/ondeck'),
   portfolio: () => request('/api/portfolio'),
+  // Shop (or un-shop) a holding across every league you roster him in.
+  portfolioShop: (playerId, on, leagueIds) => request(`/api/portfolio/holdings/${playerId}/bait`, { method: 'POST', body: { on, leagueIds } }),
   registerPush: (expoPushToken, prefs) => request('/api/push/register', { method: 'POST', body: { expoPushToken, prefs } }),
   unregisterPush: () => request('/api/push/unregister', { method: 'POST' }),
   pushPrefs: () => request('/api/push/prefs'),

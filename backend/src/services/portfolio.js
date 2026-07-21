@@ -23,6 +23,8 @@ const nflLib = require('../lib/nfl');
 const waiverStore = require('../store/waivers');
 const playerTags = require('../store/playerTags');
 const historyStore = require('../store/portfolioHistory');
+const tradebaitStore = require('../store/tradebait');
+const tradebaitService = require('./tradebait');
 
 const SEV = { high: 3, medium: 2, low: 1 };
 
@@ -301,8 +303,9 @@ async function getDashboard(cookie, token) {
       totalValue += v;
       playerCount += 1;
       // Aggregate this player across leagues into a single holding (position).
-      const h = holdMap.get(p.id) || { id: p.id, name: p.name, position: p.position, team: p.team, total: 0, leagues: 0, top: 0 };
+      const h = holdMap.get(p.id) || { id: p.id, name: p.name, position: p.position, team: p.team, total: 0, leagues: 0, top: 0, leagueIds: [] };
       h.total += v; h.leagues += 1; if (v > h.top) h.top = v;
+      h.leagueIds.push(league.leagueId);
       holdMap.set(p.id, h);
       allocMap.set(p.position, (allocMap.get(p.position) || 0) + v);
       if (p.age != null) {
@@ -353,6 +356,9 @@ async function getDashboard(cookie, token) {
       id: h.id, name: h.name, position: h.position, team: h.team,
       value: Math.round(h.total), leagues: h.leagues,
       avg: Math.round(h.total / h.leagues), pct: pct(h.total, totalValue),
+      leagueIds: h.leagueIds,
+      // Already shopping him anywhere? Drives the portfolio "Shop" toggle's state.
+      baited: h.leagueIds.some((lid) => tradebaitStore.has(token, lid, h.id)),
     }));
 
   // Allocation by position — the "sectors" of the portfolio.
@@ -426,4 +432,26 @@ function syntheticHistory(end, days = 30) {
   return out; // today's real point is appended by the caller's record()
 }
 
-module.exports = { getHome, getLeagueTriage, getDashboard };
+// Shop (or un-shop) a holding across every league you roster him in — the portfolio-native
+// "I'm out on this asset everywhere" action. Fans the per-league trade-bait add/remove out
+// (each is ownership-guarded and MFL-synced), best-effort so one league's failure doesn't
+// sink the rest. Returns the new state + how many leagues actually took.
+async function shopHolding(cookie, token, playerId, on, leagueIds) {
+  const ids = Array.isArray(leagueIds) ? leagueIds.map(String) : [];
+  if (!ids.length) {
+    const err = new Error('No leagues given for this player.');
+    err.status = 400;
+    throw err;
+  }
+  const results = await Promise.all(
+    ids.map((lid) =>
+      (on ? tradebaitService.add(cookie, token, lid, playerId, null) : tradebaitService.remove(cookie, token, lid, playerId))
+        .then(() => true)
+        .catch(() => false)
+    )
+  );
+  const changed = results.filter(Boolean).length;
+  return { id: String(playerId), baited: !!on, leagues: changed, requested: ids.length };
+}
+
+module.exports = { getHome, getLeagueTriage, getDashboard, shopHolding };
