@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, StatusBar, ActivityIndicator, SafeAreaView, Platform, Dimensions, Animated, Easing } from 'react-native';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import useAndroidBack from './src/useAndroidBack';
@@ -65,18 +65,24 @@ export default function App() {
   const [overlayStack, setOverlayStack] = useState([]);
   const [waiversTarget, setWaiversTarget] = useState(null); // {leagueId, position}
 
-  // Login → Home handoff: only the login lockup flies up and out. The authed app is
-  // NEVER wrapped in an opacity animation — a prior version started it at opacity 0 and
-  // faded it in on every launch, which could leave the whole app blank if the fade
-  // didn't run, and a blank bundle trips expo-updates' rollback to the old embedded
-  // build. Scoping the motion to the login screen removes that failure mode entirely.
+  // Login → Home handoff in two beats: the login lockup accelerates up and away, then the
+  // app "falls" into place and settles with a spring. `drop` rests at 1 (fully settled), so
+  // every ordinary render and a restored-session cold launch shows the app in its final
+  // position — only an explicit login knocks it to 0 and springs it back. The entrance can
+  // therefore never strand the app off-screen or blank (the failure mode a prior opacity
+  // fade risked); with expo-updates and its bundle-rollback gone, motion is safe again.
   const leave = useRef(new Animated.Value(0)).current;
+  const drop = useRef(new Animated.Value(1)).current;
 
   function handleLoggedIn(info) {
     if (info && typeof info.demoMode === 'boolean') setDemoMode(info.demoMode);
-    Animated.timing(leave, { toValue: 1, duration: 360, easing: Easing.in(Easing.cubic), useNativeDriver: true }).start(() => {
+    // Beat 1: login accelerates up and out — slower and further, so it clearly departs.
+    Animated.timing(leave, { toValue: 1, duration: 600, easing: Easing.in(Easing.cubic), useNativeDriver: true }).start(() => {
+      // Beat 2: reveal the app lifted above its resting spot, then let it fall in and settle.
+      drop.setValue(0);
       setAuthed(true);
       leave.setValue(0);
+      Animated.spring(drop, { toValue: 1, useNativeDriver: true, friction: 6.5, tension: 55 }).start();
     });
   }
 
@@ -221,10 +227,10 @@ export default function App() {
     }
     if (!authed) {
       const leaveStyle = {
-        opacity: leave.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
+        opacity: leave.interpolate({ inputRange: [0, 0.7, 1], outputRange: [1, 0.3, 0] }),
         transform: [
-          { translateY: leave.interpolate({ inputRange: [0, 1], outputRange: [0, -70] }) },
-          { scale: leave.interpolate({ inputRange: [0, 1], outputRange: [1, 0.96] }) },
+          { translateY: leave.interpolate({ inputRange: [0, 1], outputRange: [0, -130] }) },
+          { scale: leave.interpolate({ inputRange: [0, 1], outputRange: [1, 0.9] }) },
         ],
       };
       return (
@@ -320,6 +326,17 @@ export default function App() {
     );
   }
 
+  // The app content falls onto the static backdrop: it starts lifted and slightly enlarged,
+  // then drops to rest. At drop=1 (the resting default) this is the identity transform, so it
+  // only ever animates right after login and is a no-op on every other render.
+  const dropStyle = {
+    opacity: drop.interpolate({ inputRange: [0, 1], outputRange: [0, 1] }),
+    transform: [
+      { translateY: drop.interpolate({ inputRange: [0, 1], outputRange: [-90, 0] }) },
+      { scale: drop.interpolate({ inputRange: [0, 1], outputRange: [1.06, 1] }) },
+    ],
+  };
+
   // The gold-over-navy field sits behind the whole app; screens render on transparent
   // containers so it shows through, with opaque cards floating on top. Login draws its
   // own hero-intensity backdrop over this one.
@@ -333,8 +350,16 @@ export default function App() {
       <SafeAreaView style={styles.safe}>
         <ExpoStatusBar style="light" />
         {Platform.OS === 'android' ? <StatusBar translucent backgroundColor="transparent" barStyle="light-content" /> : null}
-        {/* Any render crash shows its message on screen instead of closing the app. */}
-        <ErrorBoundary>{render()}</ErrorBoundary>
+        {/* Any render crash shows its message on screen instead of closing the app. The
+            authed content rides the fall-in transform; login/boot render plainly (login has
+            its own fly-away). */}
+        <ErrorBoundary>
+          {authed && !booting ? (
+            <Animated.View style={[styles.flex, dropStyle]}>{render()}</Animated.View>
+          ) : (
+            render()
+          )}
+        </ErrorBoundary>
       </SafeAreaView>
     </View>
   );
