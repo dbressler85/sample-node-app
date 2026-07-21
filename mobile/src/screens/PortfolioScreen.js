@@ -1,8 +1,12 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, Pressable, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Pressable, ActivityIndicator, RefreshControl, Dimensions } from 'react-native';
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import useAndroidBack from '../useAndroidBack';
+import Sparkline from '../components/Sparkline';
+
+// Chart width = screen minus the body padding (16×2) and card padding (16×2).
+const CHART_W = Dimensions.get('window').width - 64;
 
 // Roster strength as a plain qualitative tag (from where its value ranks in the
 // league), so the outlook label is explainable rather than a bare number. Thresholds
@@ -56,16 +60,89 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
         contentContainerStyle={styles.body}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.accent} />}
       >
-        {/* Totals */}
+        {/* Hero: total value, movement, and the value-over-time line — the portfolio glance. */}
         <View style={styles.card}>
+          <Text style={styles.totalLabel}>Total dynasty value · {d.totals.teams} team{d.totals.teams === 1 ? '' : 's'}</Text>
           <Text style={styles.totalValue}>{d.totals.rosterValue.toLocaleString()}</Text>
-          <Text style={styles.totalLabel}>total dynasty value · {d.totals.teams} team{d.totals.teams === 1 ? '' : 's'}</Text>
+          <ChangeLine change={d.change} />
+          {d.history && d.history.length >= 2 ? (
+            <View style={styles.chartWrap}>
+              <Sparkline
+                data={d.history.map((h) => h.value)}
+                width={CHART_W}
+                height={64}
+                color={!d.change || d.change.absolute >= 0 ? colors.good : colors.bad}
+              />
+            </View>
+          ) : (
+            <Text style={styles.buildingHint}>Tracking your value — the trend line fills in over the coming days.</Text>
+          )}
           <View style={styles.statRow}>
             <Stat label="Players" value={d.totals.playerCount} />
             <Stat label="Value-wtd age" value={d.totals.valueWeightedAge != null ? `${d.totals.valueWeightedAge}y` : '—'} />
             <Stat label="Leagues" value={d.totals.leagues} />
           </View>
         </View>
+
+        {/* Allocation by position — the portfolio's "sectors" as a single stacked bar. */}
+        {d.allocation && d.allocation.length ? (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Allocation by position</Text>
+            <View style={styles.allocBar}>
+              {d.allocation.map((a, i) => (
+                <View
+                  key={a.position}
+                  style={{
+                    width: `${a.pct}%`,
+                    backgroundColor: positionColors[a.position] || colors.textDim,
+                    borderTopLeftRadius: i === 0 ? 7 : 0,
+                    borderBottomLeftRadius: i === 0 ? 7 : 0,
+                    borderTopRightRadius: i === d.allocation.length - 1 ? 7 : 0,
+                    borderBottomRightRadius: i === d.allocation.length - 1 ? 7 : 0,
+                  }}
+                />
+              ))}
+            </View>
+            <View style={styles.allocLegend}>
+              {d.allocation.map((a) => (
+                <View key={a.position} style={styles.allocKey}>
+                  <View style={[styles.allocDot, { backgroundColor: positionColors[a.position] || colors.textDim }]} />
+                  <Text style={styles.allocKeyText}>{a.position} {a.pct}%</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        ) : null}
+
+        {/* Top holdings — your biggest positions across every league (exposure + share). */}
+        {d.holdings && d.holdings.length ? (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Top holdings</Text>
+            {d.holdings.map((h) => (
+              <Pressable
+                key={h.id}
+                style={({ pressed }) => [styles.holdRow, pressed && { opacity: 0.7 }]}
+                onPress={() => onOpenPlayer && onOpenPlayer(h.id)}
+              >
+                <View style={[styles.posBadge, { borderColor: positionColors[h.position] || colors.textDim }]}>
+                  <Text style={[styles.pos, { color: positionColors[h.position] || colors.textDim }]}>{h.position}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.holdName} numberOfLines={1}>{h.name}</Text>
+                  <Text style={styles.holdSub} numberOfLines={1}>
+                    {h.team ? `${h.team} · ` : ''}{h.leagues === 1 ? '1 league' : `${h.leagues} leagues`}
+                    {h.leagues > 1 ? ` · ${h.avg} avg` : ''}
+                  </Text>
+                </View>
+                <View style={styles.holdRight}>
+                  <Text style={styles.holdVal}>{h.value.toLocaleString()}</Text>
+                  <Text style={styles.holdPct}>{h.pct}%</Text>
+                </View>
+              </Pressable>
+            ))}
+            <Text style={styles.hint}>Each player’s value summed across every league you roster him in — your real exposure.</Text>
+          </View>
+        ) : null}
 
         {/* Value at risk */}
         <View style={styles.card}>
@@ -157,6 +234,22 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
   );
 }
 
+// The movement line under the total: ▲/▼ absolute (+pct%) over the tracked window. Neutral
+// until there are two days to compare.
+function ChangeLine({ change }) {
+  if (!change) return <Text style={styles.changeFlat}>No movement yet</Text>;
+  const up = change.absolute >= 0;
+  const c = change.absolute === 0 ? colors.textDim : up ? colors.good : colors.bad;
+  const sign = up ? '+' : '−';
+  const mag = Math.abs(change.absolute).toLocaleString();
+  return (
+    <Text style={[styles.change, { color: c }]}>
+      {up ? '▲' : '▼'} {sign}{mag} <Text style={styles.changePct}>({sign}{Math.abs(change.pct)}%)</Text>
+      <Text style={styles.changeWindow}>  ·  {change.days}d</Text>
+    </Text>
+  );
+}
+
 function Stat({ label, value }) {
   return (
     <View style={styles.stat}>
@@ -182,8 +275,25 @@ const styles = StyleSheet.create({
   title: { color: colors.text, fontSize: 17, fontWeight: '900' },
   body: { padding: 16 },
   card: { backgroundColor: colors.card, borderRadius: 16, borderWidth: 1, borderColor: colors.border, padding: 16, marginBottom: 14 },
-  totalValue: { color: colors.gold, fontSize: 40, fontWeight: '900', letterSpacing: -1 },
-  totalLabel: { color: colors.textDim, fontSize: 13, fontWeight: '600', marginTop: 2 },
+  totalValue: { color: colors.gold, fontSize: 40, fontWeight: '900', letterSpacing: -1, marginTop: 2 },
+  totalLabel: { color: colors.textDim, fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+  change: { fontSize: 15, fontWeight: '900', marginTop: 4 },
+  changePct: { fontSize: 14, fontWeight: '800' },
+  changeWindow: { color: colors.textDim, fontSize: 13, fontWeight: '700' },
+  changeFlat: { color: colors.textDim, fontSize: 13, fontWeight: '700', marginTop: 4 },
+  chartWrap: { marginTop: 12, marginHorizontal: -2 },
+  buildingHint: { color: colors.textDim, fontSize: 12, marginTop: 12, lineHeight: 16 },
+  allocBar: { flexDirection: 'row', height: 14, borderRadius: 7, overflow: 'hidden', backgroundColor: colors.bg },
+  allocLegend: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 12 },
+  allocKey: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  allocDot: { width: 9, height: 9, borderRadius: 2 },
+  allocKeyText: { color: colors.textDim, fontSize: 12, fontWeight: '700' },
+  holdRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 9, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+  holdName: { color: colors.text, fontSize: 14, fontWeight: '700' },
+  holdSub: { color: colors.textDim, fontSize: 12, marginTop: 1 },
+  holdRight: { alignItems: 'flex-end', marginLeft: 8, minWidth: 52 },
+  holdVal: { color: colors.gold, fontSize: 15, fontWeight: '900' },
+  holdPct: { color: colors.textDim, fontSize: 11, fontWeight: '700', marginTop: 1 },
   statRow: { flexDirection: 'row', marginTop: 16, gap: 10 },
   stat: { flex: 1, backgroundColor: colors.bg, borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
   statValue: { color: colors.text, fontSize: 18, fontWeight: '800' },
