@@ -27,6 +27,7 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
   const [refreshing, setRefreshing] = useState(false);
   const [posFilter, setPosFilter] = useState(null); // tap an allocation segment to filter holdings by position
   const [showAllHoldings, setShowAllHoldings] = useState(false); // Top holdings: 12 by default, expand to the full book
+  const [holdView, setHoldView] = useState('value'); // Top holdings ranking: 'value' (biggest bets) | 'exposure' (most leagues)
 
   useAndroidBack(useCallback(() => { onBack(); return true; }, [onBack]));
 
@@ -62,6 +63,12 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
 
   const maxBand = Math.max(1, ...d.ageCurve.map((b) => b.value));
   const risk = d.atRisk;
+  // Top holdings can be ranked two ways: by value (backend's default order — your biggest bets)
+  // or by exposure (how many of your leagues roster him — your most widely-held). Same players,
+  // different lens: depth vs breadth. Exposure ties break on value.
+  const rankedHoldings = holdView === 'exposure'
+    ? [...d.holdings].sort((a, b) => b.leagues - a.leagues || b.value - a.value)
+    : d.holdings;
 
   return (
     <View style={styles.container}>
@@ -213,6 +220,23 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
                 <Pressable onPress={() => setPosFilter(null)} hitSlop={8}><Text style={styles.clearFilter}>Clear ✕</Text></Pressable>
               ) : null}
             </View>
+
+            {/* Two lenses on the same book: biggest bets (value) vs most widely-held (exposure).
+                Hidden while a position filter is active. */}
+            {!posFilter ? (
+              <>
+                <View style={styles.holdTabs}>
+                  {[['value', 'By value'], ['exposure', 'By exposure']].map(([k, label]) => (
+                    <Pressable key={k} onPress={() => { setHoldView(k); setShowAllHoldings(false); }} style={[styles.holdTab, holdView === k && styles.holdTabOn]}>
+                      <Text style={[styles.holdTabTxt, holdView === k && styles.holdTabTxtOn]}>{label}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <Text style={styles.holdScope}>
+                  {showAllHoldings ? `ALL ${d.holdings.length}` : 'TOP 12'} · {holdView === 'value' ? 'BY VALUE' : 'BY LEAGUES HELD'}
+                </Text>
+              </>
+            ) : null}
             {/* Concentration insight — the multi-league owner's real risk: how far your single
                 biggest bet towers over the rest of your book. Framed against your #2 holding so
                 it stays meaningful at any league count (share-of-whole-portfolio does not). */}
@@ -243,7 +267,7 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
                 <Text style={styles.holdKeyPct}>vs. biggest</Text>
               </View>
             </View>
-            {(posFilter ? d.holdings.filter((h) => h.position === posFilter) : (showAllHoldings ? d.holdings : d.holdings.slice(0, 12))).map((h) => {
+            {(posFilter ? rankedHoldings.filter((h) => h.position === posFilter) : (showAllHoldings ? rankedHoldings : rankedHoldings.slice(0, 12))).map((h) => {
               const baited = resolveBaited(h);
               return (
                 <View key={h.id} style={styles.holdRow}>
@@ -454,6 +478,12 @@ const styles = StyleSheet.create({
   allocDot: { width: 9, height: 9, borderRadius: 2 },
   allocKeyText: { color: colors.textDim, fontSize: 12, fontWeight: '700' },
   clearFilter: { color: colors.accent, fontSize: 12, fontWeight: '800', marginBottom: 10 },
+  holdTabs: { flexDirection: 'row', backgroundColor: colors.bg, borderRadius: 9, padding: 3, marginBottom: 8 },
+  holdTab: { flex: 1, paddingVertical: 6, borderRadius: 7, alignItems: 'center' },
+  holdTabOn: { backgroundColor: colors.cardAlt },
+  holdTabTxt: { color: colors.textDim, fontSize: 12, fontWeight: '800' },
+  holdTabTxtOn: { color: colors.text },
+  holdScope: { color: colors.textDim, fontSize: 10, fontWeight: '800', letterSpacing: 0.5, marginBottom: 8 },
   holdKeyRow: { flexDirection: 'row', alignItems: 'flex-end', paddingBottom: 6, marginBottom: 2, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   holdKeyName: { flex: 1, color: colors.textDim, fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.3 },
   holdKeyVal: { color: colors.gold, fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.3 },
