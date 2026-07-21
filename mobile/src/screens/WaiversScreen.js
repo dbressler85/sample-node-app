@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
+import { celebrate } from '../components/Celebrate';
 import AvailabilityBadge from '../components/AvailabilityBadge';
 import AddAcrossSheet from '../components/AddAcrossSheet';
 import useAndroidBack from '../useAndroidBack';
@@ -534,9 +535,11 @@ function ClaimSheet({ leagueId, addId, onClose, onDone }) {
       if (dropId) body.dropId = dropId;
       if (bid != null && bid !== '') body.bid = Number(bid);
       const res = await api.submitClaim(leagueId, body);
+      celebrate('claimPlaced');
       Alert.alert('Claim submitted', `${res.submitted.add.name}${res.submitted.bid != null ? ` for $${res.submitted.bid}` : ''}.`);
       onDone();
     } catch (e) {
+      celebrate('claimFailed');
       Alert.alert('Could not submit', e.message);
     } finally {
       setBusy(false);

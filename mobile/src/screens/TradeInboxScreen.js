@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, FlatList, RefreshControl, ActivityIndicator, Alert } from 'react-native';
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
+import { celebrate } from '../components/Celebrate';
 import useAndroidBack from '../useAndroidBack';
 
 // Cross-league trade inbox: every pending incoming offer across all your leagues,
@@ -56,6 +57,7 @@ export default function TradeInboxScreen({ onBack, onOpenLeague, onProposeInLeag
     setBusy(k);
     try {
       await api.respondTrade(offer.leagueId, offer.id, action);
+      celebrate(action === 'accept' ? 'tradeAccepted' : 'offerRejected');
       await load();
     } catch (e) {
       Alert.alert('Could not respond', e.message);

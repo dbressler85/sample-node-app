@@ -30,6 +30,7 @@ import { loadSession, clearSession } from './src/auth';
 import { loadDisplayFont } from './src/typography';
 import PressableScale from './src/components/PressableScale';
 import FieldBackdrop from './src/components/FieldBackdrop';
+import { CelebrationHost } from './src/components/Celebrate';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import { colors } from './src/theme';
 
@@ -361,6 +362,11 @@ export default function App() {
           )}
         </ErrorBoundary>
       </SafeAreaView>
+      {/* Celebration/commiseration overlay — decorative, isolated so a stray animation
+          can never take the app down. */}
+      <ErrorBoundary silent>
+        <CelebrationHost />
+      </ErrorBoundary>
     </View>
   );
 }

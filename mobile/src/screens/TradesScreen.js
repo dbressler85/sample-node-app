@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
+import { celebrate } from '../components/Celebrate';
 import useAndroidBack from '../useAndroidBack';
 
 const posList = (arr) => (arr && arr.length ? arr.map((x) => x.pos).join(', ') : '—');
@@ -154,6 +155,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
     setBusy(offer.id);
     try {
       await api.respondTrade(league.leagueId, offer.id, action);
+      celebrate(action === 'accept' ? 'tradeAccepted' : 'offerRejected');
       await load();
     } catch (e) {
       Alert.alert('Could not respond', e.message);
@@ -261,6 +263,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
         give: sendList.map((a) => a.id),
         receive: receiveList.map((a) => a.id),
       });
+      celebrate('offerSent');
       // Countering means declining their exact terms: once ours is sent, reject theirs.
       if (counterInfo) {
         try { await api.respondTrade(league.leagueId, counterInfo.offerId, 'reject'); } catch (e) { /* leave it */ }
