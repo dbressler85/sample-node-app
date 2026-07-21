@@ -98,6 +98,32 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
           </View>
         </View>
 
+        {/* Movers — which of your holdings rose/fell most since we started tracking. */}
+        {d.movers && d.movers.length ? (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Your movers</Text>
+            {d.movers.map((m) => {
+              const up = m.delta > 0;
+              return (
+                <Pressable
+                  key={m.id}
+                  style={({ pressed }) => [styles.moverRow, pressed && { opacity: 0.7 }]}
+                  onPress={() => onOpenPlayer && onOpenPlayer(m.id, { id: m.id, name: m.name, position: m.position })}
+                >
+                  <View style={[styles.posBadge, { borderColor: positionColors[m.position] || colors.textDim }]}>
+                    <Text style={[styles.pos, { color: positionColors[m.position] || colors.textDim }]}>{m.position}</Text>
+                  </View>
+                  <Text style={styles.moverName} numberOfLines={1}>{m.name}</Text>
+                  <Text style={[styles.moverDelta, { color: up ? colors.good : colors.bad }]}>
+                    {up ? '▲' : '▼'} {up ? '+' : '−'}{Math.abs(m.delta)} ({up ? '+' : '−'}{Math.abs(m.pct)}%)
+                  </Text>
+                </Pressable>
+              );
+            })}
+            <Text style={styles.hint}>Biggest value swings among your holdings since tracking began — where your book is heating up or cooling off.</Text>
+          </View>
+        ) : null}
+
         {/* Season timing — advisory only; frames whether to hold or sell right now. */}
         {d.seasonal && d.seasonal.message ? (
           <View style={[styles.seasonBanner, d.seasonal.holdToSell && styles.seasonBannerActive]}>
@@ -417,6 +443,9 @@ const styles = StyleSheet.create({
   concFill: { height: 12, borderRadius: 6 },
   concPct: { color: colors.text, fontSize: 12, fontWeight: '800', width: 38, textAlign: 'right' },
   concBye: { color: colors.textDim, fontSize: 13, marginTop: 8, lineHeight: 18 },
+  moverRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+  moverName: { flex: 1, color: colors.text, fontSize: 14, fontWeight: '700', marginLeft: 2 },
+  moverDelta: { fontSize: 13, fontWeight: '900', marginLeft: 8 },
   holdName: { color: colors.text, fontSize: 14, fontWeight: '700' },
   holdSub: { color: colors.textDim, fontSize: 12, marginTop: 1 },
   holdRight: { alignItems: 'flex-end', marginLeft: 8, minWidth: 52 },
