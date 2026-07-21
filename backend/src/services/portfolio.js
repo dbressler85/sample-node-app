@@ -14,6 +14,7 @@
 const config = require('../config');
 const demo = require('../demo/fixtures');
 const mfl = require('../lib/mfl');
+const picksLib = require('../lib/picks');
 const playersLib = require('../lib/players');
 const leaguesService = require('./leagues');
 const lineupsService = require('./lineups');
@@ -53,17 +54,17 @@ async function pendingTrades(cookie, league) {
       const t = String(tok).trim();
       if (!t) return null;
       if (/^\d+$/.test(t)) return playersLib.resolve(byId, t).name.split(',')[0];
-      const yr = t.match(/(20\d{2})/);
-      return yr ? `${yr[1]} pick` : 'pick';
+      // FP_/DP_ pick tokens → a readable slot ("2027 1st", "2026 1.11").
+      return picksLib.labelForToken(t);
     };
     const toks = (v) => String(v || '').split(/[,;|]/).map(label).filter(Boolean);
     return list
-      .filter((tr) => String(tr.offeredto != null ? tr.offeredto : tr.offeredTo) === league.franchiseId)
+      .filter((tr) => String(mfl.attr(tr, 'offeredto')) === league.franchiseId)
       .map((tr, i) => ({
-        id: String(tr.trade_id || tr.id || i),
-        from: names.get(String(tr.offeringteam != null ? tr.offeringteam : tr.offeringTeam)) || 'Another team',
-        gives: toks(tr.willGiveUp != null ? tr.willGiveUp : tr.will_give_up),
-        gets: toks(tr.willReceiveInReturn != null ? tr.willReceiveInReturn : tr.willReceive),
+        id: String(mfl.attr(tr, 'trade_id', 'id') || i),
+        from: names.get(String(mfl.attr(tr, 'offeringteam') || '')) || 'Another team',
+        gives: toks(mfl.attr(tr, 'willgiveup')),
+        gets: toks(mfl.attr(tr, 'willreceive', 'willreceiveinreturn')),
       }));
   } catch (e) {
     return [];
