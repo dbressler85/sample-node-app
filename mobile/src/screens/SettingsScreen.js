@@ -14,7 +14,7 @@ const CHANNELS = [
 
 // Preferences: explicitly choose which push notifications to receive. Each toggle saves
 // immediately (optimistic, reverts on failure). Channels default on.
-export default function SettingsScreen({ onBack }) {
+export default function SettingsScreen({ onBack, onOpenHelp }) {
   const [prefs, setPrefs] = useState(null);
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -77,6 +77,19 @@ export default function SettingsScreen({ onBack }) {
           </View>
         )}
         <Text style={styles.footNote}>{saving ? 'Saving…' : 'Changes save automatically.'}</Text>
+
+        {onOpenHelp ? (
+          <>
+            <Text style={[styles.sectionLabel, { marginTop: 26 }]}>Help</Text>
+            <Pressable style={({ pressed }) => [styles.card, styles.helpRow, pressed && { opacity: 0.7 }]} onPress={onOpenHelp}>
+              <View style={styles.rowText}>
+                <Text style={styles.rowLabel}>How it works</Text>
+                <Text style={styles.rowDesc}>Where values come from, how team outlook and trades are graded, league formats, waivers, and more.</Text>
+              </View>
+              <Text style={styles.chev}>›</Text>
+            </Pressable>
+          </>
+        ) : null}
       </ScrollView>
     </View>
   );
@@ -99,4 +112,6 @@ const styles = StyleSheet.create({
   rowDesc: { color: colors.textDim, fontSize: 12, marginTop: 3, lineHeight: 16 },
   footNote: { color: colors.textDim, fontSize: 12, textAlign: 'center', marginTop: 14 },
   error: { color: colors.bad, fontSize: 13, marginBottom: 12 },
+  helpRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, gap: 12 },
+  chev: { color: colors.textDim, fontSize: 22, fontWeight: '300' },
 });

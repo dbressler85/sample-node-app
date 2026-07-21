@@ -5,6 +5,7 @@ import { colors, positionColors } from '../theme';
 import AvailabilityBadge from '../components/AvailabilityBadge';
 import { TargetIcon, AvoidIcon, WatchIcon } from '../components/PlayerActionIcons';
 import { getValue, setValue } from '../cache';
+import InfoDot from '../components/InfoDot';
 import { ScreenTitle, Value } from '../components/Brand';
 
 const TABS = [
@@ -337,6 +338,7 @@ function ValueLens({ format, setFormat }) {
   return (
     <View style={styles.lensRow}>
       <Text style={styles.lensLabel}>Value lens</Text>
+      <InfoDot id="format" />
       <View style={styles.lensToggle}>
         {[['1qb', '1QB'], ['sf', 'Superflex']].map(([k, label]) => (
           <Pressable key={k} style={[styles.lensSeg, format === k && styles.lensSegActive]} onPress={() => setFormat(k)}>

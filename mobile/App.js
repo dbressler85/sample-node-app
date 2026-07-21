@@ -10,6 +10,7 @@ import HomeScreen from './src/screens/HomeScreen';
 import LeaguesScreen from './src/screens/LeaguesScreen';
 import PortfolioScreen from './src/screens/PortfolioScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
+import HelpScreen from './src/screens/HelpScreen';
 import ScoresScreen from './src/screens/ScoresScreen';
 import WaiversScreen from './src/screens/WaiversScreen';
 import PlayersScreen from './src/screens/PlayersScreen';
@@ -51,8 +52,8 @@ const TABS = [
   { key: 'home', label: 'Home', icon: '⌂' },
   { key: 'scores', label: 'Scores', icon: '◉' },
   { key: 'lineups', label: 'Lineups', icon: '⚑' },
-  { key: 'waivers', label: 'Waivers', icon: '⇄' },
-  { key: 'trades', label: 'Trades', icon: '⇌' },
+  { key: 'waivers', label: 'Waivers', icon: '±' },
+  { key: 'trades', label: 'Trades', icon: '⇄' },
   { key: 'players', label: 'Players', icon: '◐' },
 ];
 
@@ -159,6 +160,7 @@ export default function App() {
   const openLeagues = () => pushOverlay({ type: 'leagues' });
   const openPortfolio = () => pushOverlay({ type: 'portfolio' });
   const openSettings = () => pushOverlay({ type: 'settings' });
+  const openHelp = () => pushOverlay({ type: 'help' });
   const openOnDeck = () => pushOverlay({ type: 'onDeck' });
   const openPlayer = (playerId) => pushOverlay({ type: 'playerProfile', playerId });
   const openTradeWizard = (queue) => pushOverlay({ type: 'tradeWizard', queue });
@@ -277,6 +279,7 @@ export default function App() {
           onShopLeague={(league) => openTrades(league, 'propose')}
           onShopPlayer={({ leagueId, name, sendPlayerId, partnerFranchiseId }) => openTrades({ leagueId, name }, 'propose', { sendPlayerId, partnerFranchiseId })}
           onOpenPlayer={openPlayer}
+          onOpenInbox={() => { popOverlay(); setTab('trades'); }}
         />
       );
     }
@@ -293,7 +296,10 @@ export default function App() {
       return <PortfolioScreen onBack={popOverlay} onOpenPlayer={openPlayer} onOpenLeague={openRoster} />;
     }
     if (overlay && overlay.type === 'settings') {
-      return <SettingsScreen onBack={popOverlay} />;
+      return <SettingsScreen onBack={popOverlay} onOpenHelp={openHelp} />;
+    }
+    if (overlay && overlay.type === 'help') {
+      return <HelpScreen onBack={popOverlay} />;
     }
     if (overlay && overlay.type === 'onDeck') {
       return (

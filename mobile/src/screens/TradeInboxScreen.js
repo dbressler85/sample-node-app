@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Pressable, FlatList, RefreshControl, ActivityIn
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import { celebrate } from '../components/Celebrate';
+import InfoDot from '../components/InfoDot';
 import useAndroidBack from '../useAndroidBack';
 
 // Cross-league trade inbox: every pending incoming offer across all your leagues,
@@ -19,6 +20,14 @@ const CONSTRUCTION = {
   good: { color: colors.good, icon: '✓' },
   caution: { color: colors.bad, icon: '⚠' },
   neutral: { color: colors.textDim, icon: '•' },
+};
+// Compact dynasty outlook ("Win-now window" -> "Win-now") + a color per stance, matching
+// the trade desk. Lets the inbox show BOTH teams' context at a glance.
+const shortOutlook = (o) => (o === 'Win-now window' ? 'Win-now' : o || null);
+const OUTLOOK_COLOR = { 'Win-now window': colors.gold, Ascending: colors.good, Rebuilding: colors.warn, Balanced: colors.textDim };
+const teamCtx = (t) => {
+  if (!t) return null;
+  return [shortOutlook(t.outlook), t.avgAge != null ? `${t.avgAge} yr` : null].filter(Boolean).join(' · ') || null;
 };
 
 export default function TradeInboxScreen({ onBack, onOpenLeague, onProposeInLeague, onOpenBlock, onCounter, onOpenPlayer }) {
@@ -184,11 +193,33 @@ function OfferCard({ offer, busy, onRespond, onOpenLeague, onCounter, onOpenPlay
         </View>
       </View>
 
+      {/* League format + both teams' dynasty context (outlook + average age). */}
+      {(offer.format || offer.me || offer.partner) ? (
+        <View style={styles.ctxRow}>
+          {offer.format ? <Text style={styles.fmtPill}>{offer.format}</Text> : null}
+          {teamCtx(offer.me) ? (
+            <Text style={styles.ctxText} numberOfLines={1}>
+              You · <Text style={{ color: OUTLOOK_COLOR[offer.me.outlook] || colors.textDim, fontWeight: '800' }}>{teamCtx(offer.me)}</Text>
+            </Text>
+          ) : null}
+          {teamCtx(offer.partner) ? (
+            <Text style={styles.ctxText} numberOfLines={1}>
+              {offer.withName ? `${offer.withName.split(' ')[0]} · ` : 'Them · '}
+              <Text style={{ color: OUTLOOK_COLOR[offer.partner.outlook] || colors.textDim, fontWeight: '800' }}>{teamCtx(offer.partner)}</Text>
+            </Text>
+          ) : null}
+          {offer.me || offer.partner ? <InfoDot id="outlook" /> : null}
+        </View>
+      ) : null}
+
       <Side label="You get" assets={offer.acquire} total={offer.analysis.acquireValue} onOpenPlayer={onOpenPlayer} />
       <Side label="You give" assets={offer.send} total={offer.analysis.sendValue} onOpenPlayer={onOpenPlayer} />
-      <Text style={styles.estCaption}>
-        Market value · net {offer.analysis.net > 0 ? '+' : ''}{offer.analysis.net}
-      </Text>
+      <View style={styles.estRow}>
+        <Text style={styles.estCaption}>
+          Market value · net {offer.analysis.net > 0 ? '+' : ''}{offer.analysis.net}
+        </Text>
+        <InfoDot id="tradeGrade" />
+      </View>
       {offer.personal ? (
         <Text style={[styles.personalLine, { color: (VERDICT[offer.personal.verdict] || VERDICT.fair).color }]}>
           For you · net {offer.personal.net > 0 ? '+' : ''}{offer.personal.net} · {(VERDICT[offer.personal.verdict] || VERDICT.fair).label}
@@ -266,13 +297,17 @@ const styles = StyleSheet.create({
   from: { color: colors.textDim, fontSize: 14, fontWeight: '600', flex: 1, marginRight: 10 },
   badge: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3 },
   badgeText: { fontSize: 11, fontWeight: '800' },
+  ctxRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 12 },
+  fmtPill: { color: colors.accent, backgroundColor: colors.accent + '1A', borderWidth: 1, borderColor: colors.accent + '55', borderRadius: 6, fontSize: 11, fontWeight: '800', paddingHorizontal: 7, paddingVertical: 2, overflow: 'hidden' },
+  ctxText: { color: colors.textDim, fontSize: 12, fontWeight: '600' },
   side: { marginBottom: 10 },
   sideLabel: { color: colors.textDim, fontSize: 12, fontWeight: '800', marginBottom: 4 },
   sideRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 3 },
   dot: { width: 8, height: 8, borderRadius: 4, marginRight: 8 },
   sideName: { color: colors.text, fontSize: 14, flex: 1, marginRight: 8 },
   sideMeta: { color: colors.textDim, fontSize: 12 },
-  estCaption: { color: colors.textDim, fontSize: 11, marginTop: 2 },
+  estRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 },
+  estCaption: { color: colors.textDim, fontSize: 11 },
   personalLine: { fontSize: 12, fontWeight: '800', marginTop: 3 },
   tagNotes: { marginTop: 6, gap: 3, marginBottom: 4 },
   tagNote: { fontSize: 12, fontWeight: '700' },

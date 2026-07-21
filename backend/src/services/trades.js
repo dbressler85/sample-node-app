@@ -274,8 +274,12 @@ async function getOverview(cookie, token) {
         const raw = await rawOffers(cookie, token, league);
         if (!raw.length) return { offers: [], fit: null, leagueId: String(league.leagueId) };
 
-        const enr = await enrichmentLib.snapshot(await leagueFormat.format(cookie, league), cookie);
+        const fmt = await leagueFormat.format(cookie, league);
+        const enr = await enrichmentLib.snapshot(fmt, cookie);
         const offers = annotateTags(raw.map((o) => buildOffer(o, league, byId, enr)), token);
+        // League format (SF/1QB · PPR) is cheap and always useful on the card.
+        const fmtLabel = leagueFormat.label(fmt);
+        offers.forEach((o) => { o.format = fmtLabel; });
         // The "start a trade here" fit hint is computed on demand when you open the
         // league (getLeague). Best-effort: a roster-read failure just means value-only.
         let fit = null;
@@ -283,6 +287,9 @@ async function getOverview(cookie, token) {
           const d = await tradeData(cookie, token, league.leagueId);
           annotateConstruction(offers, d.ns, league.franchiseId);
           fit = tradeFitSummary(d.ns, league.franchiseId);
+          // Both sides' dynasty context so the inbox shows each team's outlook + age.
+          const meCtx = d.teamOutlook[String(league.franchiseId)] || null;
+          offers.forEach((o) => { o.me = meCtx; o.partner = d.teamOutlook[String(o.withFranchiseId)] || null; });
         } catch (e) { /* value-only */ }
         return { offers, fit, leagueId: String(league.leagueId) };
       } catch (e) {
@@ -364,15 +371,21 @@ async function getLeague(cookie, token, leagueId) {
   const baitMap = await tradeBaitByFranchise(cookie, token, league);
   const myBait = baitMap.get(String(league.franchiseId)) || new Set();
 
+  // Every franchise's future picks in one call, so both my side and each partner's
+  // picks are selectable assets in the builder (and a counter can ask for one).
+  const picksMap = await picksLib.franchisePicksMap(cookie, league);
+  const picksFor = (fid) => (picksMap[String(fid)] || []).map((p) => asset(p.token, byId, enr));
+
   const myPlayers = [...roster.starters, ...roster.bench]
     .map((p) => ({ id: p.id, name: p.name, position: p.position, team: p.team, value: enr.value(p.id), tag: playerTags.get(token, p.id), bait: myBait.has(String(p.id)) }))
     .sort((a, b) => (b.value || 0) - (a.value || 0));
   // Picks carry the real MFL trade token as their id, so a proposal can include them.
-  const myPicks = (await picksLib.franchisePicks(cookie, league)).map((p) => asset(p.token, byId, enr));
+  // In demo the map is empty, so fall back to the demo picks fixture for my side.
+  const myPicks = config.demoMode ? (await picksLib.franchisePicks(cookie, league)).map((p) => asset(p.token, byId, enr)) : picksFor(league.franchiseId);
 
   const partners = rawPartners.map((pt) => {
     const bait = baitMap.get(String(pt.franchiseId)) || new Set();
-    const players = (pt.roster || [])
+    const rosterPlayers = (pt.roster || [])
       .map((id) => { const a = asset(id, byId, enr); if (a.kind !== 'pick') a.tag = playerTags.get(token, a.id) || null; a.bait = bait.has(String(a.id)); return a; })
       .sort((a, b) => (b.value || 0) - (a.value || 0));
     return {
@@ -380,11 +393,12 @@ async function getLeague(cookie, token, leagueId) {
       name: pt.name,
       outlook: (teamOutlook[String(pt.franchiseId)] || {}).outlook || null,
       avgAge: (teamOutlook[String(pt.franchiseId)] || {}).avgAge || null,
-      baitCount: players.filter((a) => a.bait).length,
+      baitCount: rosterPlayers.filter((a) => a.bait).length,
       needs: (ns[String(pt.franchiseId)] || {}).needs || [],
       surplus: (ns[String(pt.franchiseId)] || {}).surplus || [],
       depth: (ns[String(pt.franchiseId)] || {}).depth || {},
-      players,
+      // Roster players then their draft picks — the builder sorts picks last anyway.
+      players: [...rosterPlayers, ...picksFor(pt.franchiseId)],
     };
   });
 
@@ -427,10 +441,25 @@ async function suggestFor(cookie, token, leagueId, targetId, partnerFranchiseId)
   };
 }
 
+// The "ask for a little more" sweetener when an incoming offer is already fair or in
+// your favor: the partner's nearest-year 3rd rookie pick, or a 4th if they hold no 3rd.
+// Skips any pick already in the deal. Returns null when they have neither to give.
+function pickSweetener(partnerPicks, alreadyInDeal) {
+  const have = new Set([...alreadyInDeal].map((a) => String(a.id)));
+  const byYearThenRound = (a, b) => (a.year || 9999) - (b.year || 9999) || (a.round || 9) - (b.round || 9);
+  const eligible = (partnerPicks || []).filter((p) => p.token && !have.has(String(p.token)));
+  const thirds = eligible.filter((p) => p.round === 3).sort(byYearThenRound);
+  if (thirds.length) return thirds[0];
+  const fourths = eligible.filter((p) => p.round === 4).sort(byYearThenRound);
+  return fourths[0] || null;
+}
+
 // A COUNTER to an incoming offer: keep the offer's construction (same players, same
-// shape) but rebalance to fair value. If their offer leaves you light, ask for one more
-// of their players — preferring one on THEIR trade bait (they're willing to move him)
-// or at YOUR need — else trim your give. You come out at/above fair.
+// shape). If their offer leaves you light, rebalance to fair — ask for one more of
+// their players (preferring one on THEIR trade bait, or at YOUR need) else trim your
+// give. If the offer is already fair or in your favor, don't just re-send it: ask for
+// a small sweetener (their nearest 3rd rookie pick, a 4th if no 3rd). Either way you
+// come out at/above fair.
 async function counterFor(cookie, token, leagueId, offerId) {
   const data = await tradeData(cookie, token, leagueId);
   const { league, byId, enr, roster, rawPartners, ns } = data;
@@ -488,10 +517,27 @@ async function counterFor(cookie, token, leagueId, offerId) {
     added.push(pick);
   }
 
+  // Offer was already fair-or-better and we didn't need to rebalance → sweeten it a
+  // touch rather than re-sending the same deal.
+  let sweetener = null;
+  if (!added.length && val(receive) - val(give) >= -FAIR * scale()) {
+    try {
+      const partnerPicks = await picksLib.franchisePicks(cookie, league, partnerId);
+      sweetener = pickSweetener(partnerPicks, receive);
+      if (sweetener) {
+        const a = asset(sweetener.token, byId, enr);
+        a.bait = theirBait.has(String(a.id));
+        receive.push(a);
+      }
+    } catch (e) { /* no sweetener available — send the fair deal as-is */ }
+  }
+
   const net = val(receive) - val(give);
   const short = Math.abs(Math.round(offer.analysis.net));
   let rationale;
-  if (added.length) {
+  if (sweetener) {
+    rationale = `Their offer was already fair to you — this counter keeps it and asks for a little more: their ${sweetener.label}.`;
+  } else if (added.length) {
     const names = added.map((a) => a.name.split(',')[0]).join(' + ');
     const baited = added.some((a) => theirBait.has(String(a.id)));
     rationale = `Their offer left you about ${short} light. Counter keeps the same shape but also asks for ${names}${baited ? ' (on their block)' : ''}.`;
@@ -506,8 +552,8 @@ async function counterFor(cookie, token, leagueId, offerId) {
     counterOfferId: String(offer.id),
     toFranchiseId: partnerId,
     partnerName: offer.withName,
-    give: give.map((a) => ({ id: a.id, name: a.name, position: a.position, value: a.value })),
-    receive: receive.map((a) => ({ id: a.id, name: a.name, position: a.position, value: a.value, bait: theirBait.has(String(a.id)) })),
+    give: give.map((a) => ({ id: a.id, name: a.name, position: a.position, kind: a.kind, value: a.value })),
+    receive: receive.map((a) => ({ id: a.id, name: a.name, position: a.position, kind: a.kind, value: a.value, bait: theirBait.has(String(a.id)) })),
     giveValue: val(give),
     receiveValue: val(receive),
     rationale,
