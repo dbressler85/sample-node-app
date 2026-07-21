@@ -220,7 +220,9 @@ function PlayerRow({ p, rank, sub, onPress }) {
           <Text style={styles.name} numberOfLines={1}>{p.name}</Text>
           {p.tag ? <Text style={[styles.tagMark, { color: p.tag === 'target' ? colors.good : colors.bad }]}>{p.tag === 'target' ? '◎' : '⊘'}</Text> : null}
           <AvailabilityBadge availability={p.availability} style={{ marginLeft: 6 }} />
-          {p.mine ? <Text style={styles.mine}>YOURS</Text> : null}
+          {p.mineInLeagues > 0 || p.mine ? (
+            <Text style={styles.mine}>{p.mineInLeagues > 1 ? `YOURS ×${p.mineInLeagues}` : 'YOURS'}</Text>
+          ) : null}
         </View>
         <Text style={styles.meta}>
           {p.team}
