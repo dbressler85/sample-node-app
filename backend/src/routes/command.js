@@ -67,6 +67,17 @@ router.get('/portfolio', async (req, res, next) => {
   }
 });
 
+// POST /api/portfolio/holdings/:playerId/bait — shop (or un-shop) a holding across every
+// league you roster him in. Body: { on: bool, leagueIds: [..] }.
+router.post('/portfolio/holdings/:playerId/bait', async (req, res, next) => {
+  try {
+    const { on, leagueIds } = req.body || {};
+    res.json(await portfolio.shopHolding(req.mflCookie, req.account, req.params.playerId, !!on, leagueIds));
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/scoreboard — live matchups across leagues, sorted by closeness.
 router.get('/scoreboard', async (req, res, next) => {
   try {

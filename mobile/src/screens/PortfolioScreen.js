@@ -29,10 +29,23 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
 
   useAndroidBack(useCallback(() => { onBack(); return true; }, [onBack]));
 
+  const [baitOverride, setBaitOverride] = useState({}); // id -> bool, optimistic "on the block" state
+
   const load = useCallback(() => {
     api.portfolio().then(setD).catch((e) => setError(e.message)).finally(() => setRefreshing(false));
   }, []);
   useEffect(() => { load(); }, [load]);
+
+  const resolveBaited = (h) => (h.id in baitOverride ? baitOverride[h.id] : !!h.baited);
+  // Shop / un-shop a holding across every league you roster him in — optimistic, reverts on failure.
+  const toggleShop = (h) => {
+    const next = !resolveBaited(h);
+    setBaitOverride((m) => ({ ...m, [h.id]: next }));
+    api.portfolioShop(h.id, next, h.leagueIds).catch(() => {
+      setBaitOverride((m) => ({ ...m, [h.id]: !next }));
+      setError('Could not update trade bait');
+    });
+  };
 
   if (error) {
     return (
@@ -142,6 +155,19 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
                 <Pressable onPress={() => setPosFilter(null)} hitSlop={8}><Text style={styles.clearFilter}>Clear ✕</Text></Pressable>
               ) : null}
             </View>
+            {/* Concentration insight — the multi-league owner's real risk: how much of the
+                whole portfolio rides on your single biggest bet. */}
+            {!posFilter && d.holdings[0] ? (
+              <View style={[styles.betBanner, d.holdings[0].pct >= 8 && styles.betBannerHot]}>
+                <Text style={styles.betLabel}>BIGGEST BET</Text>
+                <Text style={styles.betText} numberOfLines={2}>
+                  <Text style={{ fontWeight: '900', color: colors.text }}>{d.holdings[0].name.split(',')[0]}</Text> is{' '}
+                  <Text style={{ fontWeight: '900', color: d.holdings[0].pct >= 8 ? colors.warn : colors.gold }}>{d.holdings[0].pct}%</Text> of your portfolio
+                  {d.holdings[0].leagues > 1 ? ` across ${d.holdings[0].leagues} leagues` : ''}.
+                  {d.holdings[0].pct >= 8 ? ' A lot rides on him — one injury moves your whole book.' : ''}
+                </Text>
+              </View>
+            ) : null}
             {/* Column key so the two right-hand numbers read clearly. */}
             <View style={styles.holdKeyRow}>
               <Text style={styles.holdKeyName}>Player · leagues held</Text>
@@ -150,30 +176,42 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
                 <Text style={styles.holdKeyPct}>% of total</Text>
               </View>
             </View>
-            {(posFilter ? d.holdings.filter((h) => h.position === posFilter) : d.holdings).map((h) => (
-              <Pressable
-                key={h.id}
-                style={({ pressed }) => [styles.holdRow, pressed && { opacity: 0.7 }]}
-                onPress={() => onOpenPlayer && onOpenPlayer(h.id, { id: h.id, name: h.name, position: h.position, team: h.team, value: h.avg })}
-              >
-                <View style={[styles.posBadge, { borderColor: positionColors[h.position] || colors.textDim }]}>
-                  <Text style={[styles.pos, { color: positionColors[h.position] || colors.textDim }]}>{h.position}</Text>
+            {(posFilter ? d.holdings.filter((h) => h.position === posFilter) : d.holdings).map((h) => {
+              const baited = resolveBaited(h);
+              return (
+                <View key={h.id} style={styles.holdRow}>
+                  <Pressable
+                    style={({ pressed }) => [styles.holdIdentity, pressed && { opacity: 0.7 }]}
+                    onPress={() => onOpenPlayer && onOpenPlayer(h.id, { id: h.id, name: h.name, position: h.position, team: h.team, value: h.avg })}
+                  >
+                    <View style={[styles.posBadge, { borderColor: positionColors[h.position] || colors.textDim }]}>
+                      <Text style={[styles.pos, { color: positionColors[h.position] || colors.textDim }]}>{h.position}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.holdName} numberOfLines={1}>{h.name}</Text>
+                      <Text style={styles.holdSub} numberOfLines={1}>
+                        {h.team ? `${h.team} · ` : ''}{h.leagues === 1 ? '1 league' : `${h.leagues} leagues`}
+                        {h.leagues > 1 ? ` · ${h.avg} avg` : ''}
+                      </Text>
+                    </View>
+                    <View style={styles.holdRight}>
+                      <Text style={styles.holdVal}>{h.value.toLocaleString()}</Text>
+                      <Text style={styles.holdPct}>{h.pct}%</Text>
+                    </View>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => toggleShop(h)}
+                    hitSlop={6}
+                    style={[styles.shop, baited && styles.shopOn]}
+                    accessibilityLabel={baited ? `Stop shopping ${h.name}` : `Shop ${h.name} in all ${h.leagues} leagues`}
+                  >
+                    <Text style={[styles.shopTxt, baited && styles.shopTxtOn]}>{baited ? '⇄ Shopping' : '⇄ Shop'}</Text>
+                  </Pressable>
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.holdName} numberOfLines={1}>{h.name}</Text>
-                  <Text style={styles.holdSub} numberOfLines={1}>
-                    {h.team ? `${h.team} · ` : ''}{h.leagues === 1 ? '1 league' : `${h.leagues} leagues`}
-                    {h.leagues > 1 ? ` · ${h.avg} avg` : ''}
-                  </Text>
-                </View>
-                <View style={styles.holdRight}>
-                  <Text style={styles.holdVal}>{h.value.toLocaleString()}</Text>
-                  <Text style={styles.holdPct}>{h.pct}%</Text>
-                </View>
-              </Pressable>
-            ))}
+              );
+            })}
             <Text style={styles.hint}>
-              <Text style={{ color: colors.gold, fontWeight: '900' }}>Value</Text> = each player’s value summed across every league you roster him in (your real exposure); <Text style={{ fontWeight: '900' }}>% of total</Text> = his share of your whole portfolio.
+              <Text style={{ color: colors.gold, fontWeight: '900' }}>Value</Text> = each player’s value summed across every league you roster him in (your real exposure); <Text style={{ fontWeight: '900' }}>% of total</Text> = his share of your whole portfolio. <Text style={{ fontWeight: '900' }}>⇄ Shop</Text> puts him on the block in every league you hold him.
             </Text>
           </View>
         ) : null}
@@ -329,6 +367,15 @@ const styles = StyleSheet.create({
   holdKeyVal: { color: colors.gold, fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.3 },
   holdKeyPct: { color: colors.textDim, fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.3, marginTop: 1 },
   holdRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 9, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+  holdIdentity: { flex: 1, flexDirection: 'row', alignItems: 'center' },
+  shop: { marginLeft: 10, borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 9, paddingVertical: 5 },
+  shopOn: { backgroundColor: colors.gold, borderColor: colors.gold },
+  shopTxt: { color: colors.textDim, fontSize: 11, fontWeight: '800' },
+  shopTxtOn: { color: '#20180a' },
+  betBanner: { backgroundColor: colors.bg, borderRadius: 10, borderLeftWidth: 3, borderLeftColor: colors.gold, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 12 },
+  betBannerHot: { borderLeftColor: colors.warn },
+  betLabel: { color: colors.textDim, fontSize: 10, fontWeight: '800', letterSpacing: 0.5, marginBottom: 3 },
+  betText: { color: colors.textDim, fontSize: 13, lineHeight: 18 },
   holdName: { color: colors.text, fontSize: 14, fontWeight: '700' },
   holdSub: { color: colors.textDim, fontSize: 12, marginTop: 1 },
   holdRight: { alignItems: 'flex-end', marginLeft: 8, minWidth: 52 },

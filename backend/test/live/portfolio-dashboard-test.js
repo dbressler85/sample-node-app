@@ -78,7 +78,11 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   assert(d.holdings.length === 3, `3 holdings, got ${d.holdings.length}`);
   assert(d.holdings[0].id === '1' && d.holdings[0].value === 100 && d.holdings[0].leagues === 1, `top holding is the young WR at 100 in 1 league, got ${JSON.stringify(d.holdings[0])}`);
   assert(d.holdings[0].pct === 57, `top holding is 57% of the portfolio, got ${d.holdings[0].pct}`);
-  console.log('✓ top holdings aggregated with exposure + portfolio share');
+  // Each holding carries the leagues it's held in (for the portfolio "Shop everywhere" action)
+  // and whether it's already on the block anywhere.
+  assert(Array.isArray(d.holdings[0].leagueIds) && d.holdings[0].leagueIds.length === 1, `holding carries its leagueIds, got ${JSON.stringify(d.holdings[0].leagueIds)}`);
+  assert(d.holdings[0].baited === false, 'a not-yet-shopped holding reports baited=false');
+  console.log('✓ top holdings aggregated with exposure + portfolio share + leagueIds/baited');
 
   // Allocation by position: WR 100+25=125 (71%), RB 50 (29%).
   const wr = d.allocation.find((a) => a.position === 'WR');
