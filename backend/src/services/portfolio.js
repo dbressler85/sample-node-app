@@ -293,6 +293,7 @@ async function getDashboard(cookie, token) {
   // him in (that total value is your real exposure), and value grouped by position (allocation).
   const holdMap = new Map(); // playerId -> { id, name, position, team, total, leagues, top }
   const allocMap = new Map(); // position -> value
+  const allocCount = new Map(); // position -> roster-slot count (one "share" per league you hold a player)
   const teamMap = new Map(); // NFL team -> value (stack/team concentration)
   const byeMapAgg = new Map(); // bye week -> value (bye-week concentration: a rough week where many starters sit)
   // Distinct rostered players you've tagged — "shop your Avoids" / "your Targets are safe".
@@ -316,6 +317,7 @@ async function getDashboard(cookie, token) {
       h.leagueIds.push(league.leagueId);
       holdMap.set(p.id, h);
       allocMap.set(p.position, (allocMap.get(p.position) || 0) + v);
+      allocCount.set(p.position, (allocCount.get(p.position) || 0) + 1);
       if (p.team) teamMap.set(p.team, (teamMap.get(p.team) || 0) + v);
       const bye = byeMap[p.team];
       if (bye) byeMapAgg.set(bye, (byeMapAgg.get(bye) || 0) + v);
@@ -385,9 +387,17 @@ async function getDashboard(cookie, token) {
   const topHoldValue = holdings.length ? holdings[0].value : 0;
   for (const h of holdings) h.rel = topHoldValue > 0 ? Math.round((h.value / topHoldValue) * 100) : 0;
 
-  // Allocation by position — the "sectors" of the portfolio.
+  // Allocation by position — the "sectors" of the portfolio, two ways: by VALUE (pct = share
+  // of total dynasty value) and by SHARES (sharePct = share of your roster slots, one slot per
+  // league you hold a player). The app switches between them with the value/shares tab.
   const allocation = [...allocMap.entries()]
-    .map(([position, value]) => ({ position, value: Math.round(value), pct: pct(value, totalValue) }))
+    .map(([position, value]) => ({
+      position,
+      value: Math.round(value),
+      pct: pct(value, totalValue),
+      shares: allocCount.get(position) || 0,
+      sharePct: pct(allocCount.get(position) || 0, playerCount),
+    }))
     .sort((a, b) => b.value - a.value);
 
   // Concentration — the multi-league owner's stack risk. Value tied to a single NFL team

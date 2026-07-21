@@ -69,6 +69,13 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
   const rankedHoldings = holdView === 'exposure'
     ? [...d.holdings].sort((a, b) => b.leagues - a.leagues || b.value - a.value)
     : d.holdings;
+  // The value/shares tab governs the whole position lens: switch it (and collapse "Show all").
+  const selectHoldView = (k) => { setHoldView(k); setShowAllHoldings(false); };
+  // Allocation by position honours the same tab: by value = share of total dynasty value;
+  // by shares = share of your roster slots (one per league you hold a player). Sorted by the
+  // active metric so the dominant sector reads first in either lens.
+  const allocPctOf = (a) => (holdView === 'exposure' && a.sharePct != null ? a.sharePct : a.pct);
+  const allocView = d.allocation ? [...d.allocation].sort((a, b) => allocPctOf(b) - allocPctOf(a)) : [];
 
   return (
     <View style={styles.container}>
@@ -169,28 +176,38 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
         {d.allocation && d.allocation.length ? (
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Allocation by position</Text>
+            {/* Same value/shares lens as Top holdings — by value = share of dynasty value,
+                by shares = share of roster slots. */}
+            <View style={styles.holdTabs}>
+              {[['value', 'By value'], ['exposure', 'By shares']].map(([k, label]) => (
+                <Pressable key={k} onPress={() => selectHoldView(k)} style={[styles.holdTab, holdView === k && styles.holdTabOn]}>
+                  <Text style={[styles.holdTabTxt, holdView === k && styles.holdTabTxtOn]}>{label}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <Text style={styles.holdScope}>{holdView === 'value' ? '% OF TOTAL VALUE' : '% OF TOTAL SHARES · ROSTER SLOTS'}</Text>
             <View style={styles.allocBar}>
-              {d.allocation.map((a, i) => {
+              {allocView.map((a, i) => {
                 const dull = posFilter && posFilter !== a.position;
                 return (
                   <Pressable
                     key={a.position}
                     onPress={() => setPosFilter((cur) => (cur === a.position ? null : a.position))}
                     style={{
-                      width: `${a.pct}%`,
+                      width: `${allocPctOf(a)}%`,
                       backgroundColor: positionColors[a.position] || colors.textDim,
                       opacity: dull ? 0.28 : 1,
                       borderTopLeftRadius: i === 0 ? 7 : 0,
                       borderBottomLeftRadius: i === 0 ? 7 : 0,
-                      borderTopRightRadius: i === d.allocation.length - 1 ? 7 : 0,
-                      borderBottomRightRadius: i === d.allocation.length - 1 ? 7 : 0,
+                      borderTopRightRadius: i === allocView.length - 1 ? 7 : 0,
+                      borderBottomRightRadius: i === allocView.length - 1 ? 7 : 0,
                     }}
                   />
                 );
               })}
             </View>
             <View style={styles.allocLegend}>
-              {d.allocation.map((a) => {
+              {allocView.map((a) => {
                 const active = posFilter === a.position;
                 const dull = posFilter && !active;
                 return (
@@ -200,13 +217,17 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
                     style={[styles.allocKey, active && styles.allocKeyActive, dull && { opacity: 0.4 }]}
                   >
                     <View style={[styles.allocDot, { backgroundColor: positionColors[a.position] || colors.textDim }]} />
-                    <Text style={[styles.allocKeyText, active && { color: colors.text }]}>{a.position} {a.pct}%</Text>
+                    <Text style={[styles.allocKeyText, active && { color: colors.text }]}>{a.position} {allocPctOf(a)}%</Text>
                   </Pressable>
                 );
               })}
             </View>
             <Text style={styles.hint}>
-              {posFilter ? `Showing ${posFilter} holdings — tap ${posFilter} again to clear.` : 'Tap a position to filter your holdings below.'}
+              {posFilter
+                ? `Showing ${posFilter} holdings — tap ${posFilter} again to clear.`
+                : holdView === 'value'
+                  ? 'Each position’s share of your total dynasty value. Tap a position to filter your holdings below.'
+                  : 'Each position’s share of your roster slots (one slot per league you hold a player). Tap to filter.'}
             </Text>
           </View>
         ) : null}
@@ -227,7 +248,7 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
               <>
                 <View style={styles.holdTabs}>
                   {[['value', 'By value'], ['exposure', 'By shares']].map(([k, label]) => (
-                    <Pressable key={k} onPress={() => { setHoldView(k); setShowAllHoldings(false); }} style={[styles.holdTab, holdView === k && styles.holdTabOn]}>
+                    <Pressable key={k} onPress={() => selectHoldView(k)} style={[styles.holdTab, holdView === k && styles.holdTabOn]}>
                       <Text style={[styles.holdTabTxt, holdView === k && styles.holdTabTxtOn]}>{label}</Text>
                     </Pressable>
                   ))}

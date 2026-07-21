@@ -97,7 +97,11 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   const rb = d.allocation.find((a) => a.position === 'RB');
   assert(d.allocation[0].position === 'WR' && wr.value === 125 && wr.pct === 71, `WR allocation 125/71%, got ${JSON.stringify(wr)}`);
   assert(rb.value === 50 && rb.pct === 29, `RB allocation 50/29%, got ${JSON.stringify(rb)}`);
-  console.log('✓ allocation by position (WR-heavy) computed');
+  // Allocation also carries a SHARES view (roster-slot counts): WR = 2 of 3 slots (67%),
+  // RB = 1 of 3 (33%). By value WR dominates (71%); by shares it's closer (67%) — different lenses.
+  assert(wr.shares === 2 && wr.sharePct === 67, `WR shares 2/67%, got ${JSON.stringify({ shares: wr.shares, sharePct: wr.sharePct })}`);
+  assert(rb.shares === 1 && rb.sharePct === 33, `RB shares 1/33%, got ${JSON.stringify({ shares: rb.shares, sharePct: rb.sharePct })}`);
+  console.log('✓ allocation by position computed both ways (value share + roster-slot share)');
 
   // Concentration + movers shape (single stubbed league → one team; movers empty until a
   // second day accrues, but the fields are always present).
