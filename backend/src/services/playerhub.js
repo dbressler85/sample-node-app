@@ -202,7 +202,9 @@ async function rankings(cookie, token, { type = 'value', position, format } = {}
   if (type === 'trending') {
     light = light.filter((x) => x.trend > 0).sort((a, b) => b.trend - a.trend);
   } else if (type === 'rookies') {
-    light = light.filter((x) => x.age != null && x.age <= 23).sort((a, b) => (b.value || 0) - (a.value || 0));
+    // Actual rookies = this season's NFL draft class (draft_year === current season), NOT
+    // "anyone young" — age alone wrongly swept in 2nd/3rd-year players (Nabers, Jeanty).
+    light = light.filter((x) => x.p.draftYear === config.season).sort((a, b) => (b.value || 0) - (a.value || 0));
   } else if (type === 'owned') {
     // Your exposure: players you roster in the most of your leagues first (ties broken by
     // value). Only players you actually hold somewhere — this is "where am I most invested."
@@ -224,7 +226,7 @@ async function rankings(cookie, token, { type = 'value', position, format } = {}
       ? type === 'trending'
         ? 'No trending players right now.'
         : type === 'rookies'
-        ? 'No rookie/age data available right now.'
+        ? 'No rookies to show yet — the current draft class appears here once values are set.'
         : type === 'owned'
         ? 'You don’t roster any players yet.'
         : 'Dynasty values are unavailable right now — search and My Players still work.'

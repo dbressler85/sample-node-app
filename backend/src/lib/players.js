@@ -35,7 +35,7 @@ function fromDisk() {
   if (!d || !d.at || !d.byId || Date.now() - d.at >= config.playersCacheTtlMs) return null;
   const byId = new Map();
   for (const [id, p] of Object.entries(d.byId)) {
-    byId.set(id, { id, name: p.name, position: p.position, team: p.team });
+    byId.set(id, { id, name: p.name, position: p.position, team: p.team, draftYear: p.draftYear || null });
   }
   return byId.size ? { at: d.at, byId } : null;
 }
@@ -43,7 +43,7 @@ function fromDisk() {
 function toDisk(at, byId) {
   if (!config.persistPlayers) return;
   const obj = {};
-  for (const [id, p] of byId) obj[id] = { name: p.name, position: p.position, team: p.team };
+  for (const [id, p] of byId) obj[id] = { name: p.name, position: p.position, team: p.team, draftYear: p.draftYear || null };
   const d = persist.ns(PERSIST_NS);
   d.at = at;
   d.byId = obj;
@@ -60,11 +60,18 @@ async function build(cookie) {
   }
   const byId = new Map();
   for (const p of players) {
-    byId.set(String(p.id), {
-      id: String(p.id),
+    const id = String(p.id);
+    // draft_year is MFL's rookie signal (the NFL draft class). Demo carries it via the
+    // fixture. Live it's on the DETAILS=1 players export. Null when unknown (e.g. UDFAs).
+    const draftYear = config.demoMode
+      ? demo.draftYear(id)
+      : (Number(p.draft_year) || null);
+    byId.set(id, {
+      id,
       name: p.name || 'Unknown',
       position: normalizePosition(p.position),
       team: p.team || 'FA',
+      draftYear,
     });
   }
   cache = { at: Date.now(), byId };

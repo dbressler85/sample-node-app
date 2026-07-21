@@ -48,6 +48,7 @@ const TESTS = [
   'players-perf-test',
   'players-persist-test',
   'players-owned-test',
+  'rookies-filter-test',
   'waivers-perf-test',
   'waiver-multi-test',
   'league-prefs-test',

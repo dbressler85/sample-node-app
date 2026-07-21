@@ -513,6 +513,11 @@ const FREE_AGENTS = {
 // Waiver-wire heat: how many leagues (market-wide) are adding each player.
 const TRENDS = { '16002': 5400, '16001': 3900, '16005': 2800, '16004': 2100, '16003': 1500, '18002': 2600, '17002': 1800, '18004': 900, '17004': 700 };
 
+// Draft class (NFL draft year) — the real rookie signal. The 19xxx prospects are this
+// season's rookies; the 16xxx group are second-year. Everyone else is a null/older vet, so
+// the Rookies filter shows exactly the current class rather than "anyone young".
+const DRAFT_YEARS = { '19001': 2026, '19002': 2026, '19003': 2026, '19004': 2026, '19005': 2026, '19006': 2026, '16001': 2025, '16002': 2025, '16003': 2025, '16004': 2025, '16005': 2025 };
+
 // Ownership %: share of leagues site-wide that roster the player. A key waiver
 // signal — how contested a pickup is / how fast he's being scooped up.
 const OWNERSHIP = { '16002': 41, '16001': 33, '16005': 22, '16004': 18, '16003': 12, '18002': 28, '17002': 24, '18004': 9, '17004': 7 };
@@ -594,6 +599,7 @@ module.exports = {
   waiverSettings: (leagueId) => (WAIVER_SETTINGS[leagueId] ? { ...WAIVER_SETTINGS[leagueId] } : null),
   freeAgents: (leagueId) => (FREE_AGENTS[leagueId] || []).slice(),
   trend: (playerId) => TRENDS[playerId] || 0,
+  draftYear: (playerId) => DRAFT_YEARS[playerId] || null,
   ownership: (playerId) => (OWNERSHIP[playerId] != null ? OWNERSHIP[playerId] : 0),
   pendingClaims: (leagueId) => (PENDING_CLAIMS[leagueId] || []).map((c) => ({ ...c })),
   waiverResults: (leagueId) => (WAIVER_RESULTS[leagueId] || []).map((r) => ({ ...r })),
