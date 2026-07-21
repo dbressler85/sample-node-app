@@ -52,6 +52,19 @@ function timeAgo(iso) {
   return new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
+// Secondary sort for the player lists (Rankings / My Players / Watch). 'default' keeps the
+// list's natural order (the rank type on Rankings; the server order elsewhere).
+const LIST_SORTS = [['default', 'Default'], ['value', 'Value'], ['name', 'Name'], ['position', 'Pos']];
+const POS_ORDER = { QB: 1, RB: 2, WR: 3, TE: 4, PK: 5, K: 5, DEF: 6 };
+function sortPlayers(list, key) {
+  if (!key || key === 'default') return list;
+  const arr = [...list];
+  if (key === 'value') return arr.sort((a, b) => (b.value || 0) - (a.value || 0));
+  if (key === 'name') return arr.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+  if (key === 'position') return arr.sort((a, b) => (POS_ORDER[a.position] || 9) - (POS_ORDER[b.position] || 9) || (b.value || 0) - (a.value || 0));
+  return arr;
+}
+
 const NEWS_SORTS = [['impact', 'Impact'], ['recent', 'Recent']];
 const SEV_RANK = { high: 3, medium: 2, low: 1 };
 function sortNews(list, key) {
@@ -75,6 +88,7 @@ export default function PlayersScreen({ onOpenPlayer }) {
   const [format, setFormat] = useState('1qb'); // value lens: '1qb' | 'sf' — re-prices & resorts the board
   const [newsQuery, setNewsQuery] = useState(''); // in-tab News filter
   const [newsSort, setNewsSort] = useState('impact'); // News tab sort: 'impact' | 'recent'
+  const [listSort, setListSort] = useState('default'); // secondary sort for Rankings/My Players/Watch
   const [tagOverride, setTagOverride] = useState({}); // id -> 'target'|'avoid'|null (optimistic)
   const [watchOverride, setWatchOverride] = useState({}); // id -> bool (optimistic)
 
@@ -145,6 +159,11 @@ export default function PlayersScreen({ onOpenPlayer }) {
 
   const searching = query.trim().length >= 2;
 
+  // A player's rank in the CURRENT rank type's natural order, so the rank number stays true
+  // even when the list is re-sorted by name/position (you still see where he ranks).
+  const rankById = {};
+  if (rankings) rankings.players.forEach((p, i) => { rankById[p.id] = i + 1; });
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -178,13 +197,14 @@ export default function PlayersScreen({ onOpenPlayer }) {
         <>
           <PosFilter pos={pos} setPos={setPos} />
           <ValueLens format={format} setFormat={setFormat} />
+          {searchRes && searchRes.players.length ? <SortRow value={listSort} onChange={setListSort} /> : null}
           {!searchRes ? (
             <PlayerListSkeleton />
           ) : (
             <FlatList
-              data={searchRes.players}
+              data={sortPlayers(searchRes.players, listSort)}
               keyExtractor={(p) => p.id}
-              extraData={{ tagOverride, watchOverride }}
+              extraData={{ tagOverride, watchOverride, listSort }}
               contentContainerStyle={styles.list}
               renderItem={({ item }) => <PlayerRow p={item} tag={resolveTag(item)} watched={resolveWatch(item)} {...rowActions} onPress={() => onOpenPlayer(item.id)} />}
               ListEmptyComponent={<Text style={styles.empty}>No players match “{query}”.</Text>}
@@ -215,13 +235,14 @@ export default function PlayersScreen({ onOpenPlayer }) {
               </View>
               <PosFilter pos={pos} setPos={setPos} rankType={rankType} setRankType={setRankType} />
               <ValueLens format={format} setFormat={setFormat} />
+              <SortRow value={listSort} onChange={setListSort} />
               <FlatList
                 style={styles.grow}
-                data={rankings ? rankings.players : []}
+                data={rankings ? sortPlayers(rankings.players, listSort) : []}
                 keyExtractor={(p) => p.id}
-                extraData={{ tagOverride, watchOverride }}
+                extraData={{ tagOverride, watchOverride, listSort }}
                 contentContainerStyle={styles.list}
-                renderItem={({ item, index }) => <PlayerRow p={item} rank={index + 1} tag={resolveTag(item)} watched={resolveWatch(item)} showTrend={rankType === 'trending'} {...rowActions} onPress={() => onOpenPlayer(item.id)} />}
+                renderItem={({ item }) => <PlayerRow p={item} rank={rankById[item.id]} tag={resolveTag(item)} watched={resolveWatch(item)} showTrend={rankType === 'trending'} {...rowActions} onPress={() => onOpenPlayer(item.id)} />}
                 ListEmptyComponent={
                   !rankings ? (
                     <PlayerListSkeleton />
@@ -232,9 +253,12 @@ export default function PlayersScreen({ onOpenPlayer }) {
               />
             </>
           ) : tab === 'watch' ? (
-            <FlatList
-              data={watch ? watch.players : []}
+            <>
+              {watch && watch.players.length ? <SortRow value={listSort} onChange={setListSort} /> : null}
+              <FlatList
+              data={watch ? sortPlayers(watch.players, listSort) : []}
               keyExtractor={(p) => p.id}
+              extraData={{ listSort }}
               contentContainerStyle={styles.list}
               renderItem={({ item }) => <WatchRow p={item} onPress={() => onOpenPlayer(item.id)} />}
               ListEmptyComponent={
@@ -245,11 +269,13 @@ export default function PlayersScreen({ onOpenPlayer }) {
                 )
               }
             />
+            </>
           ) : tab === 'mine' ? (
             <>
               <PosFilter pos={pos} setPos={setPos} />
+              <SortRow value={listSort} onChange={setListSort} />
               <FlatList
-                data={mine ? mine.players.filter((p) => !pos || p.position === pos) : []}
+                data={mine ? sortPlayers(mine.players.filter((p) => !pos || p.position === pos), listSort) : []}
                 keyExtractor={(p) => p.id}
                 extraData={{ tagOverride, watchOverride }}
                 contentContainerStyle={styles.list}
@@ -466,6 +492,19 @@ function NewsRow({ n, onPress }) {
       </View>
       <Text style={styles.chev}>›</Text>
     </Pressable>
+  );
+}
+
+function SortRow({ value, onChange }) {
+  return (
+    <View style={styles.newsSortRow}>
+      <Text style={styles.newsSortLabel}>Sort</Text>
+      {LIST_SORTS.map(([k, label]) => (
+        <Pressable key={k} style={[styles.newsSortChip, value === k && styles.newsSortChipActive]} onPress={() => onChange(k)}>
+          <Text style={[styles.newsSortText, value === k && { color: colors.text }]}>{label}</Text>
+        </Pressable>
+      ))}
+    </View>
   );
 }
 
