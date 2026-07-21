@@ -427,10 +427,25 @@ async function suggestFor(cookie, token, leagueId, targetId, partnerFranchiseId)
   };
 }
 
+// The "ask for a little more" sweetener when an incoming offer is already fair or in
+// your favor: the partner's nearest-year 3rd rookie pick, or a 4th if they hold no 3rd.
+// Skips any pick already in the deal. Returns null when they have neither to give.
+function pickSweetener(partnerPicks, alreadyInDeal) {
+  const have = new Set([...alreadyInDeal].map((a) => String(a.id)));
+  const byYearThenRound = (a, b) => (a.year || 9999) - (b.year || 9999) || (a.round || 9) - (b.round || 9);
+  const eligible = (partnerPicks || []).filter((p) => p.token && !have.has(String(p.token)));
+  const thirds = eligible.filter((p) => p.round === 3).sort(byYearThenRound);
+  if (thirds.length) return thirds[0];
+  const fourths = eligible.filter((p) => p.round === 4).sort(byYearThenRound);
+  return fourths[0] || null;
+}
+
 // A COUNTER to an incoming offer: keep the offer's construction (same players, same
-// shape) but rebalance to fair value. If their offer leaves you light, ask for one more
-// of their players — preferring one on THEIR trade bait (they're willing to move him)
-// or at YOUR need — else trim your give. You come out at/above fair.
+// shape). If their offer leaves you light, rebalance to fair — ask for one more of
+// their players (preferring one on THEIR trade bait, or at YOUR need) else trim your
+// give. If the offer is already fair or in your favor, don't just re-send it: ask for
+// a small sweetener (their nearest 3rd rookie pick, a 4th if no 3rd). Either way you
+// come out at/above fair.
 async function counterFor(cookie, token, leagueId, offerId) {
   const data = await tradeData(cookie, token, leagueId);
   const { league, byId, enr, roster, rawPartners, ns } = data;
@@ -488,10 +503,27 @@ async function counterFor(cookie, token, leagueId, offerId) {
     added.push(pick);
   }
 
+  // Offer was already fair-or-better and we didn't need to rebalance → sweeten it a
+  // touch rather than re-sending the same deal.
+  let sweetener = null;
+  if (!added.length && val(receive) - val(give) >= -FAIR * scale()) {
+    try {
+      const partnerPicks = await picksLib.franchisePicks(cookie, league, partnerId);
+      sweetener = pickSweetener(partnerPicks, receive);
+      if (sweetener) {
+        const a = asset(sweetener.token, byId, enr);
+        a.bait = theirBait.has(String(a.id));
+        receive.push(a);
+      }
+    } catch (e) { /* no sweetener available — send the fair deal as-is */ }
+  }
+
   const net = val(receive) - val(give);
   const short = Math.abs(Math.round(offer.analysis.net));
   let rationale;
-  if (added.length) {
+  if (sweetener) {
+    rationale = `Their offer was already fair to you — this counter keeps it and asks for a little more: their ${sweetener.label}.`;
+  } else if (added.length) {
     const names = added.map((a) => a.name.split(',')[0]).join(' + ');
     const baited = added.some((a) => theirBait.has(String(a.id)));
     rationale = `Their offer left you about ${short} light. Counter keeps the same shape but also asks for ${names}${baited ? ' (on their block)' : ''}.`;
@@ -506,8 +538,8 @@ async function counterFor(cookie, token, leagueId, offerId) {
     counterOfferId: String(offer.id),
     toFranchiseId: partnerId,
     partnerName: offer.withName,
-    give: give.map((a) => ({ id: a.id, name: a.name, position: a.position, value: a.value })),
-    receive: receive.map((a) => ({ id: a.id, name: a.name, position: a.position, value: a.value, bait: theirBait.has(String(a.id)) })),
+    give: give.map((a) => ({ id: a.id, name: a.name, position: a.position, kind: a.kind, value: a.value })),
+    receive: receive.map((a) => ({ id: a.id, name: a.name, position: a.position, kind: a.kind, value: a.value, bait: theirBait.has(String(a.id)) })),
     giveValue: val(give),
     receiveValue: val(receive),
     rationale,

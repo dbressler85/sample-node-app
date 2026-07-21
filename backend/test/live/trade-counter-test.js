@@ -41,15 +41,27 @@ mfl.exportRequest = async (type, opts = {}) => {
     case 'rosters':
       return { rosters: { franchise: Object.entries(ROSTERS).map(([id, ids]) => ({ id, player: ids.map((pid) => ({ id: pid, status: 'starter' })) })) } };
     case 'pendingTrades':
-      return { pendingTrades: { pendingTrade: [{ trade_id: 'T1', offeringteam: '0002', offeredto: '0001', willGiveUp: '22', willReceiveInReturn: '3' }] } };
+      return { pendingTrades: { pendingTrade: [
+        // T1: they give WR1 (70) for my WR1 (88) — unfavorable to me by ~18.
+        { trade_id: 'T1', offeringteam: '0002', offeredto: '0001', willGiveUp: '22', willReceiveInReturn: '3' },
+        // T2: they give QB1 (60) for my RB Plain (50) — already ~+10 in my favor.
+        { trade_id: 'T2', offeringteam: '0002', offeredto: '0001', willGiveUp: '23', willReceiveInReturn: '2' },
+      ] } };
     case 'tradeBait':
       // Their board lists the RB (21) — so a counter that needs ~18 more value should
       // prefer asking for him.
       return { tradeBaits: { tradeBait: [{ franchise_id: '0002', willGiveUp: '21' }] } };
     case 'injuries':
       return { injuries: { injury: [] } };
-    case 'futureDraftPicks':
-      return { futureDraftPicks: { franchise: { id: '0001', futureDraftPick: [] } } };
+    case 'futureDraftPicks': {
+      // The partner (0002) holds a 2027 3rd and 4th — the counter sweetener should
+      // prefer the 3rd. My own franchise (0001) has none.
+      const f = String(opts.FRANCHISE || '');
+      if (f === '0002') return { futureDraftPicks: { franchise: { id: '0002', futureDraftPick: [
+        { year: '2027', round: '1' }, { year: '2027', round: '3' }, { year: '2027', round: '4' },
+      ] } } };
+      return { futureDraftPicks: { franchise: { id: f || '0001', futureDraftPick: [] } } };
+    }
     default:
       return {};
   }
@@ -100,6 +112,19 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   assert(c.receive.some((a) => a.id === '21' && a.bait === true), 'counter asks for a player on THEIR trade-bait board');
   assert(c.counterOfferId === String(offer.id), 'counter references the offer it answers');
   console.log('✓ counter keeps the shape, rebalances to fair, and leans on THEIR trade bait —', c.rationale);
+
+  // --- counter to an ALREADY-FAIR offer: ask for a little more ------------------------
+  const t2 = ov.offers.find((o) => String(o.id) === 'T2');
+  assert(t2 && t2.analysis.net >= 0, 'T2 is already fair/favorable to me');
+  const c2 = await trades.counterFor(CK, TOK, '1000', 'T2');
+  console.log('sweetened counter receive:', JSON.stringify(c2.receive.map((a) => `${a.name} $${a.value}`)), '=', c2.receiveValue);
+  const swtnr = c2.receive.find((a) => a.kind === 'pick');
+  assert(swtnr, 'a fair offer gets a pick sweetener added to my side of the counter');
+  assert(swtnr.name === '2027 3rd', `sweetener is their nearest 3rd, got ${swtnr && swtnr.name}`);
+  assert(c2.give.length === 1 && c2.give[0].id === '2', 'counter still gives only what they asked for');
+  assert(c2.receiveValue > c2.giveValue, 'sweetened counter comes out in my favor');
+  assert(/little more/i.test(c2.rationale) && /2027 3rd/.test(c2.rationale), 'rationale explains the sweetener');
+  console.log('✓ an already-fair offer is countered by asking for a touch more —', c2.rationale);
 
   console.log('\nTRADE COUNTER HARNESS PASSED');
 })().catch((e) => { console.error(e.message); process.exit(1); });
