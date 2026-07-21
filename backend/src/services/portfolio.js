@@ -250,8 +250,20 @@ const pct = (part, whole) => (whole > 0 ? Math.round((part / whole) * 100) : 0);
 // counts, so a player you hold in three leagues counts three times (that IS your
 // portfolio exposure). Reuses the enriched rosters (value + age + availability).
 async function getDashboard(cookie, token) {
+  // The leagues-list read is the one call here that isn't already best-effort — a
+  // transient MFL error on it used to 502 the whole Portfolio. Retry once; the
+  // per-league roster reads below already degrade to null individually.
+  let leagues;
+  try {
+    leagues = await leaguesService.orderedLeagues(cookie, token);
+  } catch (e) {
+    leagues = await leaguesService.orderedLeagues(cookie, token).catch(() => {
+      const err = new Error('Couldn’t load your leagues just now — pull to refresh.');
+      err.status = 503;
+      throw err;
+    });
+  }
   // Pinned leagues sort first in the per-league breakdown (muting is a Home/On Deck/exposure concern).
-  const leagues = await leaguesService.orderedLeagues(cookie, token);
   const loaded = await Promise.all(
     leagues.map((l) => rosterService.getRoster(cookie, l.leagueId).then((roster) => ({ league: l, roster })).catch(() => null))
   );

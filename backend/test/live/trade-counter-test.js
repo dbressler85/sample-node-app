@@ -119,6 +119,7 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   assert(c.receiveValue >= c.giveValue - 1, `counter is fair-or-better for me (${c.receiveValue} vs ${c.giveValue})`);
   assert(c.receive.some((a) => a.id === '21' && a.bait === true), 'counter asks for a player on THEIR trade-bait board');
   assert(c.counterOfferId === String(offer.id), 'counter references the offer it answers');
+  assert(c.mode === 'balance', `an unfavorable offer counters in 'balance' mode, got ${c.mode}`);
   console.log('✓ counter keeps the shape, rebalances to fair, and leans on THEIR trade bait —', c.rationale);
 
   // --- counter to an ALREADY-FAIR offer: ask for a little more ------------------------
@@ -131,6 +132,7 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   assert(swtnr.name === '2027 3rd', `sweetener is their nearest 3rd, got ${swtnr && swtnr.name}`);
   assert(c2.give.length === 1 && c2.give[0].id === '2', 'counter still gives only what they asked for');
   assert(c2.receiveValue > c2.giveValue, 'sweetened counter comes out in my favor');
+  assert(c2.mode === 'sweeten', `an already-fair offer counters in 'sweeten' mode, got ${c2.mode}`);
   assert(/little more/i.test(c2.rationale) && /2027 3rd/.test(c2.rationale), 'rationale explains the sweetener');
   console.log('✓ an already-fair offer is countered by asking for a touch more —', c2.rationale);
 
