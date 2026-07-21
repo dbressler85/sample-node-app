@@ -69,10 +69,8 @@ export const api = {
   health: () => request('/api/health'),
   leaguesList: () => request('/api/leagues'),
   roster: (leagueId) => request(`/api/leagues/${leagueId}/roster`),
-  // Pin (float a league to the top of every cross-league view) / mute (drop it from
-  // Home triage, On Deck, and exposure). `on` toggles: POST sets, DELETE clears.
+  // Pin a league to the top of every cross-league view. `on` toggles: POST sets, DELETE clears.
   setPin: (leagueId, on) => request(`/api/leagues/${leagueId}/pin`, { method: on ? 'POST' : 'DELETE' }),
-  setMute: (leagueId, on) => request(`/api/leagues/${leagueId}/mute`, { method: on ? 'POST' : 'DELETE' }),
 
   // Command center (M1.5) — the Home screen composes from leaguesList +
   // per-league leagueTriage (progressive load), not a single /api/home call.

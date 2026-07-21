@@ -14,7 +14,6 @@
 
 const config = require('../config');
 const nflLib = require('../lib/nfl');
-const leaguePrefs = require('../store/leaguePrefs');
 const draftService = require('./draft');
 const lineupsService = require('./lineups');
 const waiversService = require('./waivers');
@@ -84,10 +83,8 @@ async function getOnDeck(cookie, token) {
     items.push({ type: 'waiver_run', leagueId, leagueName: g.leagueName, at: null, atLabel: g.when || null, action: 'waiver', label: 'Waivers process', detail: `${g.count} pending claim${g.count === 1 ? '' : 's'}` });
   }
 
-  // Drop items from muted leagues — On Deck is a "what needs me" list, and you've said
-  // these don't. (It's time-sorted, so pinning doesn't reorder deadlines.)
-  const muted = new Set(leaguePrefs.get(token).muted);
-  const visible = muted.size ? items.filter((i) => !muted.has(String(i.leagueId))) : items;
+  // (On Deck is time-sorted, so pinning doesn't reorder deadlines.)
+  const visible = items;
 
   // Order: on the clock now → soonest timestamp → label-only/untimed.
   const rank = (i) => (i.now ? 0 : i.at ? 1 : 2);

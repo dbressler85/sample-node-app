@@ -6,8 +6,8 @@ import useAndroidBack from '../useAndroidBack';
 
 // The full list of your leagues, moved off the Home command center (which is now an
 // action list). Doubles as the league switcher: PIN a league (★) to float it to the
-// top of every cross-league view, or MUTE it (🔕) so it drops out of Home triage, On
-// Deck, and exposure. The backend returns leagues pinned-first with pinned/muted flags.
+// top of every cross-league view. The backend returns leagues pinned-first with the
+// pinned flag.
 export default function LeaguesScreen({ onBack, onOpenLeague, onOpenDraftHub }) {
   const [leagues, setLeagues] = useState(null);
   const [error, setError] = useState(null);
@@ -19,7 +19,7 @@ export default function LeaguesScreen({ onBack, onOpenLeague, onOpenDraftHub }) 
 
   // The dynasty per-league data (value / outlook / risk) is a heavier read than the
   // bare league list, so fetch it in the BACKGROUND and merge it in when it lands —
-  // the switcher paints names + pin/mute instantly and the badges fill in a beat later.
+  // the switcher paints names + pin instantly and the badges fill in a beat later.
   const loadEnrich = useCallback(() => {
     api.portfolio()
       .then((d) => {
@@ -41,8 +41,7 @@ export default function LeaguesScreen({ onBack, onOpenLeague, onOpenDraftHub }) 
   }, [loadEnrich]);
   useEffect(() => { load(); }, [load]);
 
-  // Optimistically flip the flag, re-sort pinned-first, then reconcile with the server.
-  // Pin and mute are opposite intents, so setting one clears the other locally too.
+  // Optimistically flip the pin, re-sort pinned-first, then reconcile with the server.
   const applyLocal = useCallback((leagueId, patch) => {
     setLeagues((prev) => {
       if (!prev) return prev;
@@ -58,19 +57,9 @@ export default function LeaguesScreen({ onBack, onOpenLeague, onOpenDraftHub }) 
     if (busy[item.leagueId]) return;
     const on = !item.pinned;
     setBusy((b) => ({ ...b, [item.leagueId]: true }));
-    applyLocal(item.leagueId, { pinned: on, muted: on ? false : item.muted });
+    applyLocal(item.leagueId, { pinned: on });
     api.setPin(item.leagueId, on)
       .catch(() => { setError('Could not update pin'); load(); })
-      .finally(() => setBusy((b) => ({ ...b, [item.leagueId]: false })));
-  }, [busy, applyLocal, load]);
-
-  const toggleMute = useCallback((item) => {
-    if (busy[item.leagueId]) return;
-    const on = !item.muted;
-    setBusy((b) => ({ ...b, [item.leagueId]: true }));
-    applyLocal(item.leagueId, { muted: on, pinned: on ? false : item.pinned });
-    api.setMute(item.leagueId, on)
-      .catch(() => { setError('Could not update mute'); load(); })
       .finally(() => setBusy((b) => ({ ...b, [item.leagueId]: false })));
   }, [busy, applyLocal, load]);
 
@@ -96,14 +85,13 @@ export default function LeaguesScreen({ onBack, onOpenLeague, onOpenDraftHub }) 
           const sub = e ? [e.outlook, e.value != null ? `${e.value} value` : null].filter(Boolean).join(' · ') : null;
           const risk = e && e.atRiskPct > 0 ? e.atRiskPct : null;
           return (
-            <View style={[styles.row, item.muted && styles.rowMuted]}>
+            <View style={styles.row}>
               <Pressable style={styles.pinBtn} hitSlop={8} disabled={!!busy[item.leagueId]} onPress={() => togglePin(item)}>
                 <Text style={[styles.pin, item.pinned && styles.pinOn]}>{item.pinned ? '★' : '☆'}</Text>
               </Pressable>
               <Pressable style={styles.nameWrap} onPress={() => onOpenLeague({ leagueId: item.leagueId, name: item.name })}>
                 <View style={styles.nameLine}>
-                  <Text style={[styles.name, item.muted && styles.nameMuted]} numberOfLines={1}>{item.name}</Text>
-                  {item.muted ? <Text style={styles.mutedTag}>Muted</Text> : null}
+                  <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
                 </View>
                 {sub ? (
                   <Text style={styles.leagueSub} numberOfLines={1}>
@@ -111,9 +99,6 @@ export default function LeaguesScreen({ onBack, onOpenLeague, onOpenDraftHub }) 
                     {risk != null ? <Text style={[styles.riskTag, risk >= 20 && { color: colors.bad }]}>{`  ·  ${risk}% risk`}</Text> : null}
                   </Text>
                 ) : null}
-              </Pressable>
-              <Pressable style={styles.muteBtn} hitSlop={8} disabled={!!busy[item.leagueId]} onPress={() => toggleMute(item)}>
-                <Text style={[styles.mute, item.muted && styles.muteOn]}>{item.muted ? '🔕' : '🔔'}</Text>
               </Pressable>
               <Pressable hitSlop={8} onPress={() => onOpenLeague({ leagueId: item.leagueId, name: item.name })}>
                 <Text style={styles.chev}>›</Text>
@@ -123,7 +108,7 @@ export default function LeaguesScreen({ onBack, onOpenLeague, onOpenDraftHub }) 
         }}
         ListHeaderComponent={
           leagues && leagues.length ? (
-            <Text style={styles.hint}>★ pin to the top of every view · 🔔 mute to hide from Home, On Deck &amp; exposure</Text>
+            <Text style={styles.hint}>★ pin a league to the top of every cross-league view</Text>
           ) : null
         }
         ListEmptyComponent={
@@ -148,20 +133,14 @@ const styles = StyleSheet.create({
   hint: { color: colors.textDim, fontSize: 12, marginBottom: 12, lineHeight: 17 },
   center: { padding: 40, alignItems: 'center' },
   row: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, paddingVertical: 14, paddingHorizontal: 12, marginBottom: 10 },
-  rowMuted: { opacity: 0.55 },
   pinBtn: { paddingRight: 10 },
   pin: { color: colors.textDim, fontSize: 20, fontWeight: '700' },
   pinOn: { color: colors.gold },
   nameWrap: { flex: 1 },
   nameLine: { flexDirection: 'row', alignItems: 'center' },
   name: { color: colors.text, fontSize: 16, fontWeight: '700', flexShrink: 1, marginRight: 8 },
-  nameMuted: { color: colors.textDim },
   leagueSub: { color: colors.textDim, fontSize: 12, marginTop: 3 },
   riskTag: { color: colors.warn, fontWeight: '700' },
-  mutedTag: { color: colors.textDim, fontSize: 11, fontWeight: '700', borderWidth: 1, borderColor: colors.border, borderRadius: 6, paddingHorizontal: 5, paddingVertical: 1, overflow: 'hidden' },
-  muteBtn: { paddingHorizontal: 8 },
-  mute: { fontSize: 16 },
-  muteOn: { opacity: 1 },
   chev: { color: colors.textDim, fontSize: 20, fontWeight: '700', paddingLeft: 4 },
   error: { color: colors.bad, textAlign: 'center', padding: 12 },
   empty: { color: colors.textDim, textAlign: 'center', padding: 30 },

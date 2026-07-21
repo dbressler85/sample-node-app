@@ -80,23 +80,20 @@ async function franchiseNames(cookie, league) {
   }
 }
 
-// Annotate leagues with the owner's pinned/muted flags and sort pinned-first (stable
-// within each group). Pure over a leagues array + token.
+// Annotate leagues with the owner's pinned flag and sort pinned-first (stable within
+// each group). Pure over a leagues array + token.
 function applyPrefs(leagues, token) {
-  const { pinned, muted } = leaguePrefs.get(token);
+  const { pinned } = leaguePrefs.get(token);
   const pin = new Set(pinned);
-  const mut = new Set(muted);
   return leagues
-    .map((l, i) => ({ l: { ...l, pinned: pin.has(String(l.leagueId)), muted: mut.has(String(l.leagueId)) }, i }))
+    .map((l, i) => ({ l: { ...l, pinned: pin.has(String(l.leagueId)) }, i }))
     .sort((a, b) => (b.l.pinned ? 1 : 0) - (a.l.pinned ? 1 : 0) || a.i - b.i)
     .map((x) => x.l);
 }
 
-// The account's leagues, pinned-first and pref-annotated. `hideMuted` drops muted leagues
-// for the aggregates that should skip them (Home triage, On Deck, exposure).
-async function orderedLeagues(cookie, token, { hideMuted = false } = {}) {
-  const all = applyPrefs(await listLeagues(cookie), token);
-  return hideMuted ? all.filter((l) => !l.muted) : all;
+// The account's leagues, pinned-first and pref-annotated.
+async function orderedLeagues(cookie, token) {
+  return applyPrefs(await listLeagues(cookie), token);
 }
 
 module.exports = { listLeagues, normalize, franchiseNames, applyPrefs, orderedLeagues };

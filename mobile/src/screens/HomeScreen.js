@@ -91,12 +91,8 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
     setError(null);
     try {
       const res = await api.leaguesList();
-      // Muted leagues drop out of Home triage entirely (they live on the Leagues
-      // switcher, where you can unmute). What's left is already pinned-first from the
-      // server. Home reflects the leagues you're actively managing.
-      const list = (res.leagues || [])
-        .filter((l) => !l.muted)
-        .map((l) => ({ leagueId: l.leagueId, name: l.name }));
+      // Home reflects all of the account's leagues, already pinned-first from the server.
+      const list = (res.leagues || []).map((l) => ({ leagueId: l.leagueId, name: l.name }));
       setLeagues(list);
       setValue('leagues', list);
 
