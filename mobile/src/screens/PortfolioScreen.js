@@ -226,14 +226,14 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
             {!posFilter ? (
               <>
                 <View style={styles.holdTabs}>
-                  {[['value', 'By value'], ['exposure', 'By exposure']].map(([k, label]) => (
+                  {[['value', 'By value'], ['exposure', 'By shares']].map(([k, label]) => (
                     <Pressable key={k} onPress={() => { setHoldView(k); setShowAllHoldings(false); }} style={[styles.holdTab, holdView === k && styles.holdTabOn]}>
                       <Text style={[styles.holdTabTxt, holdView === k && styles.holdTabTxtOn]}>{label}</Text>
                     </Pressable>
                   ))}
                 </View>
                 <Text style={styles.holdScope}>
-                  {showAllHoldings ? `ALL ${d.holdings.length}` : 'TOP 12'} · {holdView === 'value' ? 'BY VALUE' : 'BY LEAGUES HELD'}
+                  {showAllHoldings ? `ALL ${d.holdings.length}` : 'TOP 12'} · {holdView === 'value' ? 'BY TOTAL VALUE' : 'BY SHARES · LEAGUES HELD'}
                 </Text>
               </>
             ) : null}
@@ -311,7 +311,7 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
               </Pressable>
             ) : null}
             <Text style={styles.hint}>
-              <Text style={{ color: colors.gold, fontWeight: '900' }}>Value</Text> = each player’s value summed across every league you roster him in (your real exposure); <Text style={{ fontWeight: '900' }}>vs. biggest</Text> = his size next to your largest holding (your top bet = 100%), so exposures compare at a glance. <Text style={{ fontWeight: '900' }}>⇄ Shop</Text> puts him on the block in every league you hold him.
+              <Text style={{ color: colors.gold, fontWeight: '900' }}>Value</Text> = each player’s value summed across every league you roster him in (your real exposure); <Text style={{ fontWeight: '900' }}>vs. biggest</Text> = his size next to your largest holding (your top bet = 100%). Think of each league you hold him in as one <Text style={{ fontWeight: '900' }}>share</Text>: <Text style={{ fontWeight: '900' }}>By value</Text> ranks by total value (shares × per-league value), <Text style={{ fontWeight: '900' }}>By shares</Text> ranks by how many leagues hold him. <Text style={{ fontWeight: '900' }}>⇄ Shop</Text> puts him on the block in every league you hold him.
             </Text>
           </View>
         ) : null}
