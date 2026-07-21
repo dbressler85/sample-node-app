@@ -243,8 +243,13 @@ function OfferCard({ offer, busy, onRespond, onOpenLeague, onCounter, onManualCo
         </View>
       ) : null}
 
-      <Side label="You get" assets={offer.acquire} total={offer.analysis.acquireValue} onOpenPlayer={onOpenPlayer} />
-      <Side label="You give" assets={offer.send} total={offer.analysis.sendValue} onOpenPlayer={onOpenPlayer} />
+      {/* Side-by-side: what YOU give on the left, what you get on the right — mirrored so the
+          two rosters read as a direct comparison instead of a stacked list. */}
+      <View style={styles.columns}>
+        <SideCol label="You give" assets={offer.send} total={offer.analysis.sendValue} onOpenPlayer={onOpenPlayer} />
+        <View style={styles.colDivider} />
+        <SideCol label="You get" assets={offer.acquire} total={offer.analysis.acquireValue} onOpenPlayer={onOpenPlayer} align="right" />
+      </View>
       <View style={styles.estRow}>
         <Text style={styles.estCaption}>
           Market value · net {offer.analysis.net > 0 ? '+' : ''}{offer.analysis.net}
@@ -299,20 +304,28 @@ function OfferCard({ offer, busy, onRespond, onOpenLeague, onCounter, onManualCo
   );
 }
 
-function Side({ label, assets, total, onOpenPlayer }) {
+// A single column of a side-by-side trade view (yours vs. theirs). `align="right"` mirrors
+// the layout so the two sides face each other. Last name only + a compact meta line keep it
+// readable in the ~half-width column of a phone.
+function SideCol({ label, assets, total, onOpenPlayer, align }) {
+  const right = align === 'right';
   return (
-    <View style={styles.side}>
-      <Text style={styles.sideLabel}>{label} · {total}</Text>
+    <View style={styles.col}>
+      <Text style={[styles.colLabel, right && styles.alignRight]}>{label}</Text>
+      <Text style={[styles.colTotal, right && styles.alignRight]}>{total}</Text>
       {assets.map((a) => {
         const tappable = onOpenPlayer && a.kind !== 'pick';
         const Row = tappable ? Pressable : View;
         const rowProps = tappable ? { onPress: () => onOpenPlayer(a.id) } : {};
         return (
-          <Row key={a.id} style={styles.sideRow} {...rowProps}>
+          <Row key={a.id} style={[styles.colRow, right && { flexDirection: 'row-reverse' }, tappable && { opacity: 1 }]} {...rowProps}>
             <View style={[styles.dot, { backgroundColor: positionColors[a.position] || colors.textDim }]} />
-            <Text style={styles.sideName} numberOfLines={1}>{a.name}</Text>
-            {/* Picks show dynasty value ("val N"), not a bare number that reads as a slot. */}
-            <Text style={styles.sideMeta}>{a.kind === 'pick' ? (a.value != null ? `val ${a.value}` : 'pick') : `${a.position}${a.value != null ? ` · ${a.value}` : ''}`}</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.colName, right && styles.alignRight]} numberOfLines={1}>{String(a.name).split(',')[0]}</Text>
+              <Text style={[styles.colMeta, right && styles.alignRight]} numberOfLines={1}>
+                {a.kind === 'pick' ? (a.value != null ? `val ${a.value}` : 'pick') : `${a.position}${a.value != null ? ` · ${a.value}` : ''}`}
+              </Text>
+            </View>
           </Row>
         );
       })}
@@ -344,6 +357,16 @@ const styles = StyleSheet.create({
   sideLabel: { color: colors.textDim, fontSize: 12, fontWeight: '800', marginBottom: 4 },
   sideRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 3 },
   dot: { width: 8, height: 8, borderRadius: 4, marginRight: 8 },
+  // Two-column side-by-side offer view.
+  columns: { flexDirection: 'row', alignItems: 'flex-start', marginVertical: 8 },
+  col: { flex: 1 },
+  colDivider: { width: StyleSheet.hairlineWidth, alignSelf: 'stretch', backgroundColor: colors.border, marginHorizontal: 10 },
+  colLabel: { color: colors.textDim, fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
+  colTotal: { color: colors.gold, fontSize: 18, fontWeight: '900', marginTop: 1, marginBottom: 4 },
+  colRow: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingVertical: 4 },
+  colName: { color: colors.text, fontSize: 13, fontWeight: '700' },
+  colMeta: { color: colors.textDim, fontSize: 11, marginTop: 1 },
+  alignRight: { textAlign: 'right' },
   sideName: { color: colors.text, fontSize: 14, flex: 1, marginRight: 8 },
   sideMeta: { color: colors.textDim, fontSize: 12 },
   estRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 },
