@@ -17,6 +17,11 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   const off = advisory(new Date('2026-06-20T12:00:00Z'));
   assert(off.window === 'offseason' && off.holdToSell === null, 'June is the quiet offseason');
 
+  // Late July = training camp: depth charts firm up, so it reads distinctly from June.
+  const camp = advisory(new Date('2026-07-28T12:00:00Z'));
+  assert(camp.window === 'preseason' && camp.holdToSell === 'vets', 'late July is training camp (starters firm, picks slide)');
+  assert(/depth charts|blocked/i.test(camp.message), 'camp advisory speaks to depth-chart firming');
+
   for (const a of [draft, inSeason, champ, off]) {
     assert(a.label && a.message, 'each advisory carries a label + message');
   }

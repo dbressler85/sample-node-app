@@ -59,7 +59,7 @@ export const HELP = [
     title: 'Trade bait / On the Block',
     body: [
       '“On the Block” is your own list of players you’re shopping. Adding a player syncs to MFL’s trade-bait board, so your leaguemates see he’s available.',
-      'On the trade desk, players your partner is shopping show a 🎣 badge, and each partner chip shows how many they have on the block — so you can see who’s actively dealing before you build an offer.',
+      'On the trade desk, players your partner is shopping show a ⇄ BLOCK badge, and each partner chip shows how many they have on the block — so you can see who’s actively dealing before you build an offer.',
       'You can jump between your Block list and the trade inbox from the link in either screen’s header.',
     ],
   },

@@ -359,7 +359,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
             {(data.partners || []).map((p) => (
               <Pressable key={p.franchiseId} style={[styles.partnerChip, partnerId === p.franchiseId && styles.partnerChipActive]} onPress={() => pickPartner(p.franchiseId)}>
                 <Text style={[styles.partnerText, partnerId === p.franchiseId && { color: colors.text }]} numberOfLines={1}>{p.name}</Text>
-                {p.baitCount > 0 ? <Text style={styles.chipBait} numberOfLines={1}>🎣 {p.baitCount} on the block</Text> : null}
+                {p.baitCount > 0 ? <Text style={styles.chipBait} numberOfLines={1}>⇄ {p.baitCount} on the block</Text> : null}
               </Pressable>
             ))}
           </ScrollView>
@@ -399,7 +399,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
 
           <Text style={styles.label}>
             You get {receiveList.length ? `· ${preview.acquireValue}` : ''}
-            {partner && partner.baitCount > 0 ? <Text style={styles.blockHint}>{`  🎣 ${partner.baitCount} on the block`}</Text> : null}
+            {partner && partner.baitCount > 0 ? <Text style={styles.blockHint}>{`  ⇄ ${partner.baitCount} on the block`}</Text> : null}
           </Text>
           {partner ? receiveOptions.map((a) => (
             <AssetRow key={a.id} asset={a} on={!!receive[a.id]} onPress={() => toggle(setReceive, receive, a)} tint={colors.good} />
@@ -552,7 +552,7 @@ function AssetRow({ asset, on, onPress, tint }) {
       <View style={[styles.check, on && { backgroundColor: tint, borderColor: tint }]}>{on ? <Text style={styles.checkMark}>✓</Text> : null}</View>
       <View style={[styles.dot, { backgroundColor: positionColors[asset.position] || colors.textDim }]} />
       <Text style={styles.assetName} numberOfLines={1}>{asset.name}</Text>
-      {asset.bait ? <Text style={styles.baitTag}>🎣 BLOCK</Text> : null}
+      {asset.bait ? <Text style={styles.baitTag}>⇄ BLOCK</Text> : null}
       <Text style={styles.assetMeta}>{asset.kind === 'pick' ? 'Draft pick' : `${asset.position}${asset.team ? ` · ${asset.team}` : ''}`}</Text>
       <Text style={styles.assetValue}>{asset.value != null ? (asset.kind === 'pick' ? `val ${asset.value}` : asset.value) : '—'}</Text>
     </Pressable>
