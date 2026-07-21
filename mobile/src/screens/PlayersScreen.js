@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, FlatList, StyleSheet, Pressable, TextInput, ActivityIndicator, Linking } from 'react-native';
+import { View, Text, FlatList, StyleSheet, Pressable, TextInput, ActivityIndicator, Linking, ScrollView } from 'react-native';
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import AvailabilityBadge from '../components/AvailabilityBadge';
+import { TargetIcon, AvoidIcon, WatchIcon } from '../components/PlayerActionIcons';
 import { getValue, setValue } from '../cache';
 import { ScreenTitle, Value } from '../components/Brand';
 
@@ -18,6 +19,21 @@ const RANK_TYPES = [
   ['trending', 'Trending'],
   ['rookies', 'Rookies'],
 ];
+const POSITIONS = [
+  [null, 'All'],
+  ['QB', 'QB'],
+  ['RB', 'RB'],
+  ['WR', 'WR'],
+  ['TE', 'TE'],
+  ['K', 'K'],
+  ['DEF', 'DEF'],
+];
+
+function matchNews(n, q) {
+  const t = q.trim().toLowerCase();
+  if (!t) return true;
+  return (n.headline && n.headline.toLowerCase().includes(t)) || (n.player && n.player.name && n.player.name.toLowerCase().includes(t));
+}
 
 export default function PlayersScreen({ onOpenPlayer }) {
   const [query, setQuery] = useState('');
@@ -29,9 +45,13 @@ export default function PlayersScreen({ onOpenPlayer }) {
   const [news, setNews] = useState(null);
   const [watch, setWatch] = useState(null);
   const [error, setError] = useState(null);
+  const [pos, setPos] = useState(null); // position filter (null = All), applies to rankings/search/mine
+  const [newsQuery, setNewsQuery] = useState(''); // in-tab News filter
+  const [tagOverride, setTagOverride] = useState({}); // id -> 'target'|'avoid'|null (optimistic)
+  const [watchOverride, setWatchOverride] = useState({}); // id -> bool (optimistic)
 
-  // Debounced search on query change — wait ~300ms after the last keystroke so a
-  // multi-character name fires one request, not one per letter.
+  // Debounced search on query change (or the position filter) — wait ~300ms after the last
+  // keystroke so a multi-character name fires one request, not one per letter.
   useEffect(() => {
     const q = query.trim();
     if (q.length < 2) {
@@ -40,23 +60,23 @@ export default function PlayersScreen({ onOpenPlayer }) {
     }
     let alive = true;
     const timer = setTimeout(() => {
-      api.playerSearch(q).then((r) => alive && setSearchRes(r)).catch((e) => alive && setError(e.message));
+      api.playerSearch(q, { position: pos }).then((r) => alive && setSearchRes(r)).catch((e) => alive && setError(e.message));
     }, 300);
     return () => {
       alive = false;
       clearTimeout(timer);
     };
-  }, [query]);
+  }, [query, pos]);
 
   const loadRankings = useCallback(async () => {
     try {
-      const res = await api.playerRankings(rankType);
+      const res = await api.playerRankings(rankType, pos);
       setRankings(res);
-      setValue(`players:rankings:${rankType}`, res);
+      setValue(`players:rankings:${rankType}:${pos || 'all'}`, res);
     } catch (e) {
       setError(e.message);
     }
-  }, [rankType]);
+  }, [rankType, pos]);
 
   // Rankings tab uses stale-while-revalidate: paint the cached list for this rank
   // type instantly, then refresh. (Search is transient; My Players / News / Watch
@@ -65,12 +85,12 @@ export default function PlayersScreen({ onOpenPlayer }) {
     if (tab !== 'rankings') return undefined;
     let alive = true;
     setRankings(null);
-    getValue(`players:rankings:${rankType}`).then((cached) => {
+    getValue(`players:rankings:${rankType}:${pos || 'all'}`).then((cached) => {
       if (alive && cached != null) setRankings(cached);
       if (alive) loadRankings();
     });
     return () => { alive = false; };
-  }, [tab, rankType, loadRankings]);
+  }, [tab, rankType, pos, loadRankings]);
 
   useEffect(() => {
     if (tab === 'mine' && !mine) api.exposure().then(setMine).catch((e) => setError(e.message));
@@ -79,6 +99,21 @@ export default function PlayersScreen({ onOpenPlayer }) {
     // tab is opened rather than caching it.
     if (tab === 'watch') { setWatch(null); api.watchlist().then(setWatch).catch((e) => setError(e.message)); }
   }, [tab, mine, news]);
+
+  // Inline Target/Avoid/Watch toggles. Optimistic: flip a per-id override immediately,
+  // reconcile with the server, and revert the override if the write fails. Overrides win
+  // over the row's server-sent tag/watched so every list reflects the action at once.
+  const onTag = useCallback((id, next, prev) => {
+    setTagOverride((m) => ({ ...m, [id]: next }));
+    api.setTag(id, next).catch(() => { setTagOverride((m) => ({ ...m, [id]: prev })); setError('Could not update tag'); });
+  }, []);
+  const onWatch = useCallback((id, next) => {
+    setWatchOverride((m) => ({ ...m, [id]: next }));
+    (next ? api.watchAdd(id) : api.watchRemove(id)).catch(() => { setWatchOverride((m) => ({ ...m, [id]: !next })); setError('Could not update watchlist'); });
+  }, []);
+  const resolveTag = (p) => (p.id in tagOverride ? tagOverride[p.id] : (p.tag || null));
+  const resolveWatch = (p) => (p.id in watchOverride ? watchOverride[p.id] : !!p.watched);
+  const rowActions = { onTag, onWatch };
 
   const searching = query.trim().length >= 2;
 
@@ -112,17 +147,21 @@ export default function PlayersScreen({ onOpenPlayer }) {
       ) : null}
 
       {searching ? (
-        !searchRes ? (
-          <Center><ActivityIndicator color={colors.accent} /></Center>
-        ) : (
-          <FlatList
-            data={searchRes.players}
-            keyExtractor={(p) => p.id}
-            contentContainerStyle={styles.list}
-            renderItem={({ item }) => <PlayerRow p={item} onPress={() => onOpenPlayer(item.id)} />}
-            ListEmptyComponent={<Text style={styles.empty}>No players match “{query}”.</Text>}
-          />
-        )
+        <>
+          <PosFilter pos={pos} setPos={setPos} />
+          {!searchRes ? (
+            <Center><ActivityIndicator color={colors.accent} /></Center>
+          ) : (
+            <FlatList
+              data={searchRes.players}
+              keyExtractor={(p) => p.id}
+              extraData={{ tagOverride, watchOverride }}
+              contentContainerStyle={styles.list}
+              renderItem={({ item }) => <PlayerRow p={item} tag={resolveTag(item)} watched={resolveWatch(item)} {...rowActions} onPress={() => onOpenPlayer(item.id)} />}
+              ListEmptyComponent={<Text style={styles.empty}>No players match “{query}”.</Text>}
+            />
+          )}
+        </>
       ) : (
         <>
           <View style={styles.segment}>
@@ -142,11 +181,13 @@ export default function PlayersScreen({ onOpenPlayer }) {
                   </Pressable>
                 ))}
               </View>
+              <PosFilter pos={pos} setPos={setPos} />
               <FlatList
                 data={rankings ? rankings.players : []}
                 keyExtractor={(p) => p.id}
+                extraData={{ tagOverride, watchOverride }}
                 contentContainerStyle={styles.list}
-                renderItem={({ item, index }) => <PlayerRow p={item} rank={index + 1} onPress={() => onOpenPlayer(item.id)} />}
+                renderItem={({ item, index }) => <PlayerRow p={item} rank={index + 1} tag={resolveTag(item)} watched={resolveWatch(item)} {...rowActions} onPress={() => onOpenPlayer(item.id)} />}
                 ListEmptyComponent={
                   !rankings ? (
                     <Center><ActivityIndicator color={colors.accent} /></Center>
@@ -171,35 +212,57 @@ export default function PlayersScreen({ onOpenPlayer }) {
               }
             />
           ) : tab === 'mine' ? (
-            <FlatList
-              data={mine ? mine.players : []}
-              keyExtractor={(p) => p.id}
-              contentContainerStyle={styles.list}
-              renderItem={({ item }) => <PlayerRow p={item} sub={`${item.count} leagues · ${item.startingCount} starting`} onPress={() => onOpenPlayer(item.id)} />}
-              ListEmptyComponent={
-                !mine ? (
-                  <Center><ActivityIndicator color={colors.accent} /></Center>
-                ) : (
-                  <Text style={styles.note}>You don’t roster any players yet.</Text>
-                )
-              }
-            />
+            <>
+              <PosFilter pos={pos} setPos={setPos} />
+              <FlatList
+                data={mine ? mine.players.filter((p) => !pos || p.position === pos) : []}
+                keyExtractor={(p) => p.id}
+                extraData={{ tagOverride, watchOverride }}
+                contentContainerStyle={styles.list}
+                renderItem={({ item }) => <PlayerRow p={item} sub={`${item.count} leagues · ${item.startingCount} starting`} tag={resolveTag(item)} watched={resolveWatch(item)} {...rowActions} onPress={() => onOpenPlayer(item.id)} />}
+                ListEmptyComponent={
+                  !mine ? (
+                    <Center><ActivityIndicator color={colors.accent} /></Center>
+                  ) : (
+                    <Text style={styles.note}>{pos ? `You don’t roster any ${pos}s.` : 'You don’t roster any players yet.'}</Text>
+                  )
+                }
+              />
+            </>
           ) : (
-            <FlatList
-              data={news ? news.news : []}
-              keyExtractor={(n) => n.id}
-              contentContainerStyle={styles.list}
-              renderItem={({ item }) => (
-                <NewsRow n={item} onPress={() => (item.url ? Linking.openURL(item.url).catch(() => {}) : item.player.id && onOpenPlayer(item.player.id))} />
-              )}
-              ListEmptyComponent={
-                !news ? (
-                  <Center><ActivityIndicator color={colors.accent} /></Center>
-                ) : (
-                  <Text style={styles.note}>No news affecting your rostered players right now.</Text>
-                )
-              }
-            />
+            <>
+              <View style={styles.newsSearchWrap}>
+                <TextInput
+                  style={styles.newsSearch}
+                  placeholder="Filter news…"
+                  placeholderTextColor={colors.textDim}
+                  value={newsQuery}
+                  onChangeText={setNewsQuery}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                {newsQuery ? (
+                  <Pressable onPress={() => setNewsQuery('')} hitSlop={10}>
+                    <Text style={styles.clear}>✕</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+              <FlatList
+                data={news ? news.news.filter((n) => matchNews(n, newsQuery)) : []}
+                keyExtractor={(n) => n.id}
+                contentContainerStyle={styles.list}
+                renderItem={({ item }) => (
+                  <NewsRow n={item} onPress={() => (item.url ? Linking.openURL(item.url).catch(() => {}) : item.player.id && onOpenPlayer(item.player.id))} />
+                )}
+                ListEmptyComponent={
+                  !news ? (
+                    <Center><ActivityIndicator color={colors.accent} /></Center>
+                  ) : (
+                    <Text style={styles.note}>{newsQuery ? `No news matches “${newsQuery}”.` : 'No news affecting your rostered players right now.'}</Text>
+                  )
+                }
+              />
+            </>
           )}
         </>
       )}
@@ -207,8 +270,11 @@ export default function PlayersScreen({ onOpenPlayer }) {
   );
 }
 
-function PlayerRow({ p, rank, sub, onPress }) {
+function PlayerRow({ p, rank, sub, tag, watched, onTag, onWatch, onPress }) {
   const posColor = positionColors[p.position] || colors.textDim;
+  const t = tag !== undefined ? tag : p.tag || null;
+  const w = watched !== undefined ? watched : !!p.watched;
+  const acts = !!(onTag && onWatch);
   return (
     <Pressable style={({ pressed }) => [styles.row, { borderLeftColor: posColor, borderLeftWidth: 3 }, pressed && { opacity: 0.7 }]} onPress={onPress}>
       {rank ? <Text style={styles.rank}>{rank}</Text> : null}
@@ -218,7 +284,6 @@ function PlayerRow({ p, rank, sub, onPress }) {
       <View style={{ flex: 1 }}>
         <View style={styles.nameRow}>
           <Text style={styles.name} numberOfLines={1}>{p.name}</Text>
-          {p.tag ? <Text style={[styles.tagMark, { color: p.tag === 'target' ? colors.good : colors.bad }]}>{p.tag === 'target' ? '◎' : '⊘'}</Text> : null}
           <AvailabilityBadge availability={p.availability} style={{ marginLeft: 6 }} />
           {p.mineInLeagues > 0 || p.mine ? (
             <Text style={styles.mine}>{p.mineInLeagues > 1 ? `YOURS ×${p.mineInLeagues}` : 'YOURS'}</Text>
@@ -231,8 +296,35 @@ function PlayerRow({ p, rank, sub, onPress }) {
           {sub ? ` · ${sub}` : ''}
         </Text>
       </View>
-      {p.value != null ? <Value size={17} style={{ marginLeft: 10 }}>{p.value}</Value> : null}
+      <View style={styles.rightCol}>
+        {p.value != null ? <Value size={16}>{p.value}</Value> : null}
+        {acts ? (
+          <View style={styles.actions}>
+            <Pressable hitSlop={6} onPress={() => onTag(p.id, t === 'target' ? null : 'target', t)} accessibilityLabel="Target">
+              <TargetIcon size={18} color={t === 'target' ? colors.good : colors.textDim} />
+            </Pressable>
+            <Pressable hitSlop={6} onPress={() => onTag(p.id, t === 'avoid' ? null : 'avoid', t)} accessibilityLabel="Avoid">
+              <AvoidIcon size={18} color={t === 'avoid' ? colors.bad : colors.textDim} />
+            </Pressable>
+            <Pressable hitSlop={6} onPress={() => onWatch(p.id, !w)} accessibilityLabel="Watch">
+              <WatchIcon size={18} color={w ? colors.gold : colors.textDim} filled={w} />
+            </Pressable>
+          </View>
+        ) : null}
+      </View>
     </Pressable>
+  );
+}
+
+function PosFilter({ pos, setPos }) {
+  return (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.posRow}>
+      {POSITIONS.map(([k, label]) => (
+        <Pressable key={label} style={[styles.posChip, pos === k && styles.posChipActive]} onPress={() => setPos(k)}>
+          <Text style={[styles.posChipText, pos === k && { color: colors.text }]}>{label}</Text>
+        </Pressable>
+      ))}
+    </ScrollView>
   );
 }
 
@@ -298,6 +390,14 @@ const styles = StyleSheet.create({
   typeChip: { backgroundColor: colors.card, borderRadius: 8, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 6 },
   typeChipActive: { backgroundColor: colors.cardAlt, borderColor: colors.accent },
   typeText: { color: colors.textDim, fontSize: 12, fontWeight: '700' },
+  posRow: { flexDirection: 'row', paddingHorizontal: 16, gap: 8, paddingVertical: 6 },
+  posChip: { backgroundColor: colors.card, borderRadius: 8, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 13, paddingVertical: 5 },
+  posChipActive: { backgroundColor: colors.cardAlt, borderColor: colors.accent },
+  posChipText: { color: colors.textDim, fontSize: 12, fontWeight: '800' },
+  rightCol: { alignItems: 'flex-end', marginLeft: 10, gap: 7 },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  newsSearchWrap: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, marginBottom: 6 },
+  newsSearch: { flex: 1, color: colors.text, fontSize: 14, paddingVertical: 9 },
   list: { paddingHorizontal: 16, paddingBottom: 32, paddingTop: 4 },
   row: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 12, marginBottom: 10 },
   rank: { color: colors.textDim, fontSize: 13, fontWeight: '800', width: 22 },

@@ -104,7 +104,8 @@ function invalidateGather(cookie) {
   gatherMemo.invalidate(cookie || '');
 }
 
-function annotate(player, byId, ranks, myRostered, mineBy, freeBy, enr, ctx) {
+function annotate(player, byId, ranks, myRostered, mineBy, freeBy, enr, ctx, tags, watchSet) {
+  const id = String(player.id);
   return {
     id: player.id,
     name: player.name,
@@ -118,6 +119,10 @@ function annotate(player, byId, ranks, myRostered, mineBy, freeBy, enr, ctx) {
     mine: myRostered.has(player.id),
     mineInLeagues: (mineBy.get(player.id) || []).length,
     freeInLeagues: (freeBy.get(player.id) || []).length,
+    // Personal Target/Avoid tag + watchlist membership, so list rows can carry the
+    // inline actions without a second round-trip.
+    tag: (tags && tags[id]) || null,
+    watched: watchSet ? watchSet.has(id) : false,
   };
 }
 
@@ -144,6 +149,8 @@ async function search(cookie, token, { q, position, status } = {}) {
   const [byId, enr, ctx] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(undefined, cookie), ctxFor(cookie)]);
   const ranks = computeRanks(byId, enr);
   const { myRostered, mineBy, freeBy } = await buildSets(cookie);
+  const tags = playerTags.all(token);
+  const watchSet = new Set(watchStore.list(token).map(String));
 
   const term = (q || '').trim().toLowerCase();
   let players = [...byId.values()];
@@ -158,7 +165,7 @@ async function search(cookie, token, { q, position, status } = {}) {
   else if (status === 'available') light = light.filter((x) => !x.mine);
 
   light.sort((a, b) => b.value - a.value);
-  const players2 = light.slice(0, 60).map((x) => annotate(x.p, byId, ranks, myRostered, mineBy, freeBy, enr, ctx));
+  const players2 = light.slice(0, 60).map((x) => annotate(x.p, byId, ranks, myRostered, mineBy, freeBy, enr, ctx, tags, watchSet));
   return { total: light.length, players: players2 };
 }
 
@@ -171,8 +178,11 @@ async function rankings(cookie, token, { type = 'value', position } = {}) {
   // the top slice — availability resolution over the whole universe just to
   // discard 99% of it was the cost here.
   const tags = playerTags.all(token);
+  const watchSet = new Set(watchStore.list(token).map(String));
   let cand = [...byId.values()];
-  if (type === 'position' && position) cand = cand.filter((p) => p.position === position);
+  // Position is an independent filter — it narrows any ranking type (value, trending, …),
+  // not just the legacy 'position' type.
+  if (position) cand = cand.filter((p) => p.position === position);
   let light = cand.map((p) => ({ p, value: enr.value(p.id), age: enr.age(p.id), trend: enr.trend(p.id) }));
 
   // Only rank by data we actually have, so players with no signal don't float up.
@@ -190,11 +200,7 @@ async function rankings(cookie, token, { type = 'value', position } = {}) {
     light = light.filter((x) => x.value != null).sort((a, b) => (b.value || 0) - (a.value || 0));
   }
 
-  const list = light.slice(0, 40).map((x) => {
-    const row = annotate(x.p, byId, ranks, myRostered, mineBy, freeBy, enr, ctx);
-    row.tag = tags[String(row.id)] || null;
-    return row;
-  });
+  const list = light.slice(0, 40).map((x) => annotate(x.p, byId, ranks, myRostered, mineBy, freeBy, enr, ctx, tags, watchSet));
 
   const note =
     list.length === 0
