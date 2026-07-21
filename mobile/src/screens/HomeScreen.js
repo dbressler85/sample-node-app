@@ -257,7 +257,7 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
                 <Text style={styles.teamChev}>›</Text>
               </Pressable>
             ) : null}
-            <Portfolio p={portfolio} phase={phase} loading={summaryLoading} onLeagues={onOpenLeagues} onPortfolio={onOpenPortfolio} onTrades={onOpenTradeInbox} onWaivers={() => onOpenWaivers({})} />
+            <Portfolio p={portfolio} phase={phase} loading={summaryLoading} onLeagues={onOpenLeagues} onPortfolio={onOpenPortfolio} />
             {drafts.length ? (
               <View>
                 <Pressable style={styles.sectionRow} onPress={onOpenDraftHub}>
@@ -349,7 +349,7 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
   );
 }
 
-function Portfolio({ p, phase, loading, onLeagues, onPortfolio, onTrades, onWaivers }) {
+function Portfolio({ p, phase, loading, onLeagues, onPortfolio }) {
   const offseason = phase === 'offseason';
   // The Leagues count is known as soon as the league list loads, so keep it live.
   return (
@@ -365,20 +365,19 @@ function Portfolio({ p, phase, loading, onLeagues, onPortfolio, onTrades, onWaiv
       <View style={styles.chips}>
         {offseason ? (
           <>
-            <Chip label="Win-now" value={p.contenders} loading={loading} onPress={onPortfolio} />
+            {/* Team-outlook breakdown, tap any to open the portfolio detail. Trades and
+                Waivers used to live here too — dropped as redundant with the trade
+                inbox row below and the bottom-nav tabs. */}
+            <Chip label="Win now" value={p.contenders} loading={loading} onPress={onPortfolio} />
             <Chip label="Ascending" value={p.ascending} loading={loading} onPress={onPortfolio} />
-            <Chip label="Rebuilding" value={p.rebuilding} loading={loading} onPress={onPortfolio} />
             <Chip label="Balanced" value={p.balanced} loading={loading} onPress={onPortfolio} />
-            <Chip label="Trades ›" value={p.tradeOffers} bad={p.tradeOffers > 0} loading={loading} onPress={onTrades} />
-            <Chip label="Waivers" value={p.waiversPending} loading={loading} onPress={onWaivers} />
+            <Chip label="Rebuilding" value={p.rebuilding} loading={loading} onPress={onPortfolio} />
           </>
         ) : (
           <>
             <Chip label="Lineups to set" value={p.lineupsToSet} warn={p.lineupsToSet > 0} loading={loading} />
             <Chip label="Holes" value={p.holes} bad={p.holes > 0} loading={loading} />
             <Chip label="Injuries" value={p.injuries} bad={p.injuries > 0} loading={loading} />
-            <Chip label="Trades ›" value={p.tradeOffers} bad={p.tradeOffers > 0} loading={loading} onPress={onTrades} />
-            <Chip label="Waivers" value={p.waiversPending} loading={loading} onPress={onWaivers} />
           </>
         )}
       </View>

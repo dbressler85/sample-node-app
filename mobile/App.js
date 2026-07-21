@@ -51,8 +51,8 @@ const TABS = [
   { key: 'home', label: 'Home', icon: '⌂' },
   { key: 'scores', label: 'Scores', icon: '◉' },
   { key: 'lineups', label: 'Lineups', icon: '⚑' },
-  { key: 'waivers', label: 'Waivers', icon: '⇄' },
-  { key: 'trades', label: 'Trades', icon: '⇌' },
+  { key: 'waivers', label: 'Waivers', icon: '±' },
+  { key: 'trades', label: 'Trades', icon: '⇄' },
   { key: 'players', label: 'Players', icon: '◐' },
 ];
 
