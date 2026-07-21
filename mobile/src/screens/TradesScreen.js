@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Alert
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import { celebrate } from '../components/Celebrate';
+import TradeColumns from '../components/TradeColumns';
 import useAndroidBack from '../useAndroidBack';
 
 const posList = (arr) => (arr && arr.length ? arr.map((x) => x.pos).join(', ') : '—');
@@ -445,10 +446,15 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
             </View>
           ) : null}
           {receiveList.length || sendList.length ? (
-            <View style={styles.recap}>
-              <Text style={styles.recapLine} numberOfLines={1}><Text style={styles.recapSend}>Send </Text>{sendList.map((a) => a.name.split(',')[0]).join(', ') || '—'}</Text>
-              <Text style={styles.recapLine} numberOfLines={1}><Text style={styles.recapGet}>Get </Text>{receiveList.map((a) => a.name.split(',')[0]).join(', ') || '—'}</Text>
-            </View>
+            <TradeColumns
+              give={sendList}
+              get={receiveList}
+              giveTotal={preview.sendValue}
+              getTotal={preview.acquireValue}
+              giveLabel="You send"
+              getLabel="You get"
+              onOpenPlayer={onOpenPlayer}
+            />
           ) : null}
           {tendencyNote ? <Text style={styles.tendencyNote} numberOfLines={2}>ℹ {tendencyNote}</Text> : null}
           <View style={styles.previewRow}>
