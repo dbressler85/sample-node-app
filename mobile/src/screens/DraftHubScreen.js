@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, RefreshControl, ActivityIndicator } from 'react-native';
 import { api } from '../api';
 import { colors } from '../theme';
+import ErrorView from '../components/ErrorView';
 import useAndroidBack from '../useAndroidBack';
 import usePoll from '../usePoll';
 
@@ -79,7 +80,7 @@ export default function DraftHubScreen({ onBack, onOpenDraft }) {
       {loading ? (
         <View style={styles.center}><ActivityIndicator color={colors.accent} size="large" /></View>
       ) : error ? (
-        <View style={styles.center}><Text style={styles.error}>{error}</Text></View>
+        <ErrorView message={error} onRetry={() => { setLoading(true); load(); }} refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />
       ) : drafts.length === 0 ? (
         <View style={styles.center}><Text style={styles.emptyText}>No drafts across your leagues right now.</Text></View>
       ) : (

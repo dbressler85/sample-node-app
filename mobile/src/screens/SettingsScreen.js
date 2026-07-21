@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, Switch, ActivityIndicator, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Switch, ActivityIndicator, ScrollView, Alert } from 'react-native';
 import { api } from '../api';
 import { colors } from '../theme';
 import useAndroidBack from '../useAndroidBack';
@@ -14,7 +14,14 @@ const CHANNELS = [
 
 // Preferences: explicitly choose which push notifications to receive. Each toggle saves
 // immediately (optimistic, reverts on failure). Channels default on.
-export default function SettingsScreen({ onBack, onOpenHelp }) {
+export default function SettingsScreen({ onBack, onOpenHelp, onLogout }) {
+  const confirmLogout = useCallback(() => {
+    Alert.alert('Log out?', 'You’ll need your MFL username and password to sign back in.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Log out', style: 'destructive', onPress: () => onLogout && onLogout() },
+    ]);
+  }, [onLogout]);
+
   const [prefs, setPrefs] = useState(null);
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -87,6 +94,18 @@ export default function SettingsScreen({ onBack, onOpenHelp }) {
                 <Text style={styles.rowDesc}>Where values come from, how team outlook and trades are graded, league formats, waivers, and more.</Text>
               </View>
               <Text style={styles.chev}>›</Text>
+            </Pressable>
+          </>
+        ) : null}
+
+        {onLogout ? (
+          <>
+            <Text style={[styles.sectionLabel, { marginTop: 26 }]}>Session</Text>
+            <Pressable style={({ pressed }) => [styles.card, styles.helpRow, pressed && { opacity: 0.7 }]} onPress={confirmLogout}>
+              <View style={styles.rowText}>
+                <Text style={[styles.rowLabel, { color: colors.bad }]}>Log out</Text>
+                <Text style={styles.rowDesc}>Sign out of MFL on this device.</Text>
+              </View>
             </Pressable>
           </>
         ) : null}

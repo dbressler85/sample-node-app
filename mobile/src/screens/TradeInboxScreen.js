@@ -4,6 +4,7 @@ import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import { celebrate } from '../components/Celebrate';
 import InfoDot from '../components/InfoDot';
+import ErrorView from '../components/ErrorView';
 import useAndroidBack from '../useAndroidBack';
 
 // Cross-league trade inbox: every pending incoming offer across all your leagues,
@@ -147,7 +148,7 @@ export default function TradeInboxScreen({ onBack, onOpenLeague, onProposeInLeag
       {loading ? (
         <View style={styles.center}><ActivityIndicator color={colors.accent} size="large" /></View>
       ) : error ? (
-        <View style={styles.center}><Text style={styles.error}>{error}</Text></View>
+        <ErrorView message={error} onRetry={() => { setLoading(true); load(); }} refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />
       ) : (
         <FlatList
           data={offers}

@@ -12,6 +12,7 @@ import {
 import { api } from '../api';
 import { colors } from '../theme';
 import AvailabilityBadge from '../components/AvailabilityBadge';
+import ErrorView from '../components/ErrorView';
 import useAndroidBack from '../useAndroidBack';
 import useCachedResource from '../useCachedResource';
 import { ScreenTitle } from '../components/Brand';
@@ -139,10 +140,8 @@ export default function LineupsScreen({ onOpenLineup, onStartWizard }) {
         )}
       </Pressable>
 
-      {error ? (
-        <View style={styles.center}>
-          <Text style={styles.error}>{error}</Text>
-        </View>
+      {error && !data ? (
+        <ErrorView message={error} onRetry={reload} onRefresh={reload} refreshing={refreshing} />
       ) : (
         <FlatList
           data={data ? data.leagues : []}
