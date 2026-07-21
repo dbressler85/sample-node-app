@@ -33,7 +33,7 @@ import { loadSession, clearSession } from './src/auth';
 import { loadDisplayFont } from './src/typography';
 import PressableScale from './src/components/PressableScale';
 import FieldBackdrop from './src/components/FieldBackdrop';
-import { NavPersonIcon, NavGoalPostIcon } from './src/components/NavIcons';
+import { NavHubIcon, NavPersonIcon, NavTradesIcon, NavWaiversIcon, NavLineupsIcon, NavGoalPostIcon } from './src/components/NavIcons';
 import { CelebrationHost } from './src/components/Celebrate';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import { colors } from './src/theme';
@@ -52,11 +52,11 @@ function androidNavClearance() {
 }
 
 const TABS = [
-  { key: 'home', label: 'Hub', icon: '⌂' },
+  { key: 'home', label: 'Hub', Icon: NavHubIcon },
   { key: 'players', label: 'Players', Icon: NavPersonIcon },
-  { key: 'trades', label: 'Trades', icon: '⇄' },
-  { key: 'waivers', label: 'Waivers', icon: '±' },
-  { key: 'lineups', label: 'Lineups', icon: '⚑' },
+  { key: 'trades', label: 'Trades', Icon: NavTradesIcon },
+  { key: 'waivers', label: 'Waivers', Icon: NavWaiversIcon },
+  { key: 'lineups', label: 'Lineups', Icon: NavLineupsIcon },
   { key: 'scores', label: 'Scores', Icon: NavGoalPostIcon },
 ];
 
@@ -444,11 +444,16 @@ function TabBar({ tab, onChange }) {
             hitSlop={6}
             dip={0.88}
           >
-            {t.Icon ? (
-              <View style={styles.tabIconSvg}><t.Icon size={20} color={active ? colors.accent : colors.textDim} /></View>
-            ) : (
-              <Text style={[styles.tabIcon, { color: active ? colors.accent : colors.textDim }]}>{t.icon}</Text>
-            )}
+            {/* Every icon sits in an identical fixed-height, centered box so the glyph tabs
+                (Hub/Trades/…) and the SVG tabs (Players/Scores) share one baseline — and the
+                labels below line up across all six. */}
+            <View style={styles.tabIconBox}>
+              {t.Icon ? (
+                <t.Icon size={20} color={active ? colors.accent : colors.textDim} />
+              ) : (
+                <Text style={[styles.tabIcon, { color: active ? colors.accent : colors.textDim }]}>{t.icon}</Text>
+              )}
+            </View>
             <Text style={[styles.tabLabel, { color: active ? colors.accent : colors.textDim }]}>{t.label}</Text>
           </PressableScale>
         );
@@ -475,7 +480,8 @@ const styles = StyleSheet.create({
   },
   tab: { flex: 1 },
   tabInner: { alignItems: 'center', paddingVertical: 2 },
-  tabIcon: { fontSize: 18, marginBottom: 2 },
-  tabIconSvg: { height: 20, justifyContent: 'center', marginBottom: 2 },
-  tabLabel: { fontSize: 10, fontWeight: '700' },
+  // Uniform icon box: same height for glyph and SVG tabs, centered, so labels align.
+  tabIconBox: { height: 24, alignItems: 'center', justifyContent: 'center', marginBottom: 3 },
+  tabIcon: { fontSize: 19, lineHeight: 22, includeFontPadding: false, textAlignVertical: 'center' },
+  tabLabel: { fontSize: 10, fontWeight: '700', includeFontPadding: false, textAlign: 'center' },
 });
