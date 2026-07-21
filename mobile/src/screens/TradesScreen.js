@@ -96,6 +96,24 @@ function personalAnalyze(receive, send) {
   return analyze(scale(receive), scale(send));
 }
 
+// Compact dynasty outlook for a team header ("Win-now window" -> "Win-now"; the rest are
+// already short).
+function shortOutlook(o) {
+  return o === 'Win-now window' ? 'Win-now' : o || null;
+}
+
+// A read on what a partner is likely to want, from their outlook + roster age — so the
+// analyzer nudges you toward the right kind of asset (picks/youth vs proven vets).
+function partnerTendency(partner) {
+  if (!partner) return null;
+  const nm = partner.name || 'They';
+  if (partner.outlook === 'Win-now window') return `${nm} is win-now — they value proven talent over picks.`;
+  if (partner.outlook === 'Rebuilding') return `${nm} is rebuilding — youth and picks appeal more than aging vets.`;
+  if (partner.avgAge != null && partner.avgAge <= 24.5) return `${nm} skews young (${partner.avgAge} avg) — older players may not appeal.`;
+  if (partner.avgAge != null && partner.avgAge >= 27.5) return `${nm} skews veteran (${partner.avgAge} avg) — likely chasing a title now.`;
+  return null;
+}
+
 export default function TradesScreen({ league, onBack, initialTab, seed, onOpenPlayer, onSent }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
@@ -159,6 +177,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
       them: constructionOf(receiveList, sendList, partner.needs, partner.surplus, 'they', partner.depth),
     };
   }, [partner, sendList, receiveList, data]);
+  const tendencyNote = partnerTendency(partner);
 
   function toggle(setFn, obj, asset) {
     setFn((cur) => {
@@ -345,12 +364,18 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
             <View style={styles.fitPanel}>
               <View style={styles.fitCol}>
                 <Text style={styles.fitTeam} numberOfLines={1}>You</Text>
+                {data.me && (data.me.outlook || data.me.avgAge != null) ? (
+                  <Text style={styles.fitMeta} numberOfLines={1}>{[shortOutlook(data.me.outlook), data.me.avgAge != null ? `${data.me.avgAge} yr` : null].filter(Boolean).join(' · ')}</Text>
+                ) : null}
                 <Text style={styles.fitLine}><Text style={styles.fitNeed}>NEED </Text>{posList(data.me && data.me.needs)}</Text>
                 <Text style={styles.fitLine}><Text style={styles.fitSurp}>SURPLUS </Text>{posList(data.me && data.me.surplus)}</Text>
               </View>
               <View style={styles.fitDiv} />
               <View style={styles.fitCol}>
                 <Text style={styles.fitTeam} numberOfLines={1}>{partner.name}</Text>
+                {partner.outlook || partner.avgAge != null ? (
+                  <Text style={styles.fitMeta} numberOfLines={1}>{[shortOutlook(partner.outlook), partner.avgAge != null ? `${partner.avgAge} yr` : null].filter(Boolean).join(' · ')}</Text>
+                ) : null}
                 <Text style={styles.fitLine}><Text style={styles.fitNeed}>NEED </Text>{posList(partner.needs)}</Text>
                 <Text style={styles.fitLine}><Text style={styles.fitSurp}>SURPLUS </Text>{posList(partner.surplus)}</Text>
               </View>
@@ -402,6 +427,13 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
               </Text>
             </View>
           ) : null}
+          {receiveList.length || sendList.length ? (
+            <View style={styles.recap}>
+              <Text style={styles.recapLine} numberOfLines={2}><Text style={styles.recapGet}>Get </Text>{receiveList.map((a) => a.name).join(', ') || '—'}</Text>
+              <Text style={styles.recapLine} numberOfLines={2}><Text style={styles.recapSend}>Send </Text>{sendList.map((a) => a.name).join(', ') || '—'}</Text>
+            </View>
+          ) : null}
+          {tendencyNote ? <Text style={styles.tendencyNote} numberOfLines={2}>ℹ {tendencyNote}</Text> : null}
           <View style={styles.previewRow}>
             <Text style={styles.previewText}>
               You get <Text style={styles.previewStrong}>{preview.acquireValue}</Text> · send <Text style={styles.previewStrong}>{preview.sendValue}</Text>
@@ -546,7 +578,8 @@ const styles = StyleSheet.create({
   fitPanel: { flexDirection: 'row', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 12, marginTop: 12 },
   fitCol: { flex: 1 },
   fitDiv: { width: StyleSheet.hairlineWidth, backgroundColor: colors.border, marginHorizontal: 12 },
-  fitTeam: { color: colors.text, fontSize: 13, fontWeight: '900', marginBottom: 6 },
+  fitTeam: { color: colors.text, fontSize: 13, fontWeight: '900', marginBottom: 2 },
+  fitMeta: { color: colors.gold, fontSize: 11, fontWeight: '800', marginBottom: 6 },
   fitLine: { color: colors.text, fontSize: 12, marginTop: 2 },
   fitNeed: { color: colors.bad, fontSize: 10, fontWeight: '800' },
   fitSurp: { color: colors.good, fontSize: 10, fontWeight: '800' },
@@ -595,6 +628,11 @@ const styles = StyleSheet.create({
   assetMeta: { color: colors.textDim, fontSize: 12, marginRight: 10 },
   assetValue: { color: colors.gold, fontSize: 14, fontWeight: '900', minWidth: 26, textAlign: 'right' },
   footer: { position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: colors.card, borderTopWidth: 1, borderTopColor: colors.border, padding: 16 },
+  recap: { marginBottom: 8, gap: 2 },
+  recapLine: { color: colors.textDim, fontSize: 12, lineHeight: 16 },
+  recapGet: { color: colors.good, fontWeight: '800' },
+  recapSend: { color: colors.accent, fontWeight: '800' },
+  tendencyNote: { color: colors.textDim, fontSize: 12, fontStyle: 'italic', marginBottom: 8 },
   previewRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   previewText: { color: colors.textDim, fontSize: 13 },
   previewStrong: { color: colors.text, fontWeight: '800' },
