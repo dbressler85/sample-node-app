@@ -29,6 +29,18 @@ const { createMemo } = require('../lib/memo');
 // your leagues can differ — those per-league numbers appear in cross-league).
 const GENERIC_SCORING = { ppr: 1, tePremium: 0, passTd: 4 };
 
+// Global value lens for the Players screen. Search/rankings default to the
+// neutral market (1QB, full PPR); the SF ↔ 1QB toggle lets you re-price and
+// re-sort the whole board through a superflex lens without opening a league.
+// Only numQbs varies here (PPR stays the dynasty-norm full PPR); returning
+// undefined keeps enrichment's neutral default snapshot.
+function lensFormat(format) {
+  const f = String(format || '').toLowerCase();
+  if (f === 'sf' || f === 'superflex' || f === '2qb') return { numQbs: 2, ppr: 1, tePpr: 1 };
+  if (f === '1qb' || f === 'single') return { numQbs: 1, ppr: 1, tePpr: 1 };
+  return undefined;
+}
+
 // Availability context (current week + injury/bye maps). Live now really fetches
 // these from MFL so search / rankings / profiles badge OUT/injured/bye players
 // instead of showing everyone as ACTIVE.
@@ -145,8 +157,8 @@ async function buildSets(cookie) {
   return { data, myRostered, mineBy, freeBy };
 }
 
-async function search(cookie, token, { q, position, status } = {}) {
-  const [byId, enr, ctx] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(undefined, cookie), ctxFor(cookie)]);
+async function search(cookie, token, { q, position, status, format } = {}) {
+  const [byId, enr, ctx] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(lensFormat(format), cookie), ctxFor(cookie)]);
   const ranks = computeRanks(byId, enr);
   const { myRostered, mineBy, freeBy } = await buildSets(cookie);
   const tags = playerTags.all(token);
@@ -166,11 +178,11 @@ async function search(cookie, token, { q, position, status } = {}) {
 
   light.sort((a, b) => b.value - a.value);
   const players2 = light.slice(0, 60).map((x) => annotate(x.p, byId, ranks, myRostered, mineBy, freeBy, enr, ctx, tags, watchSet));
-  return { total: light.length, players: players2 };
+  return { total: light.length, format: lensFormat(format) && lensFormat(format).numQbs === 2 ? 'sf' : '1qb', players: players2 };
 }
 
-async function rankings(cookie, token, { type = 'value', position } = {}) {
-  const [byId, enr, ctx] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(undefined, cookie), ctxFor(cookie)]);
+async function rankings(cookie, token, { type = 'value', position, format } = {}) {
+  const [byId, enr, ctx] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(lensFormat(format), cookie), ctxFor(cookie)]);
   const ranks = computeRanks(byId, enr);
   const { myRostered, mineBy, freeBy } = await buildSets(cookie);
 
@@ -210,7 +222,7 @@ async function rankings(cookie, token, { type = 'value', position } = {}) {
         ? 'No rookie/age data available right now.'
         : 'Dynasty values are unavailable right now — search and My Players still work.'
       : null;
-  return { type, position: position || null, players: list, note };
+  return { type, position: position || null, format: lensFormat(format) ? (lensFormat(format).numQbs === 2 ? 'sf' : '1qb') : '1qb', players: list, note };
 }
 
 function leagueProjection(playerId, position, leagueId) {

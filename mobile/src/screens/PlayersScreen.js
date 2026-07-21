@@ -46,6 +46,7 @@ export default function PlayersScreen({ onOpenPlayer }) {
   const [watch, setWatch] = useState(null);
   const [error, setError] = useState(null);
   const [pos, setPos] = useState(null); // position filter (null = All), applies to rankings/search/mine
+  const [format, setFormat] = useState('1qb'); // value lens: '1qb' | 'sf' — re-prices & resorts the board
   const [newsQuery, setNewsQuery] = useState(''); // in-tab News filter
   const [tagOverride, setTagOverride] = useState({}); // id -> 'target'|'avoid'|null (optimistic)
   const [watchOverride, setWatchOverride] = useState({}); // id -> bool (optimistic)
@@ -60,23 +61,23 @@ export default function PlayersScreen({ onOpenPlayer }) {
     }
     let alive = true;
     const timer = setTimeout(() => {
-      api.playerSearch(q, { position: pos }).then((r) => alive && setSearchRes(r)).catch((e) => alive && setError(e.message));
+      api.playerSearch(q, { position: pos, format }).then((r) => alive && setSearchRes(r)).catch((e) => alive && setError(e.message));
     }, 300);
     return () => {
       alive = false;
       clearTimeout(timer);
     };
-  }, [query, pos]);
+  }, [query, pos, format]);
 
   const loadRankings = useCallback(async () => {
     try {
-      const res = await api.playerRankings(rankType, pos);
+      const res = await api.playerRankings(rankType, pos, format);
       setRankings(res);
-      setValue(`players:rankings:${rankType}:${pos || 'all'}`, res);
+      setValue(`players:rankings:${rankType}:${pos || 'all'}:${format}`, res);
     } catch (e) {
       setError(e.message);
     }
-  }, [rankType, pos]);
+  }, [rankType, pos, format]);
 
   // Rankings tab uses stale-while-revalidate: paint the cached list for this rank
   // type instantly, then refresh. (Search is transient; My Players / News / Watch
@@ -85,12 +86,12 @@ export default function PlayersScreen({ onOpenPlayer }) {
     if (tab !== 'rankings') return undefined;
     let alive = true;
     setRankings(null);
-    getValue(`players:rankings:${rankType}:${pos || 'all'}`).then((cached) => {
+    getValue(`players:rankings:${rankType}:${pos || 'all'}:${format}`).then((cached) => {
       if (alive && cached != null) setRankings(cached);
       if (alive) loadRankings();
     });
     return () => { alive = false; };
-  }, [tab, rankType, pos, loadRankings]);
+  }, [tab, rankType, pos, format, loadRankings]);
 
   useEffect(() => {
     if (tab === 'mine' && !mine) api.exposure().then(setMine).catch((e) => setError(e.message));
@@ -149,6 +150,7 @@ export default function PlayersScreen({ onOpenPlayer }) {
       {searching ? (
         <>
           <PosFilter pos={pos} setPos={setPos} />
+          <ValueLens format={format} setFormat={setFormat} />
           {!searchRes ? (
             <Center><ActivityIndicator color={colors.accent} /></Center>
           ) : (
@@ -182,6 +184,7 @@ export default function PlayersScreen({ onOpenPlayer }) {
                 ))}
               </View>
               <PosFilter pos={pos} setPos={setPos} />
+              <ValueLens format={format} setFormat={setFormat} />
               <FlatList
                 data={rankings ? rankings.players : []}
                 keyExtractor={(p) => p.id}
@@ -328,6 +331,23 @@ function PosFilter({ pos, setPos }) {
   );
 }
 
+// Value lens: re-price (and, where value drives order, re-sort) the whole board
+// through a 1QB or Superflex market. QBs are worth far more in superflex.
+function ValueLens({ format, setFormat }) {
+  return (
+    <View style={styles.lensRow}>
+      <Text style={styles.lensLabel}>Value lens</Text>
+      <View style={styles.lensToggle}>
+        {[['1qb', '1QB'], ['sf', 'Superflex']].map(([k, label]) => (
+          <Pressable key={k} style={[styles.lensSeg, format === k && styles.lensSegActive]} onPress={() => setFormat(k)}>
+            <Text style={[styles.lensSegText, format === k && styles.lensSegTextActive]}>{label}</Text>
+          </Pressable>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 function WatchRow({ p, onPress }) {
   const posColor = positionColors[p.position] || colors.textDim;
   const s = p.summary;
@@ -394,6 +414,13 @@ const styles = StyleSheet.create({
   posChip: { backgroundColor: colors.card, borderRadius: 8, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 13, paddingVertical: 5 },
   posChipActive: { backgroundColor: colors.cardAlt, borderColor: colors.accent },
   posChipText: { color: colors.textDim, fontSize: 12, fontWeight: '800' },
+  lensRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', paddingHorizontal: 16, gap: 10, paddingBottom: 6, paddingTop: 2 },
+  lensLabel: { color: colors.textDim, fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
+  lensToggle: { flexDirection: 'row', backgroundColor: colors.card, borderRadius: 8, borderWidth: 1, borderColor: colors.border, padding: 2 },
+  lensSeg: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 6, borderWidth: 1, borderColor: 'transparent' },
+  lensSegActive: { backgroundColor: colors.gold + '22', borderColor: colors.gold },
+  lensSegText: { color: colors.textDim, fontSize: 12, fontWeight: '800' },
+  lensSegTextActive: { color: colors.gold },
   rightCol: { alignItems: 'flex-end', marginLeft: 10, gap: 7 },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   newsSearchWrap: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, marginBottom: 6 },

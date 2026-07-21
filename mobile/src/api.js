@@ -94,16 +94,18 @@ export const api = {
     return request(`/api/leagues/${leagueId}/waivers${qs ? `?${qs}` : ''}`);
   },
   // Player hub (M4)
-  playerSearch: (q, { position, status } = {}) => {
+  playerSearch: (q, { position, status, format } = {}) => {
     const p = new URLSearchParams();
     if (q) p.set('q', q);
     if (position) p.set('position', position);
     if (status) p.set('status', status);
+    if (format) p.set('format', format);
     return request(`/api/players/search?${p.toString()}`);
   },
-  playerRankings: (type = 'value', position) => {
+  playerRankings: (type = 'value', position, format) => {
     const p = new URLSearchParams({ type });
     if (position) p.set('position', position);
+    if (format) p.set('format', format);
     return request(`/api/players/rankings?${p.toString()}`);
   },
   playerProfile: (id) => request(`/api/players/${id}`),
