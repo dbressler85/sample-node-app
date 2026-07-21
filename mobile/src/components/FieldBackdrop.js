@@ -1,6 +1,6 @@
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
-import Svg, { Defs, LinearGradient, RadialGradient, Stop, Rect, Line, G, Path, Circle, Text as SvgText } from 'react-native-svg';
+import { View, Image, StyleSheet } from 'react-native';
+import Svg, { Defs, LinearGradient, RadialGradient, Stop, Rect, Line, G } from 'react-native-svg';
 
 // The app-wide backdrop: a championship gold-to-navy gradient, faint gridiron yard-lines,
 // and a large, ghosted crest watermark. Two intensities share one look:
@@ -48,20 +48,25 @@ export default function FieldBackdrop({ hero = false, watermark = true }) {
         </G>
       </Svg>
 
-      {/* Ghosted crest watermark — aspect-preserved and centered so it never squishes.
-          The viewBox pads the 200×220 crest into a larger frame so the mark reads small. */}
+      {/* Ghosted crest watermark — the REAL app crest, not a hand-drawn stand-in. It's
+          the transparent adaptive-icon, so the navy shield body melts into the navy field
+          and only the gold rim, crown, and DC monogram ghost through. Sits high, behind
+          the gold glow, aspect-preserved so it never squishes. */}
       {watermark ? (
-        <Svg style={StyleSheet.absoluteFill} viewBox="-110 -80 420 480" preserveAspectRatio="xMidYMid meet">
-          <G opacity={0.055} stroke="#F3C14A" strokeWidth="2.5" fill="none" strokeLinejoin="round">
-            <Path d="M100 14 C66 28 44 32 28 34 L28 112 C28 164 62 196 100 210 C138 196 172 164 172 112 L172 34 C156 32 134 28 100 14 Z" />
-            <Circle cx="100" cy="132" r="38" />
-            {/* coronet tipped askew, matching the crest */}
-            <Path d="M64 96 L74 72 L88 86 L100 64 L112 86 L126 72 L136 96 Z" transform="rotate(-8 100 98)" />
-            {/* DC monogram — the letters are part of the mark, so the watermark carries them too */}
-            <SvgText x="100" y="146" fill="#F3C14A" stroke="none" fontSize="40" fontWeight="bold" textAnchor="middle">DC</SvgText>
-          </G>
-        </Svg>
+        <View style={styles.wmWrap}>
+          <Image
+            source={require('../../assets/adaptive-icon.png')}
+            style={styles.wmImg}
+            resizeMode="contain"
+            fadeDuration={0}
+          />
+        </View>
       ) : null}
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  wmWrap: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'flex-start', paddingTop: '14%' },
+  wmImg: { width: '76%', aspectRatio: 1, opacity: 0.06 },
+});

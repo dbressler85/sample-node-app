@@ -77,15 +77,39 @@ export default function App() {
   const leave = useRef(new Animated.Value(0)).current;
   const drop = useRef(new Animated.Value(1)).current;
 
+  // Directional tab slide: switching to a tab further right in the bar slides the new
+  // content in from the right; further left, from the left. Two plain drivers (offset +
+  // fade) that rest at the identity (0 / 1), so any render that doesn't switch tabs is a
+  // no-op and the content can never strand off-screen. Native-driven, purely cosmetic.
+  const tabSlide = useRef(new Animated.Value(0)).current;
+  const tabFade = useRef(new Animated.Value(1)).current;
+  const prevTabRef = useRef(tab);
+  useEffect(() => {
+    const order = TABS.map((t) => t.key);
+    const from = order.indexOf(prevTabRef.current);
+    const to = order.indexOf(tab);
+    prevTabRef.current = tab;
+    if (from === -1 || to === -1 || from === to) return;
+    const dir = to > from ? 1 : -1; // right in the bar → enter from the right
+    tabSlide.setValue(dir * 30);
+    tabFade.setValue(0.4);
+    Animated.parallel([
+      Animated.timing(tabSlide, { toValue: 0, duration: 230, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(tabFade, { toValue: 1, duration: 230, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+    ]).start();
+  }, [tab, tabSlide, tabFade]);
+
   function handleLoggedIn(info) {
     if (info && typeof info.demoMode === 'boolean') setDemoMode(info.demoMode);
     // Beat 1: login accelerates up and out — slower and further, so it clearly departs.
-    Animated.timing(leave, { toValue: 1, duration: 600, easing: Easing.in(Easing.cubic), useNativeDriver: true }).start(() => {
+    Animated.timing(leave, { toValue: 1, duration: 760, easing: Easing.in(Easing.cubic), useNativeDriver: true }).start(() => {
       // Beat 2: reveal the app lifted above its resting spot, then let it fall in and settle.
+      // A weightier fall: lower tension so it descends slower with real momentum, higher
+      // friction so it lands firm instead of bouncing — a heavy object settling, not a ball.
       drop.setValue(0);
       setAuthed(true);
       leave.setValue(0);
-      Animated.spring(drop, { toValue: 1, useNativeDriver: true, friction: 6.5, tension: 55 }).start();
+      Animated.spring(drop, { toValue: 1, useNativeDriver: true, friction: 8, tension: 38 }).start();
     });
   }
 
@@ -235,8 +259,8 @@ export default function App() {
       const leaveStyle = {
         opacity: leave.interpolate({ inputRange: [0, 0.7, 1], outputRange: [1, 0.3, 0] }),
         transform: [
-          { translateY: leave.interpolate({ inputRange: [0, 1], outputRange: [0, -130] }) },
-          { scale: leave.interpolate({ inputRange: [0, 1], outputRange: [1, 0.9] }) },
+          { translateY: leave.interpolate({ inputRange: [0, 1], outputRange: [0, -160] }) },
+          { scale: leave.interpolate({ inputRange: [0, 1], outputRange: [1, 0.88] }) },
         ],
       };
       return (
@@ -333,7 +357,9 @@ export default function App() {
 
     return (
       <View style={styles.flex}>
-        <View style={styles.flex}>{renderTab()}</View>
+        <Animated.View style={[styles.flex, { opacity: tabFade, transform: [{ translateX: tabSlide }] }]}>
+          {renderTab()}
+        </Animated.View>
         <TabBar tab={tab} onChange={setTab} />
       </View>
     );
@@ -345,8 +371,8 @@ export default function App() {
   const dropStyle = {
     opacity: drop.interpolate({ inputRange: [0, 1], outputRange: [0, 1] }),
     transform: [
-      { translateY: drop.interpolate({ inputRange: [0, 1], outputRange: [-90, 0] }) },
-      { scale: drop.interpolate({ inputRange: [0, 1], outputRange: [1.06, 1] }) },
+      { translateY: drop.interpolate({ inputRange: [0, 1], outputRange: [-124, 0] }) },
+      { scale: drop.interpolate({ inputRange: [0, 1], outputRange: [1.09, 1] }) },
     ],
   };
 
