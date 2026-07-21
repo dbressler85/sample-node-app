@@ -42,6 +42,7 @@ const TESTS = [
   'tradebait-test',
   'trade-fit-test',
   'trade-counter-test',
+  'trade-current-picks-test',
   'format-value-test',
   'trade-construction-test',
   'trade-hole-test',

@@ -15,6 +15,7 @@ const playersLib = require('../lib/players');
 const picksLib = require('../lib/picks');
 const leaguesService = require('./leagues');
 const rosterService = require('./roster');
+const draftService = require('./draft');
 const tradeStore = require('../store/trades');
 const playerTags = require('../store/playerTags');
 const baitStore = require('../store/tradebait');
@@ -378,13 +379,19 @@ async function getLeague(cookie, token, leagueId) {
   // picks are selectable assets in the builder (and a counter can ask for one).
   const picksMap = await picksLib.franchisePicksMap(cookie, league);
   const picksFor = (fid) => (picksMap[String(fid)] || []).map((p) => asset(p.token, byId, enr));
+  // futureDraftPicks only covers FUTURE seasons — the current-year (upcoming-draft) picks live
+  // in the draft order, so pull those too or they'd be un-tradeable in the builder/counter.
+  const upcoming = await draftService.upcomingPicksByFranchise(cookie, token, league).catch(() => ({}));
+  const upcomingFor = (fid) => (upcoming[String(fid)] || []).map((p) => asset(p.token, byId, enr));
 
   const myPlayers = [...roster.starters, ...roster.bench]
     .map((p) => ({ id: p.id, name: p.name, position: p.position, team: p.team, value: enr.value(p.id), tag: playerTags.get(token, p.id), bait: myBait.has(String(p.id)) }))
     .sort((a, b) => (b.value || 0) - (a.value || 0));
   // Picks carry the real MFL trade token as their id, so a proposal can include them.
   // In demo the map is empty, so fall back to the demo picks fixture for my side.
-  const myPicks = config.demoMode ? (await picksLib.franchisePicks(cookie, league)).map((p) => asset(p.token, byId, enr)) : picksFor(league.franchiseId);
+  const myFuturePicks = config.demoMode ? (await picksLib.franchisePicks(cookie, league)).map((p) => asset(p.token, byId, enr)) : picksFor(league.franchiseId);
+  // Current-year picks first (the draft that hasn't happened), then future-season picks.
+  const myPicks = [...upcomingFor(league.franchiseId), ...myFuturePicks];
 
   const partners = rawPartners.map((pt) => {
     const bait = baitMap.get(String(pt.franchiseId)) || new Set();
@@ -400,8 +407,8 @@ async function getLeague(cookie, token, leagueId) {
       needs: (ns[String(pt.franchiseId)] || {}).needs || [],
       surplus: (ns[String(pt.franchiseId)] || {}).surplus || [],
       depth: (ns[String(pt.franchiseId)] || {}).depth || {},
-      // Roster players then their draft picks — the builder sorts picks last anyway.
-      players: [...rosterPlayers, ...picksFor(pt.franchiseId)],
+      // Roster players then their draft picks (current-year + future) — the builder sorts picks last.
+      players: [...rosterPlayers, ...upcomingFor(pt.franchiseId), ...picksFor(pt.franchiseId)],
     };
   });
 

@@ -307,4 +307,43 @@ function throwBad(msg) {
   throw err;
 }
 
-module.exports = { getOverview, getLeague, makePick };
+// Current-year (upcoming-draft) picks each franchise still holds, as tradeable assets — the
+// picks for THIS season's draft that hasn't happened yet. They live in the draft order, not
+// MFL's futureDraftPicks export, which is why the trade builder was missing them. Tokenized
+// as DP_<round-1>_<pick-1> (both zero-based) to match MFL's trade API and picksLib.labelForToken.
+// Live uses MFL's own per-slot round/pick/franchise (accurate even after pick trades); demo
+// derives from the seeded draft order. Returns { franchiseId: [{ token, label, round, pick }] }.
+async function upcomingPicksByFranchise(cookie, token, league) {
+  const group = (slots) => {
+    const byFr = {};
+    for (const s of slots) {
+      if (!s.round || !s.pick || !s.franchiseId) continue;
+      const tok = `DP_${s.round - 1}_${s.pick - 1}`;
+      const label = `${config.season} ${s.round}.${String(s.pick).padStart(2, '0')}`;
+      (byFr[String(s.franchiseId)] || (byFr[String(s.franchiseId)] = [])).push({ token: tok, label, round: s.round, pick: s.pick, year: config.season });
+    }
+    return byFr;
+  };
+
+  if (config.demoMode) {
+    const draft = await loadDraft(cookie, token, league).catch(() => null);
+    if (!draft) return {};
+    const open = buildSlots(draft).filter((s) => !s.playerId).map((s) => ({ round: s.round, pick: s.pick, franchiseId: s.franchiseId }));
+    return group(open);
+  }
+  // Live: read the draft grid; unpicked slots (empty player) carry their current owner.
+  try {
+    const res = await mfl.exportRequest('draftResults', { host: league.host, cookie, L: league.leagueId });
+    const units = mfl.toArray(res && res.draftResults && res.draftResults.draftUnit);
+    const unit = units.find((u) => String(u.unit || 'LEAGUE') === 'LEAGUE') || units[0];
+    if (!unit) return {};
+    const open = mfl.toArray(unit.draftPick)
+      .filter((p) => (!p.player || p.player === '') && p.round && p.pick && p.franchise)
+      .map((p) => ({ round: Number(p.round), pick: Number(p.pick), franchiseId: String(p.franchise) }));
+    return group(open);
+  } catch (e) {
+    return {};
+  }
+}
+
+module.exports = { getOverview, getLeague, makePick, upcomingPicksByFranchise };
