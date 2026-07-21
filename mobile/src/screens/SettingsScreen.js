@@ -49,7 +49,7 @@ export default function SettingsScreen({ onBack, onOpenHelp, onLogout }) {
   return (
     <View style={styles.container}>
       <View style={styles.topbar}>
-        <Pressable onPress={onBack} hitSlop={10}><Text style={styles.back}>‹ Home</Text></Pressable>
+        <Pressable onPress={onBack} hitSlop={10}><Text style={styles.back}>‹ Hub</Text></Pressable>
         <Text style={styles.title}>Settings</Text>
         <View style={{ width: 60 }} />
       </View>

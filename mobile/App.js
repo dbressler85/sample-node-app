@@ -33,6 +33,7 @@ import { loadSession, clearSession } from './src/auth';
 import { loadDisplayFont } from './src/typography';
 import PressableScale from './src/components/PressableScale';
 import FieldBackdrop from './src/components/FieldBackdrop';
+import { NavPersonIcon, NavGoalPostIcon } from './src/components/NavIcons';
 import { CelebrationHost } from './src/components/Celebrate';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import { colors } from './src/theme';
@@ -51,12 +52,12 @@ function androidNavClearance() {
 }
 
 const TABS = [
-  { key: 'home', label: 'Home', icon: '⌂' },
-  { key: 'scores', label: 'Scores', icon: '◉' },
-  { key: 'lineups', label: 'Lineups', icon: '⚑' },
-  { key: 'waivers', label: 'Waivers', icon: '±' },
+  { key: 'home', label: 'Hub', icon: '⌂' },
+  { key: 'players', label: 'Players', Icon: NavPersonIcon },
   { key: 'trades', label: 'Trades', icon: '⇄' },
-  { key: 'players', label: 'Players', icon: '◐' },
+  { key: 'waivers', label: 'Waivers', icon: '±' },
+  { key: 'lineups', label: 'Lineups', icon: '⚑' },
+  { key: 'scores', label: 'Scores', Icon: NavGoalPostIcon },
 ];
 
 export default function App() {
@@ -438,7 +439,11 @@ function TabBar({ tab, onChange }) {
             hitSlop={6}
             dip={0.88}
           >
-            <Text style={[styles.tabIcon, { color: active ? colors.accent : colors.textDim }]}>{t.icon}</Text>
+            {t.Icon ? (
+              <View style={styles.tabIconSvg}><t.Icon size={20} color={active ? colors.accent : colors.textDim} /></View>
+            ) : (
+              <Text style={[styles.tabIcon, { color: active ? colors.accent : colors.textDim }]}>{t.icon}</Text>
+            )}
             <Text style={[styles.tabLabel, { color: active ? colors.accent : colors.textDim }]}>{t.label}</Text>
           </PressableScale>
         );
@@ -466,5 +471,6 @@ const styles = StyleSheet.create({
   tab: { flex: 1 },
   tabInner: { alignItems: 'center', paddingVertical: 2 },
   tabIcon: { fontSize: 18, marginBottom: 2 },
+  tabIconSvg: { height: 20, justifyContent: 'center', marginBottom: 2 },
   tabLabel: { fontSize: 10, fontWeight: '700' },
 });

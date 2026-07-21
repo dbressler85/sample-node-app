@@ -147,7 +147,7 @@ export default function TradeInboxScreen({ onBack, onOpenLeague, onProposeInLeag
       <View style={styles.topbar}>
         {onBack ? (
           <Pressable onPress={onBack} hitSlop={10}>
-            <Text style={styles.back}>‹ Home</Text>
+            <Text style={styles.back}>‹ Hub</Text>
           </Pressable>
         ) : (
           <View style={{ width: 54 }} />

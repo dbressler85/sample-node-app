@@ -65,7 +65,7 @@ export default function DraftHubScreen({ onBack, onOpenDraft }) {
     <View style={styles.container}>
       <View style={styles.topbar}>
         <Pressable onPress={onBack} hitSlop={10}>
-          <Text style={styles.back}>‹ Home</Text>
+          <Text style={styles.back}>‹ Hub</Text>
         </Pressable>
         <Text style={styles.title}>Draft Hub</Text>
         <View style={{ width: 54 }} />
