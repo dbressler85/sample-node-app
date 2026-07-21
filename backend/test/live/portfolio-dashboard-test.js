@@ -61,7 +61,11 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   assert(d.atRisk.totalValue === 75 && d.atRisk.pct === 43, `total at risk 75 / 43%, got ${d.atRisk.totalValue}/${d.atRisk.pct}`);
   assert(d.atRisk.top[0].value === 50, `biggest risk first (aging RB, 50), got ${d.atRisk.top[0].value}`);
   assert(!d.atRisk.top.some((p) => p.id === '1'), 'healthy young star is not flagged at risk');
-  console.log('✓ value-at-risk: hurt starter + aging core classified; young star excluded');
+  // At-risk rows carry the same cross-league Shop payload as Top holdings, so an aging/hurt
+  // asset can be put on the block straight from here.
+  assert(Array.isArray(d.atRisk.top[0].leagueIds) && d.atRisk.top[0].leagueIds.length === 1, `at-risk row carries leagueIds, got ${JSON.stringify(d.atRisk.top[0].leagueIds)}`);
+  assert(d.atRisk.top[0].leagues === 1 && d.atRisk.top[0].baited === false, `at-risk row carries leagues + baited, got leagues=${d.atRisk.top[0].leagues} baited=${d.atRisk.top[0].baited}`);
+  console.log('✓ value-at-risk: hurt starter + aging core classified; young star excluded; rows shoppable');
 
   // Age curve: #1 (24) + #3 (25) -> 24–25 band value 125; #2 (30) -> 30+ band 50.
   const band2425 = d.ageCurve.find((b) => b.band === '24–25');
@@ -82,7 +86,11 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   // and whether it's already on the block anywhere.
   assert(Array.isArray(d.holdings[0].leagueIds) && d.holdings[0].leagueIds.length === 1, `holding carries its leagueIds, got ${JSON.stringify(d.holdings[0].leagueIds)}`);
   assert(d.holdings[0].baited === false, 'a not-yet-shopped holding reports baited=false');
-  console.log('✓ top holdings aggregated with exposure + portfolio share + leagueIds/baited');
+  // Relative size: anchored to the biggest holding (top = 100) so exposures stay comparable at
+  // any league count. Values 100 / 50 / 25 → rel 100 / 50 / 25.
+  assert(d.holdings[0].rel === 100, `top holding rel = 100, got ${d.holdings[0].rel}`);
+  assert(d.holdings[1].rel === 50 && d.holdings[2].rel === 25, `holdings sized vs biggest (50/25), got ${d.holdings[1].rel}/${d.holdings[2].rel}`);
+  console.log('✓ top holdings aggregated with exposure + share + rel-to-biggest + leagueIds/baited');
 
   // Allocation by position: WR 100+25=125 (71%), RB 50 (29%).
   const wr = d.allocation.find((a) => a.position === 'WR');

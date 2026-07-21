@@ -212,25 +212,34 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
                 <Pressable onPress={() => setPosFilter(null)} hitSlop={8}><Text style={styles.clearFilter}>Clear ✕</Text></Pressable>
               ) : null}
             </View>
-            {/* Concentration insight — the multi-league owner's real risk: how much of the
-                whole portfolio rides on your single biggest bet. */}
-            {!posFilter && d.holdings[0] ? (
-              <View style={[styles.betBanner, d.holdings[0].pct >= 8 && styles.betBannerHot]}>
-                <Text style={styles.betLabel}>BIGGEST BET</Text>
-                <Text style={styles.betText} numberOfLines={2}>
-                  <Text style={{ fontWeight: '900', color: colors.text }}>{d.holdings[0].name.split(',')[0]}</Text> is{' '}
-                  <Text style={{ fontWeight: '900', color: d.holdings[0].pct >= 8 ? colors.warn : colors.gold }}>{d.holdings[0].pct}%</Text> of your portfolio
-                  {d.holdings[0].leagues > 1 ? ` across ${d.holdings[0].leagues} leagues` : ''}.
-                  {d.holdings[0].pct >= 8 ? ' A lot rides on him — one injury moves your whole book.' : ''}
-                </Text>
-              </View>
-            ) : null}
+            {/* Concentration insight — the multi-league owner's real risk: how far your single
+                biggest bet towers over the rest of your book. Framed against your #2 holding so
+                it stays meaningful at any league count (share-of-whole-portfolio does not). */}
+            {!posFilter && d.holdings[0] ? (() => {
+              const h0 = d.holdings[0];
+              const h1 = d.holdings[1];
+              const mult = h1 && h1.value > 0 ? h0.value / h1.value : null;
+              const hot = mult != null && mult >= 1.5; // top is 50%+ bigger than your next-largest
+              return (
+                <View style={[styles.betBanner, hot && styles.betBannerHot]}>
+                  <Text style={styles.betLabel}>BIGGEST BET</Text>
+                  <Text style={styles.betText} numberOfLines={2}>
+                    <Text style={{ fontWeight: '900', color: colors.text }}>{h0.name.split(',')[0]}</Text> is your largest position
+                    {h0.leagues > 1 ? ` across ${h0.leagues} leagues` : ''} —{' '}
+                    <Text style={{ fontWeight: '900', color: hot ? colors.warn : colors.gold }}>
+                      {mult != null ? `${mult.toFixed(1)}× your next-largest` : 'your top single exposure'}
+                    </Text>.
+                    {hot ? ' A lot rides on him — one injury swings your whole book.' : ''}
+                  </Text>
+                </View>
+              );
+            })() : null}
             {/* Column key so the two right-hand numbers read clearly. */}
             <View style={styles.holdKeyRow}>
               <Text style={styles.holdKeyName}>Player · leagues held</Text>
               <View style={styles.holdRight}>
                 <Text style={styles.holdKeyVal}>value</Text>
-                <Text style={styles.holdKeyPct}>% of total</Text>
+                <Text style={styles.holdKeyPct}>vs. biggest</Text>
               </View>
             </View>
             {(posFilter ? d.holdings.filter((h) => h.position === posFilter) : d.holdings).map((h) => {
@@ -253,7 +262,7 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
                     </View>
                     <View style={styles.holdRight}>
                       <Text style={styles.holdVal}>{h.value.toLocaleString()}</Text>
-                      <Text style={styles.holdPct}>{h.pct}%</Text>
+                      <Text style={styles.holdPct}>{h.rel != null ? h.rel : h.pct}%</Text>
                     </View>
                   </Pressable>
                   <Pressable
@@ -268,7 +277,7 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
               );
             })}
             <Text style={styles.hint}>
-              <Text style={{ color: colors.gold, fontWeight: '900' }}>Value</Text> = each player’s value summed across every league you roster him in (your real exposure); <Text style={{ fontWeight: '900' }}>% of total</Text> = his share of your whole portfolio. <Text style={{ fontWeight: '900' }}>⇄ Shop</Text> puts him on the block in every league you hold him.
+              <Text style={{ color: colors.gold, fontWeight: '900' }}>Value</Text> = each player’s value summed across every league you roster him in (your real exposure); <Text style={{ fontWeight: '900' }}>vs. biggest</Text> = his size next to your largest holding (your top bet = 100%), so exposures compare at a glance. <Text style={{ fontWeight: '900' }}>⇄ Shop</Text> puts him on the block in every league you hold him.
             </Text>
           </View>
         ) : null}
@@ -285,18 +294,34 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
           </View>
           {risk.top.length ? (
             <View style={styles.topList}>
-              {risk.top.map((p, i) => (
-                <Pressable key={`${p.leagueId}-${p.id}-${i}`} style={({ pressed }) => [styles.riskRow, pressed && { opacity: 0.7 }]} onPress={() => onOpenPlayer && onOpenPlayer(p.id, { id: p.id, name: p.name, position: p.position, team: p.team, value: p.value })}>
-                  <View style={[styles.posBadge, { borderColor: positionColors[p.position] || colors.textDim }]}>
-                    <Text style={[styles.pos, { color: positionColors[p.position] || colors.textDim }]}>{p.position}</Text>
+              {risk.top.map((p, i) => {
+                const baited = resolveBaited(p);
+                return (
+                  <View key={`${p.leagueId}-${p.id}-${i}`} style={styles.riskRow}>
+                    <Pressable
+                      style={({ pressed }) => [styles.holdIdentity, pressed && { opacity: 0.7 }]}
+                      onPress={() => onOpenPlayer && onOpenPlayer(p.id, { id: p.id, name: p.name, position: p.position, team: p.team, value: p.value })}
+                    >
+                      <View style={[styles.posBadge, { borderColor: positionColors[p.position] || colors.textDim }]}>
+                        <Text style={[styles.pos, { color: positionColors[p.position] || colors.textDim }]}>{p.position}</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.riskName} numberOfLines={1}>{p.name}</Text>
+                        <Text style={styles.riskSub} numberOfLines={1}>{p.reason} · {p.leagueName}</Text>
+                      </View>
+                      <Text style={styles.riskVal}>{p.value}</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => toggleShop(p)}
+                      hitSlop={6}
+                      style={[styles.shop, baited && styles.shopOn]}
+                      accessibilityLabel={baited ? `Stop shopping ${p.name}` : `Shop ${p.name} in all ${p.leagues || 1} leagues`}
+                    >
+                      <Text style={[styles.shopTxt, baited && styles.shopTxtOn]}>{baited ? '⇄ Shopping' : '⇄ Shop'}</Text>
+                    </Pressable>
                   </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.riskName} numberOfLines={1}>{p.name}</Text>
-                    <Text style={styles.riskSub} numberOfLines={1}>{p.reason} · {p.leagueName}</Text>
-                  </View>
-                  <Text style={styles.riskVal}>{p.value}</Text>
-                </Pressable>
-              ))}
+                );
+              })}
             </View>
           ) : (
             <Text style={styles.clear}>Nothing at risk — healthy and young across the board.</Text>

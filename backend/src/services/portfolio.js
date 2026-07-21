@@ -355,7 +355,13 @@ async function getDashboard(cookie, token) {
   injured.sort(bySizeDesc);
   aging.sort(bySizeDesc);
   // Top single at-risk holdings (dedupe by name+league already distinct), biggest first.
-  const top = [...injured, ...aging].sort(bySizeDesc).slice(0, 8);
+  // Attach each player's full league set + shopping state so the at-risk rows can drive the
+  // same cross-league "Shop" toggle as Top holdings (shop him everywhere you roster him).
+  const top = [...injured, ...aging].sort(bySizeDesc).slice(0, 8).map((p) => {
+    const h = holdMap.get(p.id);
+    const leagueIds = h ? h.leagueIds : [p.leagueId];
+    return { ...p, leagueIds, leagues: leagueIds.length, baited: leagueIds.some((lid) => tradebaitStore.has(token, lid, p.id)) };
+  });
   byLeague.sort((a, b) => (b.value || 0) - (a.value || 0));
 
   // Top holdings: your biggest positions by aggregate value across all leagues, with exposure
@@ -371,6 +377,12 @@ async function getDashboard(cookie, token) {
       // Already shopping him anywhere? Drives the portfolio "Shop" toggle's state.
       baited: h.leagueIds.some((lid) => tradebaitStore.has(token, lid, h.id)),
     }));
+  // Relative size, anchored to your biggest holding (top = 100). Share-of-the-whole-portfolio
+  // collapses to a flat ~1-2% for everyone once you have many leagues (the total dwarfs any one
+  // player), so it can't rank exposures; sizing each holding against your largest one stays
+  // meaningful at any league count.
+  const topHoldValue = holdings.length ? holdings[0].value : 0;
+  for (const h of holdings) h.rel = topHoldValue > 0 ? Math.round((h.value / topHoldValue) * 100) : 0;
 
   // Allocation by position — the "sectors" of the portfolio.
   const allocation = [...allocMap.entries()]
