@@ -28,19 +28,19 @@ router.post('/players/:id/tag', (req, res, next) => {
   }
 });
 
-// GET /api/players/search?q=&position=&status=  (status: mine|free|available)
+// GET /api/players/search?q=&position=&status=&format=  (status: mine|free|available; format: sf|1qb)
 router.get('/players/search', async (req, res, next) => {
   try {
-    res.json(await hub.search(req.mflCookie, req.token, { q: req.query.q, position: req.query.position, status: req.query.status }));
+    res.json(await hub.search(req.mflCookie, req.token, { q: req.query.q, position: req.query.position, status: req.query.status, format: req.query.format }));
   } catch (err) {
     next(err);
   }
 });
 
-// GET /api/players/rankings?type=value|position|trending|rookies&position=
+// GET /api/players/rankings?type=value|position|trending|rookies&position=&format=sf|1qb
 router.get('/players/rankings', async (req, res, next) => {
   try {
-    res.json(await hub.rankings(req.mflCookie, req.token, { type: req.query.type, position: req.query.position }));
+    res.json(await hub.rankings(req.mflCookie, req.token, { type: req.query.type, position: req.query.position, format: req.query.format }));
   } catch (err) {
     next(err);
   }
