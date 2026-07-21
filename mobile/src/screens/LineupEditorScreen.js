@@ -4,7 +4,7 @@ import { api } from '../api';
 import { colors } from '../theme';
 import SlotEditor from '../components/SlotEditor';
 
-export default function LineupEditorScreen({ league, onBack }) {
+export default function LineupEditorScreen({ league, onBack, onOpenWaivers }) {
   const [detail, setDetail] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -44,6 +44,15 @@ export default function LineupEditorScreen({ league, onBack }) {
   const dirty = useMemo(() => {
     if (!detail) return false;
     return detail.slots.some((s, i) => (s.current ? s.current.id : null) !== assignments[i]);
+  }, [detail, assignments]);
+
+  // Empty starting slots — the holes a pickup fills. Each carries its eligible positions so
+  // "Fill on waivers" can deep-link the board filtered to that position.
+  const emptySlots = useMemo(() => {
+    if (!detail) return [];
+    return detail.slots
+      .map((s, i) => ({ name: s.name, eligible: s.eligible || [], empty: !assignments[i] }))
+      .filter((s) => s.empty);
   }, [detail, assignments]);
 
   function optimize() {
@@ -123,6 +132,25 @@ export default function LineupEditorScreen({ league, onBack }) {
         ) : null}
       </View>
 
+      {onOpenWaivers && emptySlots.length ? (
+        <Pressable
+          style={({ pressed }) => [styles.holeBanner, pressed && { opacity: 0.85 }]}
+          onPress={() => {
+            const first = emptySlots[0];
+            const position = first.eligible.length === 1 ? first.eligible[0] : null; // FLEX → show all
+            onOpenWaivers({ leagueId: league.leagueId, position });
+          }}
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={styles.holeTitle}>
+              {emptySlots.length} empty slot{emptySlots.length === 1 ? '' : 's'}: {emptySlots.map((s) => s.name).join(', ')}
+            </Text>
+            <Text style={styles.holeSub}>No eligible starter — pick one up on waivers.</Text>
+          </View>
+          <Text style={styles.holeCta}>Fill on waivers ›</Text>
+        </Pressable>
+      ) : null}
+
       <SlotEditor slots={detail.slots} players={detail.players} assignments={assignments} onChange={setAssignments} />
 
       <Pressable
@@ -158,6 +186,10 @@ const styles = StyleSheet.create({
   modeTag: { color: colors.accent, fontSize: 11, fontWeight: '800' },
   totalStrong: { color: colors.text, fontWeight: '800' },
   optHint: { color: colors.warn, fontWeight: '700' },
+  holeBanner: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.bad, marginHorizontal: 16, marginTop: 4, marginBottom: 4, paddingHorizontal: 14, paddingVertical: 12 },
+  holeTitle: { color: colors.text, fontSize: 14, fontWeight: '800' },
+  holeSub: { color: colors.textDim, fontSize: 12, marginTop: 2 },
+  holeCta: { color: colors.accent, fontSize: 13, fontWeight: '800', marginLeft: 10 },
   save: { backgroundColor: colors.accent, margin: 16, borderRadius: 14, paddingVertical: 16, alignItems: 'center' },
   saveDisabled: { backgroundColor: colors.cardAlt },
   saveText: { color: '#fff', fontSize: 16, fontWeight: '800' },

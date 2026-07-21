@@ -197,13 +197,14 @@ export default function App() {
   const openTradeWizard = (queue) => pushOverlay({ type: 'tradeWizard', queue });
   const openWaivers = (target) => {
     setWaiversTarget(target || null);
+    setOverlayStack([]); // if invoked from an overlay (e.g. the lineup editor's "Fill on waivers"), leave it
     setTab('waivers');
   };
 
   function renderTab() {
     switch (tab) {
       case 'scores':
-        return <ScoresScreen />;
+        return <ScoresScreen onOpenLineup={openLineup} />;
       case 'waivers':
         return (
           <WaiversScreen
@@ -280,7 +281,7 @@ export default function App() {
       return <RosterScreen league={overlay.league} onBack={popOverlay} onOpenTrades={openTrades} onOpenDraft={openDraft} onOpenPlayer={openPlayer} />;
     }
     if (overlay && overlay.type === 'lineupEditor') {
-      return <LineupEditorScreen league={overlay.league} onBack={popOverlay} />;
+      return <LineupEditorScreen league={overlay.league} onBack={popOverlay} onOpenWaivers={openWaivers} />;
     }
     if (overlay && overlay.type === 'lineupWizard') {
       return (

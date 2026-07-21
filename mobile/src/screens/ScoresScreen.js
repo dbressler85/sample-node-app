@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, FlatList, StyleSheet, RefreshControl, ActivityIndicator } from 'react-native';
+import { View, Text, FlatList, StyleSheet, RefreshControl, ActivityIndicator, Pressable } from 'react-native';
 import { api } from '../api';
 import { colors } from '../theme';
 import { ScreenTitle } from '../components/Brand';
@@ -16,7 +16,7 @@ const STATUS = {
   lost: { label: 'Lost', color: colors.bad },
 };
 
-export default function ScoresScreen() {
+export default function ScoresScreen({ onOpenLineup }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -106,7 +106,7 @@ export default function ScoresScreen() {
               tintColor={colors.accent}
             />
           }
-          renderItem={({ item }) => <Game g={item} />}
+          renderItem={({ item }) => <Game g={item} onOpenLineup={onOpenLineup} />}
           ListEmptyComponent={
             <View style={styles.emptyWrap}>
               <Text style={styles.emptyTitle}>No live games right now</Text>
@@ -122,11 +122,15 @@ export default function ScoresScreen() {
   );
 }
 
-function Game({ g }) {
+function Game({ g, onOpenLineup }) {
   const st = STATUS[g.status] || STATUS.tossup;
   const pct = Math.round(g.winProb * 100);
+  // Tapping a matchup jumps to that league's lineup editor — the natural move when a game is
+  // close and you want to check who's still on your bench. Unlocked games get a hint.
+  const Wrap = onOpenLineup ? Pressable : View;
+  const wrapProps = onOpenLineup ? { onPress: () => onOpenLineup({ leagueId: g.leagueId, name: g.name }) } : {};
   return (
-    <View style={[styles.card, g.close && { borderColor: colors.warn }]}>
+    <Wrap style={({ pressed } = {}) => [styles.card, g.close && { borderColor: colors.warn }, pressed && { opacity: 0.8 }]} {...wrapProps}>
       <View style={styles.cardTop}>
         <Text style={styles.league} numberOfLines={1}>
           {g.name}
@@ -147,10 +151,13 @@ function Game({ g }) {
       <View style={styles.wpTrack}>
         <View style={[styles.wpFill, { width: `${pct}%`, backgroundColor: st.color }]} />
       </View>
-      <Text style={styles.wpText}>
-        {pct}% win{!g.locked ? ` (est.) · ${g.me.yetToPlay + g.opp.yetToPlay} players left` : ' · final'}
-      </Text>
-    </View>
+      <View style={styles.gameFoot}>
+        <Text style={styles.wpText}>
+          {pct}% win{!g.locked ? ` (est.) · ${g.me.yetToPlay + g.opp.yetToPlay} players left` : ' · final'}
+        </Text>
+        {onOpenLineup ? <Text style={styles.lineupHint}>{g.locked ? 'Lineup ›' : 'Set lineup ›'}</Text> : null}
+      </View>
+    </Wrap>
   );
 }
 
@@ -187,7 +194,9 @@ const styles = StyleSheet.create({
   dash: { color: colors.textDim, fontSize: 16, marginHorizontal: 8 },
   wpTrack: { height: 6, backgroundColor: colors.cardAlt, borderRadius: 3, marginTop: 14, overflow: 'hidden' },
   wpFill: { height: 6, borderRadius: 3 },
-  wpText: { color: colors.textDim, fontSize: 11, marginTop: 6, fontWeight: '600' },
+  gameFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 },
+  wpText: { color: colors.textDim, fontSize: 11, fontWeight: '600' },
+  lineupHint: { color: colors.accent, fontSize: 12, fontWeight: '800' },
   error: { color: colors.bad, textAlign: 'center' },
   emptyWrap: { paddingHorizontal: 24, paddingTop: 60, alignItems: 'center' },
   emptyTitle: { color: colors.text, fontSize: 17, fontWeight: '800', marginBottom: 8 },
