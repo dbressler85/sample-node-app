@@ -9,6 +9,7 @@ const demo = require('../demo/fixtures');
 const mfl = require('../lib/mfl');
 const leaguesService = require('./leagues');
 const playersLib = require('../lib/players');
+const picksLib = require('../lib/picks');
 const enrichmentLib = require('../lib/enrichment');
 const leagueFormat = require('../lib/leagueformat');
 
@@ -158,4 +159,68 @@ async function getTeams(cookie, leagueId) {
   return { leagueId: String(league.leagueId), name: league.name, format: leagueFormat.label(fmt), teams };
 }
 
-module.exports = { getStandings, getTeams, findLeague };
+const TXN_LABEL = {
+  TRADE: 'Trade', WAIVER: 'Waiver', BBID_WAIVER: 'Waiver (FAAB)', FREE_AGENT: 'Free agent',
+  IR: 'IR move', TAXI: 'Taxi move', AUCTION_WON: 'Auction', AUCTION_INIT: 'Auction',
+};
+const toks = (s) => String(s || '').split(',').map((x) => x.trim()).filter(Boolean);
+
+// Best-effort parse of MFL's transactions export into the raw shape getTransactions
+// resolves. Add/drop types carry "added,|dropped,"; a TRADE carries the two sides'
+// assets and the other franchise. Anything we can't parse still yields a typed row.
+function parseLiveTransactions(res) {
+  return mfl.toArray(res && res.transactions && res.transactions.transaction).map((t, i) => {
+    const type = String(t.type || '').toUpperCase();
+    const payload = String(t.transaction || '');
+    const base = { id: `${t.timestamp || 't'}:${i}`, type, at: num(t.timestamp), franchiseId: String(t.franchise || '') };
+    if (type === 'TRADE') {
+      const p = payload.split('|');
+      return { ...base, withFranchiseId: p[2] ? String(p[2]).padStart(4, '0') : null, droppedIds: toks(p[0]), addedIds: toks(p[1]) };
+    }
+    const [added, dropped] = payload.split('|');
+    return { ...base, addedIds: toks(added), droppedIds: toks(dropped) };
+  });
+}
+
+// One recent-transactions feed for a league (newest first). Resolves player ids AND
+// draft-pick tokens to readable names, and franchise ids to team names.
+async function getTransactions(cookie, leagueId, { limit = 40 } = {}) {
+  const league = await findLeague(cookie, leagueId);
+  const byId = await playersLib.load(cookie);
+
+  let raw;
+  let names = new Map();
+  if (config.demoMode) {
+    raw = demo.transactions(leagueId);
+  } else {
+    const [res, nm] = await Promise.all([
+      mfl.exportRequest('transactions', { host: league.host, cookie, L: league.leagueId }).catch(() => ({})),
+      leaguesService.franchiseNames(cookie, league).catch(() => new Map()),
+    ]);
+    raw = parseLiveTransactions(res);
+    names = nm;
+  }
+
+  const asset = (id) => {
+    const s = String(id);
+    if (/^(FP_|DP_)/.test(s)) return { id: s, name: picksLib.labelForToken(s), position: 'PICK' };
+    const b = playersLib.resolve(byId, s);
+    return { id: s, name: b.name, position: b.position };
+  };
+  const franchise = (id, embeddedName) => (id ? { id: String(id), name: embeddedName || names.get(String(id)) || `Team ${id}` } : null);
+
+  const transactions = raw.slice(0, limit).map((t) => ({
+    id: t.id,
+    type: t.type,
+    typeLabel: TXN_LABEL[t.type] || (t.type ? t.type.replace(/_/g, ' ').toLowerCase() : 'Move'),
+    at: t.at || null,
+    franchise: franchise(t.franchiseId, t.franchiseName),
+    withFranchise: franchise(t.withFranchiseId, t.withFranchiseName),
+    added: (t.addedIds || []).map(asset),
+    dropped: (t.droppedIds || []).map(asset),
+  }));
+
+  return { leagueId: String(league.leagueId), name: league.name, transactions };
+}
+
+module.exports = { getStandings, getTeams, getTransactions, findLeague };

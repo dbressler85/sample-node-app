@@ -141,6 +141,25 @@ function demoStandings(leagueId) {
   });
 }
 
+// Recent league transactions (newest first), in the service's raw shape: a type, a
+// timestamp, the acting franchise, added/dropped player ids, and (for trades) the other
+// franchise. Fixed timestamps so the demo is deterministic.
+const TRANSACTIONS = {
+  '64097': [
+    { id: 'tx-1', type: 'TRADE', at: 1725300000, franchiseId: '0003', franchiseName: 'Gridiron Ghosts', withFranchiseId: '0004', withFranchiseName: 'Waiver Wire Wolves', addedIds: ['15264'], droppedIds: ['11686'] },
+    { id: 'tx-2', type: 'BBID_WAIVER', at: 1725213600, franchiseId: '0008', franchiseName: 'Rebuild Raccoons', addedIds: ['13138'], droppedIds: ['14106'] },
+    { id: 'tx-3', type: 'FREE_AGENT', at: 1725127200, franchiseId: '0003', franchiseName: 'Gridiron Ghosts', addedIds: ['17001'], droppedIds: [] },
+    { id: 'tx-4', type: 'IR', at: 1725040800, franchiseId: '0003', franchiseName: 'Gridiron Ghosts', addedIds: [], droppedIds: [] },
+  ],
+  '40750': [
+    { id: 'tx-5', type: 'BBID_WAIVER', at: 1725250000, franchiseId: '0007', franchiseName: 'Gridiron Ghosts', addedIds: ['15266'], droppedIds: ['13138'] },
+    { id: 'tx-6', type: 'TRADE', at: 1725150000, franchiseId: '0002', franchiseName: 'Superflex Savants', withFranchiseId: '0009', withFranchiseName: 'Dynasty Sharks', addedIds: ['13116'], droppedIds: ['14106'] },
+  ],
+  '19622': [
+    { id: 'tx-7', type: 'FREE_AGENT', at: 1725260000, franchiseId: '0011', franchiseName: 'Gridiron Ghosts', addedIds: ['13138'], droppedIds: ['11686'] },
+  ],
+};
+
 // Per-league roster (ids into PLAYERS). starters/bench/ir/taxi.
 const ROSTERS = {
   '64097': {
@@ -554,6 +573,7 @@ module.exports = {
   leagues: () => LEAGUES.map((l) => ({ ...l })),
   dashboard: (leagueId) => DASHBOARD[leagueId] || null,
   standings: (leagueId) => demoStandings(leagueId),
+  transactions: (leagueId) => JSON.parse(JSON.stringify(TRANSACTIONS[leagueId] || [])),
   roster: (leagueId) => ROSTERS[leagueId] || null,
   teamStrength: (leagueId) => (TEAM_STRENGTH[leagueId] != null ? TEAM_STRENGTH[leagueId] : null),
   tradeBait: () => TRADE_BAIT.map((e) => ({ ...e })),

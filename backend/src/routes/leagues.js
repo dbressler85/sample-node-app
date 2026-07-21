@@ -64,4 +64,13 @@ router.get('/leagues/:leagueId/teams', async (req, res, next) => {
   }
 });
 
+// GET /api/leagues/:leagueId/transactions — recent league transaction feed.
+router.get('/leagues/:leagueId/transactions', async (req, res, next) => {
+  try {
+    res.json(await leagueService.getTransactions(req.mflCookie, req.params.leagueId));
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;
