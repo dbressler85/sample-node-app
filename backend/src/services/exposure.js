@@ -10,6 +10,8 @@ const newsLib = require('../lib/news');
 const leaguesService = require('./leagues');
 const rosterService = require('./roster');
 const standingLib = require('../lib/standing');
+const playerTags = require('../store/playerTags');
+const watchStore = require('../store/watchlist');
 
 async function gather(cookie, token) {
   const leagues = await leaguesService.orderedLeagues(cookie, token);
@@ -59,12 +61,16 @@ async function getExposure(cookie, token) {
     }
   }
 
+  const tags = playerTags.all(token);
+  const watchSet = new Set(watchStore.list(token).map(String));
   const players = [...map.values()]
     .map((p) => ({
       ...p,
       count: p.leagues.length,
       startingCount: p.leagues.filter((l) => l.starting).length,
       exposurePct: totalLeagues ? Math.round((p.leagues.length / totalLeagues) * 100) : 0,
+      tag: tags[String(p.id)] || null,
+      watched: watchSet.has(String(p.id)),
     }))
     .sort((a, b) => b.count - a.count || (b.value || 0) - (a.value || 0));
 
