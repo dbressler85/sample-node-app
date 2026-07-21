@@ -104,7 +104,7 @@ function invalidateGather(cookie) {
   gatherMemo.invalidate(cookie || '');
 }
 
-function annotate(player, byId, ranks, myRostered, freeBy, enr, ctx) {
+function annotate(player, byId, ranks, myRostered, mineBy, freeBy, enr, ctx) {
   return {
     id: player.id,
     name: player.name,
@@ -116,6 +116,7 @@ function annotate(player, byId, ranks, myRostered, freeBy, enr, ctx) {
     ownership: enr.ownership(player.id),
     availability: availabilityLib.resolve(player, ctx.statusMap, ctx.byeMap, ctx.week),
     mine: myRostered.has(player.id),
+    mineInLeagues: (mineBy.get(player.id) || []).length,
     freeInLeagues: (freeBy.get(player.id) || []).length,
   };
 }
@@ -123,21 +124,26 @@ function annotate(player, byId, ranks, myRostered, freeBy, enr, ctx) {
 async function buildSets(cookie) {
   const { data } = await gather(cookie);
   const myRostered = new Set();
+  const mineBy = new Map(); // playerId -> [leagueId] of my leagues where I roster them
   const freeBy = new Map();
   for (const d of data) {
-    for (const p of [...d.roster.starters, ...d.roster.bench, ...d.roster.ir, ...d.roster.taxi]) myRostered.add(p.id);
+    for (const p of [...d.roster.starters, ...d.roster.bench, ...d.roster.ir, ...d.roster.taxi]) {
+      myRostered.add(p.id);
+      if (!mineBy.has(p.id)) mineBy.set(p.id, []);
+      mineBy.get(p.id).push(d.league.leagueId);
+    }
     for (const id of d.faSet) {
       if (!freeBy.has(id)) freeBy.set(id, []);
       freeBy.get(id).push(d.league.leagueId);
     }
   }
-  return { data, myRostered, freeBy };
+  return { data, myRostered, mineBy, freeBy };
 }
 
 async function search(cookie, token, { q, position, status } = {}) {
   const [byId, enr, ctx] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(undefined, cookie), ctxFor(cookie)]);
   const ranks = computeRanks(byId, enr);
-  const { myRostered, freeBy } = await buildSets(cookie);
+  const { myRostered, mineBy, freeBy } = await buildSets(cookie);
 
   const term = (q || '').trim().toLowerCase();
   let players = [...byId.values()];
@@ -152,14 +158,14 @@ async function search(cookie, token, { q, position, status } = {}) {
   else if (status === 'available') light = light.filter((x) => !x.mine);
 
   light.sort((a, b) => b.value - a.value);
-  const players2 = light.slice(0, 60).map((x) => annotate(x.p, byId, ranks, myRostered, freeBy, enr, ctx));
+  const players2 = light.slice(0, 60).map((x) => annotate(x.p, byId, ranks, myRostered, mineBy, freeBy, enr, ctx));
   return { total: light.length, players: players2 };
 }
 
 async function rankings(cookie, token, { type = 'value', position } = {}) {
   const [byId, enr, ctx] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(undefined, cookie), ctxFor(cookie)]);
   const ranks = computeRanks(byId, enr);
-  const { myRostered, freeBy } = await buildSets(cookie);
+  const { myRostered, mineBy, freeBy } = await buildSets(cookie);
 
   // Filter + sort on cheap enr lookups over lightweight rows, then annotate only
   // the top slice — availability resolution over the whole universe just to
@@ -185,7 +191,7 @@ async function rankings(cookie, token, { type = 'value', position } = {}) {
   }
 
   const list = light.slice(0, 40).map((x) => {
-    const row = annotate(x.p, byId, ranks, myRostered, freeBy, enr, ctx);
+    const row = annotate(x.p, byId, ranks, myRostered, mineBy, freeBy, enr, ctx);
     row.tag = tags[String(row.id)] || null;
     return row;
   });
