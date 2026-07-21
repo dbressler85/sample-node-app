@@ -14,7 +14,7 @@ router.use(requireSession);
 // locks, scheduled drafts, waiver runs). The proactive "what needs me next" view.
 router.get('/ondeck', async (req, res, next) => {
   try {
-    res.json(await ondeck.getOnDeck(req.mflCookie, req.token));
+    res.json(await ondeck.getOnDeck(req.mflCookie, req.account));
   } catch (err) {
     next(err);
   }
@@ -23,7 +23,7 @@ router.get('/ondeck', async (req, res, next) => {
 // GET /api/home — portfolio roll-up + cross-league triage queue (server-side).
 router.get('/home', async (req, res, next) => {
   try {
-    res.json(await portfolio.getHome(req.mflCookie, req.token));
+    res.json(await portfolio.getHome(req.mflCookie, req.account));
   } catch (err) {
     next(err);
   }
@@ -32,7 +32,7 @@ router.get('/home', async (req, res, next) => {
 // GET /api/home/league/:leagueId — one league's triage, for progressive loading.
 router.get('/home/league/:leagueId', async (req, res, next) => {
   try {
-    res.json(await portfolio.getLeagueTriage(req.mflCookie, req.token, req.params.leagueId));
+    res.json(await portfolio.getLeagueTriage(req.mflCookie, req.account, req.params.leagueId));
   } catch (err) {
     next(err);
   }
@@ -41,7 +41,7 @@ router.get('/home/league/:leagueId', async (req, res, next) => {
 // GET /api/portfolio — dynasty value dashboard + value-at-risk across leagues.
 router.get('/portfolio', async (req, res, next) => {
   try {
-    res.json(await portfolio.getDashboard(req.mflCookie, req.token));
+    res.json(await portfolio.getDashboard(req.mflCookie, req.account));
   } catch (err) {
     next(err);
   }
@@ -59,7 +59,7 @@ router.get('/scoreboard', async (req, res, next) => {
 // GET /api/players/exposure — every league you roster each player in.
 router.get('/players/exposure', async (req, res, next) => {
   try {
-    res.json(await exposure.getExposure(req.mflCookie, req.token));
+    res.json(await exposure.getExposure(req.mflCookie, req.account));
   } catch (err) {
     next(err);
   }
@@ -68,7 +68,7 @@ router.get('/players/exposure', async (req, res, next) => {
 // GET /api/news — league news mapped to which of your teams it affects.
 router.get('/news', async (req, res, next) => {
   try {
-    res.json(await exposure.getNews(req.mflCookie, req.token));
+    res.json(await exposure.getNews(req.mflCookie, req.account));
   } catch (err) {
     next(err);
   }

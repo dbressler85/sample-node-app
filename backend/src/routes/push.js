@@ -11,7 +11,7 @@ router.use(requireSession);
 // Body: { expoPushToken, prefs?: { draftClock, tradeOffer } }
 router.post('/push/register', async (req, res, next) => {
   try {
-    res.json(notifications.registerToken(req.token, req.body && req.body.expoPushToken, req.body && req.body.prefs));
+    res.json(notifications.registerToken(req.account, req.body && req.body.expoPushToken, req.body && req.body.prefs));
   } catch (err) {
     next(err);
   }
@@ -20,7 +20,7 @@ router.post('/push/register', async (req, res, next) => {
 // GET /api/push/prefs — the owner's current push-channel choices (defaults if unset).
 router.get('/push/prefs', (req, res, next) => {
   try {
-    res.json(notifications.getPrefs(req.token));
+    res.json(notifications.getPrefs(req.account));
   } catch (err) {
     next(err);
   }
@@ -29,7 +29,7 @@ router.get('/push/prefs', (req, res, next) => {
 // POST /api/push/prefs — set which push channels to receive. Body: { prefs: { channel: bool } }.
 router.post('/push/prefs', (req, res, next) => {
   try {
-    res.json(notifications.setPrefs(req.token, req.body && req.body.prefs));
+    res.json(notifications.setPrefs(req.account, req.body && req.body.prefs));
   } catch (err) {
     next(err);
   }
@@ -38,7 +38,7 @@ router.post('/push/prefs', (req, res, next) => {
 // POST /api/push/unregister — stop notifications for this session's device.
 router.post('/push/unregister', async (req, res, next) => {
   try {
-    res.json(notifications.unregister(req.token));
+    res.json(notifications.unregister(req.account));
   } catch (err) {
     next(err);
   }

@@ -170,8 +170,17 @@ async function leagueProjection(cookie, league, poolPlayers, scoring, week) {
   }
 }
 
-function currentStarterIds(token, league, rosterStarterIds) {
-  return lineupStore.get(token, league.leagueId) || rosterStarterIds;
+// Live: trust a just-applied lineup only briefly, as an optimistic buffer over MFL's
+// write→read propagation. Demo: no MFL, so the store is authoritative.
+const LINEUP_HINT_TTL_MS = 2 * 60 * 1000;
+
+function currentStarterIds(token, league, week, rosterStarterIds) {
+  const hint = lineupStore.get(token, league.leagueId, week);
+  if (hint && hint.starterIds.length) {
+    if (config.demoMode || Date.now() - hint.at <= LINEUP_HINT_TTL_MS) return hint.starterIds;
+  }
+  // Otherwise defer to the freshly-read roster — reflects external MFL edits and the week.
+  return rosterStarterIds;
 }
 
 // --- view building ----------------------------------------------------------
@@ -351,7 +360,7 @@ async function viewForLeague(cookie, token, league, requestedMode, { light = fal
     week,
     requirements,
     pool,
-    starterIds: currentStarterIds(token, league, rosterStarterIds),
+    starterIds: currentStarterIds(token, league, week, rosterStarterIds),
     franchiseName: roster.franchiseName,
     format,
     matchup,
@@ -498,7 +507,7 @@ async function submitLineup(cookie, token, league, starterIds, week) {
     // the re-read after applying reflects the new lineup instead of a stale one.
     rosterService.invalidate(cookie, league.leagueId);
   }
-  lineupStore.set(token, league.leagueId, starterIds);
+  lineupStore.set(token, league.leagueId, week, starterIds);
 }
 
 // Reject a manual selection that starts an unavailable player.

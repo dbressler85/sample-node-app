@@ -10,7 +10,7 @@ router.use(requireSession);
 // GET /api/drafts — draft state across every league (scheduled / live / my turn).
 router.get('/drafts', async (req, res, next) => {
   try {
-    res.json(await draft.getOverview(req.mflCookie, req.token));
+    res.json(await draft.getOverview(req.mflCookie, req.account));
   } catch (err) {
     next(err);
   }
@@ -19,7 +19,7 @@ router.get('/drafts', async (req, res, next) => {
 // GET /api/leagues/:leagueId/draft?position= — one league's board + available pool.
 router.get('/leagues/:leagueId/draft', async (req, res, next) => {
   try {
-    res.json(await draft.getLeague(req.mflCookie, req.token, req.params.leagueId, { position: req.query.position }));
+    res.json(await draft.getLeague(req.mflCookie, req.account, req.params.leagueId, { position: req.query.position }));
   } catch (err) {
     next(err);
   }
@@ -28,7 +28,7 @@ router.get('/leagues/:leagueId/draft', async (req, res, next) => {
 // POST /api/leagues/:leagueId/draft/pick — make a pick { playerId }.
 router.post('/leagues/:leagueId/draft/pick', async (req, res, next) => {
   try {
-    res.json(await draft.makePick(req.mflCookie, req.token, req.params.leagueId, (req.body || {}).playerId));
+    res.json(await draft.makePick(req.mflCookie, req.account, req.params.leagueId, (req.body || {}).playerId));
   } catch (err) {
     next(err);
   }

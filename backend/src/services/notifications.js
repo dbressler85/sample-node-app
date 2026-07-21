@@ -177,14 +177,17 @@ async function tick(deps = {}) {
   const send = deps.sender || sender;
 
   const d = db();
-  const tokens = Object.keys(d);
+  const tokens = Object.keys(d); // registration keys — the stable account key in prod
   if (!tokens.length) return { tokens: 0, sent: 0 };
 
   let sent = 0;
   for (const token of tokens) {
     const state = d[token];
     if (!state.expoPushToken) continue; // prefs-only stub (no device token yet) — nothing to send to
-    const session = sessions.get(token);
+    // Registrations are keyed by account, but polling needs a live session cookie —
+    // find whatever session that account currently holds (falling back to a direct
+    // token lookup for test stubs / any legacy token-keyed registration).
+    const session = (sessions.getByAccount && sessions.getByAccount(token)) || sessions.get(token);
     if (!session) continue; // login expired — can't poll their MFL, skip (keep the registration)
     const prefs = state.prefs || {};
     try {
