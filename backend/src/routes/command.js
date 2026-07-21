@@ -1,14 +1,34 @@
 'use strict';
 
 const express = require('express');
+const config = require('../config');
 const requireSession = require('../middleware/auth');
 const portfolio = require('../services/portfolio');
 const scoreboard = require('../services/scoreboard');
 const exposure = require('../services/exposure');
 const ondeck = require('../services/ondeck');
+const leaguesService = require('../services/leagues');
 
 const router = express.Router();
 router.use(requireSession);
+
+// GET /api/me — the signed-in manager's identity + league count, for the Profile screen.
+// Kept lightweight (identity + a cached league count); the profile composes value/outlook
+// from /api/portfolio and activity from /api/watchlist client-side.
+router.get('/me', async (req, res, next) => {
+  try {
+    const leagues = await leaguesService.orderedLeagues(req.mflCookie, req.account).catch(() => []);
+    res.json({
+      username: (req.session && req.session.username) || null,
+      account: req.account,
+      season: config.season,
+      demoMode: config.demoMode,
+      leagues: leagues.length,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
 
 // GET /api/ondeck — time-sorted deadlines across leagues (draft clocks, lineup
 // locks, scheduled drafts, waiver runs). The proactive "what needs me next" view.

@@ -67,6 +67,7 @@ export const api = {
     request('/api/auth/login', { method: 'POST', body: { username, password } }),
   logout: () => request('/api/auth/logout', { method: 'POST' }),
   health: () => request('/api/health'),
+  me: () => request('/api/me'),
   leaguesList: () => request('/api/leagues'),
   roster: (leagueId) => request(`/api/leagues/${leagueId}/roster`),
   // League hub (M5): standings, every team's roster (scouting), and a transaction feed.

@@ -55,7 +55,7 @@ async function runPool(items, limit, worker) {
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, next));
 }
 
-export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpenLeagues, onOpenPortfolio, onOpenWaivers, onOpenTrades, onOpenTradeInbox, onOpenDraft, onOpenDraftHub, onOpenOnDeck, onOpenPlayer, onOpenSettings, onLogout }) {
+export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpenLeagues, onOpenPortfolio, onOpenWaivers, onOpenTrades, onOpenTradeInbox, onOpenDraft, onOpenDraftHub, onOpenOnDeck, onOpenPlayer, onOpenSettings, onOpenProfile, onLogout }) {
   const [leagues, setLeagues] = useState([]);
   const [statuses, setStatuses] = useState({}); // leagueId -> { name, status, items }
   const [drafts, setDrafts] = useState([]); // only ACTIONABLE drafts (on the clock / live / imminent)
@@ -230,6 +230,12 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
           {onOpenSettings ? (
             <Pressable onPress={onOpenSettings} hitSlop={10} accessibilityLabel="Settings" style={styles.gearBtn}>
               <GearIcon size={22} />
+            </Pressable>
+          ) : null}
+          {onOpenProfile ? (
+            <Pressable onPress={onOpenProfile} hitSlop={10} accessibilityLabel="Profile" style={styles.avatarBtn}>
+              <View style={styles.avatarHead} />
+              <View style={styles.avatarBody} />
             </Pressable>
           ) : null}
         </View>
@@ -482,6 +488,11 @@ const styles = StyleSheet.create({
   subtitle: { color: colors.textDim, fontSize: 13, marginTop: 2 },
   topActions: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   gearBtn: { padding: 2 },
+  // A minimalist person silhouette (head + shoulders) clipped into a gold-ringed circle —
+  // the account entry point, drawn from plain views so it needs no asset or username.
+  avatarBtn: { width: 30, height: 30, borderRadius: 15, borderWidth: 1.5, borderColor: colors.gold, backgroundColor: colors.gold + '18', alignItems: 'center', justifyContent: 'flex-end', overflow: 'hidden' },
+  avatarHead: { width: 9, height: 9, borderRadius: 4.5, backgroundColor: colors.gold, marginBottom: 1.5 },
+  avatarBody: { width: 17, height: 10, borderTopLeftRadius: 9, borderTopRightRadius: 9, backgroundColor: colors.gold },
   logout: { color: colors.accent, fontSize: 14, fontWeight: '600' },
   list: { paddingHorizontal: 16, paddingBottom: 32 },
   portfolio: { marginBottom: 4 },
