@@ -155,8 +155,9 @@ export default function TradeInboxScreen({ onBack, onOpenLeague, onProposeInLeag
           )}
           ListEmptyComponent={
             <View style={styles.emptyWrap}>
-              <Text style={styles.emptyTitle}>🎉 Inbox zero</Text>
-              <Text style={styles.emptyText}>No pending trade offers across your leagues right now.</Text>
+              <Text style={styles.emptyFace}>😔</Text>
+              <Text style={styles.emptyTitle}>Quiet in here</Text>
+              <Text style={styles.emptyText}>No pending trade offers across your leagues. Head to Propose to shake something loose.</Text>
             </View>
           }
           ListFooterComponent={leagues.length ? startTrade : null}
@@ -285,6 +286,7 @@ const styles = StyleSheet.create({
   acceptText: { color: '#fff', fontSize: 15, fontWeight: '800' },
   error: { color: colors.bad, textAlign: 'center' },
   emptyWrap: { paddingTop: 60, alignItems: 'center' },
+  emptyFace: { fontSize: 46, marginBottom: 10 },
   emptyTitle: { color: colors.text, fontSize: 17, fontWeight: '800', marginBottom: 8 },
   emptyText: { color: colors.textDim, fontSize: 14, textAlign: 'center', paddingHorizontal: 20 },
   startWrap: { marginTop: 8, paddingTop: 18, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },

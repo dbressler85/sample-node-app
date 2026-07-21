@@ -3,7 +3,7 @@ import { View, Text, FlatList, StyleSheet, Pressable, RefreshControl, ActivityIn
 import { api } from '../api';
 import { getValue, setValue } from '../cache';
 import { colors } from '../theme';
-import { ScreenTitle, CrestWatermark } from '../components/Brand';
+import { ScreenTitle } from '../components/Brand';
 import Pulse from '../components/Pulse';
 import GearIcon from '../components/GearIcon';
 
@@ -213,7 +213,6 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
   return (
     <View style={styles.container}>
       <View style={styles.topbar}>
-        <CrestWatermark />
         <View>
           <ScreenTitle>Command Center</ScreenTitle>
           <Text style={styles.subtitle}>

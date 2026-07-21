@@ -255,15 +255,20 @@ async function getOverview(cookie, token) {
       try {
         const enr = await enrichmentLib.snapshot(await leagueFormat.format(cookie, league), cookie);
         const offers = await offersForLeague(cookie, token, league, byId, enr);
-        // Read the league's needs/surplus once and use it for BOTH the construction
-        // verdict on any offers AND the "start a trade here" fit nudge. Best-effort: a
-        // roster-read failure just means value-only offers and no fit hint.
+        // The needs/surplus model reads EVERY franchise's roster in the league — the
+        // dominant cost of this screen (~a dozen roster reads per league × every league).
+        // Only pay it where it earns its keep: a league with an incoming offer to
+        // annotate. The "start a trade here" fit hint is then computed on demand when you
+        // open that league (getLeague), so the inbox stays fast. Best-effort: a roster-read
+        // failure just means value-only offers.
         let fit = null;
-        try {
-          const d = await tradeData(cookie, token, league.leagueId);
-          if (offers.length) annotateConstruction(offers, d.ns, league.franchiseId);
-          fit = tradeFitSummary(d.ns, league.franchiseId);
-        } catch (e) { /* value-only */ }
+        if (offers.length) {
+          try {
+            const d = await tradeData(cookie, token, league.leagueId);
+            annotateConstruction(offers, d.ns, league.franchiseId);
+            fit = tradeFitSummary(d.ns, league.franchiseId);
+          } catch (e) { /* value-only */ }
+        }
         return { offers, fit, leagueId: String(league.leagueId) };
       } catch (e) {
         return { offers: [], fit: null, leagueId: String(league.leagueId) };
