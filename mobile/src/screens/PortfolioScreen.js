@@ -25,6 +25,7 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
   const [d, setD] = useState(null);
   const [error, setError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [posFilter, setPosFilter] = useState(null); // tap an allocation segment to filter holdings by position
 
   useAndroidBack(useCallback(() => { onBack(); return true; }, [onBack]));
 
@@ -84,45 +85,76 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
           </View>
         </View>
 
-        {/* Allocation by position — the portfolio's "sectors" as a single stacked bar. */}
+        {/* Allocation by position — the portfolio's "sectors" as a single stacked bar. Tap a
+            segment (or legend key) to filter the holdings below to that position; tap it again
+            to clear. The active segment stays lit; the rest dull. */}
         {d.allocation && d.allocation.length ? (
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Allocation by position</Text>
             <View style={styles.allocBar}>
-              {d.allocation.map((a, i) => (
-                <View
-                  key={a.position}
-                  style={{
-                    width: `${a.pct}%`,
-                    backgroundColor: positionColors[a.position] || colors.textDim,
-                    borderTopLeftRadius: i === 0 ? 7 : 0,
-                    borderBottomLeftRadius: i === 0 ? 7 : 0,
-                    borderTopRightRadius: i === d.allocation.length - 1 ? 7 : 0,
-                    borderBottomRightRadius: i === d.allocation.length - 1 ? 7 : 0,
-                  }}
-                />
-              ))}
+              {d.allocation.map((a, i) => {
+                const dull = posFilter && posFilter !== a.position;
+                return (
+                  <Pressable
+                    key={a.position}
+                    onPress={() => setPosFilter((cur) => (cur === a.position ? null : a.position))}
+                    style={{
+                      width: `${a.pct}%`,
+                      backgroundColor: positionColors[a.position] || colors.textDim,
+                      opacity: dull ? 0.28 : 1,
+                      borderTopLeftRadius: i === 0 ? 7 : 0,
+                      borderBottomLeftRadius: i === 0 ? 7 : 0,
+                      borderTopRightRadius: i === d.allocation.length - 1 ? 7 : 0,
+                      borderBottomRightRadius: i === d.allocation.length - 1 ? 7 : 0,
+                    }}
+                  />
+                );
+              })}
             </View>
             <View style={styles.allocLegend}>
-              {d.allocation.map((a) => (
-                <View key={a.position} style={styles.allocKey}>
-                  <View style={[styles.allocDot, { backgroundColor: positionColors[a.position] || colors.textDim }]} />
-                  <Text style={styles.allocKeyText}>{a.position} {a.pct}%</Text>
-                </View>
-              ))}
+              {d.allocation.map((a) => {
+                const active = posFilter === a.position;
+                const dull = posFilter && !active;
+                return (
+                  <Pressable
+                    key={a.position}
+                    onPress={() => setPosFilter((cur) => (cur === a.position ? null : a.position))}
+                    style={[styles.allocKey, active && styles.allocKeyActive, dull && { opacity: 0.4 }]}
+                  >
+                    <View style={[styles.allocDot, { backgroundColor: positionColors[a.position] || colors.textDim }]} />
+                    <Text style={[styles.allocKeyText, active && { color: colors.text }]}>{a.position} {a.pct}%</Text>
+                  </Pressable>
+                );
+              })}
             </View>
+            <Text style={styles.hint}>
+              {posFilter ? `Showing ${posFilter} holdings — tap ${posFilter} again to clear.` : 'Tap a position to filter your holdings below.'}
+            </Text>
           </View>
         ) : null}
 
         {/* Top holdings — your biggest positions across every league (exposure + share). */}
         {d.holdings && d.holdings.length ? (
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Top holdings</Text>
-            {d.holdings.map((h) => (
+            <View style={styles.cardHeadRow}>
+              <Text style={styles.cardTitle}>{posFilter ? `Top ${posFilter} holdings` : 'Top holdings'}</Text>
+              {posFilter ? (
+                <Pressable onPress={() => setPosFilter(null)} hitSlop={8}><Text style={styles.clearFilter}>Clear ✕</Text></Pressable>
+              ) : null}
+            </View>
+            {/* Column key so the two right-hand numbers read clearly. */}
+            <View style={styles.holdKeyRow}>
+              <Text style={styles.holdKeyName}>Player · leagues held</Text>
+              <View style={styles.holdRight}>
+                <Text style={styles.holdKeyVal}>value</Text>
+                <Text style={styles.holdKeyPct}>% of total</Text>
+              </View>
+            </View>
+            {(posFilter ? d.holdings.filter((h) => h.position === posFilter) : d.holdings).map((h) => (
               <Pressable
                 key={h.id}
                 style={({ pressed }) => [styles.holdRow, pressed && { opacity: 0.7 }]}
-                onPress={() => onOpenPlayer && onOpenPlayer(h.id)}
+                onPress={() => onOpenPlayer && onOpenPlayer(h.id, { id: h.id, name: h.name, position: h.position, team: h.team, value: h.avg })}
               >
                 <View style={[styles.posBadge, { borderColor: positionColors[h.position] || colors.textDim }]}>
                   <Text style={[styles.pos, { color: positionColors[h.position] || colors.textDim }]}>{h.position}</Text>
@@ -140,7 +172,9 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
                 </View>
               </Pressable>
             ))}
-            <Text style={styles.hint}>Each player’s value summed across every league you roster him in — your real exposure.</Text>
+            <Text style={styles.hint}>
+              <Text style={{ color: colors.gold, fontWeight: '900' }}>Value</Text> = each player’s value summed across every league you roster him in (your real exposure); <Text style={{ fontWeight: '900' }}>% of total</Text> = his share of your whole portfolio.
+            </Text>
           </View>
         ) : null}
 
@@ -157,7 +191,7 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
           {risk.top.length ? (
             <View style={styles.topList}>
               {risk.top.map((p, i) => (
-                <Pressable key={`${p.leagueId}-${p.id}-${i}`} style={({ pressed }) => [styles.riskRow, pressed && { opacity: 0.7 }]} onPress={() => onOpenPlayer && onOpenPlayer(p.id)}>
+                <Pressable key={`${p.leagueId}-${p.id}-${i}`} style={({ pressed }) => [styles.riskRow, pressed && { opacity: 0.7 }]} onPress={() => onOpenPlayer && onOpenPlayer(p.id, { id: p.id, name: p.name, position: p.position, team: p.team, value: p.value })}>
                   <View style={[styles.posBadge, { borderColor: positionColors[p.position] || colors.textDim }]}>
                     <Text style={[styles.pos, { color: positionColors[p.position] || colors.textDim }]}>{p.position}</Text>
                   </View>
@@ -284,10 +318,16 @@ const styles = StyleSheet.create({
   chartWrap: { marginTop: 12, marginHorizontal: -2 },
   buildingHint: { color: colors.textDim, fontSize: 12, marginTop: 12, lineHeight: 16 },
   allocBar: { flexDirection: 'row', height: 14, borderRadius: 7, overflow: 'hidden', backgroundColor: colors.bg },
-  allocLegend: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 12 },
-  allocKey: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  allocLegend: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
+  allocKey: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: 'transparent' },
+  allocKeyActive: { borderColor: colors.border, backgroundColor: colors.bg },
   allocDot: { width: 9, height: 9, borderRadius: 2 },
   allocKeyText: { color: colors.textDim, fontSize: 12, fontWeight: '700' },
+  clearFilter: { color: colors.accent, fontSize: 12, fontWeight: '800', marginBottom: 10 },
+  holdKeyRow: { flexDirection: 'row', alignItems: 'flex-end', paddingBottom: 6, marginBottom: 2, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+  holdKeyName: { flex: 1, color: colors.textDim, fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.3 },
+  holdKeyVal: { color: colors.gold, fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.3 },
+  holdKeyPct: { color: colors.textDim, fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.3, marginTop: 1 },
   holdRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 9, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   holdName: { color: colors.text, fontSize: 14, fontWeight: '700' },
   holdSub: { color: colors.textDim, fontSize: 12, marginTop: 1 },

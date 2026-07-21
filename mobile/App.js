@@ -191,7 +191,9 @@ export default function App() {
   const openSettings = () => pushOverlay({ type: 'settings' });
   const openHelp = () => pushOverlay({ type: 'help' });
   const openOnDeck = () => pushOverlay({ type: 'onDeck' });
-  const openPlayer = (playerId) => pushOverlay({ type: 'playerProfile', playerId });
+  // A `seed` (name/pos/team/value the caller already has) lets the profile paint its header
+  // instantly instead of a blank spinner while the heavy cross-league read resolves.
+  const openPlayer = (playerId, seed) => pushOverlay({ type: 'playerProfile', playerId, seed });
   const openTradeWizard = (queue) => pushOverlay({ type: 'tradeWizard', queue });
   const openWaivers = (target) => {
     setWaiversTarget(target || null);
@@ -361,6 +363,7 @@ export default function App() {
       return (
         <PlayerProfileScreen
           playerId={overlay.playerId}
+          seed={overlay.seed}
           onBack={popOverlay}
           onOpenTradeDesk={(ctx) => openTrades({ leagueId: ctx.leagueId, name: ctx.name }, 'propose', { targetPlayerId: ctx.targetPlayerId, partnerFranchiseId: ctx.partnerFranchiseId })}
           onOpenTradeWizard={openTradeWizard}

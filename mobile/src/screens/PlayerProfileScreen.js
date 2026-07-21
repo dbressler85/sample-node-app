@@ -7,6 +7,7 @@ import AddAcrossSheet from '../components/AddAcrossSheet';
 import TradeAcrossSheet from '../components/TradeAcrossSheet';
 import { TargetIcon, AvoidIcon, WatchIcon } from '../components/PlayerActionIcons';
 import useAndroidBack from '../useAndroidBack';
+import { getValue, setValue } from '../cache';
 
 const RELATION = {
   rostered: { label: 'Rostered', color: colors.good },
@@ -22,18 +23,35 @@ function diffColor(d) {
   return colors.bad;
 }
 
-export default function PlayerProfileScreen({ playerId, onBack, onOpenTradeDesk, onOpenTradeWizard }) {
+export default function PlayerProfileScreen({ playerId, seed, onBack, onOpenTradeDesk, onOpenTradeWizard }) {
   const [p, setP] = useState(null);
+  const [full, setFull] = useState(false); // true once the complete (not cached-stale) profile is in
   const [error, setError] = useState(null);
   const [sheet, setSheet] = useState(null); // 'add' | 'drop' | 'trade'
   const [watched, setWatched] = useState(false);
   const [tag, setTag] = useState(null); // 'target' | 'avoid' | null
 
-  const load = () => {
-    api.playerProfile(playerId).then((prof) => { setP(prof); setWatched(!!prof.watched); setTag(prof.tag || null); }).catch((e) => setError(e.message));
-  };
+  // The cross-league profile is a heavy read (per-league value snapshots). To avoid a blank
+  // spinner — brutal when opened from Portfolio, where the players cache is cold — paint
+  // instantly from (a) the last cached profile, then (b) live data. If neither is ready yet,
+  // a `seed` from the caller (name/pos/team/value) still fills the header immediately.
   useEffect(() => {
-    load();
+    let alive = true;
+    setP(null);
+    setFull(false);
+    const key = `player:profile:${playerId}`;
+    getValue(key).then((cached) => {
+      if (alive && cached && !full) { setP(cached); setWatched(!!cached.watched); setTag(cached.tag || null); }
+    });
+    api.playerProfile(playerId)
+      .then((prof) => {
+        if (!alive) return;
+        setP(prof); setFull(true); setWatched(!!prof.watched); setTag(prof.tag || null);
+        setValue(key, prof);
+      })
+      .catch((e) => alive && setError(e.message));
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playerId]);
 
   // Star / unstar — optimistic, reverts on failure.
@@ -70,9 +88,34 @@ export default function PlayerProfileScreen({ playerId, onBack, onOpenTradeDesk,
     );
   }
   if (!p) {
+    // No cached profile yet. If the caller handed us a seed, paint the header from it and
+    // spin only the body — so the tap feels instant instead of opening onto a blank screen.
+    const sposColor = seed ? (positionColors[seed.position] || colors.textDim) : colors.textDim;
     return (
-      <View style={[styles.container, styles.center]}>
-        <ActivityIndicator color={colors.accent} size="large" />
+      <View style={styles.container}>
+        <View style={styles.topbar}>
+          <Pressable onPress={onBack} hitSlop={10}><Text style={styles.back}>‹ Back</Text></Pressable>
+        </View>
+        {seed ? (
+          <View style={styles.body}>
+            <View style={styles.idRow}>
+              <View style={[styles.posBadge, { backgroundColor: sposColor + '22', borderColor: sposColor }]}>
+                <Text style={[styles.pos, { color: sposColor }]}>{seed.position}</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.name} numberOfLines={1}>{seed.name}</Text>
+                {seed.team ? <Text style={styles.sub}>{seed.team}</Text> : null}
+              </View>
+              {seed.value != null ? (
+                <View style={styles.valueBox}>
+                  <Text style={styles.valueNum}>{seed.value}</Text>
+                  <Text style={styles.valueLabel}>market value</Text>
+                </View>
+              ) : null}
+            </View>
+          </View>
+        ) : null}
+        <View style={styles.center}><ActivityIndicator color={colors.accent} size="large" /></View>
       </View>
     );
   }
