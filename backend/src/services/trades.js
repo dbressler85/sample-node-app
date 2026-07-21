@@ -305,23 +305,43 @@ async function tradeData(cookie, token, leagueId) {
   ]);
 
   const myPlayersAll = [...roster.starters, ...roster.bench];
-  // Every franchise's players as { id, position, value } for the needs/surplus model.
+  // Every franchise's players as { id, position, value, age } — value+age drive the
+  // needs/surplus model AND the per-team dynasty outlook / average age below.
   const franchises = [
-    { franchiseId: String(league.franchiseId), players: myPlayersAll.map((p) => ({ id: p.id, position: p.position, value: enr.value(p.id) })) },
+    { franchiseId: String(league.franchiseId), players: myPlayersAll.map((p) => ({ id: p.id, position: p.position, value: enr.value(p.id), age: enr.age(p.id) })) },
     ...rawPartners.map((pt) => ({
       franchiseId: String(pt.franchiseId),
-      players: (pt.roster || []).map((id) => { const b = playersLib.resolve(byId, id); return { id: String(id), position: b.position, value: enr.value(id) }; }),
+      players: (pt.roster || []).map((id) => { const b = playersLib.resolve(byId, id); return { id: String(id), position: b.position, value: enr.value(id), age: enr.age(id) }; }),
     })),
   ];
   const ns = tradefit.needsSurplus(franchises, requirements);
-  return { league, byId, enr, roster, rawPartners, requirements, ns, fmt };
+  const teamOutlook = summarizeFranchises(franchises);
+  return { league, byId, enr, roster, rawPartners, requirements, ns, teamOutlook, fmt };
+}
+
+// Dynasty outlook (win-now / ascending / rebuilding / balanced) + average roster age for
+// every franchise, so the trade desk can show BOTH teams' status and reveal an owner who
+// skews young or old. Reuses the roster summary's coreAge/strength → outlook rule.
+function summarizeFranchises(franchises) {
+  const totals = franchises.map((f) => ({ id: String(f.franchiseId), total: (f.players || []).reduce((s, p) => s + (p.value || 0), 0) }));
+  const out = {};
+  for (const f of franchises) {
+    const valued = (f.players || []).filter((p) => p.value != null);
+    const avgAge = valued.length ? Math.round((valued.reduce((s, p) => s + (p.age || 0), 0) / valued.length) * 10) / 10 : null;
+    const core = valued.slice().sort((a, b) => b.value - a.value).slice(0, 5);
+    const coreAge = core.length ? Math.round((core.reduce((s, p) => s + (p.age || 0), 0) / core.length) * 10) / 10 : null;
+    const myTotal = (totals.find((t) => t.id === String(f.franchiseId)) || {}).total || 0;
+    const strengthPct = totals.length > 1 && myTotal ? totals.filter((t) => t.total <= myTotal).length / totals.length : null;
+    out[String(f.franchiseId)] = { outlook: rosterService.computeOutlook(coreAge, strengthPct), avgAge };
+  }
+  return out;
 }
 
 // One league's offers + everything needed to build a proposal, now with each team's
 // positional needs & surplus so you can craft a fair, roster-fitting offer.
 async function getLeague(cookie, token, leagueId) {
   const data = await tradeData(cookie, token, leagueId);
-  const { league, byId, enr, roster, rawPartners, ns, fmt } = data;
+  const { league, byId, enr, roster, rawPartners, ns, teamOutlook, fmt } = data;
   const offers = annotateConstruction(await offersForLeague(cookie, token, league, byId, enr), ns, league.franchiseId);
 
   const myPlayers = [...roster.starters, ...roster.bench]
@@ -333,6 +353,8 @@ async function getLeague(cookie, token, leagueId) {
   const partners = rawPartners.map((pt) => ({
     franchiseId: pt.franchiseId,
     name: pt.name,
+    outlook: (teamOutlook[String(pt.franchiseId)] || {}).outlook || null,
+    avgAge: (teamOutlook[String(pt.franchiseId)] || {}).avgAge || null,
     needs: (ns[String(pt.franchiseId)] || {}).needs || [],
     surplus: (ns[String(pt.franchiseId)] || {}).surplus || [],
     depth: (ns[String(pt.franchiseId)] || {}).depth || {},
@@ -342,6 +364,7 @@ async function getLeague(cookie, token, leagueId) {
   }));
 
   const mine = ns[String(league.franchiseId)] || { needs: [], surplus: [], depth: {} };
+  const myOutlook = teamOutlook[String(league.franchiseId)] || {};
   return {
     leagueId: league.leagueId,
     name: league.name,
@@ -349,7 +372,7 @@ async function getLeague(cookie, token, leagueId) {
     myPlayers,
     myPicks,
     partners,
-    me: { name: roster.franchiseName || 'My Team', needs: mine.needs, surplus: mine.surplus, depth: mine.depth },
+    me: { name: roster.franchiseName || 'My Team', outlook: myOutlook.outlook || null, avgAge: myOutlook.avgAge || null, needs: mine.needs, surplus: mine.surplus, depth: mine.depth },
     // The scoring/roster format these values reflect (e.g. "Superflex · TE-premium").
     format: leagueFormat.label(fmt),
   };
