@@ -109,7 +109,7 @@ export default function PlayerProfileScreen({ playerId, onBack, onOpenTradeDesk,
           {p.value != null ? (
             <View style={styles.valueBox}>
               <Text style={styles.valueNum}>{p.value}</Text>
-              <Text style={styles.valueLabel}>value</Text>
+              <Text style={styles.valueLabel}>market value</Text>
               {p.valueRange && p.valueRange.min !== p.valueRange.max ? (
                 <Text style={styles.valueSpread}>{p.valueRange.min}–{p.valueRange.max} in leagues</Text>
               ) : null}
