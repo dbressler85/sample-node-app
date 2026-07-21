@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, FlatList, StyleSheet, Pressable, RefreshControl, ActivityIndicator } from 'react-native';
+import { View, Text, FlatList, StyleSheet, Pressable, RefreshControl, ActivityIndicator, Modal } from 'react-native';
 import { api } from '../api';
 import { getValue, setValue } from '../cache';
 import { colors } from '../theme';
@@ -64,6 +64,7 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
   const [expanded, setExpanded] = useState(new Set(GROUP_ORDER.filter((t) => GROUPS[t].open)));
   const [progress, setProgress] = useState(null); // { done, total }
   const [error, setError] = useState(null);
+  const [attentionOpen, setAttentionOpen] = useState(false); // the "Needs attention" feed is now a modal
   const [booting, setBooting] = useState(true);
   const [busy, setBusy] = useState(false); // a refresh cycle is in flight
   const running = useRef(false);
@@ -137,6 +138,9 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
   }, []);
 
   function handleAction(item) {
+    // Acting on an item leaves the feed for an overlay — close the modal first so we don't
+    // return to a stale sheet stacked under the destination.
+    setAttentionOpen(false);
     const league = { leagueId: item.leagueId, name: item.leagueName };
     if (item.action === 'lineup') onOpenLineup(league);
     else if (item.action === 'waiver') onOpenWaivers(league);
@@ -232,8 +236,9 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
       </View>
 
       <FlatList
-        data={rows}
-        keyExtractor={(r) => (r.kind === 'header' ? `h-${r.type}` : `i-${r.item.id}`)}
+        data={[]}
+        keyExtractor={(_, i) => `x-${i}`}
+        renderItem={null}
         contentContainerStyle={styles.list}
         refreshControl={<RefreshControl refreshing={false} onRefresh={refresh} tintColor={colors.accent} />}
         ListHeaderComponent={
@@ -255,7 +260,14 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
                 <Text style={styles.teamChev}>›</Text>
               </Pressable>
             ) : null}
-            <Portfolio p={portfolio} phase={phase} loading={summaryLoading} onLeagues={onOpenLeagues} onPortfolio={onOpenPortfolio} />
+            <Portfolio
+              p={portfolio}
+              phase={phase}
+              loading={summaryLoading}
+              onLeagues={onOpenLeagues}
+              onPortfolio={onOpenPortfolio}
+              onOpenAttention={portfolio.actionItems > 0 ? () => setAttentionOpen(true) : null}
+            />
             {drafts.length ? (
               <View>
                 <Pressable style={styles.sectionRow} onPress={onOpenDraftHub}>
@@ -323,38 +335,61 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
               <Text style={styles.teamChev}>›</Text>
             </Pressable>
             {error ? <Text style={styles.error}>{error}</Text> : null}
-            <Text style={styles.section}>
-              Needs attention{summaryLoading ? '  ·  updating…' : ` · ${portfolio.actionItems}`}
-            </Text>
+            {!summaryLoading && portfolio.actionItems === 0 && !loading ? (
+              <Text style={styles.clear}>🎉 Nothing needs you right now.</Text>
+            ) : null}
           </View>
         }
-        renderItem={({ item: row }) =>
-          row.kind === 'header' ? (
-            <GroupHeader type={row.type} count={row.count} open={expanded.has(row.type)} onPress={() => toggle(row.type)} />
-          ) : (
-            <TriageRow item={row.item} onPress={() => handleAction(row.item)} />
-          )
-        }
-        ListEmptyComponent={
-          loading ? (
-            <View style={styles.center}><ActivityIndicator color={colors.accent} /></View>
-          ) : (
-            <Text style={styles.clear}>🎉 Nothing needs you right now.</Text>
-          )
-        }
       />
+
+      {/* The needs-attention feed, on demand. Tapping the "Needs attention" tile opens it as
+          a sheet instead of a permanent list crowding Home. Same grouped rows, same
+          expand/collapse, same actions — acting on a row closes the sheet and navigates. */}
+      <Modal visible={attentionOpen} animationType="slide" transparent onRequestClose={() => setAttentionOpen(false)}>
+        <View style={styles.modalWrap}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHead}>
+              <Text style={styles.modalTitle}>
+                Needs attention{summaryLoading ? '  ·  updating…' : ` · ${portfolio.actionItems}`}
+              </Text>
+              <Pressable onPress={() => setAttentionOpen(false)} hitSlop={12} accessibilityLabel="Close">
+                <Text style={styles.modalClose}>✕</Text>
+              </Pressable>
+            </View>
+            <FlatList
+              data={rows}
+              keyExtractor={(r) => (r.kind === 'header' ? `h-${r.type}` : `i-${r.item.id}`)}
+              contentContainerStyle={styles.modalList}
+              renderItem={({ item: row }) =>
+                row.kind === 'header' ? (
+                  <GroupHeader type={row.type} count={row.count} open={expanded.has(row.type)} onPress={() => toggle(row.type)} />
+                ) : (
+                  <TriageRow item={row.item} onPress={() => handleAction(row.item)} />
+                )
+              }
+              ListEmptyComponent={<Text style={styles.clear}>🎉 Nothing needs you right now.</Text>}
+            />
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
 
-function Portfolio({ p, phase, loading, onLeagues, onPortfolio }) {
+function Portfolio({ p, phase, loading, onLeagues, onPortfolio, onOpenAttention }) {
   const offseason = phase === 'offseason';
   // The Leagues count is known as soon as the league list loads, so keep it live.
   return (
     <View style={styles.portfolio}>
       <View style={styles.tileRow}>
         <Tile label="Leagues ›" value={String(p.leagues)} loading={loading && !p.leagues} onPress={onLeagues} />
-        <Tile label="Needs attention" value={String(p.needAttention)} accent={p.needAttention > 0} loading={loading} />
+        <Tile
+          label={onOpenAttention ? 'Needs attention ›' : 'Needs attention'}
+          value={String(p.needAttention)}
+          accent={p.needAttention > 0}
+          loading={loading}
+          onPress={onOpenAttention}
+        />
       </View>
       <Pressable style={({ pressed }) => [styles.portfolioLink, pressed && { opacity: 0.7 }]} onPress={onPortfolio}>
         <Text style={styles.portfolioLinkText}>Portfolio · value at risk</Text>
@@ -500,4 +535,10 @@ const styles = StyleSheet.create({
   draftSub: { color: colors.textDim, fontSize: 12, marginTop: 3 },
   draftPill: { color: '#20180a', backgroundColor: colors.gold, fontSize: 11, fontWeight: '900', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, overflow: 'hidden' },
   teamChev: { color: colors.textDim, fontSize: 20, fontWeight: '700', marginLeft: 8 },
+  modalWrap: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  modalCard: { backgroundColor: colors.bg, borderTopLeftRadius: 20, borderTopRightRadius: 20, borderWidth: 1, borderColor: colors.border, maxHeight: '80%', paddingTop: 8 },
+  modalHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 14 },
+  modalTitle: { color: colors.text, fontSize: 17, fontWeight: '900', flex: 1, marginRight: 12 },
+  modalClose: { color: colors.textDim, fontSize: 18, fontWeight: '800' },
+  modalList: { paddingHorizontal: 16, paddingBottom: 28 },
 });

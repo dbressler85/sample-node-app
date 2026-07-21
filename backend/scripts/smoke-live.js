@@ -46,6 +46,7 @@ const TESTS = [
   'trade-hole-test',
   'players-perf-test',
   'players-persist-test',
+  'players-owned-test',
   'waivers-perf-test',
   'waiver-multi-test',
   'league-prefs-test',

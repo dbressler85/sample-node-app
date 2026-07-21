@@ -6,6 +6,7 @@ import AvailabilityBadge from '../components/AvailabilityBadge';
 import { TargetIcon, AvoidIcon, WatchIcon } from '../components/PlayerActionIcons';
 import { getValue, setValue } from '../cache';
 import InfoDot from '../components/InfoDot';
+import Pulse from '../components/Pulse';
 import { ScreenTitle, Value } from '../components/Brand';
 
 const TABS = [
@@ -17,6 +18,7 @@ const TABS = [
 const RANK_TYPES = [
   ['value', 'Market value'],
   ['myvalue', 'My value'],
+  ['owned', 'Yours'],
   ['trending', 'Trending'],
 ];
 const POSITIONS = [
@@ -152,7 +154,7 @@ export default function PlayersScreen({ onOpenPlayer }) {
           <PosFilter pos={pos} setPos={setPos} />
           <ValueLens format={format} setFormat={setFormat} />
           {!searchRes ? (
-            <Center><ActivityIndicator color={colors.accent} /></Center>
+            <PlayerListSkeleton />
           ) : (
             <FlatList
               data={searchRes.players}
@@ -177,12 +179,14 @@ export default function PlayersScreen({ onOpenPlayer }) {
           {tab === 'rankings' ? (
             <>
               <View style={styles.typeRow}>
-                {RANK_TYPES.map(([k, label]) => (
-                  <Pressable key={k} style={[styles.typeChip, rankType === k && styles.typeChipActive]} onPress={() => setRankType(k)}>
-                    <Text style={[styles.typeText, rankType === k && { color: colors.text }]}>{label}</Text>
-                  </Pressable>
-                ))}
-                <View style={styles.typeInfo}><InfoDot id="ranking" size={16} /></View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.typeScroll} contentContainerStyle={styles.typeScrollRow}>
+                  {RANK_TYPES.map(([k, label]) => (
+                    <Pressable key={k} style={[styles.typeChip, rankType === k && styles.typeChipActive]} onPress={() => setRankType(k)}>
+                      <Text style={[styles.typeText, rankType === k && { color: colors.text }]}>{label}</Text>
+                    </Pressable>
+                  ))}
+                  <View style={styles.typeInfo}><InfoDot id="ranking" size={16} /></View>
+                </ScrollView>
               </View>
               <PosFilter pos={pos} setPos={setPos} rankType={rankType} setRankType={setRankType} />
               <ValueLens format={format} setFormat={setFormat} />
@@ -195,7 +199,7 @@ export default function PlayersScreen({ onOpenPlayer }) {
                 renderItem={({ item, index }) => <PlayerRow p={item} rank={index + 1} tag={resolveTag(item)} watched={resolveWatch(item)} {...rowActions} onPress={() => onOpenPlayer(item.id)} />}
                 ListEmptyComponent={
                   !rankings ? (
-                    <Center><ActivityIndicator color={colors.accent} /></Center>
+                    <PlayerListSkeleton />
                   ) : (
                     <Text style={styles.note}>{rankings.note || 'No players to rank.'}</Text>
                   )
@@ -227,7 +231,7 @@ export default function PlayersScreen({ onOpenPlayer }) {
                 renderItem={({ item }) => <PlayerRow p={item} sub={`${item.count} leagues · ${item.startingCount} starting`} tag={resolveTag(item)} watched={resolveWatch(item)} {...rowActions} onPress={() => onOpenPlayer(item.id)} />}
                 ListEmptyComponent={
                   !mine ? (
-                    <Center><ActivityIndicator color={colors.accent} /></Center>
+                    <PlayerListSkeleton />
                   ) : (
                     <Text style={styles.note}>{pos ? `You don’t roster any ${pos}s.` : 'You don’t roster any players yet.'}</Text>
                   )
@@ -318,6 +322,27 @@ function PlayerRow({ p, rank, sub, tag, watched, onTag, onWatch, onPress }) {
         ) : null}
       </View>
     </Pressable>
+  );
+}
+
+// While a player list loads, show its silhouette rather than a lone spinner — placeholder
+// rows shaped like a PlayerRow (rank · badge · name/meta · value) breathing as one. Feels
+// faster and doesn't jump the layout when the real rows land. One Pulse drives them all.
+function PlayerListSkeleton({ count = 9 }) {
+  return (
+    <Pulse min={0.45}>
+      {Array.from({ length: count }).map((_, i) => (
+        <View key={i} style={styles.skRow}>
+          <View style={styles.skRank} />
+          <View style={styles.skBadge} />
+          <View style={{ flex: 1 }}>
+            <View style={[styles.skBar, { width: '55%' }]} />
+            <View style={[styles.skBar, { width: '36%', height: 9, marginTop: 7 }]} />
+          </View>
+          <View style={styles.skValue} />
+        </View>
+      ))}
+    </Pulse>
   );
 }
 
@@ -421,8 +446,12 @@ const styles = StyleSheet.create({
   segActive: { backgroundColor: colors.cardAlt },
   segText: { color: colors.textDim, fontSize: 13, fontWeight: '700' },
   segTextActive: { color: colors.text },
-  typeRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, gap: 8, paddingVertical: 6 },
-  typeInfo: { justifyContent: 'center', marginLeft: 'auto' },
+  typeRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 6 },
+  // flexGrow:0 keeps the horizontal strip at chip height instead of stretching to fill the
+  // column (the same fix the positional filter needed).
+  typeScroll: { flexGrow: 0, flexShrink: 0 },
+  typeScrollRow: { alignItems: 'center', gap: 8, paddingRight: 8 },
+  typeInfo: { justifyContent: 'center', paddingHorizontal: 4 },
   typeChip: { backgroundColor: colors.card, borderRadius: 8, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 6 },
   typeChipActive: { backgroundColor: colors.cardAlt, borderColor: colors.accent },
   typeText: { color: colors.textDim, fontSize: 12, fontWeight: '700' },
@@ -447,6 +476,11 @@ const styles = StyleSheet.create({
   newsSearch: { flex: 1, color: colors.text, fontSize: 14, paddingVertical: 9 },
   list: { paddingHorizontal: 16, paddingBottom: 32, paddingTop: 4 },
   row: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 12, marginBottom: 10 },
+  skRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 12, marginBottom: 10 },
+  skRank: { width: 14, height: 12, borderRadius: 3, backgroundColor: colors.cardAlt, marginRight: 8 },
+  skBadge: { width: 40, height: 22, borderRadius: 6, backgroundColor: colors.cardAlt, marginRight: 10 },
+  skBar: { height: 12, borderRadius: 4, backgroundColor: colors.cardAlt },
+  skValue: { width: 26, height: 14, borderRadius: 4, backgroundColor: colors.cardAlt, marginLeft: 10 },
   rank: { color: colors.textDim, fontSize: 13, fontWeight: '800', width: 22 },
   posBadge: { width: 40, paddingVertical: 2, borderRadius: 6, borderWidth: 1, alignItems: 'center', marginRight: 10 },
   pos: { fontSize: 11, fontWeight: '800' },
