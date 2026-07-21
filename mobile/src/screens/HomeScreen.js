@@ -398,7 +398,7 @@ function Portfolio({ p, phase, loading, onLeagues, onPortfolio, onOpenAttention 
         />
       </View>
       <Pressable style={({ pressed }) => [styles.portfolioLink, pressed && { opacity: 0.7 }]} onPress={onPortfolio}>
-        <Text style={styles.portfolioLinkText}>Portfolio · value at risk</Text>
+        <Text style={styles.portfolioLinkText}>Portfolio · understand your holdings</Text>
         <Text style={styles.teamChev}>›</Text>
       </Pressable>
       <View style={styles.chips}>

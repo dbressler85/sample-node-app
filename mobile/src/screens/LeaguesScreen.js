@@ -66,7 +66,7 @@ export default function LeaguesScreen({ onBack, onOpenLeague, onOpenDraftHub }) 
   return (
     <View style={styles.container}>
       <View style={styles.topbar}>
-        <Pressable onPress={onBack} hitSlop={10}><Text style={styles.back}>‹ Home</Text></Pressable>
+        <Pressable onPress={onBack} hitSlop={10}><Text style={styles.back}>‹ Hub</Text></Pressable>
         <Text style={styles.title}>Your Leagues</Text>
         <Pressable onPress={onOpenDraftHub} hitSlop={10}><Text style={styles.link}>Drafts ›</Text></Pressable>
       </View>

@@ -67,6 +67,8 @@ export default function FieldBackdrop({ hero = false, watermark = true }) {
 }
 
 const styles = StyleSheet.create({
-  wmWrap: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'flex-start', paddingTop: '14%' },
-  wmImg: { width: '76%', aspectRatio: 1, opacity: 0.06 },
+  // Centered vertically, biased up into the content area (the tab bar eats the bottom, so
+  // true screen-center reads low). paddingBottom pulls the crest above the mathematical middle.
+  wmWrap: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', paddingBottom: '14%' },
+  wmImg: { width: '74%', aspectRatio: 1, opacity: 0.06 },
 });
