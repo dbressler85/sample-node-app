@@ -9,13 +9,15 @@ export default function GearIcon({ size = 22, color = colors.textDim }) {
   const teeth = [0, 45, 90, 135, 180, 225, 270, 315];
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <G stroke={color} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+      {/* Thick, butt-capped radial nubs that overlap the rim read as cog teeth (the old
+          thin round spokes read as a sunburst). */}
+      <G stroke={color} strokeWidth={2.6} strokeLinecap="butt">
         {teeth.map((a) => (
-          <Path key={a} d="M12 2.4 L12 5" transform={`rotate(${a} 12 12)`} />
+          <Path key={a} d="M12 3 L12 6.4" transform={`rotate(${a} 12 12)`} />
         ))}
-        <Circle cx={12} cy={12} r={6.4} />
-        <Circle cx={12} cy={12} r={2.5} />
       </G>
+      <Circle cx={12} cy={12} r={5.9} stroke={color} strokeWidth={2.3} fill="none" />
+      <Circle cx={12} cy={12} r={2.3} stroke={color} strokeWidth={2} fill="none" />
     </Svg>
   );
 }
