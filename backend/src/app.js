@@ -19,6 +19,11 @@ const pushRoutes = require('./routes/push');
 
 const app = express();
 
+// Behind Render's proxy: trust one hop so req.ip resolves to the real client (from
+// X-Forwarded-For) rather than the edge address — the per-IP login throttle depends
+// on it. Tune via a different hop count if the deployment adds proxies.
+app.set('trust proxy', 1);
+
 app.use(cors()); // mobile app is a separate origin
 app.use(express.json());
 app.use(morgan('dev'));

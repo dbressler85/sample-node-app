@@ -76,6 +76,12 @@ const config = {
   // On HTTP 429/503, retry this many times with backoff (respecting Retry-After).
   mflMaxRetries: int(process.env.MFL_MAX_RETRIES, 4),
 
+  // Per-IP failed-login throttle for /api/auth/login (credentials pass straight to
+  // MFL, so this stops the backend being an open brute-force proxy). Lock a source
+  // IP after this many FAILED attempts within the window; a success clears it.
+  loginMaxFails: int(process.env.LOGIN_MAX_FAILS, 10),
+  loginFailWindowMs: int(process.env.LOGIN_FAIL_WINDOW_MS, 15 * 60 * 1000),
+
   // How long to cache the (large) global player database before refetching.
   playersCacheTtlMs: int(process.env.MFL_PLAYERS_TTL_MS, 24 * 60 * 60 * 1000),
 
