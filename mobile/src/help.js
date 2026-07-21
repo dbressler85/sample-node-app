@@ -14,6 +14,15 @@ export const HELP = [
     ],
   },
   {
+    id: 'ranking',
+    title: 'Market value vs. My value (and Trending)',
+    body: [
+      'The Players list can rank three ways. Market value is the pure FantasyCalc consensus — what the player is worth to everyone.',
+      'My value is that same market value re-ranked by YOUR convictions: tagging a player Target nudges his value up ~10% for you, tagging him Avoid nudges it down ~10%. So your Targets rise in the list and your Avoids sink — but the number shown stays the honest market value, only the order changes. Tag players with the ◎ / ⦸ icons on any player row.',
+      'Trending ignores value entirely and ranks by add/drop momentum (how heavily a player is being picked up across fantasy right now) — good for catching breakouts and waiver hype, not for dynasty worth.',
+    ],
+  },
+  {
     id: 'outlook',
     title: 'Team outlook: win-now, ascending, rebuilding, balanced',
     body: [

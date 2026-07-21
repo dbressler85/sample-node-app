@@ -15,8 +15,8 @@ const TABS = [
   ['news', 'News'],
 ];
 const RANK_TYPES = [
-  ['value', 'Value'],
-  ['myvalue', 'My values'],
+  ['value', 'Market value'],
+  ['myvalue', 'My value'],
   ['trending', 'Trending'],
 ];
 const POSITIONS = [
@@ -182,6 +182,7 @@ export default function PlayersScreen({ onOpenPlayer }) {
                     <Text style={[styles.typeText, rankType === k && { color: colors.text }]}>{label}</Text>
                   </Pressable>
                 ))}
+                <View style={styles.typeInfo}><InfoDot id="ranking" size={16} /></View>
               </View>
               <PosFilter pos={pos} setPos={setPos} rankType={rankType} setRankType={setRankType} />
               <ValueLens format={format} setFormat={setFormat} />
@@ -420,7 +421,8 @@ const styles = StyleSheet.create({
   segActive: { backgroundColor: colors.cardAlt },
   segText: { color: colors.textDim, fontSize: 13, fontWeight: '700' },
   segTextActive: { color: colors.text },
-  typeRow: { flexDirection: 'row', paddingHorizontal: 16, gap: 8, paddingVertical: 6 },
+  typeRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, gap: 8, paddingVertical: 6 },
+  typeInfo: { justifyContent: 'center', marginLeft: 'auto' },
   typeChip: { backgroundColor: colors.card, borderRadius: 8, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 6 },
   typeChipActive: { backgroundColor: colors.cardAlt, borderColor: colors.accent },
   typeText: { color: colors.textDim, fontSize: 12, fontWeight: '700' },
