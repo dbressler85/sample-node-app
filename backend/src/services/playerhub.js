@@ -281,73 +281,78 @@ async function profile(cookie, token, playerId) {
   // profile's byeWeek are real.
   const byeMap = ctx.byeMap;
 
-  // Game log + season. Demo has a fixture; live pulls actual points from MFL
-  // playerScores, scored under the owner's first league.
-  let log;
-  let season;
-  if (config.demoMode) {
-    log = demo.gameLog(playerId);
-    const seasonPoints = Math.round(log.reduce((s, g) => s + g.pts, 0) * 10) / 10;
-    season = log.length ? { points: seasonPoints, games: log.length, ppg: Math.round((seasonPoints / log.length) * 10) / 10 } : null;
-  } else {
-    const leagues = await leaguesService.listLeagues(cookie);
-    const res = await liveSeasonAndLog(cookie, leagues[0], playerId, ctx.week);
-    log = res.log;
-    season = res.season;
-  }
-
-  // Upcoming schedule. Demo has difficulty ratings; live surfaces the real
-  // opponents from the NFL schedule (difficulty null — no strength-of-schedule
-  // source wired in live yet), so avgDifficulty is only computed when every
-  // game carries a rating.
-  const upcoming = config.demoMode ? demo.schedule(base.team) : await nflLib.upcomingOpponents(cookie, base.team, ctx.week);
+  // Four independent MFL fan-outs — game log, upcoming schedule, per-player news, and the
+  // cross-league roll-up — used to run one after another, so the profile's latency was
+  // their SUM. They don't depend on each other, so run them concurrently: latency is now
+  // the slowest single section. (Each underlying MFL type is still cached, so repeat opens
+  // and neighbouring screens stay warm.)
+  const [logSeason, upcoming, news, crossLeague] = await Promise.all([
+    // A) Game log + season. Demo has a fixture; live pulls actual points from MFL
+    // playerScores, scored under the owner's first league.
+    (async () => {
+      if (config.demoMode) {
+        const l = demo.gameLog(playerId);
+        const pts = Math.round(l.reduce((s, g) => s + g.pts, 0) * 10) / 10;
+        return { log: l, season: l.length ? { points: pts, games: l.length, ppg: Math.round((pts / l.length) * 10) / 10 } : null };
+      }
+      const leagues = await leaguesService.listLeagues(cookie);
+      const res = await liveSeasonAndLog(cookie, leagues[0], playerId, ctx.week);
+      return { log: res.log, season: res.season };
+    })(),
+    // B) Upcoming schedule. Demo has difficulty ratings; live surfaces the real opponents
+    // from the NFL schedule (difficulty null — no strength-of-schedule source live yet).
+    config.demoMode ? Promise.resolve(demo.schedule(base.team)) : nflLib.upcomingOpponents(cookie, base.team, ctx.week),
+    // C) News about this player (demo fixture, or ESPN mapped to MFL players in live).
+    (async () => {
+      const raw = config.demoMode ? demo.news() : await newsLib.mflNews(cookie);
+      return raw
+        .filter((n) => String(n.playerId) === String(playerId))
+        .map((n) => ({ id: n.id, headline: n.headline, severity: n.severity, url: n.url || null }));
+    })(),
+    // D) Cross-league ownership + per-league projection.
+    (async () => {
+      const { data } = await gather(cookie);
+      return Promise.all(
+        data.map(async ({ league, roster, faSet }) => {
+          // The profile's labels over the shared canonical standing: a player I've dropped
+          // here, "rostered" (on MY roster, with the slot), "free", or "unavailable" (owned
+          // by another team). Same classification the watchlist uses, different vocabulary.
+          let relation = 'unavailable';
+          let bucket = null;
+          if (dropStore.has(token, league.leagueId, playerId)) {
+            relation = 'dropped';
+          } else {
+            const s = standingLib.standing(roster, faSet, playerId);
+            if (s.mine) { relation = 'rostered'; bucket = s.bucket; }
+            else if (s.where === 'free') relation = 'free';
+          }
+          const proj = config.demoMode
+            ? leagueProjection(playerId, base.position, league.leagueId)
+            : await liveLeagueProjection(cookie, league, playerId);
+          // Format-aware dynasty value for THIS league — a superflex QB is worth far
+          // more here than in a 1QB league, so the value differs per format. Snapshots
+          // cache per format, so repeated formats across leagues are cheap.
+          const fmt = await leagueFormat.format(cookie, league);
+          const enrL = await enrichmentLib.snapshot(fmt, cookie);
+          return {
+            leagueId: league.leagueId,
+            name: league.name,
+            relation,
+            bucket,
+            system: config.demoMode ? (demo.waiverSettings(league.leagueId) || {}).system : null,
+            leagueProjection: proj,
+            value: enrL.value(playerId),
+            format: leagueFormat.label(fmt),
+          };
+        })
+      );
+    })(),
+  ]);
+  const { log, season } = logSeason;
   const rated = upcoming.filter((g) => g.difficulty != null);
   const avgDifficulty = rated.length === upcoming.length && upcoming.length
     ? Math.round((upcoming.reduce((s, g) => s + g.difficulty, 0) / upcoming.length) * 10) / 10
     : null;
-
-  // News about this player (demo fixture, or ESPN mapped to MFL players in live).
-  const rawNews = config.demoMode ? demo.news() : await newsLib.mflNews(cookie);
-  const news = rawNews
-    .filter((n) => String(n.playerId) === String(playerId))
-    .map((n) => ({ id: n.id, headline: n.headline, severity: n.severity, url: n.url || null }));
-
-  // Cross-league ownership + per-league projection.
-  const { data } = await gather(cookie);
-  const crossLeague = await Promise.all(
-    data.map(async ({ league, roster, faSet }) => {
-      // The profile's labels over the shared canonical standing: a player I've dropped
-      // here, "rostered" (on MY roster, with the slot), "free", or "unavailable" (owned
-      // by another team). Same classification the watchlist uses, different vocabulary.
-      let relation = 'unavailable';
-      let bucket = null;
-      if (dropStore.has(token, league.leagueId, playerId)) {
-        relation = 'dropped';
-      } else {
-        const s = standingLib.standing(roster, faSet, playerId);
-        if (s.mine) { relation = 'rostered'; bucket = s.bucket; }
-        else if (s.where === 'free') relation = 'free';
-      }
-      const proj = config.demoMode
-        ? leagueProjection(playerId, base.position, league.leagueId)
-        : await liveLeagueProjection(cookie, league, playerId);
-      // Format-aware dynasty value for THIS league — a superflex QB is worth far
-      // more here than in a 1QB league, so the value differs per format. Snapshots
-      // cache per format, so repeated formats across leagues are cheap.
-      const fmt = await leagueFormat.format(cookie, league);
-      const enrL = await enrichmentLib.snapshot(fmt, cookie);
-      return {
-        leagueId: league.leagueId,
-        name: league.name,
-        relation,
-        bucket,
-        system: config.demoMode ? (demo.waiverSettings(league.leagueId) || {}).system : null,
-        leagueProjection: proj,
-        value: enrL.value(playerId),
-        format: leagueFormat.label(fmt),
-      };
-    })
-  );
   // The player's value spread across your league formats (the "compare across my
   // leagues" signal). Same everywhere in a single-format portfolio; wider in a mix.
   const leagueValues = crossLeague.map((c) => c.value).filter((v) => v != null);
