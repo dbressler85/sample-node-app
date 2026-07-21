@@ -194,6 +194,7 @@ export default function App() {
             onProposeInLeague={(league) => openTrades(league, 'propose')}
             onOpenBlock={openBlock}
             onCounter={(ctx) => openTrades({ leagueId: ctx.leagueId, name: ctx.name }, 'propose', { counterOfferId: ctx.offerId })}
+            onManualCounter={(ctx) => openTrades({ leagueId: ctx.leagueId, name: ctx.name }, 'propose', { partnerFranchiseId: ctx.partnerFranchiseId })}
             onOpenPlayer={openPlayer}
           />
         );

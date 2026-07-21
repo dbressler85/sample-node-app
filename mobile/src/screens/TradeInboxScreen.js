@@ -31,7 +31,7 @@ const teamCtx = (t) => {
   return [shortOutlook(t.outlook), t.avgAge != null ? `${t.avgAge} yr` : null].filter(Boolean).join(' · ') || null;
 };
 
-export default function TradeInboxScreen({ onBack, onOpenLeague, onProposeInLeague, onOpenBlock, onCounter, onOpenPlayer }) {
+export default function TradeInboxScreen({ onBack, onOpenLeague, onProposeInLeague, onOpenBlock, onCounter, onManualCounter, onOpenPlayer }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -162,6 +162,7 @@ export default function TradeInboxScreen({ onBack, onOpenLeague, onProposeInLeag
               onRespond={respond}
               onOpenLeague={() => onOpenLeague({ leagueId: item.leagueId, name: item.leagueName })}
               onCounter={onCounter ? () => onCounter({ leagueId: item.leagueId, name: item.leagueName, offerId: item.id }) : null}
+              onManualCounter={onManualCounter ? () => { respond(item, 'reject'); onManualCounter({ leagueId: item.leagueId, name: item.leagueName, partnerFranchiseId: item.withFranchiseId }); } : null}
               onOpenPlayer={onOpenPlayer}
             />
           )}
@@ -179,7 +180,7 @@ export default function TradeInboxScreen({ onBack, onOpenLeague, onProposeInLeag
   );
 }
 
-function OfferCard({ offer, busy, onRespond, onOpenLeague, onCounter, onOpenPlayer }) {
+function OfferCard({ offer, busy, onRespond, onOpenLeague, onCounter, onManualCounter, onOpenPlayer }) {
   const v = VERDICT[offer.analysis.verdict] || VERDICT.fair;
   return (
     <View style={styles.card}>
@@ -253,7 +254,16 @@ function OfferCard({ offer, busy, onRespond, onOpenLeague, onCounter, onOpenPlay
       </View>
       {onCounter ? (
         <Pressable style={({ pressed }) => [styles.counterBtn, pressed && { opacity: 0.7 }]} onPress={onCounter} disabled={busy}>
-          <Text style={styles.counterBtnText}>↩ Counter with a balanced offer</Text>
+          {/* Label reflects what the smart counter WILL do: balance an offer that's
+              against you, or ask for a sweetener on one that's already fair/in your favor. */}
+          <Text style={styles.counterBtnText}>
+            {offer.analysis.net < 0 ? '↩ Counter to balance it' : '↩ Counter — ask for a bit more'}
+          </Text>
+        </Pressable>
+      ) : null}
+      {onManualCounter ? (
+        <Pressable style={({ pressed }) => [styles.manualBtn, pressed && { opacity: 0.7 }]} onPress={onManualCounter} disabled={busy}>
+          <Text style={styles.manualBtnText}>Reject &amp; build your own ›</Text>
         </Pressable>
       ) : null}
     </View>
@@ -316,6 +326,8 @@ const styles = StyleSheet.create({
   constructionText: { fontSize: 13, fontWeight: '700', lineHeight: 18 },
   counterBtn: { marginTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, paddingTop: 10, alignItems: 'center' },
   counterBtnText: { color: colors.accent, fontSize: 14, fontWeight: '800' },
+  manualBtn: { marginTop: 8, alignItems: 'center' },
+  manualBtnText: { color: colors.textDim, fontSize: 13, fontWeight: '700' },
   actions: { flexDirection: 'row', gap: 10, marginTop: 12 },
   act: { flex: 1, borderRadius: 12, paddingVertical: 13, alignItems: 'center' },
   reject: { backgroundColor: colors.cardAlt, borderWidth: 1, borderColor: colors.border },

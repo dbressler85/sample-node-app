@@ -534,16 +534,22 @@ async function counterFor(cookie, token, leagueId, offerId) {
 
   const net = val(receive) - val(give);
   const short = Math.abs(Math.round(offer.analysis.net));
+  // `mode` drives the button label on the inbox: what the counter actually did.
   let rationale;
+  let mode;
   if (sweetener) {
+    mode = 'sweeten';
     rationale = `Their offer was already fair to you — this counter keeps it and asks for a little more: their ${sweetener.label}.`;
   } else if (added.length) {
+    mode = 'balance';
     const names = added.map((a) => a.name.split(',')[0]).join(' + ');
     const baited = added.some((a) => theirBait.has(String(a.id)));
     rationale = `Their offer left you about ${short} light. Counter keeps the same shape but also asks for ${names}${baited ? ' (on their block)' : ''}.`;
   } else if (net >= 0) {
+    mode = 'fair';
     rationale = 'Their offer is already fair to you — sent back as-is to lock it in.';
   } else {
+    mode = 'nudge';
     rationale = 'Kept the same shape; nudge it from here.';
   }
 
@@ -552,6 +558,7 @@ async function counterFor(cookie, token, leagueId, offerId) {
     counterOfferId: String(offer.id),
     toFranchiseId: partnerId,
     partnerName: offer.withName,
+    mode,
     give: give.map((a) => ({ id: a.id, name: a.name, position: a.position, kind: a.kind, value: a.value })),
     receive: receive.map((a) => ({ id: a.id, name: a.name, position: a.position, kind: a.kind, value: a.value, bait: theirBait.has(String(a.id)) })),
     giveValue: val(give),
