@@ -146,16 +146,16 @@ async function getLeagueTriage(cookie, token, leagueId) {
 
 async function getHome(cookie, token) {
   const phase = await seasonPhase(cookie);
-  // Muted leagues drop out of Home triage; pinned sort first.
-  const leagues = await leaguesService.orderedLeagues(cookie, token, { hideMuted: true });
+  // All of the account's leagues, pinned first.
+  const leagues = await leaguesService.orderedLeagues(cookie, token);
   const items = [];
   const counts = { injuries: 0, holes: 0, lineupsToSet: 0 };
   const teams = [];
   const dynastyList = [];
 
   if (phase === 'in_season') {
-    // The lineup overview does its own (unfiltered) league read, so restrict it to the
-    // visible set here — otherwise a muted league's lineup status would leak into triage.
+    // The lineup overview does its own league read; intersect it with the account's
+    // leagues so a stale or foreign entry can't leak into triage.
     const visible = new Set(leagues.map((l) => String(l.leagueId)));
     const overview = await lineupsService.getOverview(cookie, token, 'auto', { light: true });
     for (const l of overview.leagues) {

@@ -12,8 +12,7 @@ const rosterService = require('./roster');
 const standingLib = require('../lib/standing');
 
 async function gather(cookie, token) {
-  // Muted leagues drop out of exposure — you've told us they don't need attention.
-  const leagues = await leaguesService.orderedLeagues(cookie, token, { hideMuted: true });
+  const leagues = await leaguesService.orderedLeagues(cookie, token);
   const rosters = (
     await Promise.all(
       leagues.map((l) =>

@@ -108,7 +108,7 @@ async function getWatchlist(cookie, token) {
 // Watchlist alerts for Home: a watched player has become actionable in one of your
 // leagues — he's a FREE AGENT you could claim, or another owner just put him ON THE
 // BLOCK (their MFL trade bait). Cheap-ish: reuses the memoized free-agent id sets and
-// the trade-bait board read; muted leagues are skipped. Returns [] fast with no watchlist.
+// the trade-bait board read. Returns [] fast with no watchlist.
 async function alerts(cookie, token) {
   const ids = watchStore.list(token).map(String);
   if (!ids.length) return { alerts: [] };
@@ -116,7 +116,7 @@ async function alerts(cookie, token) {
   // Lazy require to keep the module graph acyclic (trades pulls in a lot).
   const tradesService = require('./trades');
   const [leagues, byId] = await Promise.all([
-    leaguesService.orderedLeagues(cookie, token, { hideMuted: true }),
+    leaguesService.orderedLeagues(cookie, token),
     playersLib.load(cookie),
   ]);
 
