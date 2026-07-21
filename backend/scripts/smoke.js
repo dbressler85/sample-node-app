@@ -36,6 +36,10 @@ function assert(cond, msg) {
 
     const authed = { headers: { Authorization: `Bearer ${token}` } };
 
+    r = await j(await fetch(`${base}/api/me`, authed));
+    assert(r.status === 200 && r.body.username && r.body.leagues === 3, 'me: identity + league count');
+    console.log(`✓ me: ${r.body.username} · ${r.body.leagues} leagues · ${r.body.season}`);
+
     r = await j(await fetch(`${base}/api/dashboard`, authed));
     assert(r.status === 200, 'dashboard 200');
     assert(Array.isArray(r.body.leagues) && r.body.leagues.length === 3, 'dashboard has 3 leagues');
