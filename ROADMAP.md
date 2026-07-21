@@ -25,8 +25,11 @@ Cross-league management is the moat; these deepen it.
   dynasty value across leagues, value-weighted age, value-by-age curve, and
   value-at-risk — split into hurt starters (can't deploy now) and aging cores
   (past a position-aware decline age), with the biggest at-risk holdings listed
-  (tap → profile) and a per-league breakdown. *(Next: expiring-contract risk where
-  MFL exposes it; a value-trend sparkline once we retain snapshots.)*
+  (tap → profile) and a per-league breakdown. **Redesigned** into a true portfolio
+  overview: value-over-time sparkline + movement line (daily snapshots retained per
+  account), position allocation, and top holdings (each player's value summed across
+  every league you roster him in, with exposure + portfolio share). *(Next:
+  expiring-contract risk where MFL exposes it.)*
 - [x] **Strength-aware dynasty outlook.** Outlook (Win-now / Ascending / Rebuilding /
   Balanced) now blends **roster strength** — where a team's total value ranks among
   all franchises in its league — with **core age**, instead of age alone. Age-only
@@ -177,12 +180,12 @@ instead of routing into them. The work is plumbing that intelligence between scr
 Grouped into four "synergy systems", highest-leverage first:
 
 ### System 1 — Every player is a doorway (tap → PlayerProfile)
-- [ ] **Thread `onOpenPlayer` into every player list.** Player names are dead text on
-  ~11 of 18 screens despite `PlayerProfileScreen` being the app's richest cross-league
-  object. Wire it through: **Roster** (tap a rostered player — the worst dead end),
-  **Scores**, **Lineups / LineupEditor / LineupWizard** (warning players carry
-  `playerId`), **Waivers board / WaiverWizard** (research a FA before claiming),
-  **Trades desk / TradeInbox** (offer players), **On the Block**, **Draft room**.
+- [~] **Thread `onOpenPlayer` into every player list.** Mostly done: the shared
+  `PlayerRow` (Roster, Waivers board, Trades desk / TradeInbox, On the Block) and the
+  Draft room already open the cross-league profile on tap. Scores shows team-vs-team
+  totals, not player rows, so there's nothing to link there. **Remaining:** the lineup
+  **slot editor / wizard**, where the row IS the slot-selection target — tap-through
+  needs a dedicated affordance (a small info tap) to avoid a gesture conflict.
 - [ ] **Draft room: separate research from drafting.** Once rows open a profile, a
   single tap can't also = instant pick. Add an explicit "Draft him" action / confirm
   (also fixes today's accidental-pick risk).
@@ -252,9 +255,9 @@ Grouped into four "synergy systems", highest-leverage first:
   core dynasty currency.
 
 ### Per-screen polish (from the same pass)
-- [ ] **Players lists show no age** (the key dynasty attribute) — the shared `PlayerRow`
-  shows it but the local row on PlayersScreen doesn't; also "Trending" shows no
-  direction/magnitude, and `ownership` is platform-wide, not "% in your leagues".
+- [~] **Players lists show no age** — done: the PlayersScreen row now shows age, and the
+  **Trending** sort shows each player's add/drop momentum (▲ N) in place of value.
+  **Remaining:** `ownership` is still platform-wide, not "% in your leagues".
 - [ ] **Waiver claim: add-vs-drop value delta** side by side (the core dynasty claim
   decision); `FaRow` vs `PlayerLine` render the same entity two different ways.
 - [ ] **Trades: de-emphasized "Dynasty value estimate"** (italic/low-opacity — the most
