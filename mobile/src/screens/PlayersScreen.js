@@ -196,7 +196,7 @@ export default function PlayersScreen({ onOpenPlayer }) {
                 keyExtractor={(p) => p.id}
                 extraData={{ tagOverride, watchOverride }}
                 contentContainerStyle={styles.list}
-                renderItem={({ item, index }) => <PlayerRow p={item} rank={index + 1} tag={resolveTag(item)} watched={resolveWatch(item)} {...rowActions} onPress={() => onOpenPlayer(item.id)} />}
+                renderItem={({ item, index }) => <PlayerRow p={item} rank={index + 1} tag={resolveTag(item)} watched={resolveWatch(item)} showTrend={rankType === 'trending'} {...rowActions} onPress={() => onOpenPlayer(item.id)} />}
                 ListEmptyComponent={
                   !rankings ? (
                     <PlayerListSkeleton />
@@ -279,7 +279,7 @@ export default function PlayersScreen({ onOpenPlayer }) {
   );
 }
 
-function PlayerRow({ p, rank, sub, tag, watched, onTag, onWatch, onPress }) {
+function PlayerRow({ p, rank, sub, tag, watched, showTrend, onTag, onWatch, onPress }) {
   const posColor = positionColors[p.position] || colors.textDim;
   const t = tag !== undefined ? tag : p.tag || null;
   const w = watched !== undefined ? watched : !!p.watched;
@@ -300,13 +300,16 @@ function PlayerRow({ p, rank, sub, tag, watched, onTag, onWatch, onPress }) {
         </View>
         <Text style={styles.meta}>
           {p.team}
+          {p.age != null ? ` · ${p.age}y` : ''}
           {p.posRank ? ` · ${p.position}${p.posRank}` : ''}
           {p.ownership != null ? ` · ${p.ownership}% rost` : ''}
           {sub ? ` · ${sub}` : ''}
         </Text>
       </View>
       <View style={styles.rightCol}>
-        {p.value != null ? <Value size={16}>{p.value}</Value> : null}
+        {showTrend && p.trend ? (
+          <Text style={styles.trend}>▲ {p.trend.toLocaleString()}</Text>
+        ) : p.value != null ? <Value size={16}>{p.value}</Value> : null}
         {acts ? (
           <View style={styles.actions}>
             <Pressable hitSlop={6} onPress={() => onTag(p.id, t === 'target' ? null : 'target', t)} accessibilityLabel="Target">
@@ -496,6 +499,7 @@ const styles = StyleSheet.create({
   tagMark: { fontSize: 13, fontWeight: '900', marginLeft: 6 },
   meta: { color: colors.textDim, fontSize: 12, marginTop: 2 },
   value: { color: colors.gold, fontSize: 15, fontWeight: '900', marginLeft: 10 },
+  trend: { color: colors.good, fontSize: 14, fontWeight: '900', marginLeft: 10 },
   dot: { width: 10, height: 10, borderRadius: 5, marginRight: 10 },
   newsHead: { color: colors.text, fontSize: 14, fontWeight: '700' },
   chev: { color: colors.textDim, fontSize: 20, marginLeft: 8 },

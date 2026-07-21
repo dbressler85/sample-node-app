@@ -125,6 +125,7 @@ function annotate(player, byId, ranks, myRostered, mineBy, freeBy, enr, ctx, tag
     team: player.team,
     age: enr.age(player.id),
     value: enr.value(player.id),
+    trend: enr.trend(player.id) || 0, // Sleeper add/drop momentum, for the Trending sort's magnitude
     posRank: ranks.pos.get(player.id) || null,
     ownership: enr.ownership(player.id),
     availability: availabilityLib.resolve(player, ctx.statusMap, ctx.byeMap, ctx.week),
