@@ -364,11 +364,12 @@ async function getDashboard(cookie, token) {
   });
   byLeague.sort((a, b) => (b.value || 0) - (a.value || 0));
 
-  // Top holdings: your biggest positions by aggregate value across all leagues, with exposure
+  // Top holdings: your positions by aggregate value across all leagues, with exposure
   // (how many of your leagues roster them) and what share of the whole portfolio each is.
+  // Return the FULL ranked book — the app shows the top 12 by default and expands to all on
+  // "Show all" (a 15-league owner has far more than 12 holdings worth seeing).
   const holdings = [...holdMap.values()]
     .sort((a, b) => b.total - a.total)
-    .slice(0, 12)
     .map((h) => ({
       id: h.id, name: h.name, position: h.position, team: h.team,
       value: Math.round(h.total), leagues: h.leagues,
@@ -403,9 +404,10 @@ async function getDashboard(cookie, token) {
 
   // Per-holding movers: record each holding's value today, then rank by change vs the
   // earliest point we have — "which of your players rose/fell most." Demo seeds a mixed
-  // synthetic history (some up, some down) the first time so movers aren't empty.
+  // synthetic history (some up, some down) the first time so movers aren't empty. Scoped to
+  // the top holdings so we don't write value history for the entire (now full) book each load.
   const moverList = [];
-  holdings.forEach((h, i) => {
+  holdings.slice(0, 12).forEach((h, i) => {
     if (config.demoMode && pvHistory.series(token, h.id).length === 0 && h.value > 0) {
       pvHistory.seed(token, h.id, syntheticPlayerHistory(h.value, i));
     }

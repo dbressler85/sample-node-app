@@ -26,6 +26,7 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
   const [error, setError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [posFilter, setPosFilter] = useState(null); // tap an allocation segment to filter holdings by position
+  const [showAllHoldings, setShowAllHoldings] = useState(false); // Top holdings: 12 by default, expand to the full book
 
   useAndroidBack(useCallback(() => { onBack(); return true; }, [onBack]));
 
@@ -242,7 +243,7 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
                 <Text style={styles.holdKeyPct}>vs. biggest</Text>
               </View>
             </View>
-            {(posFilter ? d.holdings.filter((h) => h.position === posFilter) : d.holdings).map((h) => {
+            {(posFilter ? d.holdings.filter((h) => h.position === posFilter) : (showAllHoldings ? d.holdings : d.holdings.slice(0, 12))).map((h) => {
               const baited = resolveBaited(h);
               return (
                 <View key={h.id} style={styles.holdRow}>
@@ -276,6 +277,15 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
                 </View>
               );
             })}
+            {/* Top 12 by default; expand to the full ranked book (only when unfiltered — a
+                position filter already narrows the list). */}
+            {!posFilter && d.holdings.length > 12 ? (
+              <Pressable onPress={() => setShowAllHoldings((v) => !v)} style={({ pressed }) => [styles.showAll, pressed && { opacity: 0.7 }]}>
+                <Text style={styles.showAllTxt}>
+                  {showAllHoldings ? 'Show less ▲' : `Show all ${d.holdings.length} holdings ▼`}
+                </Text>
+              </Pressable>
+            ) : null}
             <Text style={styles.hint}>
               <Text style={{ color: colors.gold, fontWeight: '900' }}>Value</Text> = each player’s value summed across every league you roster him in (your real exposure); <Text style={{ fontWeight: '900' }}>vs. biggest</Text> = his size next to your largest holding (your top bet = 100%), so exposures compare at a glance. <Text style={{ fontWeight: '900' }}>⇄ Shop</Text> puts him on the block in every league you hold him.
             </Text>
@@ -500,6 +510,8 @@ const styles = StyleSheet.create({
   barTrack: { flex: 1, height: 14, backgroundColor: colors.bg, borderRadius: 7, overflow: 'hidden', marginHorizontal: 8 },
   barFill: { height: 14, backgroundColor: colors.accent, borderRadius: 7 },
   curveVal: { color: colors.text, fontSize: 12, fontWeight: '800', width: 38, textAlign: 'right' },
+  showAll: { alignItems: 'center', paddingVertical: 11, marginTop: 4, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+  showAllTxt: { color: colors.accent, fontSize: 13, fontWeight: '800' },
   hint: { color: colors.textDim, fontSize: 11, marginTop: 6, lineHeight: 15 },
   tagLine: { color: colors.text, fontSize: 13, lineHeight: 20 },
   leagueRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
