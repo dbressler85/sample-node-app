@@ -25,6 +25,7 @@ const playerTags = require('../store/playerTags');
 const historyStore = require('../store/portfolioHistory');
 const tradebaitStore = require('../store/tradebait');
 const tradebaitService = require('./tradebait');
+const season = require('../lib/season');
 
 const SEV = { high: 3, medium: 2, low: 1 };
 
@@ -267,9 +268,13 @@ async function getDashboard(cookie, token) {
     });
   }
   // Pinned leagues sort first in the per-league breakdown (muting is a Home/On Deck/exposure concern).
-  const loaded = await Promise.all(
-    leagues.map((l) => rosterService.getRoster(cookie, l.leagueId).then((roster) => ({ league: l, roster })).catch(() => null))
-  );
+  // Resolve NFL byes (team → week) alongside the rosters, best-effort, for bye-week concentration.
+  const [loaded, byeMap] = await Promise.all([
+    Promise.all(
+      leagues.map((l) => rosterService.getRoster(cookie, l.leagueId).then((roster) => ({ league: l, roster })).catch(() => null))
+    ),
+    (config.demoMode ? Promise.resolve(demo.byes()) : currentWeek(cookie).then((w) => nflLib.byeMap(cookie, w))).catch(() => ({})),
+  ]);
   const valid = loaded.filter(Boolean);
 
   let totalValue = 0;
@@ -287,6 +292,8 @@ async function getDashboard(cookie, token) {
   // him in (that total value is your real exposure), and value grouped by position (allocation).
   const holdMap = new Map(); // playerId -> { id, name, position, team, total, leagues, top }
   const allocMap = new Map(); // position -> value
+  const teamMap = new Map(); // NFL team -> value (stack/team concentration)
+  const byeMapAgg = new Map(); // bye week -> value (bye-week concentration: a rough week where many starters sit)
   // Distinct rostered players you've tagged — "shop your Avoids" / "your Targets are safe".
   const tags = playerTags.all(token);
   const taggedRostered = { target: new Set(), avoid: new Set() };
@@ -308,6 +315,9 @@ async function getDashboard(cookie, token) {
       h.leagueIds.push(league.leagueId);
       holdMap.set(p.id, h);
       allocMap.set(p.position, (allocMap.get(p.position) || 0) + v);
+      if (p.team) teamMap.set(p.team, (teamMap.get(p.team) || 0) + v);
+      const bye = byeMap[p.team];
+      if (bye) byeMapAgg.set(bye, (byeMapAgg.get(bye) || 0) + v);
       if (p.age != null) {
         ageValueSum += p.age * v;
         ageValueWeight += v;
@@ -366,6 +376,18 @@ async function getDashboard(cookie, token) {
     .map(([position, value]) => ({ position, value: Math.round(value), pct: pct(value, totalValue) }))
     .sort((a, b) => b.value - a.value);
 
+  // Concentration — the multi-league owner's stack risk. Value tied to a single NFL team
+  // (a bad team season dents many rosters at once) and to a single bye week (a rough week
+  // where a chunk of your starters all sit). Top few, biggest share first.
+  const byTeam = [...teamMap.entries()]
+    .map(([team, value]) => ({ team, value: Math.round(value), pct: pct(value, totalValue) }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 6);
+  const byBye = [...byeMapAgg.entries()]
+    .map(([week, value]) => ({ week: Number(week), value: Math.round(value), pct: pct(value, totalValue) }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 4);
+
   // Value-over-time: record today's point and read back the series. Demo mode seeds a
   // synthetic ramp the first time so the sparkline isn't empty on a fresh account.
   const totalRounded = Math.round(totalValue);
@@ -398,6 +420,8 @@ async function getDashboard(cookie, token) {
     tags: { avoids: taggedRostered.avoid.size, targets: taggedRostered.target.size },
     holdings,
     allocation,
+    concentration: { byTeam, byBye },
+    seasonal: season.advisory(),
     history: series,
     change,
     byLeague,

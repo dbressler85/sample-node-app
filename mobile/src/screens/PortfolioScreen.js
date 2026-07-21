@@ -98,6 +98,37 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
           </View>
         </View>
 
+        {/* Season timing — advisory only; frames whether to hold or sell right now. */}
+        {d.seasonal && d.seasonal.message ? (
+          <View style={[styles.seasonBanner, d.seasonal.holdToSell && styles.seasonBannerActive]}>
+            <Text style={styles.seasonLabel}>{d.seasonal.label.toUpperCase()}</Text>
+            <Text style={styles.seasonMsg}>{d.seasonal.message}</Text>
+          </View>
+        ) : null}
+
+        {/* Concentration — stack risk unique to a multi-league book: value tied to one NFL
+            team (a bad season dents many rosters) or one bye week (a rough week of empty slots). */}
+        {d.concentration && (d.concentration.byTeam.length || d.concentration.byBye.length) ? (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Concentration</Text>
+            {d.concentration.byTeam.slice(0, 5).map((t) => (
+              <View key={t.team} style={styles.concRow}>
+                <Text style={[styles.concName, t.pct >= 15 && { color: colors.warn }]}>{t.team}</Text>
+                <View style={styles.concTrack}>
+                  <View style={[styles.concFill, { width: `${Math.min(100, t.pct * 3)}%`, backgroundColor: t.pct >= 15 ? colors.warn : colors.accent }]} />
+                </View>
+                <Text style={styles.concPct}>{t.pct}%</Text>
+              </View>
+            ))}
+            {d.concentration.byBye.length ? (
+              <Text style={styles.concBye}>
+                Heaviest bye: <Text style={{ color: colors.text, fontWeight: '800' }}>Week {d.concentration.byBye[0].week}</Text> holds {d.concentration.byBye[0].pct}% of your value.
+              </Text>
+            ) : null}
+            <Text style={styles.hint}>How much of your portfolio rides on one NFL team or a single bye week — the more concentrated, the more one team’s season swings your whole book.</Text>
+          </View>
+        ) : null}
+
         {/* Allocation by position — the portfolio's "sectors" as a single stacked bar. Tap a
             segment (or legend key) to filter the holdings below to that position; tap it again
             to clear. The active segment stays lit; the rest dull. */}
@@ -376,6 +407,16 @@ const styles = StyleSheet.create({
   betBannerHot: { borderLeftColor: colors.warn },
   betLabel: { color: colors.textDim, fontSize: 10, fontWeight: '800', letterSpacing: 0.5, marginBottom: 3 },
   betText: { color: colors.textDim, fontSize: 13, lineHeight: 18 },
+  seasonBanner: { backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, borderLeftWidth: 3, borderLeftColor: colors.textDim, padding: 14, marginBottom: 14 },
+  seasonBannerActive: { borderLeftColor: colors.gold },
+  seasonLabel: { color: colors.gold, fontSize: 11, fontWeight: '900', letterSpacing: 0.5, marginBottom: 4 },
+  seasonMsg: { color: colors.textDim, fontSize: 13, lineHeight: 18 },
+  concRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6 },
+  concName: { color: colors.text, fontSize: 13, fontWeight: '800', width: 44 },
+  concTrack: { flex: 1, height: 12, backgroundColor: colors.bg, borderRadius: 6, overflow: 'hidden', marginHorizontal: 10 },
+  concFill: { height: 12, borderRadius: 6 },
+  concPct: { color: colors.text, fontSize: 12, fontWeight: '800', width: 38, textAlign: 'right' },
+  concBye: { color: colors.textDim, fontSize: 13, marginTop: 8, lineHeight: 18 },
   holdName: { color: colors.text, fontSize: 14, fontWeight: '700' },
   holdSub: { color: colors.textDim, fontSize: 12, marginTop: 1 },
   holdRight: { alignItems: 'flex-end', marginLeft: 8, minWidth: 52 },
