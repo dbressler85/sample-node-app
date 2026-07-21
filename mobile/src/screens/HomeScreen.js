@@ -6,6 +6,7 @@ import { colors } from '../theme';
 import { ScreenTitle } from '../components/Brand';
 import Pulse from '../components/Pulse';
 import GearIcon from '../components/GearIcon';
+import InfoDot from '../components/InfoDot';
 
 const GROUPS = {
   lineup_risk: { label: 'Unavailable player in lineup', color: colors.bad, open: true },
@@ -372,6 +373,7 @@ function Portfolio({ p, phase, loading, onLeagues, onPortfolio }) {
             <Chip label="Ascending" value={p.ascending} loading={loading} onPress={onPortfolio} />
             <Chip label="Balanced" value={p.balanced} loading={loading} onPress={onPortfolio} />
             <Chip label="Rebuilding" value={p.rebuilding} loading={loading} onPress={onPortfolio} />
+            <View style={styles.chipInfo}><InfoDot id="outlook" size={16} /></View>
           </>
         ) : (
           <>
@@ -456,7 +458,8 @@ const styles = StyleSheet.create({
   tileLabel: { color: colors.textDim, fontSize: 12, fontWeight: '700' },
   tileValue: { color: colors.text, fontSize: 30, fontWeight: '900', marginTop: 4 },
   tileSpinner: { height: 40, justifyContent: 'center', alignItems: 'flex-start', marginTop: 4 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12, alignItems: 'center' },
+  chipInfo: { justifyContent: 'center', paddingHorizontal: 2 },
   chip: { backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 8, alignItems: 'center', minWidth: 64 },
   chipValue: { fontSize: 18, fontWeight: '900' },
   chipSpinner: { height: 22, justifyContent: 'center' },

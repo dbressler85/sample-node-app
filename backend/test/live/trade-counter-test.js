@@ -55,12 +55,14 @@ mfl.exportRequest = async (type, opts = {}) => {
       return { injuries: { injury: [] } };
     case 'futureDraftPicks': {
       // The partner (0002) holds a 2027 3rd and 4th — the counter sweetener should
-      // prefer the 3rd. My own franchise (0001) has none.
+      // prefer the 3rd. My own franchise (0001) has none. Filtered when a FRANCHISE is
+      // given (counterFor), full roster of franchises when not (franchisePicksMap).
       const f = String(opts.FRANCHISE || '');
-      if (f === '0002') return { futureDraftPicks: { franchise: { id: '0002', futureDraftPick: [
-        { year: '2027', round: '1' }, { year: '2027', round: '3' }, { year: '2027', round: '4' },
-      ] } } };
-      return { futureDraftPicks: { franchise: { id: f || '0001', futureDraftPick: [] } } };
+      const p0002 = { id: '0002', futureDraftPick: [{ year: '2027', round: '1' }, { year: '2027', round: '3' }, { year: '2027', round: '4' }] };
+      const p0001 = { id: '0001', futureDraftPick: [] };
+      if (f === '0002') return { futureDraftPicks: { franchise: p0002 } };
+      if (f === '0001') return { futureDraftPicks: { franchise: p0001 } };
+      return { futureDraftPicks: { franchise: [p0001, p0002] } };
     }
     default:
       return {};
@@ -131,6 +133,13 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   assert(c2.receiveValue > c2.giveValue, 'sweetened counter comes out in my favor');
   assert(/little more/i.test(c2.rationale) && /2027 3rd/.test(c2.rationale), 'rationale explains the sweetener');
   console.log('✓ an already-fair offer is countered by asking for a touch more —', c2.rationale);
+
+  // The builder must OFFER the partner's picks (so the sweetener actually renders).
+  const lg = await trades.getLeague(CK, TOK, '1000');
+  const partnerAssets = (lg.partners.find((p) => String(p.franchiseId) === '0002') || {}).players || [];
+  const partnerPicks = partnerAssets.filter((a) => a.kind === 'pick');
+  assert(partnerPicks.some((a) => a.name === '2027 3rd'), 'the desk offers the partner’s picks as selectable assets');
+  console.log('✓ partner picks are selectable in the builder —', partnerPicks.map((a) => a.name).join(', '));
 
   console.log('\nTRADE COUNTER HARNESS PASSED');
 })().catch((e) => { console.error(e.message); process.exit(1); });

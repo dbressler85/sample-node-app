@@ -371,15 +371,21 @@ async function getLeague(cookie, token, leagueId) {
   const baitMap = await tradeBaitByFranchise(cookie, token, league);
   const myBait = baitMap.get(String(league.franchiseId)) || new Set();
 
+  // Every franchise's future picks in one call, so both my side and each partner's
+  // picks are selectable assets in the builder (and a counter can ask for one).
+  const picksMap = await picksLib.franchisePicksMap(cookie, league);
+  const picksFor = (fid) => (picksMap[String(fid)] || []).map((p) => asset(p.token, byId, enr));
+
   const myPlayers = [...roster.starters, ...roster.bench]
     .map((p) => ({ id: p.id, name: p.name, position: p.position, team: p.team, value: enr.value(p.id), tag: playerTags.get(token, p.id), bait: myBait.has(String(p.id)) }))
     .sort((a, b) => (b.value || 0) - (a.value || 0));
   // Picks carry the real MFL trade token as their id, so a proposal can include them.
-  const myPicks = (await picksLib.franchisePicks(cookie, league)).map((p) => asset(p.token, byId, enr));
+  // In demo the map is empty, so fall back to the demo picks fixture for my side.
+  const myPicks = config.demoMode ? (await picksLib.franchisePicks(cookie, league)).map((p) => asset(p.token, byId, enr)) : picksFor(league.franchiseId);
 
   const partners = rawPartners.map((pt) => {
     const bait = baitMap.get(String(pt.franchiseId)) || new Set();
-    const players = (pt.roster || [])
+    const rosterPlayers = (pt.roster || [])
       .map((id) => { const a = asset(id, byId, enr); if (a.kind !== 'pick') a.tag = playerTags.get(token, a.id) || null; a.bait = bait.has(String(a.id)); return a; })
       .sort((a, b) => (b.value || 0) - (a.value || 0));
     return {
@@ -387,11 +393,12 @@ async function getLeague(cookie, token, leagueId) {
       name: pt.name,
       outlook: (teamOutlook[String(pt.franchiseId)] || {}).outlook || null,
       avgAge: (teamOutlook[String(pt.franchiseId)] || {}).avgAge || null,
-      baitCount: players.filter((a) => a.bait).length,
+      baitCount: rosterPlayers.filter((a) => a.bait).length,
       needs: (ns[String(pt.franchiseId)] || {}).needs || [],
       surplus: (ns[String(pt.franchiseId)] || {}).surplus || [],
       depth: (ns[String(pt.franchiseId)] || {}).depth || {},
-      players,
+      // Roster players then their draft picks — the builder sorts picks last anyway.
+      players: [...rosterPlayers, ...picksFor(pt.franchiseId)],
     };
   });
 

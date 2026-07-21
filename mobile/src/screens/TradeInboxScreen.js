@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Pressable, FlatList, RefreshControl, ActivityIn
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import { celebrate } from '../components/Celebrate';
+import InfoDot from '../components/InfoDot';
 import useAndroidBack from '../useAndroidBack';
 
 // Cross-league trade inbox: every pending incoming offer across all your leagues,
@@ -207,14 +208,18 @@ function OfferCard({ offer, busy, onRespond, onOpenLeague, onCounter, onOpenPlay
               <Text style={{ color: OUTLOOK_COLOR[offer.partner.outlook] || colors.textDim, fontWeight: '800' }}>{teamCtx(offer.partner)}</Text>
             </Text>
           ) : null}
+          {offer.me || offer.partner ? <InfoDot id="outlook" /> : null}
         </View>
       ) : null}
 
       <Side label="You get" assets={offer.acquire} total={offer.analysis.acquireValue} onOpenPlayer={onOpenPlayer} />
       <Side label="You give" assets={offer.send} total={offer.analysis.sendValue} onOpenPlayer={onOpenPlayer} />
-      <Text style={styles.estCaption}>
-        Market value · net {offer.analysis.net > 0 ? '+' : ''}{offer.analysis.net}
-      </Text>
+      <View style={styles.estRow}>
+        <Text style={styles.estCaption}>
+          Market value · net {offer.analysis.net > 0 ? '+' : ''}{offer.analysis.net}
+        </Text>
+        <InfoDot id="tradeGrade" />
+      </View>
       {offer.personal ? (
         <Text style={[styles.personalLine, { color: (VERDICT[offer.personal.verdict] || VERDICT.fair).color }]}>
           For you · net {offer.personal.net > 0 ? '+' : ''}{offer.personal.net} · {(VERDICT[offer.personal.verdict] || VERDICT.fair).label}
@@ -301,7 +306,8 @@ const styles = StyleSheet.create({
   dot: { width: 8, height: 8, borderRadius: 4, marginRight: 8 },
   sideName: { color: colors.text, fontSize: 14, flex: 1, marginRight: 8 },
   sideMeta: { color: colors.textDim, fontSize: 12 },
-  estCaption: { color: colors.textDim, fontSize: 11, marginTop: 2 },
+  estRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 },
+  estCaption: { color: colors.textDim, fontSize: 11 },
   personalLine: { fontSize: 12, fontWeight: '800', marginTop: 3 },
   tagNotes: { marginTop: 6, gap: 3, marginBottom: 4 },
   tagNote: { fontSize: 12, fontWeight: '700' },

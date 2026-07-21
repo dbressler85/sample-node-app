@@ -71,4 +71,27 @@ async function franchisePicks(cookie, league, franchiseId = league.franchiseId) 
   }
 }
 
-module.exports = { franchisePicks, ordinal, labelForToken };
+// Every franchise's future picks in ONE call — MFL's futureDraftPicks returns all
+// franchises, so we fetch once and index by franchise id rather than N times. Returns
+// { franchiseId -> [{token,label,year,round}] }. Live only; demo returns {}.
+async function franchisePicksMap(cookie, league) {
+  if (config.demoMode) return {};
+  try {
+    const res = await mfl.exportRequest('futureDraftPicks', { host: league.host, cookie, L: league.leagueId });
+    const arr = mfl.toArray(res && res.futureDraftPicks && res.futureDraftPicks.franchise);
+    const out = {};
+    for (const fr of arr) {
+      out[String(fr.id)] = mfl.toArray(fr.futureDraftPick).map((p) => {
+        const orig = p.originalPickFor || p.originalPickForFranchise || p.originalOwningFranchiseId || p.original_franchise;
+        const originalKnown = orig != null && orig !== '';
+        const owner = String(originalKnown ? orig : fr.id).padStart(4, '0');
+        return { token: `FP_${owner}_${p.year}_${p.round}`, label: `${p.year} ${ordinal(p.round)}`, year: Number(p.year), round: Number(p.round) };
+      });
+    }
+    return out;
+  } catch (e) {
+    return {};
+  }
+}
+
+module.exports = { franchisePicks, franchisePicksMap, ordinal, labelForToken };
