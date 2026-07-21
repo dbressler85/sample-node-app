@@ -359,6 +359,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
             {(data.partners || []).map((p) => (
               <Pressable key={p.franchiseId} style={[styles.partnerChip, partnerId === p.franchiseId && styles.partnerChipActive]} onPress={() => pickPartner(p.franchiseId)}>
                 <Text style={[styles.partnerText, partnerId === p.franchiseId && { color: colors.text }]} numberOfLines={1}>{p.name}</Text>
+                {p.baitCount > 0 ? <Text style={styles.chipBait} numberOfLines={1}>🎣 {p.baitCount} on the block</Text> : null}
               </Pressable>
             ))}
           </ScrollView>
@@ -396,7 +397,10 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
             </View>
           ) : null}
 
-          <Text style={styles.label}>You get {receiveList.length ? `· ${preview.acquireValue}` : ''}</Text>
+          <Text style={styles.label}>
+            You get {receiveList.length ? `· ${preview.acquireValue}` : ''}
+            {partner && partner.baitCount > 0 ? <Text style={styles.blockHint}>{`  🎣 ${partner.baitCount} on the block`}</Text> : null}
+          </Text>
           {partner ? receiveOptions.map((a) => (
             <AssetRow key={a.id} asset={a} on={!!receive[a.id]} onPress={() => toggle(setReceive, receive, a)} tint={colors.good} />
           )) : <Text style={styles.empty}>Pick a team above.</Text>}
@@ -548,6 +552,7 @@ function AssetRow({ asset, on, onPress, tint }) {
       <View style={[styles.check, on && { backgroundColor: tint, borderColor: tint }]}>{on ? <Text style={styles.checkMark}>✓</Text> : null}</View>
       <View style={[styles.dot, { backgroundColor: positionColors[asset.position] || colors.textDim }]} />
       <Text style={styles.assetName} numberOfLines={1}>{asset.name}</Text>
+      {asset.bait ? <Text style={styles.baitTag}>🎣 BLOCK</Text> : null}
       <Text style={styles.assetMeta}>{asset.kind === 'pick' ? 'Draft pick' : `${asset.position}${asset.team ? ` · ${asset.team}` : ''}`}</Text>
       <Text style={styles.assetValue}>{asset.value != null ? (asset.kind === 'pick' ? `val ${asset.value}` : asset.value) : '—'}</Text>
     </Pressable>
@@ -621,8 +626,11 @@ const styles = StyleSheet.create({
   accept: { backgroundColor: colors.good },
   acceptText: { color: '#fff', fontWeight: '800', fontSize: 14 },
   partnerRow: { gap: 8, paddingBottom: 4 },
-  partnerChip: { backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 8, maxWidth: 180 },
+  partnerChip: { backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 8, maxWidth: 190 },
   partnerChipActive: { backgroundColor: colors.cardAlt, borderColor: colors.accent },
+  chipBait: { color: colors.gold, fontSize: 10, fontWeight: '800', marginTop: 2 },
+  baitTag: { color: colors.gold, fontSize: 9, fontWeight: '900', marginLeft: 6, borderWidth: 1, borderColor: colors.gold, borderRadius: 4, paddingHorizontal: 3, paddingVertical: 1, overflow: 'hidden' },
+  blockHint: { color: colors.gold, fontSize: 11, fontWeight: '800' },
   partnerText: { color: colors.textDim, fontSize: 13, fontWeight: '700' },
   assetRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 8 },
   check: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: colors.border, marginRight: 10, alignItems: 'center', justifyContent: 'center' },
