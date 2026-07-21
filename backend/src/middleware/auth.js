@@ -13,5 +13,8 @@ module.exports = function requireSession(req, res, next) {
   req.session = session;
   req.token = token;
   req.mflCookie = session.cookie;
+  // Personal data is keyed by the stable account, not the ephemeral bearer token,
+  // so tags/watchlist/bait/claims/lineups/pins/push survive re-login and redeploys.
+  req.account = sessions.accountKey(session) || token;
   next();
 };

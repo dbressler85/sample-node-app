@@ -10,7 +10,7 @@ router.use(requireSession);
 // GET /api/watchlist — starred players with their cross-league standing.
 router.get('/watchlist', async (req, res, next) => {
   try {
-    res.json(await watchlist.getWatchlist(req.mflCookie, req.token));
+    res.json(await watchlist.getWatchlist(req.mflCookie, req.account));
   } catch (err) {
     next(err);
   }
@@ -20,7 +20,7 @@ router.get('/watchlist', async (req, res, next) => {
 // you could claim, or on another owner's trade bait) in one of your leagues.
 router.get('/watchlist/alerts', async (req, res, next) => {
   try {
-    res.json(await watchlist.alerts(req.mflCookie, req.token));
+    res.json(await watchlist.alerts(req.mflCookie, req.account));
   } catch (err) {
     next(err);
   }
@@ -29,7 +29,7 @@ router.get('/watchlist/alerts', async (req, res, next) => {
 // POST /api/watchlist/:id — star a player.
 router.post('/watchlist/:id', (req, res, next) => {
   try {
-    res.json(watchlist.add(req.token, req.params.id));
+    res.json(watchlist.add(req.account, req.params.id));
   } catch (err) {
     next(err);
   }
@@ -38,7 +38,7 @@ router.post('/watchlist/:id', (req, res, next) => {
 // DELETE /api/watchlist/:id — unstar a player.
 router.delete('/watchlist/:id', (req, res, next) => {
   try {
-    res.json(watchlist.remove(req.token, req.params.id));
+    res.json(watchlist.remove(req.account, req.params.id));
   } catch (err) {
     next(err);
   }

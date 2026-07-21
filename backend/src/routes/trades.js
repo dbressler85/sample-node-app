@@ -10,7 +10,7 @@ router.use(requireSession);
 // GET /api/trades — all pending incoming offers across leagues, value-analyzed.
 router.get('/trades', async (req, res, next) => {
   try {
-    res.json(await trades.getOverview(req.mflCookie, req.token));
+    res.json(await trades.getOverview(req.mflCookie, req.account));
   } catch (err) {
     next(err);
   }
@@ -20,7 +20,7 @@ router.get('/trades', async (req, res, next) => {
 // (on another team), with the owner + a suggested give-package per league.
 router.get('/players/:id/trade/preview', async (req, res, next) => {
   try {
-    res.json(await trades.crossLeaguePreview(req.mflCookie, req.token, req.params.id));
+    res.json(await trades.crossLeaguePreview(req.mflCookie, req.account, req.params.id));
   } catch (err) {
     next(err);
   }
@@ -30,7 +30,7 @@ router.get('/players/:id/trade/preview', async (req, res, next) => {
 // league. Body: { leagues: [{ leagueId, partnerFranchiseId, giveIds }] }.
 router.post('/players/:id/trade', async (req, res, next) => {
   try {
-    res.json(await trades.crossLeaguePropose(req.mflCookie, req.token, req.params.id, (req.body || {}).leagues));
+    res.json(await trades.crossLeaguePropose(req.mflCookie, req.account, req.params.id, (req.body || {}).leagues));
   } catch (err) {
     next(err);
   }
@@ -39,7 +39,7 @@ router.post('/players/:id/trade', async (req, res, next) => {
 // GET /api/leagues/:leagueId/trades — one league's offers + partners for proposing.
 router.get('/leagues/:leagueId/trades', async (req, res, next) => {
   try {
-    res.json(await trades.getLeague(req.mflCookie, req.token, req.params.leagueId));
+    res.json(await trades.getLeague(req.mflCookie, req.account, req.params.leagueId));
   } catch (err) {
     next(err);
   }
@@ -49,7 +49,7 @@ router.get('/leagues/:leagueId/trades', async (req, res, next) => {
 // give-package to acquire `target` from `partner`.
 router.get('/leagues/:leagueId/trades/suggest', async (req, res, next) => {
   try {
-    res.json(await trades.suggestFor(req.mflCookie, req.token, req.params.leagueId, req.query.target, req.query.partner));
+    res.json(await trades.suggestFor(req.mflCookie, req.account, req.params.leagueId, req.query.target, req.query.partner));
   } catch (err) {
     next(err);
   }
@@ -59,7 +59,7 @@ router.get('/leagues/:leagueId/trades/suggest', async (req, res, next) => {
 // incoming offer, keeping its construction (same players + one balancing tweak).
 router.get('/leagues/:leagueId/trades/counter', async (req, res, next) => {
   try {
-    res.json(await trades.counterFor(req.mflCookie, req.token, req.params.leagueId, req.query.offer));
+    res.json(await trades.counterFor(req.mflCookie, req.account, req.params.leagueId, req.query.offer));
   } catch (err) {
     next(err);
   }
@@ -68,7 +68,7 @@ router.get('/leagues/:leagueId/trades/counter', async (req, res, next) => {
 // POST /api/leagues/:leagueId/trades — propose a trade.
 router.post('/leagues/:leagueId/trades', async (req, res, next) => {
   try {
-    res.json(await trades.propose(req.mflCookie, req.token, req.params.leagueId, req.body || {}));
+    res.json(await trades.propose(req.mflCookie, req.account, req.params.leagueId, req.body || {}));
   } catch (err) {
     next(err);
   }
@@ -77,7 +77,7 @@ router.post('/leagues/:leagueId/trades', async (req, res, next) => {
 // POST /api/leagues/:leagueId/trades/:tradeId/respond — accept or reject.
 router.post('/leagues/:leagueId/trades/:tradeId/respond', async (req, res, next) => {
   try {
-    res.json(await trades.respond(req.mflCookie, req.token, req.params.leagueId, req.params.tradeId, (req.body || {}).action));
+    res.json(await trades.respond(req.mflCookie, req.account, req.params.leagueId, req.params.tradeId, (req.body || {}).action));
   } catch (err) {
     next(err);
   }

@@ -91,4 +91,30 @@ function destroy(token) {
   if (PERSIST && box()[token]) { delete box()[token]; persist.touch(); }
 }
 
-module.exports = { create, get, destroy };
+// A stable per-MFL-account key for a session — the anchor for all PERSONAL data
+// (tags, watchlist, trade bait, waiver claims, lineup overrides, pins, push prefs).
+// The session token itself is random and re-minted on every login, so keying
+// personal data by it silently orphans everything on re-login (and every free-tier
+// redeploy forces a re-login). Keying by account survives both. Returns null when
+// there's no username (pathological / pre-login), so callers can fall back to token.
+function accountKey(session) {
+  const u = session && session.username != null ? String(session.username).trim().toLowerCase() : '';
+  return u ? `acct:${u}` : null;
+}
+
+// Find a live session for an account key, so the push worker (which needs a live
+// MFL cookie to poll) can reach whatever session that account currently holds.
+// Returns the most-recently-seen match, honoring the same idle expiry as get().
+function getByAccount(acct) {
+  if (!acct) return null;
+  let bestToken = null;
+  let bestSeen = -1;
+  for (const [token, s] of mem.entries()) {
+    if (accountKey(s) !== acct) continue;
+    const seen = s.lastSeen || s.createdAt || 0;
+    if (seen > bestSeen) { bestSeen = seen; bestToken = token; }
+  }
+  return bestToken ? get(bestToken) : null;
+}
+
+module.exports = { create, get, destroy, accountKey, getByAccount };
