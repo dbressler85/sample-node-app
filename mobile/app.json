@@ -16,7 +16,14 @@
     "assetBundlePatterns": [
       "**/*"
     ],
-    "plugins": [],
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "color": "#4F8CFF"
+        }
+      ]
+    ],
     "android": {
       "package": "com.dynastycentral.app",
       "adaptiveIcon": {
