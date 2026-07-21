@@ -228,9 +228,6 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
               <GearIcon size={22} />
             </Pressable>
           ) : null}
-          <Pressable onPress={onLogout} hitSlop={10}>
-            <Text style={styles.logout}>Log out</Text>
-          </Pressable>
         </View>
       </View>
 

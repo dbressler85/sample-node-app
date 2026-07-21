@@ -296,7 +296,7 @@ export default function App() {
       return <PortfolioScreen onBack={popOverlay} onOpenPlayer={openPlayer} onOpenLeague={openRoster} />;
     }
     if (overlay && overlay.type === 'settings') {
-      return <SettingsScreen onBack={popOverlay} onOpenHelp={openHelp} />;
+      return <SettingsScreen onBack={popOverlay} onOpenHelp={openHelp} onLogout={handleLogout} />;
     }
     if (overlay && overlay.type === 'help') {
       return <HelpScreen onBack={popOverlay} />;

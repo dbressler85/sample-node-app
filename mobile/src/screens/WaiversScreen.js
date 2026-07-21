@@ -16,6 +16,7 @@ import { colors, positionColors } from '../theme';
 import { celebrate } from '../components/Celebrate';
 import AvailabilityBadge from '../components/AvailabilityBadge';
 import AddAcrossSheet from '../components/AddAcrossSheet';
+import ErrorView from '../components/ErrorView';
 import useAndroidBack from '../useAndroidBack';
 import { getValue, setValue } from '../cache';
 import { ScreenTitle } from '../components/Brand';
@@ -188,6 +189,7 @@ export default function WaiversScreen({ initialLeagueId, initialPosition, onStar
           setSort={setSort}
           onPick={(addId) => setClaim({ leagueId: openLeagueId, addId })}
           onOpenPlayer={onOpenPlayer}
+          onRetry={loadBoard}
         />
       ) : (
         <>
@@ -266,7 +268,7 @@ export default function WaiversScreen({ initialLeagueId, initialPosition, onStar
 // agents are worth a look, and pending claims; tapping drills into its board.
 function OverviewView({ overview, loading, refreshing, error, onOpen, onRefresh }) {
   if (loading && !overview) return <Center><ActivityIndicator color={colors.accent} size="large" /></Center>;
-  if (error && !overview) return <Center><Text style={styles.error}>{error}</Text></Center>;
+  if (error && !overview) return <ErrorView message={error} onRetry={onRefresh} onRefresh={onRefresh} refreshing={refreshing} />;
   return (
     <FlatList
       data={overview ? overview.leagues : []}
@@ -325,7 +327,7 @@ function LeagueCard({ item, onPress }) {
   );
 }
 
-function BoardView({ board, loading, error, position, setPosition, sort, setSort, onPick, onBack, leagueName, onOpenPlayer }) {
+function BoardView({ board, loading, error, position, setPosition, sort, setSort, onPick, onBack, leagueName, onOpenPlayer, onRetry }) {
   const header = onBack ? (
     <Pressable style={styles.backRow} onPress={onBack} hitSlop={8}>
       <Text style={styles.backChev}>‹</Text>
@@ -334,7 +336,7 @@ function BoardView({ board, loading, error, position, setPosition, sort, setSort
   ) : null;
 
   if (loading) return <View style={{ flex: 1 }}>{header}<Center><ActivityIndicator color={colors.accent} size="large" /></Center></View>;
-  if (error) return <View style={{ flex: 1 }}>{header}<Center><Text style={styles.error}>{error}</Text></Center></View>;
+  if (error) return <View style={{ flex: 1 }}>{header}<ErrorView message={error} onRetry={onRetry} /></View>;
   if (!board) return <View style={{ flex: 1 }}>{header}</View>;
 
   return (

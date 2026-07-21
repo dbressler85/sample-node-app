@@ -4,6 +4,7 @@ import { api } from '../api';
 import { colors } from '../theme';
 import { ScreenTitle } from '../components/Brand';
 import { celebrate } from '../components/Celebrate';
+import ErrorView from '../components/ErrorView';
 import { getValue, setValue } from '../cache';
 import usePoll from '../usePoll';
 
@@ -89,9 +90,7 @@ export default function ScoresScreen() {
       </View>
 
       {error ? (
-        <View style={styles.center}>
-          <Text style={styles.error}>{error}</Text>
-        </View>
+        <ErrorView message={error} onRetry={load} refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />
       ) : (
         <FlatList
           data={data ? data.games : []}
