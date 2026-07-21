@@ -28,7 +28,7 @@ const SORTS = [
   { key: 'trend', label: 'Trend' },
 ];
 
-export default function WaiversScreen({ initialLeagueId, initialPosition, onStartWizard, onOpenPlayer }) {
+export default function WaiversScreen({ initialLeagueId, initialPosition, onStartWizard, onOpenPlayer, onOpenLineup }) {
   const [overview, setOverview] = useState(null);
   const [ovRefreshing, setOvRefreshing] = useState(false);
   const [wizardLoading, setWizardLoading] = useState(false);
@@ -242,6 +242,7 @@ export default function WaiversScreen({ initialLeagueId, initialPosition, onStar
           leagueId={claim.leagueId}
           addId={claim.addId}
           onClose={() => setClaim(null)}
+          onOpenLineup={onOpenLineup}
           onDone={() => {
             setClaim(null);
             refreshAll();
@@ -501,7 +502,7 @@ function PendingView({ pending, onCancel }) {
   );
 }
 
-function ClaimSheet({ leagueId, addId, onClose, onDone }) {
+function ClaimSheet({ leagueId, addId, onClose, onOpenLineup, onDone }) {
   const [preview, setPreview] = useState(null);
   const [bench, setBench] = useState([]);
   const [dropId, setDropId] = useState(null);
@@ -539,8 +540,19 @@ function ClaimSheet({ leagueId, addId, onClose, onDone }) {
       if (bid != null && bid !== '') body.bid = Number(bid);
       const res = await api.submitClaim(leagueId, body);
       celebrate('claimPlaced');
-      Alert.alert('Claim submitted', `${res.submitted.add.name}${res.submitted.bid != null ? ` for $${res.submitted.bid}` : ''}.`);
-      onDone();
+      // On an IMMEDIATE add (free-agent leagues — the player is yours right now), offer to jump
+      // straight to the lineup so a startable pickup can be slotted in. Pending FAAB/waiver
+      // claims process later, so there's nothing to set yet — those just confirm.
+      const addName = res.submitted.add.name;
+      if (preview && preview.immediate && onOpenLineup) {
+        Alert.alert('Added', `${addName} is on your roster.`, [
+          { text: 'Not now', style: 'cancel', onPress: onDone },
+          { text: 'Set lineup', onPress: () => { onDone(); onOpenLineup({ leagueId }); } },
+        ]);
+      } else {
+        Alert.alert('Claim submitted', `${addName}${res.submitted.bid != null ? ` for $${res.submitted.bid}` : ''}.`);
+        onDone();
+      }
     } catch (e) {
       celebrate('claimFailed');
       Alert.alert('Could not submit', e.message);

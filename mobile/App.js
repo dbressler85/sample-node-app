@@ -213,6 +213,7 @@ export default function App() {
             initialPosition={waiversTarget ? waiversTarget.position : null}
             onStartWizard={openWaiverWizard}
             onOpenPlayer={openPlayer}
+            onOpenLineup={openLineup}
           />
         );
       case 'players':
@@ -318,7 +319,7 @@ export default function App() {
       );
     }
     if (overlay && overlay.type === 'draft') {
-      return <DraftScreen league={overlay.league} onBack={popOverlay} onOpenPlayer={openPlayer} />;
+      return <DraftScreen league={overlay.league} onBack={popOverlay} onOpenPlayer={openPlayer} onOpenTrades={openTrades} />;
     }
     if (overlay && overlay.type === 'draftHub') {
       return <DraftHubScreen onBack={popOverlay} onOpenDraft={openDraft} />;

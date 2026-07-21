@@ -22,7 +22,7 @@ function fmtDate(iso) {
   }
 }
 
-export default function DraftScreen({ league, onBack, onOpenPlayer }) {
+export default function DraftScreen({ league, onBack, onOpenPlayer, onOpenTrades }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -94,7 +94,11 @@ export default function DraftScreen({ league, onBack, onOpenPlayer }) {
             <Text style={styles.back}>‹ Back</Text>
           </Pressable>
           <Text style={styles.title} numberOfLines={1}>{league.name}</Text>
-          <View style={{ width: 44 }} />
+          {onOpenTrades ? (
+            <Pressable onPress={() => onOpenTrades(league)} hitSlop={10}>
+              <Text style={styles.tradesLink}>⇄ Trades</Text>
+            </Pressable>
+          ) : <View style={{ width: 44 }} />}
         </View>
         <View style={styles.center}>
           <Text style={styles.error}>{error || 'Could not load the draft.'}</Text>
@@ -239,6 +243,7 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8 },
   back: { color: colors.accent, fontSize: 16, fontWeight: '600', width: 60 },
+  tradesLink: { color: colors.accent, fontSize: 14, fontWeight: '800', width: 60, textAlign: 'right' },
   title: { color: colors.text, fontSize: 17, fontWeight: '800', flex: 1, textAlign: 'center' },
   list: { padding: 16 },
   error: { color: colors.bad, textAlign: 'center', marginTop: 12, marginHorizontal: 24 },
