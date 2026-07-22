@@ -176,23 +176,32 @@ async function buildFreeAgents(cookie, league, settings) {
   if (config.demoMode) {
     ids = demo.freeAgents(league.leagueId);
   } else {
-    // export?TYPE=freeAgents returns everyone not on a roster in this league.
-    try {
-      const units = await mflRepo.freeAgentUnits(league, cookie);
-      const players = units.flatMap((u) => mfl.toArray(u && u.player));
-      ids = players.map((p) => String(p.id)).slice(0, 300); // cap payload
-      console.log(`[freeAgents] league=${league.leagueId} total=${players.length} returned=${ids.length}`);
-    } catch (e) {
-      console.log(`[freeAgents] league=${league.leagueId} error=${e.message}`);
-      ids = [];
-    }
-    // Format-aware projections for the board (MFL projectedScores).
-    try {
-      const list = await mflRepo.projectedScores(league, cookie);
-      liveProj = new Map(list.map((p) => [String(p.id), Math.round((Number(p.score) || 0) * 10) / 10]));
-    } catch (e) {
-      /* projections are optional */
-    }
+    // The free-agent list (export?TYPE=freeAgents) and the board's format-aware projections
+    // (projectedScores) are independent MFL reads — fetch them in parallel, not in sequence.
+    const [faIds, proj] = await Promise.all([
+      (async () => {
+        try {
+          const units = await mflRepo.freeAgentUnits(league, cookie);
+          const players = units.flatMap((u) => mfl.toArray(u && u.player));
+          const out = players.map((p) => String(p.id)).slice(0, 300); // cap payload
+          console.log(`[freeAgents] league=${league.leagueId} total=${players.length} returned=${out.length}`);
+          return out;
+        } catch (e) {
+          console.log(`[freeAgents] league=${league.leagueId} error=${e.message}`);
+          return [];
+        }
+      })(),
+      (async () => {
+        try {
+          const list = await mflRepo.projectedScores(league, cookie);
+          return new Map(list.map((p) => [String(p.id), Math.round((Number(p.score) || 0) * 10) / 10]));
+        } catch (e) {
+          return null; // projections are optional
+        }
+      })(),
+    ]);
+    ids = faIds;
+    liveProj = proj;
   }
   return ids.map((id) => makeFreeAgent(id, byId, scoring, statMap, ctx, settings.system, settings, liveProj, enr));
 }

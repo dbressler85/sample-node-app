@@ -120,8 +120,8 @@ async function format(cookie, league) {
 }
 
 async function buildFormat(cookie, league) {
-  const reqs = await requirements(cookie, league);
   if (config.demoMode) {
+    const reqs = await requirements(cookie, league);
     const s = demo.scoring(league.leagueId) || {};
     const ppr = s.ppr != null ? s.ppr : 1;
     // The demo scoring fixture states the TE bump as `tePremium` (extra points per TE
@@ -129,7 +129,8 @@ async function buildFormat(cookie, league) {
     const tePpr = s.tePpr != null ? s.tePpr : ppr + (s.tePremium || 0);
     return { numQbs: numQbs(reqs), ppr, tePpr, pprDetected: true };
   }
-  const rules = await scoringRules(cookie, league);
+  // Roster requirements and scoring rules are independent reads — fetch in parallel.
+  const [reqs, rules] = await Promise.all([requirements(cookie, league), scoringRules(cookie, league)]);
   return {
     numQbs: numQbs(reqs),
     ppr: rules.detected ? rules.ppr : 1,
