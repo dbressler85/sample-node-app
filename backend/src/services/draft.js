@@ -306,13 +306,18 @@ async function makePick(cookie, token, leagueId, playerId) {
   if (drafted.has(String(playerId))) throwBad('That player is already drafted.');
 
   if (!config.demoMode) {
-    try {
-      await mfl.importRequest('draftPick', { host: league.host, cookie, L: league.leagueId, FRANCHISE: league.franchiseId, PLAYER: String(playerId) });
-    } catch (e) {
-      const err = new Error(`MFL rejected the pick: ${e.message}`);
-      err.status = 502;
-      throw err;
-    }
+    // MFL exposes NO documented live "make a pick" import — `draftPick` is not a real TYPE,
+    // and `draftResults`/`auctionResults` are bulk commissioner XML loads explicitly "not to
+    // implement a live draft application" (see docs/MFL_API_AUDIT.md §2). So rather than fire a
+    // request MFL rejects with a cryptic error, we surface an honest one and send the owner to
+    // MFL's own draft room. The draft board stays fully readable in the app; only the in-app
+    // pick action is unavailable for live leagues. (Mobile also hides the pick affordance in
+    // live — staged for the next build.)
+    const err = new Error(
+      'In-app drafting isn’t available for live leagues yet — make your pick in the MyFantasyLeague draft room. It’ll show here once MFL processes it.'
+    );
+    err.status = 501; // Not Implemented
+    throw err;
   }
   draftStore.add(token, leagueId, config.demoMode ? demo.draft(leagueId).picks : [], {
     round: clock.round,

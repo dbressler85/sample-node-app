@@ -67,12 +67,20 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   assert(!dl.available.some((p) => p.id === '20'), 'already-drafted player excluded from pool');
   console.log('✓ league board + value-ranked available pool');
 
-  const after = await draft.makePick(CK, TK, '1000', '30');
-  const imp = imported.find((c) => c.type === 'draftPick');
-  assert(imp && imp.params.PLAYER === '30' && imp.params.FRANCHISE === '0001', 'draftPick imported to MFL');
-  assert(after.board.some((s) => s.player && s.player.id === '30'), 'pick landed on the board');
-  assert(!after.available.some((p) => p.id === '30'), 'drafted player left the pool');
-  console.log('✓ make pick: draftPick imported', JSON.stringify({ PLAYER: imp.params.PLAYER }));
+  // Live drafting is NOT supported: MFL has no documented make-a-pick import (draftPick
+  // isn't a real TYPE — see docs/MFL_API_AUDIT.md §2). makePick must fail fast with an
+  // honest 501 and must NOT fire any import at MFL. The read paths above stay fully live.
+  let threw = false;
+  try {
+    await draft.makePick(CK, TK, '1000', '30');
+  } catch (e) {
+    threw = true;
+    assert(e.status === 501, `live makePick returns 501 Not Implemented, got ${e.status}`);
+    assert(/draft room|isn’t available/i.test(e.message), 'the error points the owner to MFL’s draft room');
+  }
+  assert(threw, 'live makePick fails fast instead of pretending to draft');
+  assert(!imported.some((c) => c.type === 'draftPick'), 'no draftPick import is ever sent to MFL in live mode');
+  console.log('✓ make pick: live drafting is hidden — 501, no MFL write');
 
   console.log('\nLIVE DRAFT HARNESS PASSED');
 })().catch((e) => { console.error(e.message); process.exit(1); });

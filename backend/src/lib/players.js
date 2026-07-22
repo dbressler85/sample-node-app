@@ -26,18 +26,27 @@ let inflight = null; // coalesce concurrent cold loads into one fetch
 
 const PERSIST_NS = 'playersDb'; // { at, byId: { id: { name, position, team } } }
 
-// Rehydrate the player map from the durable store (production, DATA_DIR set), so a
-// restart skips the big MFL download. Returns a { at, byId } cache or null if absent,
-// stale, or persistence is off.
-function fromDisk() {
+// Read the persisted player map regardless of age. Returns { at, byId } or null when
+// persistence is off / the store is absent or empty. Used two ways: fromDisk() gates this
+// by TTL for the fast-path skip in load(); refresh() uses the any-age snapshot as the base
+// to delta from (a stale disk snapshot is still a valid base for a SINCE fetch).
+function readDisk() {
   if (!config.persistPlayers) return null;
   const d = persist.ns(PERSIST_NS);
-  if (!d || !d.at || !d.byId || Date.now() - d.at >= config.playersCacheTtlMs) return null;
+  if (!d || !d.at || !d.byId) return null;
   const byId = new Map();
   for (const [id, p] of Object.entries(d.byId)) {
     byId.set(id, { id, name: p.name, position: p.position, team: p.team, draftYear: p.draftYear || null, draftRound: p.draftRound || null, draftPick: p.draftPick || null });
   }
   return byId.size ? { at: d.at, byId } : null;
+}
+
+// TTL-bounded disk snapshot: only returned while still fresh, so load() can skip any MFL
+// fetch on a restart within the cache window.
+function fromDisk() {
+  const d = readDisk();
+  if (!d || Date.now() - d.at >= config.playersCacheTtlMs) return null;
+  return d;
 }
 
 function toDisk(at, byId) {
@@ -50,45 +59,84 @@ function toDisk(at, byId) {
   persist.touch();
 }
 
-async function build(cookie) {
-  let players;
-  if (config.demoMode) {
-    players = demo.players();
-  } else {
-    const res = await mfl.exportRequest('players', { cookie, DETAILS: 1 });
-    players = mfl.toArray(res && res.players && res.players.player);
-  }
+// draft_year is MFL's rookie signal (the NFL draft class); it's on the DETAILS=1 players
+// export, along with draft_round / draft_pick. Null when unknown (e.g. UDFAs).
+function mapLivePlayer(p) {
+  return {
+    id: String(p.id),
+    name: p.name || 'Unknown',
+    position: normalizePosition(p.position),
+    team: p.team || 'FA',
+    draftYear: Number(p.draft_year) || null,
+    draftRound: Number(p.draft_round) || null,
+    draftPick: Number(p.draft_pick) || null,
+  };
+}
+
+function buildDemoMap() {
   const byId = new Map();
-  for (const p of players) {
+  for (const p of demo.players()) {
     const id = String(p.id);
-    // draft_year is MFL's rookie signal (the NFL draft class). Demo carries it via the
-    // fixture. Live it's on the DETAILS=1 players export. Null when unknown (e.g. UDFAs).
-    // draft_round / draft_pick ride the same DETAILS=1 export as draft_year (best-effort — MFL
-    // blocks their API docs from us, so verify these two field names against a real account).
-    const draft = config.demoMode ? demo.draftInfo(id) : null;
-    const draftYear = config.demoMode ? (draft && draft.year) || demo.draftYear(id) : (Number(p.draft_year) || null);
-    const draftRound = config.demoMode ? (draft && draft.round) || null : (Number(p.draft_round) || null);
-    const draftPick = config.demoMode ? (draft && draft.pick) || null : (Number(p.draft_pick) || null);
+    const draft = demo.draftInfo(id);
     byId.set(id, {
       id,
       name: p.name || 'Unknown',
       position: normalizePosition(p.position),
       team: p.team || 'FA',
-      draftYear,
-      draftRound,
-      draftPick,
+      draftYear: (draft && draft.year) || demo.draftYear(id),
+      draftRound: (draft && draft.round) || null,
+      draftPick: (draft && draft.pick) || null,
     });
   }
+  return byId;
+}
+
+function commit(byId) {
   cache = { at: Date.now(), byId };
   toDisk(cache.at, byId); // no-op in demo/test; persists in production
   return byId;
+}
+
+// Freshest usable prior snapshot to delta from: the in-memory map if we have one (even if
+// stale — staleness only means "time to refresh", not "unusable"), else an any-age disk
+// snapshot. Null when we have nothing (a truly cold process) → refresh does a full download.
+function baseSnapshot() {
+  if (cache.byId.size) return cache;
+  return readDisk();
+}
+
+async function refresh(cookie) {
+  if (config.demoMode) return commit(buildDemoMap());
+
+  // Delta-refresh when we already have a snapshot. MFL's players export supports SINCE=<unix ts>
+  // to return only players changed since then, so a daily refresh becomes a small delta instead
+  // of re-downloading the whole ~2,000+ player universe. Correctness does NOT depend on MFL
+  // honoring SINCE: if it returns only changes we merge them onto the base; if it ignores SINCE
+  // and returns everyone we merge the full set onto the base — either way the map ends complete.
+  // Only the payload size differs. (Players are added/updated, never removed from MFL's DB, so a
+  // merge-only delta can't leave a stale ghost.)
+  const base = baseSnapshot();
+  if (base && base.byId.size) {
+    const since = Math.floor(base.at / 1000);
+    const res = await mfl.exportRequest('players', { cookie, DETAILS: 1, SINCE: since });
+    const changed = mfl.toArray(res && res.players && res.players.player);
+    const merged = new Map(base.byId);
+    for (const p of changed) merged.set(String(p.id), mapLivePlayer(p));
+    return commit(merged);
+  }
+
+  const res = await mfl.exportRequest('players', { cookie, DETAILS: 1 });
+  const byId = new Map();
+  for (const p of mfl.toArray(res && res.players && res.players.player)) byId.set(String(p.id), mapLivePlayer(p));
+  return commit(byId);
 }
 
 async function load(cookie) {
   const fresh = cache.byId.size > 0 && Date.now() - cache.at < config.playersCacheTtlMs;
   if (fresh) return cache.byId;
 
-  // Restart recovery: hydrate from the durable store before hitting MFL.
+  // Restart recovery: hydrate from the durable store before hitting MFL (skips the fetch
+  // entirely while the disk snapshot is still within the cache window).
   const disk = fromDisk();
   if (disk) {
     cache = disk;
@@ -96,9 +144,14 @@ async function load(cookie) {
   }
 
   // Coalesce concurrent cold loads so a restart doesn't fire many identical fetches.
-  if (!inflight) inflight = build(cookie).finally(() => { inflight = null; });
+  if (!inflight) inflight = refresh(cookie).finally(() => { inflight = null; });
   return inflight;
 }
+
+// Test hooks (no-ops in normal use): reset clears the cache; ageCache backdates it so the
+// next load() takes the stale-but-usable path and issues a SINCE delta.
+function _resetForTest() { cache = { at: 0, byId: new Map() }; inflight = null; }
+function _ageCacheForTest(atMs) { cache.at = atMs; }
 
 // Resolve a single id against the loaded cache, with a graceful fallback.
 function resolve(byId, id) {
@@ -107,4 +160,4 @@ function resolve(byId, id) {
   );
 }
 
-module.exports = { load, resolve, normalizePosition };
+module.exports = { load, resolve, normalizePosition, _resetForTest, _ageCacheForTest };
