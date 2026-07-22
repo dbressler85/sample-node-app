@@ -558,10 +558,11 @@ async function getBestAvailable(cookie, token) {
   // results in order — sequential per-league awaits were the bottleneck here.
   const perLeague = await Promise.all(
     leagues.map(async (league) => {
-      const settings = await loadSettings(league, cookie);
+      // Settings (league export) and free agents (freeAgents export) are independent MFL reads —
+      // fetch together so each league costs one throttle round-trip, not two in sequence.
+      const [settings, ids] = await Promise.all([loadSettings(league, cookie), freeAgentIds(cookie, league)]);
       const scoring = config.demoMode ? demo.scoring(league.leagueId) || {} : {};
       const statMap = config.demoMode ? demo.statProjections() : {};
-      const ids = await freeAgentIds(cookie, league);
       const fas = ids.map((id) => makeFreeAgent(id, byId, scoring, statMap, ctx, settings.system, settings, null, enr));
       return { league, settings, fas };
     })
@@ -661,11 +662,13 @@ async function getOverview(cookie, token) {
     Promise.all(
     leagues.map(async (league) => {
       try {
-        const settings = await loadSettings(league, cookie);
         // The landing only needs roster SIZE + a free-agent count/top-3, so use the light
         // roster read (no all-franchise valuation / strength) and the light FA summary
         // (no projections / per-player build) instead of the full getRoster + board build.
-        const [roster, fa] = await Promise.all([
+        // Settings, roster, and FA summary are independent reads — fetch all three together so
+        // the league costs one throttle round-trip instead of settings-then-the-rest.
+        const [settings, roster, fa] = await Promise.all([
+          loadSettings(league, cookie),
           rosterService.myRosterLight(cookie, league.leagueId),
           freeAgentSummary(cookie, league),
         ]);
