@@ -21,6 +21,12 @@ const waiversService = require('./waivers');
 const rosterService = require('./roster');
 const draftStore = require('../store/draft');
 const playerTags = require('../store/playerTags');
+const { createMemo } = require('../lib/memo');
+
+// Draft "has it been held?" status changes rarely (only while a draft is live), and it's
+// asked once per league by several screens (Watch tab, Home alerts, player profile). Memoize
+// it so those don't each fire a fresh draftResults read — and concurrent callers coalesce.
+const draftOpenMemo = createMemo({ ttlMs: config.mflCacheTtlMs });
 
 function resolvePlayer(byId, id, enr) {
   const p = playersLib.resolve(byId, id);
@@ -207,14 +213,16 @@ function onClockSlot(status, slots) {
 // complete; a league with no draft on file is an established/in-season league where FA is
 // already open. Best-effort: a draft-read failure defaults to open so we don't hide real
 // alerts for the common (already-drafted) case.
-async function freeAgencyOpen(cookie, token, league) {
-  try {
-    const draft = await loadDraft(cookie, token, league);
-    if (!draft) return true;
-    return statusOf(draft, slotsFor(draft)) === 'complete';
-  } catch (e) {
-    return true;
-  }
+function freeAgencyOpen(cookie, token, league) {
+  return draftOpenMemo.get(`${cookie || ''}:${league.leagueId}`, async () => {
+    try {
+      const draft = await loadDraft(cookie, token, league);
+      if (!draft) return true;
+      return statusOf(draft, slotsFor(draft)) === 'complete';
+    } catch (e) {
+      return true;
+    }
+  });
 }
 
 // All leagues' draft state — for "which drafts are scheduled / live / my turn".

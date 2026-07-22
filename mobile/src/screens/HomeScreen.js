@@ -57,17 +57,33 @@ async function runPool(items, limit, worker) {
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, next));
 }
 
+// Home is unmounted every time an overlay covers it (the Draft Hub, Trade inbox, a player
+// profile) and remounted on back. This module-level snapshot survives that remount so
+// returning repaints the last-known Home instantly — no boot spinner, no full reload — and,
+// crucially, a transient backend hiccup on re-entry can't blank a Home that was already
+// populated. `at` gates the throttle: a reload only re-runs once the data has gone stale.
+let homeCache = { leagues: null, statuses: null, drafts: null, onDeck: null, watchAlerts: null, at: 0 };
+let refreshInFlight = false; // guards the fan-out across remounts (a per-mount ref can't)
+const HOME_STALE_MS = 45 * 1000;
+
+// Clear the in-memory snapshot on logout / session loss so the next account never sees the
+// previous one's Home. Called from App alongside the on-disk cache clear.
+export function resetHomeCache() {
+  homeCache = { leagues: null, statuses: null, drafts: null, onDeck: null, watchAlerts: null, at: 0 };
+  refreshInFlight = false;
+}
+
 export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpenLeagues, onOpenPortfolio, onOpenWaivers, onOpenTrades, onOpenTradeInbox, onOpenDraft, onOpenDraftHub, onOpenOnDeck, onOpenPlayer, onOpenSettings, onOpenProfile, onLogout }) {
-  const [leagues, setLeagues] = useState([]);
-  const [statuses, setStatuses] = useState({}); // leagueId -> { name, status, items }
-  const [drafts, setDrafts] = useState([]); // only ACTIONABLE drafts (on the clock / live / imminent)
-  const [onDeck, setOnDeck] = useState(null); // time-sorted deadlines across leagues
-  const [watchAlerts, setWatchAlerts] = useState([]); // watched players now free / on the block
+  const [leagues, setLeagues] = useState(homeCache.leagues || []);
+  const [statuses, setStatuses] = useState(homeCache.statuses || {}); // leagueId -> { name, status, items }
+  const [drafts, setDrafts] = useState(homeCache.drafts || []); // only ACTIONABLE drafts (on the clock / live / imminent)
+  const [onDeck, setOnDeck] = useState(homeCache.onDeck || null); // time-sorted deadlines across leagues
+  const [watchAlerts, setWatchAlerts] = useState(homeCache.watchAlerts || []); // watched players now free / on the block
   const [expanded, setExpanded] = useState(new Set(GROUP_ORDER.filter((t) => GROUPS[t].open)));
   const [progress, setProgress] = useState(null); // { done, total }
   const [error, setError] = useState(null);
   const [attentionOpen, setAttentionOpen] = useState(false); // the "Needs attention" feed is now a modal
-  const [booting, setBooting] = useState(true);
+  const [booting, setBooting] = useState(!homeCache.leagues); // in-memory data → paint immediately, no spinner
   const [busy, setBusy] = useState(false); // a refresh cycle is in flight
   const running = useRef(false);
 
@@ -78,19 +94,28 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
   // lineup, a submitted claim) rather than showing stale triage.
   useEffect(() => {
     (async () => {
-      const [cachedLeagues, cachedStatuses] = await Promise.all([getValue('leagues'), getValue('statuses')]);
-      if (cachedLeagues) setLeagues(cachedLeagues);
-      if (cachedStatuses) setStatuses(cachedStatuses);
-      setBooting(false);
-      refresh();
+      // Cold start (no in-memory snapshot): paint the last session's data from disk.
+      // Warm remount (returning from an overlay): state was already seeded from homeCache,
+      // so skip the disk read and the boot spinner entirely.
+      if (!homeCache.leagues) {
+        const [cachedLeagues, cachedStatuses] = await Promise.all([getValue('leagues'), getValue('statuses')]);
+        if (cachedLeagues) setLeagues(cachedLeagues);
+        if (cachedStatuses) setStatuses(cachedStatuses);
+        setBooting(false);
+      }
+      // Only re-run the heavy cross-league fan-out when the data has actually gone stale.
+      // Returning from an overlay within the window repaints the cached triage instantly and
+      // does NOT reload — so a transient hiccup on re-entry can't blank an already-good Home.
+      if (Date.now() - homeCache.at > HOME_STALE_MS) refresh();
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 2) Refresh: fetch the league list, then stream each league's status.
   const refresh = useCallback(async () => {
-    if (running.current) return;
+    if (running.current || refreshInFlight) return;
     running.current = true;
+    refreshInFlight = true;
     setBusy(true);
     setError(null);
     try {
@@ -98,6 +123,7 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
       // Home reflects all of the account's leagues, already pinned-first from the server.
       const list = (res.leagues || []).map((l) => ({ leagueId: l.leagueId, name: l.name }));
       setLeagues(list);
+      homeCache.leagues = list;
       setValue('leagues', list);
 
       // Drafts: Home is an action list, so only surface drafts that actually need
@@ -106,14 +132,14 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
       // off Home entirely — it's on the Players → News tab.
       // Write-through to the shared SWR cache keys so opening the Draft Hub / On Deck from
       // here paints Home's already-fetched data instantly instead of cold-loading.
-      api.drafts().then((d) => { setDrafts((d.drafts || []).filter(isDraftActionable)); setValue('drafts', d); }).catch(() => {});
+      api.drafts().then((d) => { const f = (d.drafts || []).filter(isDraftActionable); setDrafts(f); homeCache.drafts = f; setValue('drafts', d); }).catch(() => {});
 
       // On Deck — time-sorted deadlines across leagues (the proactive layer).
-      api.onDeck().then((d) => { setOnDeck(d); setValue('ondeck', d); }).catch(() => {});
+      api.onDeck().then((d) => { setOnDeck(d); homeCache.onDeck = d; setValue('ondeck', d); }).catch(() => {});
 
       // Watchlist alerts — a player you track just became a free agent or was put on the
       // block by another owner. Background, best-effort; empty (fast) if you track no one.
-      api.watchlistAlerts().then((r) => setWatchAlerts(r.alerts || [])).catch(() => {});
+      api.watchlistAlerts().then((r) => { const a = r.alerts || []; setWatchAlerts(a); homeCache.watchAlerts = a; }).catch(() => {});
 
       // Warm the Players tab in the background. Its rankings load pays for the heavy
       // cross-league gather (a roster + free-agent read per league) that nothing else warms,
@@ -134,16 +160,20 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
         setStatuses((prev) => ({ ...prev, [lg.leagueId]: collected[lg.leagueId] }));
         setProgress((p) => (p ? { done: p.done + 1, total: p.total } : p));
       });
-      // Keep only current leagues, then persist.
+      // Keep only current leagues, then persist (in-memory + disk) and stamp the refresh so
+      // a quick return from an overlay repaints this instead of reloading.
       const pruned = {};
       for (const lg of list) if (collected[lg.leagueId]) pruned[lg.leagueId] = collected[lg.leagueId];
       setStatuses(pruned);
+      homeCache.statuses = pruned;
+      homeCache.at = Date.now();
       setValue('statuses', pruned);
     } catch (e) {
       setError(e.message);
     } finally {
       setProgress(null);
       setBusy(false);
+      refreshInFlight = false;
       running.current = false;
     }
   }, []);
@@ -347,7 +377,10 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
               </View>
               <Text style={styles.teamChev}>›</Text>
             </Pressable>
-            {error ? <Text style={styles.error}>{error}</Text> : null}
+            {/* Only surface a refresh failure when we have nothing to fall back on. If Home is
+                already populated (cache or a prior good load), a transient backend hiccup stays
+                silent rather than replacing a working screen with a scary error + zeros. */}
+            {error && leagues.length === 0 ? <Text style={styles.error}>{error}</Text> : null}
             {!summaryLoading && portfolio.actionItems === 0 && !loading ? (
               <Text style={styles.clear}>🎉 Nothing needs you right now.</Text>
             ) : null}

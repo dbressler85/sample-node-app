@@ -8,6 +8,7 @@
 process.env.MFL_DEMO_MODE = 'true';
 
 const watchlist = require('../../src/services/watchlist');
+const playerhub = require('../../src/services/playerhub');
 const watchStore = require('../../src/store/watchlist');
 const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
 
@@ -57,6 +58,15 @@ const L_BAIT = '64097';
   assert(fa.leagues.find((l) => String(l.leagueId) === L_DRAFTED).relation === 'free', 'drafted league → free');
   assert(L_PREDRAFT.every((id) => fa.leagues.find((l) => String(l.leagueId) === id).relation === 'draftable'), 'undrafted leagues → draftable');
   console.log('✓ watchlist roll-up: free vs draftable split by draft status');
+
+  // Same draft distinction on the player PROFILE's cross-league standing, and the "Add" CTA
+  // only offers leagues where he's truly claimable (drafted/complete), never draftable ones.
+  const prof = await playerhub.profile('ck', TOKEN, FA_ID);
+  const relById = Object.fromEntries(prof.crossLeague.map((c) => [String(c.leagueId), c.relation]));
+  assert(relById[L_DRAFTED] === 'free', 'profile: drafted league → free');
+  assert(L_PREDRAFT.every((id) => relById[id] === 'draftable'), 'profile: undrafted leagues → draftable');
+  assert((prof.actions.addLeagues || []).every((l) => String(l.leagueId) === L_DRAFTED), 'profile Add CTA excludes undrafted leagues');
+  console.log('✓ profile cross-league: free vs draftable + Add CTA gated on draft');
 
   // Cleanup.
   for (const id of watchStore.list(TOKEN)) watchStore.remove(TOKEN, id);

@@ -12,6 +12,7 @@ import { getValue, setValue } from '../cache';
 const RELATION = {
   rostered: { label: 'Rostered', color: colors.good },
   free: { label: 'Free agent', color: colors.accent },
+  draftable: { label: 'Draftable', color: colors.warn }, // draft not held yet — not claimable until it is
   dropped: { label: 'Dropped', color: colors.textDim },
   unavailable: { label: 'Not available', color: colors.textDim },
 };

@@ -491,7 +491,7 @@ function ValueLens({ format, setFormat }) {
 // scrollable so it never overflows on a narrow screen.
 function LensSortRow({ format, setFormat, sort, onSort }) {
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.lensSortRow}>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.lensSortScroll} contentContainerStyle={styles.lensSortRow}>
       <View style={styles.lensToggle}>
         {[['1qb', '1QB'], ['sf', 'Superflex']].map(([k, label]) => (
           <Pressable key={k} style={[styles.lensSeg, format === k && styles.lensSegActive]} onPress={() => setFormat(k)}>
@@ -609,6 +609,10 @@ const styles = StyleSheet.create({
   lensSegText: { color: colors.textDim, fontSize: 12, fontWeight: '800' },
   lensSegTextActive: { color: colors.gold },
   // Combined lens + sort strip: one row, thin divider between the two groups.
+  // Height-constrain the horizontal controls strip (like typeScroll/posScroll) — without this
+  // a horizontal ScrollView in the flex column balloons vertically and centers its chips,
+  // stranding a big gap above and below the row.
+  lensSortScroll: { flexGrow: 0, flexShrink: 0 },
   lensSortRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, gap: 8, paddingTop: 2, paddingBottom: 6 },
   lsDivider: { width: StyleSheet.hairlineWidth, alignSelf: 'stretch', minHeight: 22, backgroundColor: colors.border, marginHorizontal: 4 },
   rightCol: { alignItems: 'flex-end', marginLeft: 10, gap: 7 },

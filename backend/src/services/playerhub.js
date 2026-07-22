@@ -367,12 +367,15 @@ async function profile(cookie, token, playerId) {
     })(),
     // D) Cross-league ownership + per-league projection.
     (async () => {
+      const draftService = require('./draft'); // lazy require — avoids any load-order cycle
       const { data } = await gather(cookie);
       return Promise.all(
         data.map(async ({ league, roster, faSet }) => {
           // The profile's labels over the shared canonical standing: a player I've dropped
-          // here, "rostered" (on MY roster, with the slot), "free", or "unavailable" (owned
-          // by another team). Same classification the watchlist uses, different vocabulary.
+          // here, "rostered" (on MY roster, with the slot), "free"/"draftable", or "unavailable"
+          // (owned by another team). Same classification the watchlist uses. An unrostered player
+          // is only a claimable "free" agent once the league's draft is complete; before that
+          // (startup / mid-draft) the pool reads as unrostered, so he's "draftable", not free.
           let relation = 'unavailable';
           let bucket = null;
           if (dropStore.has(token, league.leagueId, playerId)) {
@@ -380,7 +383,7 @@ async function profile(cookie, token, playerId) {
           } else {
             const s = standingLib.standing(roster, faSet, playerId);
             if (s.mine) { relation = 'rostered'; bucket = s.bucket; }
-            else if (s.where === 'free') relation = 'free';
+            else if (s.where === 'free') relation = (await draftService.freeAgencyOpen(cookie, token, league)) ? 'free' : 'draftable';
           }
           const proj = config.demoMode
             ? leagueProjection(playerId, base.position, league.leagueId)
