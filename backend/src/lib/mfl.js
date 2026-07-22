@@ -106,7 +106,23 @@ function attr(obj, ...names) {
   return undefined;
 }
 
+// SSRF guard: outbound hosts come from MFL data (a league's `url` in the myleagues export),
+// so a compromised/MITM'd MFL response — or a crafted league — could otherwise point requests
+// at an internal address. Every outbound URL (and every redirect hop) must be an MFL host.
+const MFL_HOST_RE = /(^|\.)myfantasyleague\.com$/i;
+function isMflHost(host) {
+  return MFL_HOST_RE.test(String(host || '').split(':')[0]);
+}
+
 function buildUrl(host, command, params) {
+  // Defence in depth: `host` is already sanitized at its source (hostFromLeagueUrl falls back
+  // to the MFL apiHost for anything non-MFL), so this never fires in normal operation — it just
+  // guarantees we can't be tricked into building a request to a non-MFL host.
+  if (!isMflHost(host)) {
+    const err = new Error(`Refusing to build a request to a non-MyFantasyLeague host: ${host}`);
+    err.status = 502;
+    throw err;
+  }
   const url = new URL(`https://${host}/${config.season}/${command}`);
   for (const [key, val] of Object.entries(params)) {
     if (val === undefined || val === null) continue;
@@ -117,12 +133,37 @@ function buildUrl(host, command, params) {
   return url.toString();
 }
 
+// fetch() with redirects followed MANUALLY so each hop's host is re-validated against the MFL
+// allowlist — closes the redirect-based SSRF bypass that `redirect:'follow'` leaves open (an
+// allowlisted host that 302s to an internal address). MFL's JSON API returns responses directly,
+// so in normal operation this follows zero redirects; the loop is a safety net, not a hot path.
+async function fetchAllowlisted(startUrl, init) {
+  let current = startUrl;
+  for (let hop = 0; hop < 5; hop += 1) {
+    const host = new URL(current).host;
+    if (!isMflHost(host)) {
+      const err = new Error(`Refusing to follow a request to a non-MyFantasyLeague host: ${host}`);
+      err.status = 502;
+      throw err;
+    }
+    const res = await fetch(current, { ...init, redirect: 'manual' });
+    if (res.status >= 300 && res.status < 400 && res.headers.get('location')) {
+      current = new URL(res.headers.get('location'), current).toString();
+      continue;
+    }
+    return res;
+  }
+  const err = new Error('Too many MFL redirects');
+  err.status = 502;
+  throw err;
+}
+
 async function rawRequest({ host, command, params, cookie, method = 'GET', body }) {
   const url = buildUrl(host, command, params);
   const headers = { 'User-Agent': config.userAgent, Accept: 'application/json' };
   if (cookie) headers.Cookie = `MFL_USER_ID=${cookie}`;
 
-  const init = { method, headers, redirect: 'follow' };
+  const init = { method, headers };
   if (body) {
     headers['Content-Type'] = 'application/x-www-form-urlencoded';
     init.body = body;
@@ -133,7 +174,7 @@ async function rawRequest({ host, command, params, cookie, method = 'GET', body 
   let res;
   let text;
   for (let attempt = 0; ; attempt++) {
-    res = await throttle(() => fetch(url, init));
+    res = await throttle(() => fetchAllowlisted(url, init));
     if ((res.status === 429 || res.status === 503) && attempt < config.mflMaxRetries) {
       const retryAfter = parseInt(res.headers.get('retry-after') || '', 10);
       const waitMs = Number.isFinite(retryAfter) ? retryAfter * 1000 : Math.min(10000, 800 * 2 ** attempt);
@@ -180,7 +221,8 @@ async function rawRequest({ host, command, params, cookie, method = 'GET', body 
 // in-flight PROMISE, not just the resolved value, so concurrent identical reads
 // (e.g. Home fanning several endpoints at the same league's roster at once) share
 // one network request instead of each firing their own.
-const readCache = new Map(); // key -> { at, promise }
+const readCache = new Map(); // key -> { at, ttl, promise }
+const READ_CACHE_MAX = 600; // bound memory: sweep expired entries once the map grows past this
 
 // Slow-changing data gets a long TTL; live-polled data a very short one so it
 // keeps up with its poll cadence; everything else a moderate short one.
@@ -212,12 +254,19 @@ async function exportRequest(type, { host = config.apiHost, cookie = null, maxAg
   if (hit && Date.now() - hit.at < ttl) return hit.promise;
 
   const promise = rawRequest({ host, command: 'export', params: { TYPE: type, ...params }, cookie });
-  const entry = { at: Date.now(), promise };
+  const entry = { at: Date.now(), ttl, promise };
   readCache.set(key, entry);
   // A failed read must not be cached: drop it so the next call retries.
   promise.catch(() => {
     if (readCache.get(key) === entry) readCache.delete(key);
   });
+  // Bound memory: a key that's never re-requested (a past week's scores, a departed league)
+  // would otherwise live for the process lifetime. When the map grows past the cap, sweep the
+  // entries that are already past their own TTL (mirrors lib/memo.js).
+  if (readCache.size > READ_CACHE_MAX) {
+    const now = Date.now();
+    for (const [k, v] of readCache) if (now - v.at > v.ttl) readCache.delete(k);
+  }
   return promise;
 }
 
@@ -284,9 +333,12 @@ async function login(username, password) {
   else if (res.status >= 500) hint = 'MFL had a server error; try again shortly.';
   else hint = 'No session cookie was returned.';
 
+  // The friendly hint is already in the message (which the client sees). Deliberately do NOT
+  // attach MFL's raw login-response body to err.detail — the central handler echoes err.detail
+  // to the client, and echoing an upstream body back is a needless info-leak. Keep the raw text
+  // server-side only (logged above as shape) for debugging.
   const err = new Error(`MFL login failed (HTTP ${res.status}). ${hint}`);
   err.status = 401;
-  err.detail = snippet;
   throw err;
 }
 
@@ -294,7 +346,10 @@ async function login(username, password) {
 // e.g. "https://www55.myfantasyleague.com/2026/home/64097" -> "www55.myfantasyleague.com"
 function hostFromLeagueUrl(leagueUrl) {
   try {
-    return new URL(leagueUrl).host;
+    const host = new URL(leagueUrl).host;
+    // Only trust an MFL host from the (data-derived) league url; anything else falls back to the
+    // canonical apiHost so a hostile url can never seed an outbound request to a foreign address.
+    return isMflHost(host) ? host : config.apiHost;
   } catch (e) {
     return config.apiHost;
   }

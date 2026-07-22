@@ -5,6 +5,14 @@
 // Run: npm run smoke   (exits non-zero on any failure)
 
 process.env.MFL_DEMO_MODE = 'true';
+// Deterministic state: point the persist store at a throwaway temp dir so the smoke ALWAYS
+// starts from a clean slate. Previously it wrote the repo's data/state.json, so a run's own
+// mutations (add/drop/lineup/trade) persisted and drifted the next run's assertions — the
+// "unavailable current starter" flake. A fresh dir per run (pid + time) also stops the smoke
+// polluting the dev state file. Must be set BEFORE requiring app (which loads persist).
+const os = require('os');
+const path = require('path');
+process.env.DATA_DIR = path.join(os.tmpdir(), `dc-smoke-${process.pid}-${Date.now()}`);
 const app = require('../src/app');
 
 function assert(cond, msg) {
@@ -368,7 +376,9 @@ function assert(cond, msg) {
 
     // --- M5: trades ---
     const trOverview = (await j(await fetch(`${base}/api/trades`, authed))).body;
-    assert(trOverview.offers.length === 2, 'two pending trade offers across leagues');
+    // Three incoming offers across leagues: t1 (Gibbs for Nix), t2 (picks for Gibbs), and
+    // t3 (a player + $20 FAAB for Nix) — the last exercises FAAB as a tradeable asset.
+    assert(trOverview.offers.length === 3, 'three pending trade offers across leagues');
     const t1 = trOverview.offers.find((o) => o.id === 't1');
     assert(t1 && t1.acquire[0].name.includes('Gibbs') && t1.send[0].name.includes('Nix'), 'offer resolves players on both sides');
     // t1 is in The Superflex Society: Nix is a QB, so his value carries the SUPERFLEX

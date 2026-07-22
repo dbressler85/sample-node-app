@@ -28,7 +28,7 @@ global.fetch = async () => {
   assert(mfl.__throttle.effConcurrent() === 4, 'full concurrency before any rate-limit');
 
   // One read that 429s then succeeds on retry.
-  const r = await mfl.exportRequest('rosters', { host: 'h', cookie: 'ck', L: '1' });
+  const r = await mfl.exportRequest('rosters', { host: 'www55.myfantasyleague.com', cookie: 'ck', L: '1' });
   assert(r && r.ok, 'the request recovers after the 429 (retry succeeds)');
 
   // The 429 tripped the cooldown: concurrency is halved and the stagger stretched.

@@ -26,7 +26,7 @@ global.fetch = async () => {
 (async () => {
   // 12 DISTINCT reads (different L) so nothing coalesces or hits the cache.
   const reqs = [];
-  for (let i = 0; i < 12; i += 1) reqs.push(mfl.exportRequest('rosters', { host: 'h', cookie: 'ck', L: String(i) }));
+  for (let i = 0; i < 12; i += 1) reqs.push(mfl.exportRequest('rosters', { host: 'www55.myfantasyleague.com', cookie: 'ck', L: String(i) }));
   await Promise.all(reqs);
 
   assert(started === 12, `all 12 requests ran, got ${started}`);

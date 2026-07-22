@@ -11,57 +11,13 @@
 const { spawnSync } = require('child_process');
 const path = require('path');
 
-const TESTS = [
-  'enrichment-test',
-  'format-test',
-  'live-matchup-test',
-  'live-hub-test',
-  'trades-live-test',
-  'draft-live-test',
-  'offseason-test',
-  'news-test',
-  'week-detect-test',
-  'scoring-format-test',
-  'waivers-live-test',
-  'draft-format-test',
-  'parse-hardening-test',
-  'persist-test',
-  'session-persist-test',
-  'ondeck-test',
-  'notifications-test',
-  'profile-format-test',
-  'leagues-cache-test',
-  'cache-primitives-test',
-  'watchlist-test',
-  'throttle-test',
-  'throttle-backoff-test',
-  'portfolio-dashboard-test',
-  'waiver-lock-test',
-  'waiver-calendar-test',
-  'dynasty-outlook-test',
-  'tradebait-test',
-  'trade-fit-test',
-  'trade-counter-test',
-  'trade-current-picks-test',
-  'format-value-test',
-  'trade-construction-test',
-  'trade-hole-test',
-  'players-perf-test',
-  'players-persist-test',
-  'players-owned-test',
-  'rookies-filter-test',
-  'waivers-perf-test',
-  'waiver-multi-test',
-  'league-prefs-test',
-  'adp-test',
-  'trade-fit-summary-test',
-  'watchlist-alerts-test',
-  'push-prefs-test',
-  'standing-test',
-  'playertags-test',
-  'trade-tags-test',
-  'tag-surfaces-test',
-];
+const fs = require('fs');
+// Self-registering: every test/live/*-test.js runs. No hand-maintained list to drift out of
+// sync with the directory (a forgotten registration used to mean a harness silently never ran).
+const TESTS = fs.readdirSync(path.join(__dirname, '..', 'test', 'live'))
+  .filter((f) => f.endsWith('-test.js'))
+  .map((f) => f.replace(/\.js$/, ''))
+  .sort();
 
 let failed = 0;
 for (const t of TESTS) {
