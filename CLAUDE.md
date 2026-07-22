@@ -59,8 +59,11 @@ Respect these on every change.
 ### Workflow
 - **Backend changes deploy via Render on merge to `master` — no app build.** Prefer the
   backend for fixes that can live there; only mobile changes need a ~10-min EAS build.
-- **Never auto-trigger an EAS build.** Mobile changes accumulate on `master`; only kick a
-  build when the owner explicitly asks for one. Don't build after every prompt/merge.
+- **Never auto-trigger an EAS build.** EAS builds are a *scarce* monthly credit (Standard
+  plan, and the month's credits are routinely used up), so a wasted build has real cost.
+  Mobile changes accumulate on `master`; only the owner *starts* a build. Suggesting one is
+  welcome — when a batch of mobile work is at a coherent, verified stopping point, say so and
+  let the owner decide. Never build after every prompt/merge, and never build just to "check."
 - Squash-merge to `master`; keep the dev branch reset to `master` after each merge.
 - Commits are authored as `Claude <noreply@anthropic.com>`; the model id never appears in
   any pushed artifact (commits, code, PRs).
