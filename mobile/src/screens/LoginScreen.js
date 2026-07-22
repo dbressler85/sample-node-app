@@ -73,7 +73,7 @@ export default function LoginScreen({ onLoggedIn }) {
           <Text style={[styles.brandTop, displayLabel()]}>DYNASTY</Text>
           <Text style={[styles.brandMain, displayXL()]}>Central</Text>
           <Animated.View style={[styles.rule, rule]} />
-          <Text style={styles.tagline}>Your dynasty, one command.</Text>
+          <Text style={styles.tagline}>All your dynasties, centralized.</Text>
 
           {demoMode ? (
             <View style={styles.demoPill}>
