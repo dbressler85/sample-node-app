@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, FlatList, ActivityIndicator, Alert } from 'react-native';
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
+import PressableScale from '../components/PressableScale';
+import Reveal from '../components/Reveal';
 import useAndroidBack from '../useAndroidBack';
 import usePoll from '../usePoll';
 
@@ -21,6 +23,49 @@ function fmtDate(iso) {
     return iso;
   }
 }
+
+// One available-pool row. Memoized so a poll tick / filter tap only re-renders the rows whose
+// props actually changed, and rendered inside a FlatList so only the visible slice mounts (the
+// pool can be hundreds deep). `isPicking`/`pickingActive` are booleans, not the whole picking id,
+// so drafting one player doesn't invalidate every other row.
+const PoolRow = React.memo(function PoolRow({ p, rank, myTurn, isPicking, pickingActive, onScout, onDraft }) {
+  return (
+    <Reveal delay={Math.min(rank - 1, 12) * 30} animate={rank <= 14}>
+      <View style={[styles.avRow, myTurn && styles.avRowLive, p.tag === 'target' && styles.avRowTarget, p.tag === 'avoid' && styles.avRowAvoid]}>
+        <PressableScale
+          pressableStyle={styles.avIdentityFlex}
+          style={styles.avIdentityRow}
+          onPress={onScout ? () => onScout(p.id) : undefined}
+          disabled={!onScout}
+        >
+          <Text style={styles.avRank}>{rank}</Text>
+          <View style={[styles.dot, { backgroundColor: positionColors[p.position] || colors.textDim }]} />
+          <View style={{ flex: 1 }}>
+            <View style={styles.avNameRow}>
+              <Text style={styles.avName} numberOfLines={1}>{p.name}</Text>
+              {p.tag ? <Text style={[styles.tagMark, { color: p.tag === 'target' ? colors.good : colors.bad }]}>{p.tag === 'target' ? '◎' : '⊘'}</Text> : null}
+            </View>
+            <Text style={styles.avMeta}>{p.position}{p.team ? ` · ${p.team}` : ''}{p.age != null ? ` · ${p.age}y` : ''}{p.adp != null ? ` · ADP ${p.adp}` : ''}</Text>
+          </View>
+          <Text style={styles.avValue}>{p.value != null ? p.value : '—'}</Text>
+        </PressableScale>
+        {myTurn ? (
+          isPicking ? (
+            <ActivityIndicator color={colors.accent} style={styles.avDraftBtn} />
+          ) : (
+            <Pressable
+              style={({ pressed }) => [styles.avDraftBtn, pressed && { opacity: 0.7 }]}
+              onPress={() => onDraft(p)}
+              disabled={pickingActive}
+            >
+              <Text style={styles.avDraftTxt}>Draft</Text>
+            </Pressable>
+          )
+        ) : null}
+      </View>
+    </Reveal>
+  );
+});
 
 export default function DraftScreen({ league, onBack, onOpenPlayer, onOpenTrades }) {
   const [data, setData] = useState(null);
@@ -126,113 +171,97 @@ export default function DraftScreen({ league, onBack, onOpenPlayer, onOpenTrades
       {data && data.status === 'none' ? (
         <View style={styles.center}><Text style={styles.empty}>No draft in this league.</Text></View>
       ) : (
-        <ScrollView contentContainerStyle={styles.list}>
-          <View style={styles.headerRow}>
-            <Text style={styles.dtype}>{data.type || 'Draft'}</Text>
-            <View style={[styles.badge, { borderColor: st.color }]}>
-              <Text style={[styles.badgeText, { color: st.color }]}>{st.label}</Text>
-            </View>
-          </View>
-          {data.status === 'scheduled' && data.startTime ? (
-            <Text style={styles.sched}>Starts {fmtDate(data.startTime)}</Text>
-          ) : null}
-
-          {myTurn ? (
-            <View style={styles.clock}>
-              <Text style={styles.clockText}>You're on the clock — pick {data.onClock.round}.{String(data.onClock.pick).padStart(2, '0')}</Text>
-              <Text style={styles.clockSub}>Tap a player below to draft</Text>
-            </View>
-          ) : data.onClock ? (
-            <Text style={styles.waiting}>On the clock: pick {data.onClock.round}.{String(data.onClock.pick).padStart(2, '0')} (another team)</Text>
-          ) : null}
-
-          {/* My picks */}
-          {data.myPicks && data.myPicks.length ? (
-            <>
-              <Text style={styles.section}>My picks</Text>
-              {data.myPicks.map((s) => (
-                <View key={s.overall} style={styles.pickRow}>
-                  <Text style={styles.pickNo}>{s.round}.{String(s.pick).padStart(2, '0')}</Text>
-                  {s.player ? (
-                    <>
-                      <View style={[styles.dot, { backgroundColor: positionColors[s.player.position] || colors.textDim }]} />
-                      <Text style={styles.pickName} numberOfLines={1}>{s.player.name}</Text>
-                      <Text style={styles.pickMeta}>{s.player.position}{s.player.value != null ? ` · ${s.player.value}` : ''}</Text>
-                    </>
-                  ) : (
-                    <Text style={styles.pickUpcoming}>Upcoming</Text>
-                  )}
-                </View>
-              ))}
-            </>
-          ) : null}
-
-          {/* Available pool */}
-          <Text style={styles.section}>Available · by ADP{myTurn ? ' · tap a name to scout, Draft to pick' : ''}</Text>
-          <View style={styles.posRow}>
-            <Pressable style={[styles.posChip, !position && styles.posChipActive]} onPress={() => setPosition(null)}>
-              <Text style={[styles.posText, !position && { color: colors.text }]}>All</Text>
-            </Pressable>
-            {POSITIONS.map((p) => (
-              <Pressable key={p} style={[styles.posChip, position === p && styles.posChipActive]} onPress={() => setPosition(position === p ? null : p)}>
-                <Text style={[styles.posText, position === p && { color: colors.text }]}>{p}</Text>
-              </Pressable>
-            ))}
-          </View>
-          {pool.length === 0 ? (
-            <Text style={styles.empty}>No available players{position ? ` at ${position}` : ''}.</Text>
-          ) : (
-            pool.map((p, i) => (
-              <View key={p.id} style={[styles.avRow, myTurn && styles.avRowLive, p.tag === 'target' && styles.avRowTarget, p.tag === 'avoid' && styles.avRowAvoid]}>
-                <Pressable
-                  style={styles.avIdentity}
-                  onPress={onOpenPlayer ? () => onOpenPlayer(p.id) : undefined}
-                  disabled={!onOpenPlayer}
-                >
-                  <Text style={styles.avRank}>{i + 1}</Text>
-                  <View style={[styles.dot, { backgroundColor: positionColors[p.position] || colors.textDim }]} />
-                  <View style={{ flex: 1 }}>
-                    <View style={styles.avNameRow}>
-                      <Text style={styles.avName} numberOfLines={1}>{p.name}</Text>
-                      {p.tag ? <Text style={[styles.tagMark, { color: p.tag === 'target' ? colors.good : colors.bad }]}>{p.tag === 'target' ? '◎' : '⊘'}</Text> : null}
-                    </View>
-                    <Text style={styles.avMeta}>{p.position}{p.team ? ` · ${p.team}` : ''}{p.age != null ? ` · ${p.age}y` : ''}{p.adp != null ? ` · ADP ${p.adp}` : ''}</Text>
-                  </View>
-                  <Text style={styles.avValue}>{p.value != null ? p.value : '—'}</Text>
-                </Pressable>
-                {myTurn ? (
-                  picking === p.id ? (
-                    <ActivityIndicator color={colors.accent} style={styles.avDraftBtn} />
-                  ) : (
-                    <Pressable
-                      style={({ pressed }) => [styles.avDraftBtn, pressed && { opacity: 0.7 }]}
-                      onPress={() => confirmDraft(p)}
-                      disabled={picking != null}
-                    >
-                      <Text style={styles.avDraftTxt}>Draft</Text>
-                    </Pressable>
-                  )
-                ) : null}
-              </View>
-            ))
+        <FlatList
+          data={pool}
+          keyExtractor={(p) => String(p.id)}
+          contentContainerStyle={styles.list}
+          initialNumToRender={12}
+          maxToRenderPerBatch={12}
+          windowSize={11}
+          removeClippedSubviews
+          renderItem={({ item, index }) => (
+            <PoolRow
+              p={item}
+              rank={index + 1}
+              myTurn={myTurn}
+              isPicking={picking === item.id}
+              pickingActive={picking != null}
+              onScout={onOpenPlayer}
+              onDraft={confirmDraft}
+            />
           )}
-
-          {/* Recent picks */}
-          {recent.length ? (
-            <>
-              <Text style={styles.section}>Recent picks</Text>
-              {recent.map((s) => (
-                <View key={s.overall} style={styles.pickRow}>
-                  <Text style={styles.pickNo}>{s.round}.{String(s.pick).padStart(2, '0')}</Text>
-                  <View style={[styles.dot, { backgroundColor: positionColors[s.player.position] || colors.textDim }]} />
-                  <Text style={styles.pickName} numberOfLines={1}>{s.player.name}</Text>
-                  <Text style={styles.pickMeta}>{s.player.position}</Text>
+          ListEmptyComponent={<Text style={styles.empty}>No available players{position ? ` at ${position}` : ''}.</Text>}
+          ListHeaderComponent={
+            <View>
+              <View style={styles.headerRow}>
+                <Text style={styles.dtype}>{data.type || 'Draft'}</Text>
+                <View style={[styles.badge, { borderColor: st.color }]}>
+                  <Text style={[styles.badgeText, { color: st.color }]}>{st.label}</Text>
                 </View>
-              ))}
-            </>
-          ) : null}
-          <View style={{ height: 24 }} />
-        </ScrollView>
+              </View>
+              {data.status === 'scheduled' && data.startTime ? (
+                <Text style={styles.sched}>Starts {fmtDate(data.startTime)}</Text>
+              ) : null}
+
+              {myTurn ? (
+                <View style={styles.clock}>
+                  <Text style={styles.clockText}>You're on the clock — pick {data.onClock.round}.{String(data.onClock.pick).padStart(2, '0')}</Text>
+                  <Text style={styles.clockSub}>Tap a player below to draft</Text>
+                </View>
+              ) : data.onClock ? (
+                <Text style={styles.waiting}>On the clock: pick {data.onClock.round}.{String(data.onClock.pick).padStart(2, '0')} (another team)</Text>
+              ) : null}
+
+              {data.myPicks && data.myPicks.length ? (
+                <>
+                  <Text style={styles.section}>My picks</Text>
+                  {data.myPicks.map((s) => (
+                    <View key={s.overall} style={styles.pickRow}>
+                      <Text style={styles.pickNo}>{s.round}.{String(s.pick).padStart(2, '0')}</Text>
+                      {s.player ? (
+                        <>
+                          <View style={[styles.dot, { backgroundColor: positionColors[s.player.position] || colors.textDim }]} />
+                          <Text style={styles.pickName} numberOfLines={1}>{s.player.name}</Text>
+                          <Text style={styles.pickMeta}>{s.player.position}{s.player.value != null ? ` · ${s.player.value}` : ''}</Text>
+                        </>
+                      ) : (
+                        <Text style={styles.pickUpcoming}>Upcoming</Text>
+                      )}
+                    </View>
+                  ))}
+                </>
+              ) : null}
+
+              <Text style={styles.section}>Available · by ADP{myTurn ? ' · tap a name to scout, Draft to pick' : ''}</Text>
+              <View style={styles.posRow}>
+                <Pressable style={[styles.posChip, !position && styles.posChipActive]} onPress={() => setPosition(null)}>
+                  <Text style={[styles.posText, !position && { color: colors.text }]}>All</Text>
+                </Pressable>
+                {POSITIONS.map((p) => (
+                  <Pressable key={p} style={[styles.posChip, position === p && styles.posChipActive]} onPress={() => setPosition(position === p ? null : p)}>
+                    <Text style={[styles.posText, position === p && { color: colors.text }]}>{p}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          }
+          ListFooterComponent={
+            recent.length ? (
+              <View>
+                <Text style={styles.section}>Recent picks</Text>
+                {recent.map((s) => (
+                  <View key={s.overall} style={styles.pickRow}>
+                    <Text style={styles.pickNo}>{s.round}.{String(s.pick).padStart(2, '0')}</Text>
+                    <View style={[styles.dot, { backgroundColor: positionColors[s.player.position] || colors.textDim }]} />
+                    <Text style={styles.pickName} numberOfLines={1}>{s.player.name}</Text>
+                    <Text style={styles.pickMeta}>{s.player.position}</Text>
+                  </View>
+                ))}
+                <View style={{ height: 24 }} />
+              </View>
+            ) : <View style={{ height: 24 }} />
+          }
+        />
       )}
     </View>
   );
@@ -277,6 +306,8 @@ const styles = StyleSheet.create({
   avNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   tagMark: { fontSize: 13, fontWeight: '900' },
   avIdentity: { flex: 1, flexDirection: 'row', alignItems: 'center' },
+  avIdentityFlex: { flex: 1 },
+  avIdentityRow: { flexDirection: 'row', alignItems: 'center' },
   avDraftBtn: { marginLeft: 10, backgroundColor: colors.gold, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 7, minWidth: 58, alignItems: 'center' },
   avDraftTxt: { color: colors.bg, fontSize: 13, fontWeight: '900' },
   avRank: { color: colors.textDim, fontSize: 13, fontWeight: '800', width: 22 },

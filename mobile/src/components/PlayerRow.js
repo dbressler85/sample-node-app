@@ -8,7 +8,7 @@ import PressableScale from './PressableScale';
 // it's not passed the row renders exactly as before, so every other screen is unaffected.
 // `onOpenPlayer` makes the player identity (everything but the bait toggle) tappable to
 // open his cross-league profile — the app's standard "tap a player" gesture, with a spring.
-export default function PlayerRow({ player, baited, onToggleBait, onOpenPlayer }) {
+function PlayerRow({ player, baited, onToggleBait, onOpenPlayer }) {
   const posColor = positionColors[player.position] || colors.textDim;
   const content = (
     <>
@@ -51,6 +51,10 @@ export default function PlayerRow({ player, baited, onToggleBait, onOpenPlayer }
     </View>
   );
 }
+
+// Memoized: in long lists (Roster, Waivers, Trades, Watch) a parent re-render (poll tick, search
+// keystroke, a sibling toggle) no longer re-renders every row — only rows whose props changed.
+export default React.memo(PlayerRow);
 
 const styles = StyleSheet.create({
   row: {

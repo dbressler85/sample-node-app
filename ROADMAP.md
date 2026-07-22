@@ -343,11 +343,12 @@ roster count + FA count + top 3; it now uses `myRosterLight` and a light
 `freeAgentSummary` (memoized ids + values, no projections/board build)).
 Remaining, in rough priority order:
 
-- [ ] **DraftScreen: virtualize the player pool.** `DraftScreen` renders the
-  undrafted pool with `ScrollView` + `.map` (hundreds of rows, re-rendered on a
-  15s poll and every filter tap). Convert to `FlatList` with `keyExtractor`,
-  header/my-picks in `ListHeaderComponent`. *(Deferred: needs on-device UI
-  verification, not just a parse-check.)*
+- [x] **DraftScreen: virtualize the player pool.** Done: the undrafted pool is now a
+  `FlatList` (header/my-picks in `ListHeaderComponent`, recent picks in the footer) with a
+  **memoized `PoolRow`**, so only the visible slice mounts instead of all several-hundred rows,
+  and a 15s poll / filter tap no longer re-renders the whole board. `isPicking`/`pickingActive`
+  are passed as booleans so drafting one player doesn't invalidate every row. *(Rows also got the
+  press-spring + cascade for consistency.)*
 - [x] **Stale-while-revalidate on the overview screens.** Lineups, Waivers, and the
   Players → Rankings tab now paint their last-known data from the on-device cache
   instantly and refetch in the background (`useCachedResource` hook + per-screen
@@ -358,10 +359,11 @@ Remaining, in rough priority order:
 - [ ] **Seed overlays from Home's already-fetched data.** Home fetches `drafts`,
   `onDeck`, and `news`; the Draft Hub / On Deck / News screens then refetch the
   same endpoints cold. Pass the loaded data as an initial prop (still revalidate).
-- [ ] **`React.memo` the long-list rows.** Players rankings, the waiver board, and
-  the draft pool re-render every visible row on any parent state change (e.g. a
-  poll tick). Wrap `PlayerRow` / `FaRow` / draft rows in `React.memo` and
-  stabilize their `onPress`.
+- [~] **`React.memo` the long-list rows.** Done: the shared `PlayerRow` (Roster / Waivers /
+  Trades / Watch) and the draft `PoolRow` are memoized, so a parent re-render no longer re-renders
+  every visible row. *(Remaining: the Players-screen local `PlayerRow`/`WatchRow` and Waivers
+  `FaRow` — they're declared after use (function hoisting), so memoizing needs a small reorder;
+  low priority since those lists are already `FlatList`-virtualized.)*
 - [ ] **Lift Home state above the overlay switch (optional).** `App.js` returns an
   overlay *instead of* the tab view, so opening/closing any overlay unmounts and
   remounts the active tab. The Home freshness gate mitigates the refetch cost;
