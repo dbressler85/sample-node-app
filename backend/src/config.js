@@ -42,16 +42,18 @@ const config = {
   // Outbound MFL requests run with bounded concurrency plus a small stagger between
   // starts (polite, avoids bursts) — NOT strict serialization. Cold first-load fans
   // out many per-league reads; serializing them at a big gap was the dominant latency.
+  // The 429/503 backoff pulls back if MFL pushes.
   //
-  // The defaults are API-KEY-AWARE. A registered MFL Developer key (MFL_API_KEY) raises
-  // your rate limits substantially, so with a key we run more in flight AND halve the
-  // start-stagger (the stagger, not the concurrency, is what caps the start RATE — so
-  // lowering it is what actually speeds a big cold fan-out). Without a key we stay at the
-  // conservative, polite values. Either way the 429/503 backoff pulls back if MFL pushes,
-  // and explicit MFL_MAX_CONCURRENT / MFL_MIN_REQUEST_INTERVAL_MS env vars still win.
-  mflMaxConcurrent: int(process.env.MFL_MAX_CONCURRENT, process.env.MFL_API_KEY ? 8 : 4),
+  // Defaults stay conservative — polite for an UNregistered client. MFL's Developer Program
+  // authenticates a client by its registered, validated User-Agent (config.userAgent) — the
+  // app already sends it and there is NO key to paste — and a validated client gets higher
+  // rate limits. So once your client is validated, RAISE THROUGHPUT by setting these two env
+  // vars, e.g. MFL_MAX_CONCURRENT=8 and MFL_MIN_REQUEST_INTERVAL_MS=75. The stagger (interval),
+  // not the concurrency, caps the start RATE of a big cold fan-out, so lowering it is what
+  // actually speeds cross-league loads.
+  mflMaxConcurrent: int(process.env.MFL_MAX_CONCURRENT, 4),
   // Minimum milliseconds between the START of one outbound MFL request and the next.
-  mflMinRequestIntervalMs: int(process.env.MFL_MIN_REQUEST_INTERVAL_MS, process.env.MFL_API_KEY ? 75 : 150),
+  mflMinRequestIntervalMs: int(process.env.MFL_MIN_REQUEST_INTERVAL_MS, 150),
 
   // Cache for moderately volatile MFL export responses (rosters, free agents),
   // so the many services that build one screen don't re-fetch the same data and
