@@ -197,8 +197,11 @@ export default function PlayersScreen({ onOpenPlayer }) {
       {searching ? (
         <>
           <PosFilter pos={pos} setPos={setPos} />
-          <ValueLens format={format} setFormat={setFormat} />
-          {searchRes && searchRes.players.length ? <SortRow value={listSort} onChange={setListSort} /> : null}
+          {searchRes && searchRes.players.length ? (
+            <LensSortRow format={format} setFormat={setFormat} sort={listSort} onSort={setListSort} />
+          ) : (
+            <ValueLens format={format} setFormat={setFormat} />
+          )}
           {!searchRes ? (
             <PlayerListSkeleton />
           ) : (
@@ -235,8 +238,7 @@ export default function PlayersScreen({ onOpenPlayer }) {
                 </ScrollView>
               </View>
               <PosFilter pos={pos} setPos={setPos} rankType={rankType} setRankType={setRankType} />
-              <ValueLens format={format} setFormat={setFormat} />
-              <SortRow value={listSort} onChange={setListSort} />
+              <LensSortRow format={format} setFormat={setFormat} sort={listSort} onSort={setListSort} />
               <FlatList
                 style={styles.grow}
                 data={rankings ? sortPlayers(rankings.players, listSort) : []}
@@ -454,6 +456,31 @@ function ValueLens({ format, setFormat }) {
   );
 }
 
+// Combined controls strip: the value lens (1QB / Superflex) and the list sort on ONE row,
+// split by a thin divider — no "Value lens" label, to save vertical space. Horizontally
+// scrollable so it never overflows on a narrow screen.
+function LensSortRow({ format, setFormat, sort, onSort }) {
+  return (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.lensSortRow}>
+      <View style={styles.lensToggle}>
+        {[['1qb', '1QB'], ['sf', 'Superflex']].map(([k, label]) => (
+          <Pressable key={k} style={[styles.lensSeg, format === k && styles.lensSegActive]} onPress={() => setFormat(k)}>
+            <Text style={[styles.lensSegText, format === k && styles.lensSegTextActive]}>{label}</Text>
+          </Pressable>
+        ))}
+      </View>
+      <InfoDot id="format" />
+      <View style={styles.lsDivider} />
+      <Text style={styles.newsSortLabel}>Sort</Text>
+      {LIST_SORTS.map(([k, label]) => (
+        <Pressable key={k} style={[styles.newsSortChip, sort === k && styles.newsSortChipActive]} onPress={() => onSort(k)}>
+          <Text style={[styles.newsSortText, sort === k && { color: colors.text }]}>{label}</Text>
+        </Pressable>
+      ))}
+    </ScrollView>
+  );
+}
+
 function WatchRow({ p, onPress }) {
   const posColor = positionColors[p.position] || colors.textDim;
   const s = p.summary;
@@ -550,6 +577,9 @@ const styles = StyleSheet.create({
   lensSegActive: { backgroundColor: colors.gold + '22', borderColor: colors.gold },
   lensSegText: { color: colors.textDim, fontSize: 12, fontWeight: '800' },
   lensSegTextActive: { color: colors.gold },
+  // Combined lens + sort strip: one row, thin divider between the two groups.
+  lensSortRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, gap: 8, paddingTop: 2, paddingBottom: 6 },
+  lsDivider: { width: StyleSheet.hairlineWidth, alignSelf: 'stretch', minHeight: 22, backgroundColor: colors.border, marginHorizontal: 4 },
   rightCol: { alignItems: 'flex-end', marginLeft: 10, gap: 7 },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   newsSearchWrap: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, marginBottom: 6 },
