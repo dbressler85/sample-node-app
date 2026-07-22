@@ -57,12 +57,20 @@ async function getStandings(cookie, leagueId) {
       leaguesService.franchiseNames(cookie, league),
       playoffSpotsFor(cookie, league),
     ]);
+    // Field ids confirmed against a live leagueStandings?COLUMN_NAMES=1 sample: h2hw/h2hl/h2ht,
+    // pf/pa are exactly MFL's column ids. That sample also exposes richer standings columns we
+    // now carry through: strk (streak), all_play_pct, h2hpct (win %), pp (potential points).
+    // (All read defensively — demo standings omit them → null, never an error.)
     rows = franchises.map((f) => ({
       id: String(f.id),
       name: names.get(String(f.id)) || `Team ${f.id}`,
       mine: String(f.id) === league.franchiseId,
       h2hw: num(f.h2hw), h2hl: num(f.h2hl), h2ht: num(f.h2ht),
       pf: num(f.pf), pa: num(f.pa),
+      streak: f.strk && String(f.strk) !== '-' ? String(f.strk) : null,
+      allPlayPct: f.all_play_pct != null && f.all_play_pct !== '' ? parseFloat(f.all_play_pct) : null,
+      winPct: f.h2hpct != null && f.h2hpct !== '' ? parseFloat(f.h2hpct) : null,
+      potentialPoints: f.pp != null && f.pp !== '' ? round1(num(f.pp)) : null,
     }));
     playoffSpots = spots;
   }
@@ -78,6 +86,12 @@ async function getStandings(cookie, leagueId) {
     record: record(r.h2hw, r.h2hl, r.h2ht),
     pointsFor: round1(r.pf),
     pointsAgainst: round1(r.pa),
+    // Extra standings columns (null when absent, e.g. demo or pre-season) — surfaced for the
+    // app to show; harmless until a mobile build renders them.
+    streak: r.streak || null,
+    allPlayPct: r.allPlayPct != null ? r.allPlayPct : null,
+    winPct: r.winPct != null ? r.winPct : null,
+    potentialPoints: r.potentialPoints != null ? r.potentialPoints : null,
     inPlayoffs: playoffSpots ? i < playoffSpots : null,
   }));
 
