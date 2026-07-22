@@ -38,8 +38,9 @@ async function adpMap(cookie) {
   }
   return memo.get('adp', async () => {
     try {
-      // PERIOD=RECENT keeps it current; other filters left at MFL defaults.
-      const res = await mfl.exportRequest('adp', { cookie, PERIOD: 'RECENT' });
+      // PERIOD=RECENT keeps it current; IS_KEEPER selects dynasty-relevant drafts (keeper +
+      // rookie by default) rather than MFL's redraft-inclusive mix. Same response shape.
+      const res = await mfl.exportRequest('adp', { cookie, PERIOD: 'RECENT', IS_KEEPER: config.mflAdpIsKeeper });
       return parseRows(res);
     } catch (e) {
       return new Map();

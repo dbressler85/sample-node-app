@@ -33,13 +33,18 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   const one = adpLib.parseRows({ adp: { player: { id: '99', averagePick: '1.2' } } });
   assert(one.get('99') === 1.2, 'singleton player parsed via toArray');
 
-  // 3) adpMap surfaces the export, keyed by id.
-  mfl.exportRequest = async (type) => {
+  // 3) adpMap surfaces the export, keyed by id, and requests dynasty-relevant ADP.
+  let sentOpts = null;
+  mfl.exportRequest = async (type, opts) => {
     assert(type === 'adp', 'adpMap hits the adp export');
+    sentOpts = opts;
     return { adp: { player: [{ id: '30', averagePick: '3' }, { id: '31', averagePick: '1' }] } };
   };
   const m = await adpLib.adpMap('ck');
   assert(m.get('31') === 1 && m.get('30') === 3, 'adpMap returns the id→pick map');
+  assert(sentOpts && sentOpts.PERIOD === 'RECENT', 'adp requests the RECENT period');
+  assert(sentOpts && sentOpts.IS_KEEPER === 'KR', `adp requests keeper+rookie (dynasty) ADP, got ${sentOpts && sentOpts.IS_KEEPER}`);
+  console.log('✓ adp export requests dynasty ADP (PERIOD=RECENT, IS_KEEPER=KR)');
 
   // 4) A failing export degrades to an empty map (never throws).
   mfl.exportRequest = async () => { throw new Error('boom'); };

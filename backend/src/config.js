@@ -113,6 +113,13 @@ const config = {
   // and off for local/test runs (which share the default data dir).
   persistPlayers: bool(process.env.MFL_PERSIST_PLAYERS, !!process.env.DATA_DIR),
 
+  // ADP flavor for the draft board. MFL's `adp` export defaults to 'NKR' (redraft + keeper +
+  // rookie mixed). This is a DYNASTY app, so keeper + rookie ADP ('KR') is the more relevant
+  // consensus for both startup and rookie drafts — redraft ADP dilutes dynasty ordering. The
+  // response shape is unchanged (it's a server-side filter), so this only reshapes which drafts
+  // feed the numbers. Set MFL_ADP_IS_KEEPER=NKR to restore MFL's mixed default.
+  mflAdpIsKeeper: process.env.MFL_ADP_IS_KEEPER || 'KR',
+
   // Host used for account-level, non-league requests (login, myleagues, players).
   apiHost: process.env.MFL_API_HOST || 'api.myfantasyleague.com',
 
