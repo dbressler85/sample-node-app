@@ -32,7 +32,7 @@ import DraftScreen from './src/screens/DraftScreen';
 import DraftHubScreen from './src/screens/DraftHubScreen';
 import OnDeckScreen from './src/screens/OnDeckScreen';
 import { loadSession, clearSession } from './src/auth';
-import { loadDisplayFont } from './src/typography';
+import { loadDisplayFont, fonts } from './src/typography';
 import PressableScale from './src/components/PressableScale';
 import FieldBackdrop from './src/components/FieldBackdrop';
 import { NavHubIcon, NavPersonIcon, NavTradesIcon, NavWaiversIcon, NavLineupsIcon, NavGoalPostIcon } from './src/components/NavIcons';
@@ -64,6 +64,7 @@ const TABS = [
 
 export default function App() {
   const [booting, setBooting] = useState(true);
+  const [, bumpFont] = useState(0); // re-render trigger when a slow first-load font finally lands
   const [authed, setAuthed] = useState(false);
   const [demoMode, setDemoMode] = useState(false);
   const [tab, setTab] = useState('home');
@@ -132,8 +133,14 @@ export default function App() {
       const token = await loadSession();
       setAuthed(!!token);
       if (token) api.health().then((h) => setDemoMode(!!h.demoMode)).catch(() => {});
-      await loadDisplayFont();
+      // Don't hold the splash on the display font (~2.2s worst case). Give it a brief head start
+      // so the common CACHED load applies before the first paint with no swap, then paint on
+      // session resolve. If it's a slow first-ever download, keep loading in the background and
+      // bump a re-render when it lands so the face still applies this session (a one-time swap
+      // only on that first launch, per UX_GUARDRAILS C9).
+      await loadDisplayFont(500);
       setBooting(false);
+      if (!fonts.ready) loadDisplayFont().then(() => { if (fonts.ready) bumpFont((n) => n + 1); });
     })();
   }, []);
 
