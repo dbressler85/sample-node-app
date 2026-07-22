@@ -200,6 +200,23 @@ function onClockSlot(status, slots) {
   return status === 'in_progress' ? slots.find((s) => !s.playerId) || null : null;
 }
 
+// Is a league's free agency / waiver pool live yet? A player isn't truly a free agent
+// until the draft has been HELD — before that (a startup league, or an offseason rookie
+// draft that's scheduled or mid-way), the whole player universe reads as "unrostered",
+// which would falsely surface watched players as claimable. Open only once the draft is
+// complete; a league with no draft on file is an established/in-season league where FA is
+// already open. Best-effort: a draft-read failure defaults to open so we don't hide real
+// alerts for the common (already-drafted) case.
+async function freeAgencyOpen(cookie, token, league) {
+  try {
+    const draft = await loadDraft(cookie, token, league);
+    if (!draft) return true;
+    return statusOf(draft, slotsFor(draft)) === 'complete';
+  } catch (e) {
+    return true;
+  }
+}
+
 // All leagues' draft state — for "which drafts are scheduled / live / my turn".
 async function getOverview(cookie, token) {
   const leagues = await leaguesService.listLeagues(cookie);
@@ -346,4 +363,4 @@ async function upcomingPicksByFranchise(cookie, token, league) {
   }
 }
 
-module.exports = { getOverview, getLeague, makePick, upcomingPicksByFranchise };
+module.exports = { getOverview, getLeague, makePick, upcomingPicksByFranchise, freeAgencyOpen };

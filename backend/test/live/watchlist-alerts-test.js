@@ -34,6 +34,15 @@ const L_BAIT = '64097';
   assert(free.length >= 1, 'watched free agent surfaces a "free" alert');
   assert(free[0].name && free[0].leagueName, 'alert carries resolved player + league names');
   assert(onblock.some((a) => String(a.leagueId) === L_BAIT), 'watched player on a rival\'s block surfaces an "onblock" alert');
+
+  // Draft-awareness: a player isn't a free agent until the league's draft has been held.
+  // 16002 is a free agent in every demo league, but 64097's draft is only 'scheduled' and
+  // 40750's is 'in_progress' — the free-agent signal must be suppressed there (only 19622,
+  // whose draft is 'complete', is truly open). On-the-block is unaffected (see above).
+  const L_DRAFTED = '19622'; // draft complete → FA open
+  const L_PREDRAFT = ['64097', '40750']; // scheduled / in_progress → FA not open yet
+  assert(free.every((a) => String(a.leagueId) === L_DRAFTED), 'free alerts only from leagues whose draft is complete');
+  assert(!alerts.some((a) => a.type === 'free' && L_PREDRAFT.includes(String(a.leagueId))), 'no phantom free-agent alerts from undrafted leagues');
   // Free alerts sort ahead of on-the-block ones.
   assert(alerts[0].type === 'free', 'claimable free agents are ordered first');
 

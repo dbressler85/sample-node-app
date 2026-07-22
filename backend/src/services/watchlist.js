@@ -113,8 +113,9 @@ async function alerts(cookie, token) {
   const ids = watchStore.list(token).map(String);
   if (!ids.length) return { alerts: [] };
 
-  // Lazy require to keep the module graph acyclic (trades pulls in a lot).
+  // Lazy require to keep the module graph acyclic (trades/draft pull in a lot).
   const tradesService = require('./trades');
+  const draftService = require('./draft');
   const [leagues, byId] = await Promise.all([
     leaguesService.orderedLeagues(cookie, token),
     playersLib.load(cookie),
@@ -122,11 +123,17 @@ async function alerts(cookie, token) {
 
   const perLeague = await Promise.all(
     leagues.map(async (league) => {
-      const [faIds, baitMap] = await Promise.all([
+      const [open, faIds, baitMap] = await Promise.all([
+        draftService.freeAgencyOpen(cookie, token, league),
         waiversService.freeAgentIds(cookie, league).catch(() => []),
         tradesService.tradeBaitByFranchise(cookie, token, league).catch(() => new Map()),
       ]);
-      const faSet = new Set(faIds.map(String));
+      // Before a league has drafted, the whole player pool reads as unrostered, so a watched
+      // player would falsely show as a claimable free agent — he isn't one until the draft's
+      // held and waivers open. Suppress the free-agent signal for such leagues (empty FA set).
+      // On-the-block still stands: a rival explicitly shopping a rostered player is a real
+      // signal even in the offseason (e.g. a pending rookie draft while veteran rosters hold).
+      const faSet = open ? new Set(faIds.map(String)) : new Set();
       // Players any OTHER owner is shopping (exclude my own bait).
       const rivalBait = new Set();
       for (const [fid, set] of baitMap) {
