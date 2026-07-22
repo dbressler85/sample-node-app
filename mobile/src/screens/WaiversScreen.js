@@ -17,6 +17,7 @@ import { celebrate } from '../components/Celebrate';
 import AvailabilityBadge from '../components/AvailabilityBadge';
 import AddAcrossSheet from '../components/AddAcrossSheet';
 import ErrorView from '../components/ErrorView';
+import Reveal from '../components/Reveal';
 import useAndroidBack from '../useAndroidBack';
 import { getValue, setValue } from '../cache';
 import { ScreenTitle } from '../components/Brand';
@@ -276,7 +277,11 @@ function OverviewView({ overview, loading, refreshing, error, onOpen, onRefresh 
       keyExtractor={(l) => l.leagueId}
       contentContainerStyle={styles.list}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />}
-      renderItem={({ item }) => <LeagueCard item={item} onPress={() => onOpen(item.leagueId)} />}
+      renderItem={({ item, index }) => (
+        <Reveal delay={Math.min(index, 8) * 45} animate={index < 10}>
+          <LeagueCard item={item} onPress={() => onOpen(item.leagueId)} />
+        </Reveal>
+      )}
       ListEmptyComponent={<Text style={styles.empty}>No leagues found.</Text>}
     />
   );
@@ -375,7 +380,11 @@ function BoardView({ board, loading, error, position, setPosition, sort, setSort
         data={board.freeAgents}
         keyExtractor={(p) => p.id}
         contentContainerStyle={styles.list}
-        renderItem={({ item }) => <FaRow p={item} onPress={() => onPick(item.id)} onOpenPlayer={onOpenPlayer} />}
+        renderItem={({ item, index }) => (
+        <Reveal delay={Math.min(index, 8) * 40} animate={index < 12}>
+          <FaRow p={item} onPress={() => onPick(item.id)} onOpenPlayer={onOpenPlayer} />
+        </Reveal>
+      )}
         ListEmptyComponent={<Text style={styles.empty}>No free agents match.</Text>}
       />
     </View>

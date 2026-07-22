@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, SectionList, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
 import { api } from '../api';
 import PlayerRow from '../components/PlayerRow';
+import Reveal from '../components/Reveal';
 import { colors } from '../theme';
 
 export default function RosterScreen({ league, onBack, onOpenTrades, onOpenDraft, onOpenPlayer }) {
@@ -121,8 +122,10 @@ export default function RosterScreen({ league, onBack, onOpenTrades, onOpenDraft
               {section.title} · {section.data.length}
             </Text>
           )}
-          renderItem={({ item }) => (
-            <PlayerRow player={item} baited={baited.has(String(item.id))} onToggleBait={toggleBait} onOpenPlayer={onOpenPlayer} />
+          renderItem={({ item, index }) => (
+            <Reveal delay={Math.min(index, 12) * 32} animate={index < 14}>
+              <PlayerRow player={item} baited={baited.has(String(item.id))} onToggleBait={toggleBait} onOpenPlayer={onOpenPlayer} />
+            </Reveal>
           )}
           ListFooterComponent={
             roster && roster.picks && roster.picks.length ? (

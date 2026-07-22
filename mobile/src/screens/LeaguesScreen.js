@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, FlatList, StyleSheet, Pressable, ActivityIndicator, RefreshControl } from 'react-native';
 import { api } from '../api';
 import { colors } from '../theme';
+import Reveal from '../components/Reveal';
 import useAndroidBack from '../useAndroidBack';
 
 // The full list of your leagues, moved off the Home command center (which is now an
@@ -80,11 +81,12 @@ export default function LeaguesScreen({ onBack, onOpenLeague, onOpenDraftHub }) 
         keyExtractor={(l) => l.leagueId}
         contentContainerStyle={styles.list}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.accent} />}
-        renderItem={({ item }) => {
+        renderItem={({ item, index }) => {
           const e = enrich[String(item.leagueId)];
           const sub = e ? [e.outlook, e.value != null ? `${e.value} value` : null].filter(Boolean).join(' · ') : null;
           const risk = e && e.atRiskPct > 0 ? e.atRiskPct : null;
           return (
+            <Reveal delay={Math.min(index, 10) * 40} animate={index < 12}>
             <View style={styles.row}>
               <Pressable style={styles.pinBtn} hitSlop={8} disabled={!!busy[item.leagueId]} onPress={() => togglePin(item)}>
                 <Text style={[styles.pin, item.pinned && styles.pinOn]}>{item.pinned ? '★' : '☆'}</Text>
@@ -104,6 +106,7 @@ export default function LeaguesScreen({ onBack, onOpenLeague, onOpenDraftHub }) 
                 <Text style={styles.chev}>›</Text>
               </Pressable>
             </View>
+            </Reveal>
           );
         }}
         ListHeaderComponent={

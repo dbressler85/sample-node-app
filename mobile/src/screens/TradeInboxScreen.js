@@ -6,6 +6,7 @@ import { celebrate } from '../components/Celebrate';
 import InfoDot from '../components/InfoDot';
 import ErrorView from '../components/ErrorView';
 import TradeColumns from '../components/TradeColumns';
+import Reveal from '../components/Reveal';
 import useAndroidBack from '../useAndroidBack';
 
 // Cross-league trade inbox: every pending incoming offer across all your leagues,
@@ -120,12 +121,12 @@ export default function TradeInboxScreen({ onBack, onOpenLeague, onProposeInLeag
     <View style={styles.startWrap}>
       <Text style={styles.startTitle}>Start a trade</Text>
       <Text style={styles.startSub}>Pick a league to build and send an offer.</Text>
-      {leagues.map((l) => {
+      {leagues.map((l, i) => {
         const onBlock = baitByLeague[String(l.leagueId)] || 0;
         const fit = fitByLeague[String(l.leagueId)] !== undefined ? fitByLeague[String(l.leagueId)] : l.fit;
         return (
+          <Reveal key={l.leagueId} delay={Math.min(i, 8) * 45}>
           <Pressable
-            key={l.leagueId}
             style={({ pressed }) => [styles.startRow, pressed && { opacity: 0.7 }]}
             onPress={() => (onProposeInLeague || onOpenLeague)({ leagueId: l.leagueId, name: l.name })}
           >
@@ -140,6 +141,7 @@ export default function TradeInboxScreen({ onBack, onOpenLeague, onProposeInLeag
             </View>
             <Text style={styles.startCta}>Propose ›</Text>
           </Pressable>
+          </Reveal>
         );
       })}
     </View>
@@ -187,16 +189,18 @@ export default function TradeInboxScreen({ onBack, onOpenLeague, onProposeInLeag
           keyExtractor={(o) => `${o.leagueId}:${o.id}`}
           contentContainerStyle={styles.list}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.accent} />}
-          renderItem={({ item }) => (
-            <OfferCard
-              offer={item}
-              busy={busy === `${item.leagueId}:${item.id}`}
-              onRespond={respond}
-              onOpenLeague={() => onOpenLeague({ leagueId: item.leagueId, name: item.leagueName })}
-              onCounter={onCounter ? () => onCounter({ leagueId: item.leagueId, name: item.leagueName, offerId: item.id }) : null}
-              onManualCounter={onManualCounter ? () => { respond(item, 'reject'); onManualCounter({ leagueId: item.leagueId, name: item.leagueName, partnerFranchiseId: item.withFranchiseId }); } : null}
-              onOpenPlayer={onOpenPlayer}
-            />
+          renderItem={({ item, index }) => (
+            <Reveal delay={Math.min(index, 6) * 55} animate={index < 8}>
+              <OfferCard
+                offer={item}
+                busy={busy === `${item.leagueId}:${item.id}`}
+                onRespond={respond}
+                onOpenLeague={() => onOpenLeague({ leagueId: item.leagueId, name: item.leagueName })}
+                onCounter={onCounter ? () => onCounter({ leagueId: item.leagueId, name: item.leagueName, offerId: item.id }) : null}
+                onManualCounter={onManualCounter ? () => { respond(item, 'reject'); onManualCounter({ leagueId: item.leagueId, name: item.leagueName, partnerFranchiseId: item.withFranchiseId }); } : null}
+                onOpenPlayer={onOpenPlayer}
+              />
+            </Reveal>
           )}
           ListEmptyComponent={
             <View style={styles.emptyWrap}>

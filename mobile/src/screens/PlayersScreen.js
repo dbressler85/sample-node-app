@@ -7,6 +7,7 @@ import { TargetIcon, AvoidIcon, WatchIcon } from '../components/PlayerActionIcon
 import { getValue, setValue } from '../cache';
 import InfoDot from '../components/InfoDot';
 import Pulse from '../components/Pulse';
+import Reveal from '../components/Reveal';
 import { ScreenTitle, Value } from '../components/Brand';
 
 const TABS = [
@@ -206,7 +207,7 @@ export default function PlayersScreen({ onOpenPlayer }) {
               keyExtractor={(p) => p.id}
               extraData={{ tagOverride, watchOverride, listSort }}
               contentContainerStyle={styles.list}
-              renderItem={({ item }) => <PlayerRow p={item} tag={resolveTag(item)} watched={resolveWatch(item)} {...rowActions} onPress={() => onOpenPlayer(item.id)} />}
+              renderItem={({ item, index }) => <Reveal delay={Math.min(index, 12) * 32} animate={index < 14}><PlayerRow p={item} tag={resolveTag(item)} watched={resolveWatch(item)} {...rowActions} onPress={() => onOpenPlayer(item.id)} /></Reveal>}
               ListEmptyComponent={<Text style={styles.empty}>No players match “{query}”.</Text>}
             />
           )}
@@ -242,7 +243,7 @@ export default function PlayersScreen({ onOpenPlayer }) {
                 keyExtractor={(p) => p.id}
                 extraData={{ tagOverride, watchOverride, listSort }}
                 contentContainerStyle={styles.list}
-                renderItem={({ item }) => <PlayerRow p={item} rank={rankById[item.id]} tag={resolveTag(item)} watched={resolveWatch(item)} showTrend={rankType === 'trending'} {...rowActions} onPress={() => onOpenPlayer(item.id)} />}
+                renderItem={({ item, index }) => <Reveal delay={Math.min(index, 12) * 32} animate={index < 14}><PlayerRow p={item} rank={rankById[item.id]} tag={resolveTag(item)} watched={resolveWatch(item)} showTrend={rankType === 'trending'} {...rowActions} onPress={() => onOpenPlayer(item.id)} /></Reveal>}
                 ListEmptyComponent={
                   !rankings ? (
                     <PlayerListSkeleton />
@@ -260,7 +261,7 @@ export default function PlayersScreen({ onOpenPlayer }) {
               keyExtractor={(p) => p.id}
               extraData={{ listSort }}
               contentContainerStyle={styles.list}
-              renderItem={({ item }) => <WatchRow p={item} onPress={() => onOpenPlayer(item.id)} />}
+              renderItem={({ item, index }) => <Reveal delay={Math.min(index, 12) * 32} animate={index < 14}><WatchRow p={item} onPress={() => onOpenPlayer(item.id)} /></Reveal>}
               ListEmptyComponent={
                 !watch ? (
                   <Center><ActivityIndicator color={colors.accent} /></Center>
@@ -279,7 +280,7 @@ export default function PlayersScreen({ onOpenPlayer }) {
                 keyExtractor={(p) => p.id}
                 extraData={{ tagOverride, watchOverride }}
                 contentContainerStyle={styles.list}
-                renderItem={({ item }) => <PlayerRow p={item} sub={`${item.count} leagues · ${item.startingCount} starting`} tag={resolveTag(item)} watched={resolveWatch(item)} {...rowActions} onPress={() => onOpenPlayer(item.id)} />}
+                renderItem={({ item, index }) => <Reveal delay={Math.min(index, 12) * 32} animate={index < 14}><PlayerRow p={item} sub={`${item.count} leagues · ${item.startingCount} starting`} tag={resolveTag(item)} watched={resolveWatch(item)} {...rowActions} onPress={() => onOpenPlayer(item.id)} /></Reveal>}
                 ListEmptyComponent={
                   !mine ? (
                     <PlayerListSkeleton />

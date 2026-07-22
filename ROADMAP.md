@@ -305,8 +305,11 @@ Moving the app from "functional but uninspired" toward a slick, branded product.
   indicator; a new **`Reveal`** (staggered fade-and-rise entrance) cascading the Portfolio
   holdings + movers rows; a new **`AnimatedNumber`** counting up the headline stats (Portfolio
   total, Home tiles, live Scores); and the **tab transition** lengthened with a slide + scale so
-  a switch is felt. `FieldBackdrop` is app-wide. *(Still open: `Reveal` on more screens' cards,
-  and Home-level section reveals — deferred since Home remounts on every overlay open/close.)*
+  a switch is felt. `Reveal` now cascades the lists on **Portfolio, Trades (inbox + desk),
+  Waivers, Leagues, Players, and Roster** (an `animate` gate keeps virtualized rows that mount
+  on scroll from re-animating — only the first screenful cascades). `FieldBackdrop` is app-wide.
+  *(Still open: Home-level section reveals — deferred since Home remounts on every overlay
+  open/close, which would replay them.)*
 - [ ] **Haptics.** Add `expo-haptics` so key actions (accept/reject trade, draft a pick, submit
   a claim) carry a physical tap alongside the visual motion — the one "vibrancy" lever RN
   `Animated` can't provide. Deferred to avoid adding a native dep mid-motion-pass.

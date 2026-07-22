@@ -4,6 +4,7 @@ import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import { celebrate } from '../components/Celebrate';
 import TradeColumns from '../components/TradeColumns';
+import Reveal from '../components/Reveal';
 import useAndroidBack from '../useAndroidBack';
 
 const posList = (arr) => (arr && arr.length ? arr.map((x) => x.pos).join(', ') : '—');
@@ -350,8 +351,10 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
           {data.offers.length === 0 ? (
             <Text style={styles.empty}>No pending trade offers in this league.</Text>
           ) : (
-            data.offers.map((o) => (
-              <OfferCard key={o.id} offer={o} busy={busy === o.id} onRespond={respond} onCounter={startCounter} onOpenPlayer={onOpenPlayer} />
+            data.offers.map((o, i) => (
+              <Reveal key={o.id} delay={Math.min(i, 6) * 55}>
+                <OfferCard offer={o} busy={busy === o.id} onRespond={respond} onCounter={startCounter} onOpenPlayer={onOpenPlayer} />
+              </Reveal>
             ))
           )}
         </ScrollView>
