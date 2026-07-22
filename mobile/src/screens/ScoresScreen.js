@@ -5,6 +5,7 @@ import { colors } from '../theme';
 import { ScreenTitle } from '../components/Brand';
 import { celebrate } from '../components/Celebrate';
 import ErrorView from '../components/ErrorView';
+import Pulse from '../components/Pulse';
 import { getValue, setValue } from '../cache';
 import usePoll from '../usePoll';
 
@@ -83,9 +84,12 @@ export default function ScoresScreen({ onOpenLineup }) {
       <View style={styles.header}>
         <ScreenTitle>Scoreboard</ScreenTitle>
         {s ? (
-          <Text style={styles.subtitle}>
-            Week {data.week} · {s.live} live · {s.winning} winning · {s.close} close
-          </Text>
+          <View style={styles.subtitleRow}>
+            {s.live > 0 ? <Pulse style={styles.liveDot} min={0.25} /> : null}
+            <Text style={styles.subtitle}>
+              Week {data.week} · {s.live} live · {s.winning} winning · {s.close} close
+            </Text>
+          </View>
         ) : null}
       </View>
 
@@ -135,10 +139,13 @@ function Game({ g, onOpenLineup }) {
         <Text style={styles.league} numberOfLines={1}>
           {g.name}
         </Text>
-        <Text style={[styles.status, { color: st.color }]}>
-          {g.close ? '⚡ ' : ''}
-          {st.label}
-        </Text>
+        <View style={styles.statusWrap}>
+          {!g.locked ? <Pulse style={[styles.gameLiveDot, { backgroundColor: st.color }]} min={0.25} /> : null}
+          <Text style={[styles.status, { color: st.color }]}>
+            {g.close ? '⚡ ' : ''}
+            {st.label}
+          </Text>
+        </View>
       </View>
 
       <View style={styles.scoreRow}>
@@ -187,12 +194,16 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8 },
   title: { color: colors.text, fontSize: 26, fontWeight: '900' },
-  subtitle: { color: colors.textDim, fontSize: 13, marginTop: 2 },
+  subtitle: { color: colors.textDim, fontSize: 13 },
+  subtitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
+  liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.good },
   list: { paddingHorizontal: 16, paddingBottom: 32 },
   card: { backgroundColor: colors.card, borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 16, marginBottom: 12 },
   cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   league: { color: colors.text, fontSize: 15, fontWeight: '700', flex: 1, marginRight: 8 },
   status: { fontSize: 12, fontWeight: '800' },
+  statusWrap: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  gameLiveDot: { width: 7, height: 7, borderRadius: 3.5 },
   scoreRow: { flexDirection: 'row', alignItems: 'center' },
   side: { flex: 1 },
   sideLabel: { color: colors.textDim, fontSize: 12, marginBottom: 2 },

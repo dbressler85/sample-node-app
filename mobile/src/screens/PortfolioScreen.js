@@ -4,6 +4,7 @@ import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import useAndroidBack from '../useAndroidBack';
 import Sparkline from '../components/Sparkline';
+import PressableScale from '../components/PressableScale';
 
 // Chart width = screen minus the body padding (16×2) and card padding (16×2).
 const CHART_W = Dimensions.get('window').width - 64;
@@ -120,9 +121,9 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
             {d.movers.map((m) => {
               const up = m.delta > 0;
               return (
-                <Pressable
+                <PressableScale
                   key={m.id}
-                  style={({ pressed }) => [styles.moverRow, pressed && { opacity: 0.7 }]}
+                  style={styles.moverRow}
                   onPress={() => onOpenPlayer && onOpenPlayer(m.id, { id: m.id, name: m.name, position: m.position })}
                 >
                   <View style={[styles.posBadge, { borderColor: positionColors[m.position] || colors.textDim }]}>
@@ -132,7 +133,7 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
                   <Text style={[styles.moverDelta, { color: up ? colors.good : colors.bad }]}>
                     {up ? '▲' : '▼'} {up ? '+' : '−'}{Math.abs(m.delta)} ({up ? '+' : '−'}{Math.abs(m.pct)}%)
                   </Text>
-                </Pressable>
+                </PressableScale>
               );
             })}
             <Text style={styles.hint}>Biggest value swings among your holdings since tracking began — where your book is heating up or cooling off.</Text>
@@ -419,10 +420,8 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>By league</Text>
           {d.byLeague.map((l) => {
-            const Row = onOpenLeague ? Pressable : View;
-            const rowProps = onOpenLeague ? { onPress: () => onOpenLeague({ leagueId: l.leagueId, name: l.name }) } : {};
-            return (
-              <Row key={l.leagueId} style={({ pressed }) => [styles.leagueRow, pressed && { opacity: 0.7 }]} {...rowProps}>
+            const inner = (
+              <>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.leagueName} numberOfLines={1}>{l.name}</Text>
                   <Text style={styles.leagueSub} numberOfLines={1}>
@@ -432,7 +431,14 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
                 {l.atRiskPct > 0 ? <Text style={[styles.leagueRisk, l.atRiskPct >= 20 && { color: colors.bad }]}>{l.atRiskPct}% risk</Text> : null}
                 <Text style={styles.leagueVal}>{l.value != null ? l.value : '—'}</Text>
                 {onOpenLeague ? <Text style={styles.leagueChev}>›</Text> : null}
-              </Row>
+              </>
+            );
+            return onOpenLeague ? (
+              <PressableScale key={l.leagueId} style={styles.leagueRow} onPress={() => onOpenLeague({ leagueId: l.leagueId, name: l.name })}>
+                {inner}
+              </PressableScale>
+            ) : (
+              <View key={l.leagueId} style={styles.leagueRow}>{inner}</View>
             );
           })}
         </View>

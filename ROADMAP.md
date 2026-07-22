@@ -298,11 +298,14 @@ Moving the app from "functional but uninspired" toward a slick, branded product.
   + soft gold glow + faint yard-lines), a choreographed entrance (crest springs in,
   wordmark rises, a gold rule wipes out under "Central"), and a tactile `PressableScale`
   button. All with the built-in `Animated` API (no new native deps).
-- [~] **Roll the motion primitives across the app.** Started: `PressableScale` on the tab
-  bar, and a `Pulse` (new looping breathing component) on the on-the-clock "PICK" pill.
-  Still to apply: `PressableScale` on triage/roster/waiver/trade cards, `FieldBackdrop`
-  behind the Home/Portfolio headers, pulse on the Scores "live" indicator, and staggered
-  section reveals on Home.
+- [~] **Roll the motion primitives across the app.** Done so far: `PressableScale` on the tab
+  bar, the **Home hero tiles + Portfolio link**, and **Portfolio movers / by-league rows**; a
+  `Pulse` breathing component on the on-the-clock "PICK" pill **and now the Scores live
+  indicator** (a pulsing dot in the summary and on each in-progress game card). `FieldBackdrop`
+  is app-wide (behind every screen on transparent), so Home/Portfolio already sit on it.
+  *(Still to apply: `PressableScale` on roster / waiver / trade-desk cards, and staggered
+  section reveals on Home — deferred since Home remounts on every overlay open/close, which
+  would replay the animation.)*
 - [x] **Bundle a display typeface.** **Oswald** (condensed "broadcast" face) via `expo-font`
   + `@expo-google-fonts/oswald`, wired into `ScreenTitle` and the Login wordmark. Loaded
   defensively (`src/typography.js`): the packages are `require`d in a try/catch and the

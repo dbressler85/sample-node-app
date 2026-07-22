@@ -5,6 +5,7 @@ import { getValue, setValue } from '../cache';
 import { colors } from '../theme';
 import { ScreenTitle } from '../components/Brand';
 import Pulse from '../components/Pulse';
+import PressableScale from '../components/PressableScale';
 import GearIcon from '../components/GearIcon';
 import InfoDot from '../components/InfoDot';
 
@@ -395,10 +396,10 @@ function Portfolio({ p, phase, loading, onLeagues, onPortfolio, onOpenAttention 
           onPress={onOpenAttention}
         />
       </View>
-      <Pressable style={({ pressed }) => [styles.portfolioLink, pressed && { opacity: 0.7 }]} onPress={onPortfolio}>
+      <PressableScale style={styles.portfolioLink} onPress={onPortfolio}>
         <Text style={styles.portfolioLinkText}>Portfolio · understand your holdings</Text>
         <Text style={styles.teamChev}>›</Text>
-      </Pressable>
+      </PressableScale>
       <View style={styles.chips}>
         {offseason ? (
           <>
@@ -424,9 +425,8 @@ function Portfolio({ p, phase, loading, onLeagues, onPortfolio, onOpenAttention 
 }
 
 function Tile({ label, value, accent, gold, loading, onPress }) {
-  const Wrap = onPress ? Pressable : View;
-  return (
-    <Wrap style={({ pressed } = {}) => [styles.tile, onPress && pressed && { opacity: 0.7 }]} onPress={onPress}>
+  const inner = (
+    <>
       <Text style={styles.tileLabel}>{label}</Text>
       {loading ? (
         <View style={styles.tileSpinner}>
@@ -435,8 +435,18 @@ function Tile({ label, value, accent, gold, loading, onPress }) {
       ) : (
         <Text style={[styles.tileValue, accent && { color: colors.accent }, gold && { color: colors.gold }]}>{value}</Text>
       )}
-    </Wrap>
+    </>
   );
+  // flex:1 lives on the outer touch target so the two tiles stay equal width; the press
+  // spring scales the inner card. Non-tappable tiles are a plain View.
+  if (onPress) {
+    return (
+      <PressableScale pressableStyle={styles.tileFlex} style={styles.tile} onPress={onPress}>
+        {inner}
+      </PressableScale>
+    );
+  }
+  return <View style={[styles.tileFlex, styles.tile]}>{inner}</View>;
 }
 
 function Chip({ label, value, bad, warn, loading, onPress }) {
@@ -495,7 +505,8 @@ const styles = StyleSheet.create({
   list: { paddingHorizontal: 16, paddingBottom: 32 },
   portfolio: { marginBottom: 4 },
   tileRow: { flexDirection: 'row', gap: 12 },
-  tile: { flex: 1, backgroundColor: colors.card, borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 16 },
+  tileFlex: { flex: 1 },
+  tile: { backgroundColor: colors.card, borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 16 },
   tileLabel: { color: colors.textDim, fontSize: 12, fontWeight: '700' },
   tileValue: { color: colors.text, fontSize: 30, fontWeight: '900', marginTop: 4 },
   tileSpinner: { height: 40, justifyContent: 'center', alignItems: 'flex-start', marginTop: 4 },
