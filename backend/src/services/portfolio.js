@@ -14,6 +14,7 @@
 const config = require('../config');
 const demo = require('../demo/fixtures');
 const mfl = require('../lib/mfl');
+const mflRepo = require('../lib/mflRepo');
 const picksLib = require('../lib/picks');
 const playersLib = require('../lib/players');
 const leaguesService = require('./leagues');
@@ -51,8 +52,7 @@ function dynastyOf(roster) {
 async function pendingTrades(cookie, league) {
   if (config.demoMode) return demo.trades(league.leagueId);
   try {
-    const res = await mfl.exportRequest('pendingTrades', { host: league.host, cookie, L: league.leagueId, FRANCHISE: league.franchiseId });
-    const list = mfl.toArray(res && res.pendingTrades && res.pendingTrades.pendingTrade);
+    const list = await mflRepo.pendingTrades(league, cookie, { FRANCHISE: league.franchiseId });
     if (!list.length) return [];
     const [byId, names] = await Promise.all([playersLib.load(cookie), leaguesService.franchiseNames(cookie, league)]);
     const label = (tok) => {

@@ -9,6 +9,7 @@
 const config = require('../config');
 const demo = require('../demo/fixtures');
 const mfl = require('../lib/mfl');
+const mflRepo = require('../lib/mflRepo');
 const enrichmentLib = require('../lib/enrichment');
 const leagueFormat = require('../lib/leagueformat');
 const playersLib = require('../lib/players');
@@ -212,8 +213,7 @@ function annotateTags(offers, token) {
 
 async function livePendingOffers(cookie, league) {
   try {
-    const res = await mfl.exportRequest('pendingTrades', { host: league.host, cookie, L: league.leagueId, FRANCHISE: league.franchiseId });
-    const list = mfl.toArray(res && res.pendingTrades && res.pendingTrades.pendingTrade);
+    const list = await mflRepo.pendingTrades(league, cookie, { FRANCHISE: league.franchiseId });
     if (!list.length) return [];
     const names = await leaguesService.franchiseNames(cookie, league);
     const toks = (v) => String(v || '').split(/[,;|]/).map((s) => s.trim()).filter(Boolean);
@@ -249,8 +249,7 @@ async function livePendingOffers(cookie, league) {
 
 async function liveRosters(cookie, league) {
   try {
-    const res = await mfl.exportRequest('rosters', { host: league.host, cookie, L: league.leagueId });
-    const franchises = mfl.toArray(res && res.rosters && res.rosters.franchise);
+    const franchises = await mflRepo.rosters(league, cookie);
     const names = await leaguesService.franchiseNames(cookie, league);
     return franchises
       .filter((f) => String(f.id) !== league.franchiseId)

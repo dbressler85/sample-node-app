@@ -8,6 +8,7 @@
 const config = require('../config');
 const demo = require('../demo/fixtures');
 const mfl = require('../lib/mfl');
+const mflRepo = require('../lib/mflRepo');
 const nflLib = require('../lib/nfl');
 const leaguesService = require('./leagues');
 const playersLib = require('../lib/players');
@@ -68,8 +69,7 @@ async function liveForLeague(cookie, league) {
   // Live: MFL liveScoring exposes per-franchise score, playersYetToPlay and
   // gameSecondsRemaining. Best-effort; verify against a real account.
   try {
-    const res = await mfl.exportRequest('liveScoring', { host: league.host, cookie, L: league.leagueId });
-    const franchises = mfl.toArray(res && res.liveScoring && res.liveScoring.franchise);
+    const franchises = await mflRepo.liveScoring(league, cookie);
     console.log(`[liveScoring] league=${league.leagueId} franchises=${franchises.length}`);
     const mine = franchises.find((f) => String(f.id) === league.franchiseId);
     if (!mine) return null; // no live data (e.g. offseason / no games in progress)

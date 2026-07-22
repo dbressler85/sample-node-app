@@ -13,6 +13,7 @@
 const config = require('../config');
 const demo = require('../demo/fixtures');
 const mfl = require('../lib/mfl');
+const mflRepo = require('../lib/mflRepo');
 const scoringLib = require('../lib/scoring');
 const availabilityLib = require('../lib/availability');
 const enrichmentLib = require('../lib/enrichment');
@@ -150,8 +151,7 @@ async function freeAgentIds(cookie, league, limit = 400) {
 }
 async function buildFreeAgentIds(cookie, league) {
   try {
-    const res = await mfl.exportRequest('freeAgents', { host: league.host, cookie, L: league.leagueId });
-    const units = mfl.toArray(res && res.freeAgents && res.freeAgents.leagueUnit);
+    const units = await mflRepo.freeAgentUnits(league, cookie);
     return units.flatMap((u) => mfl.toArray(u && u.player)).map((p) => String(p.id));
   } catch (e) {
     return [];
@@ -178,8 +178,7 @@ async function buildFreeAgents(cookie, league, settings) {
   } else {
     // export?TYPE=freeAgents returns everyone not on a roster in this league.
     try {
-      const res = await mfl.exportRequest('freeAgents', { host: league.host, cookie, L: league.leagueId });
-      const units = mfl.toArray(res && res.freeAgents && res.freeAgents.leagueUnit);
+      const units = await mflRepo.freeAgentUnits(league, cookie);
       const players = units.flatMap((u) => mfl.toArray(u && u.player));
       ids = players.map((p) => String(p.id)).slice(0, 300); // cap payload
       console.log(`[freeAgents] league=${league.leagueId} total=${players.length} returned=${ids.length}`);

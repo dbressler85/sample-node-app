@@ -36,9 +36,29 @@ async function standings(league, cookie, params = {}) {
 }
 
 // `league` export -> the franchise directory (note the extra nesting: league.franchises.franchise).
+// NOTE: when a caller also needs other league-level attributes (waiver flags, roster size, …),
+// it must read the raw `league` export itself — this reader only surfaces the franchise array.
 async function leagueFranchises(league, cookie, params = {}) {
   const res = await read('league', league, cookie, params);
   return mfl.toArray(res && res.league && res.league.franchises && res.league.franchises.franchise);
 }
 
-module.exports = { read, rosters, standings, leagueFranchises };
+// `pendingTrades` export -> the pending trade offers (usually scoped with FRANCHISE).
+async function pendingTrades(league, cookie, params = {}) {
+  const res = await read('pendingTrades', league, cookie, params);
+  return mfl.toArray(res && res.pendingTrades && res.pendingTrades.pendingTrade);
+}
+
+// `liveScoring` export -> per-franchise live score rows (each nests players.player internally).
+async function liveScoring(league, cookie, params = {}) {
+  const res = await read('liveScoring', league, cookie, params);
+  return mfl.toArray(res && res.liveScoring && res.liveScoring.franchise);
+}
+
+// `freeAgents` export -> the league unit(s); each nests player[] the caller flattens.
+async function freeAgentUnits(league, cookie, params = {}) {
+  const res = await read('freeAgents', league, cookie, params);
+  return mfl.toArray(res && res.freeAgents && res.freeAgents.leagueUnit);
+}
+
+module.exports = { read, rosters, standings, leagueFranchises, pendingTrades, liveScoring, freeAgentUnits };
