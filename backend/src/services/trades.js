@@ -333,8 +333,9 @@ async function getOverview(cookie, token) {
 // requirements). Both getLeague and the suggestion endpoint build on this.
 async function tradeData(cookie, token, leagueId) {
   const league = await findLeague(cookie, leagueId);
-  const byId = await playersLib.load(cookie);
-  const fmt = await leagueFormat.format(cookie, league);
+  // The global player universe is independent of this league's format — load it alongside
+  // the format read rather than after it. (enr depends on fmt, so it stays sequential.)
+  const [byId, fmt] = await Promise.all([playersLib.load(cookie), leagueFormat.format(cookie, league)]);
   const enr = await enrichmentLib.snapshot(fmt, cookie);
 
   const [roster, rawPartners, requirements] = await Promise.all([
@@ -381,28 +382,34 @@ function summarizeFranchises(franchises) {
 async function getLeague(cookie, token, leagueId) {
   const data = await tradeData(cookie, token, leagueId);
   const { league, byId, enr, roster, rawPartners, ns, teamOutlook, fmt } = data;
-  const offers = annotateConstruction(await offersForLeague(cookie, token, league, byId, enr), ns, league.franchiseId);
-  // Who's actively shopping whom: each franchise's trade-bait board (mine from our store,
-  // everyone else's from MFL's native board). Flag a player `bait` so the desk can badge
-  // the guys a team has openly put on the block — the fastest read on what's available.
-  const baitMap = await tradeBaitByFranchise(cookie, token, league);
-  const myBait = baitMap.get(String(league.franchiseId)) || new Set();
 
-  // Every franchise's future picks in one call, so both my side and each partner's
-  // picks are selectable assets in the builder (and a counter can ask for one).
-  const picksMap = await picksLib.franchisePicksMap(cookie, league);
+  // These four reads depend only on tradeData's output, not on one another: the pending
+  // offers, every franchise's trade-bait board, every franchise's future picks, and the
+  // current-year (upcoming-draft) picks. Running them sequentially meant four back-to-back
+  // round-trip waves — the dominant cost of opening the desk. Fan them out together.
+  //   • trade-bait: mine from our store, everyone else's from MFL's native board — a player
+  //     flagged `bait` gets badged as openly on the block (the fastest read on what's available).
+  //   • futureDraftPicks covers only FUTURE seasons; current-year picks live in the draft
+  //     order, so pull those too or they'd be un-tradeable in the builder/counter.
+  //   • in demo the live picks map is empty, so my own picks come from the demo fixture.
+  const [rawLeagueOffers, baitMap, picksMap, upcoming, demoMyPicks] = await Promise.all([
+    offersForLeague(cookie, token, league, byId, enr),
+    tradeBaitByFranchise(cookie, token, league),
+    picksLib.franchisePicksMap(cookie, league),
+    draftService.upcomingPicksByFranchise(cookie, token, league).catch(() => ({})),
+    config.demoMode ? picksLib.franchisePicks(cookie, league) : Promise.resolve(null),
+  ]);
+
+  const offers = annotateConstruction(rawLeagueOffers, ns, league.franchiseId);
+  const myBait = baitMap.get(String(league.franchiseId)) || new Set();
   const picksFor = (fid) => (picksMap[String(fid)] || []).map((p) => asset(p.token, byId, enr));
-  // futureDraftPicks only covers FUTURE seasons — the current-year (upcoming-draft) picks live
-  // in the draft order, so pull those too or they'd be un-tradeable in the builder/counter.
-  const upcoming = await draftService.upcomingPicksByFranchise(cookie, token, league).catch(() => ({}));
   const upcomingFor = (fid) => (upcoming[String(fid)] || []).map((p) => asset(p.token, byId, enr));
 
   const myPlayers = [...roster.starters, ...roster.bench]
     .map((p) => ({ id: p.id, name: p.name, position: p.position, team: p.team, value: enr.value(p.id), tag: playerTags.get(token, p.id), bait: myBait.has(String(p.id)) }))
     .sort((a, b) => (b.value || 0) - (a.value || 0));
   // Picks carry the real MFL trade token as their id, so a proposal can include them.
-  // In demo the map is empty, so fall back to the demo picks fixture for my side.
-  const myFuturePicks = config.demoMode ? (await picksLib.franchisePicks(cookie, league)).map((p) => asset(p.token, byId, enr)) : picksFor(league.franchiseId);
+  const myFuturePicks = config.demoMode ? (demoMyPicks || []).map((p) => asset(p.token, byId, enr)) : picksFor(league.franchiseId);
   // Current-year picks first (the draft that hasn't happened), then future-season picks.
   const myPicks = [...upcomingFor(league.franchiseId), ...myFuturePicks];
 

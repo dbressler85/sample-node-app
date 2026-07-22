@@ -5,6 +5,7 @@ import useAndroidBack from './src/useAndroidBack';
 import { api, setAuthLostHandler } from './src/api';
 import { registerForPush, unregisterPush } from './src/push';
 import { clearAll as clearCache } from './src/cache';
+import { prefetchOtherTabs } from './src/prefetch';
 import LoginScreen from './src/screens/LoginScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import LeaguesScreen from './src/screens/LeaguesScreen';
@@ -140,6 +141,17 @@ export default function App() {
   useEffect(() => {
     if (authed) registerForPush();
   }, [authed]);
+
+  // Idle prefetch: once a tab settles, give the screen the user actually opened a head
+  // start, then quietly warm the OTHER tabs' caches in the background so switching to
+  // them (especially the slow cross-league Trades read) paints instantly. Deferred and
+  // sequential so it never competes with the active screen's own load; re-armed on each
+  // tab change and cancelled if they switch again before it fires.
+  useEffect(() => {
+    if (!authed || booting || overlayStack.length) return undefined;
+    const t = setTimeout(() => { prefetchOtherTabs(tab); }, 1800);
+    return () => clearTimeout(t);
+  }, [authed, booting, tab, overlayStack.length]);
 
   // If a request finds the session dead or the backend unreachable, drop to login.
   useEffect(() => {

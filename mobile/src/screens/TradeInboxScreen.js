@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, FlatList, RefreshControl, ActivityIndicator, Alert } from 'react-native';
 import { api } from '../api';
+import { getValue, setValue } from '../cache';
 import { colors, positionColors } from '../theme';
 import { celebrate } from '../components/Celebrate';
 import InfoDot from '../components/InfoDot';
@@ -54,6 +55,7 @@ export default function TradeInboxScreen({ onBack, onOpenLeague, onProposeInLeag
       // the leagues where you already have players on the block (a head start on picking one).
       const [d, block] = await Promise.all([api.trades(), api.tradeBait().catch(() => null)]);
       setData(d);
+      setValue('trades:overview', d); // write-through so the next open (and idle prefetch) paints instantly
       if (block && block.leagues) {
         setBaitByLeague(Object.fromEntries(block.leagues.map((l) => [String(l.leagueId), l.count])));
       }
@@ -65,7 +67,16 @@ export default function TradeInboxScreen({ onBack, onOpenLeague, onProposeInLeag
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  // Stale-while-revalidate: paint the last-known inbox (possibly warmed by the idle
+  // prefetch while the user was on another tab) instantly, then refresh in the background.
+  useEffect(() => {
+    let alive = true;
+    getValue('trades:overview').then((cached) => {
+      if (alive && cached != null) { setData(cached); setLoading(false); }
+      if (alive) load();
+    });
+    return () => { alive = false; };
+  }, [load]);
 
   // The "deep at X" hint needs a per-league needs/surplus read (expensive), so the
   // inbox returns offers immediately and we fill the hint in here — one league at a
