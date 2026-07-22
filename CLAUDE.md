@@ -59,6 +59,8 @@ Respect these on every change.
 ### Workflow
 - **Backend changes deploy via Render on merge to `master` — no app build.** Prefer the
   backend for fixes that can live there; only mobile changes need a ~10-min EAS build.
+- **Never auto-trigger an EAS build.** Mobile changes accumulate on `master`; only kick a
+  build when the owner explicitly asks for one. Don't build after every prompt/merge.
 - Squash-merge to `master`; keep the dev branch reset to `master` after each merge.
 - Commits are authored as `Claude <noreply@anthropic.com>`; the model id never appears in
   any pushed artifact (commits, code, PRs).
