@@ -283,6 +283,93 @@ export default function App() {
     }
   }
 
+  // One overlay descriptor -> its screen. Extracted so the render can stack the WHOLE overlay
+  // list on top of a persistent tab layer (below) instead of returning one overlay INSTEAD of the
+  // tabs. Same screens/props as before — only the layering changed.
+  function renderOverlay(o) {
+    switch (o.type) {
+      case 'roster':
+        return <RosterScreen league={o.league} onBack={popOverlay} onOpenTrades={openTrades} onOpenDraft={openDraft} onOpenPlayer={openPlayer} />;
+      case 'lineupEditor':
+        return <LineupEditorScreen league={o.league} onBack={popOverlay} onOpenWaivers={openWaivers} />;
+      case 'lineupWizard':
+        return <LineupWizardScreen leagues={o.leagues} initialMode={o.mode} onBack={popOverlay} />;
+      case 'waiverWizard':
+        return <WaiverWizardScreen leagues={o.leagues} onBack={popOverlay} onOpenPlayer={openPlayer} />;
+      case 'trades':
+        return <TradesScreen league={o.league} initialTab={o.initialTab} seed={o.seed} onBack={popOverlay} onOpenPlayer={openPlayer} />;
+      case 'tradeInbox':
+        return (
+          <TradeInboxScreen
+            onBack={popOverlay}
+            onOpenLeague={openTrades}
+            onProposeInLeague={(league) => openTrades(league, 'propose')}
+            onOpenBlock={openBlock}
+            onCounter={(ctx) => openTrades({ leagueId: ctx.leagueId, name: ctx.name }, 'propose', { counterOfferId: ctx.offerId })}
+            onOpenPlayer={openPlayer}
+          />
+        );
+      case 'block':
+        return (
+          <OnTheBlockScreen
+            onBack={popOverlay}
+            onShopLeague={(league) => openTrades(league, 'propose')}
+            onShopPlayer={({ leagueId, name, sendPlayerId, partnerFranchiseId }) => openTrades({ leagueId, name }, 'propose', { sendPlayerId, partnerFranchiseId })}
+            onOpenPlayer={openPlayer}
+            onOpenInbox={() => { popOverlay(); setTab('trades'); }}
+          />
+        );
+      case 'draft':
+        return <DraftScreen league={o.league} onBack={popOverlay} onOpenPlayer={openPlayer} onOpenTrades={openTrades} />;
+      case 'draftHub':
+        return <DraftHubScreen onBack={popOverlay} onOpenDraft={openDraft} />;
+      case 'leagues':
+        return <LeaguesScreen onBack={popOverlay} onOpenLeague={openLeagueHub} onOpenDraftHub={openDraftHub} />;
+      case 'league':
+        return <LeagueScreen league={o.league} onBack={popOverlay} onOpenPlayer={openPlayer} />;
+      case 'portfolio':
+        return <PortfolioScreen onBack={popOverlay} onOpenPlayer={openPlayer} onOpenLeague={openRoster} />;
+      case 'profile':
+        return (
+          <ProfileScreen
+            onBack={popOverlay}
+            onOpenPortfolio={openPortfolio}
+            onOpenSettings={openSettings}
+            onOpenHelp={openHelp}
+            onOpenPlayer={openPlayer}
+            onLogout={handleLogout}
+          />
+        );
+      case 'settings':
+        return <SettingsScreen onBack={popOverlay} onOpenHelp={openHelp} onLogout={handleLogout} />;
+      case 'help':
+        return <HelpScreen onBack={popOverlay} />;
+      case 'onDeck':
+        return (
+          <OnDeckScreen
+            onBack={popOverlay}
+            onOpenLineup={openLineup}
+            onOpenDraft={openDraft}
+            onOpenWaivers={(league) => openWaivers({ leagueId: league.leagueId })}
+          />
+        );
+      case 'playerProfile':
+        return (
+          <PlayerProfileScreen
+            playerId={o.playerId}
+            seed={o.seed}
+            onBack={popOverlay}
+            onOpenTradeDesk={(ctx) => openTrades({ leagueId: ctx.leagueId, name: ctx.name }, 'propose', { targetPlayerId: ctx.targetPlayerId, partnerFranchiseId: ctx.partnerFranchiseId })}
+            onOpenTradeWizard={openTradeWizard}
+          />
+        );
+      case 'tradeWizard':
+        return <TradeWizardScreen queue={o.queue} onExit={popOverlay} onOpenPlayer={openPlayer} />;
+      default:
+        return null;
+    }
+  }
+
   function render() {
     if (booting) {
       return (
@@ -306,110 +393,27 @@ export default function App() {
       );
     }
 
-    if (overlay && overlay.type === 'roster') {
-      return <RosterScreen league={overlay.league} onBack={popOverlay} onOpenTrades={openTrades} onOpenDraft={openDraft} onOpenPlayer={openPlayer} />;
-    }
-    if (overlay && overlay.type === 'lineupEditor') {
-      return <LineupEditorScreen league={overlay.league} onBack={popOverlay} onOpenWaivers={openWaivers} />;
-    }
-    if (overlay && overlay.type === 'lineupWizard') {
-      return (
-        <LineupWizardScreen leagues={overlay.leagues} initialMode={overlay.mode} onBack={popOverlay} />
-      );
-    }
-    if (overlay && overlay.type === 'waiverWizard') {
-      return <WaiverWizardScreen leagues={overlay.leagues} onBack={popOverlay} onOpenPlayer={openPlayer} />;
-    }
-    if (overlay && overlay.type === 'trades') {
-      return <TradesScreen league={overlay.league} initialTab={overlay.initialTab} seed={overlay.seed} onBack={popOverlay} onOpenPlayer={openPlayer} />;
-    }
-    if (overlay && overlay.type === 'tradeInbox') {
-      return (
-        <TradeInboxScreen
-          onBack={popOverlay}
-          onOpenLeague={openTrades}
-          onProposeInLeague={(league) => openTrades(league, 'propose')}
-          onOpenBlock={openBlock}
-          onCounter={(ctx) => openTrades({ leagueId: ctx.leagueId, name: ctx.name }, 'propose', { counterOfferId: ctx.offerId })}
-          onOpenPlayer={openPlayer}
-        />
-      );
-    }
-    if (overlay && overlay.type === 'block') {
-      return (
-        <OnTheBlockScreen
-          onBack={popOverlay}
-          onShopLeague={(league) => openTrades(league, 'propose')}
-          onShopPlayer={({ leagueId, name, sendPlayerId, partnerFranchiseId }) => openTrades({ leagueId, name }, 'propose', { sendPlayerId, partnerFranchiseId })}
-          onOpenPlayer={openPlayer}
-          onOpenInbox={() => { popOverlay(); setTab('trades'); }}
-        />
-      );
-    }
-    if (overlay && overlay.type === 'draft') {
-      return <DraftScreen league={overlay.league} onBack={popOverlay} onOpenPlayer={openPlayer} onOpenTrades={openTrades} />;
-    }
-    if (overlay && overlay.type === 'draftHub') {
-      return <DraftHubScreen onBack={popOverlay} onOpenDraft={openDraft} />;
-    }
-    if (overlay && overlay.type === 'leagues') {
-      return <LeaguesScreen onBack={popOverlay} onOpenLeague={openLeagueHub} onOpenDraftHub={openDraftHub} />;
-    }
-    if (overlay && overlay.type === 'league') {
-      return <LeagueScreen league={overlay.league} onBack={popOverlay} onOpenPlayer={openPlayer} />;
-    }
-    if (overlay && overlay.type === 'portfolio') {
-      return <PortfolioScreen onBack={popOverlay} onOpenPlayer={openPlayer} onOpenLeague={openRoster} />;
-    }
-    if (overlay && overlay.type === 'profile') {
-      return (
-        <ProfileScreen
-          onBack={popOverlay}
-          onOpenPortfolio={openPortfolio}
-          onOpenSettings={openSettings}
-          onOpenHelp={openHelp}
-          onOpenPlayer={openPlayer}
-          onLogout={handleLogout}
-        />
-      );
-    }
-    if (overlay && overlay.type === 'settings') {
-      return <SettingsScreen onBack={popOverlay} onOpenHelp={openHelp} onLogout={handleLogout} />;
-    }
-    if (overlay && overlay.type === 'help') {
-      return <HelpScreen onBack={popOverlay} />;
-    }
-    if (overlay && overlay.type === 'onDeck') {
-      return (
-        <OnDeckScreen
-          onBack={popOverlay}
-          onOpenLineup={openLineup}
-          onOpenDraft={openDraft}
-          onOpenWaivers={(league) => openWaivers({ leagueId: league.leagueId })}
-        />
-      );
-    }
-    if (overlay && overlay.type === 'playerProfile') {
-      return (
-        <PlayerProfileScreen
-          playerId={overlay.playerId}
-          seed={overlay.seed}
-          onBack={popOverlay}
-          onOpenTradeDesk={(ctx) => openTrades({ leagueId: ctx.leagueId, name: ctx.name }, 'propose', { targetPlayerId: ctx.targetPlayerId, partnerFranchiseId: ctx.partnerFranchiseId })}
-          onOpenTradeWizard={openTradeWizard}
-        />
-      );
-    }
-    if (overlay && overlay.type === 'tradeWizard') {
-      return <TradeWizardScreen queue={overlay.queue} onExit={popOverlay} onOpenPlayer={openPlayer} />;
-    }
-
+    // The tab layer is ALWAYS mounted; overlays stack ON TOP of it (each in a full-screen layer
+    // with its own backdrop so it occludes what's below). Nothing unmounts on navigation — the
+    // tab you left, and every overlay beneath the current one, keep their scroll and in-progress
+    // state, so a back returns to exactly what you had (UX_GUARDRAILS C2/C7). This replaces the
+    // old "return the overlay INSTEAD of the tabs", the root cause the cache layer worked around.
     return (
       <View style={styles.flex}>
-        <Animated.View style={[styles.flex, { opacity: tabFade, transform: [{ translateX: tabSlide }, { scale: tabScale }] }]}>
-          {renderTab()}
-        </Animated.View>
-        <TabBar tab={tab} onChange={setTab} />
+        <View style={styles.flex}>
+          <Animated.View style={[styles.flex, { opacity: tabFade, transform: [{ translateX: tabSlide }, { scale: tabScale }] }]}>
+            {renderTab()}
+          </Animated.View>
+          <TabBar tab={tab} onChange={setTab} />
+        </View>
+        {overlayStack.map((o, i) => (
+          <View key={i} style={StyleSheet.absoluteFill}>
+            <ErrorBoundary silent>
+              <FieldBackdrop />
+            </ErrorBoundary>
+            <View style={styles.flex}>{renderOverlay(o)}</View>
+          </View>
+        ))}
       </View>
     );
   }
