@@ -3,6 +3,7 @@
 const express = require('express');
 const requireSession = require('../middleware/auth');
 const lineups = require('../services/lineups');
+const { schemas, checkResponse } = require('../lib/apiSchema');
 
 const router = express.Router();
 router.use(requireSession);
@@ -11,7 +12,7 @@ router.use(requireSession);
 // Cross-league overview: points gap, warnings, matchup + win prob per league.
 router.get('/lineups', async (req, res, next) => {
   try {
-    res.json(await lineups.getOverview(req.mflCookie, req.account, req.query.mode));
+    res.json(checkResponse(schemas.Lineups, await lineups.getOverview(req.mflCookie, req.account, req.query.mode), 'GET /lineups'));
   } catch (err) {
     next(err);
   }

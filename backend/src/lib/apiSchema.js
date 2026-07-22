@@ -115,7 +115,68 @@ const Standings = z.object({
   standings: z.array(StandingRow),
 });
 
-const schemas = { Dashboard, Leagues, Roster, Standings };
+// GET /api/portfolio — the cross-league dynasty dashboard. Pins the structural sections a
+// rename would blank (totals / holdings / byLeague / ageCurve / atRisk); the many advisory
+// blocks (movers, concentration, seasonal, …) are UI-guarded and left unvalidated.
+const Portfolio = z.object({
+  totals: z.object({
+    leagues: z.number(),
+    rosterValue: z.number(),
+    playerCount: z.number().nullable().optional(),
+    valueWeightedAge: z.number().nullable().optional(),
+  }),
+  holdings: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      position: z.string(),
+      value: z.number(),
+      leagues: z.number(),
+    })
+  ),
+  byLeague: z.array(
+    z.object({
+      leagueId: z.string(),
+      name: z.string(),
+      value: z.number().nullable().optional(),
+    })
+  ),
+  ageCurve: z.array(z.object({ band: z.string(), value: z.number(), pct: z.number() })),
+  atRisk: z.object({ pct: z.number() }),
+});
+
+// GET /api/scoreboard — live matchups across leagues.
+const Scoreboard = z.object({
+  week: z.number().nullable().optional(),
+  games: z.array(
+    z.object({
+      leagueId: z.string(),
+      name: z.string(),
+      me: z.object({ score: z.number() }),
+      opp: z.object({ score: z.number() }).nullable().optional(),
+      winProb: z.number().nullable().optional(),
+      status: z.string().nullable().optional(),
+    })
+  ),
+});
+
+// GET /api/lineups — cross-league lineup overview (points gap + matchup per league).
+const Lineups = z.object({
+  week: z.number().nullable().optional(),
+  mode: z.string().nullable().optional(),
+  leagues: z.array(
+    z.object({
+      leagueId: z.string(),
+      name: z.string(),
+      currentTotal: z.number().nullable().optional(),
+      optimalTotal: z.number().nullable().optional(),
+      delta: z.number().nullable().optional(),
+      status: z.string().nullable().optional(),
+    })
+  ),
+});
+
+const schemas = { Dashboard, Leagues, Roster, Standings, Portfolio, Scoreboard, Lineups };
 
 // Validate a response payload against its schema, FAIL SOFT. Returns the payload unchanged in all
 // cases; on drift it logs one concise line (label + up to 5 offending paths) and moves on. Never

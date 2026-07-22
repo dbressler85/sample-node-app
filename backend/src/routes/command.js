@@ -8,6 +8,7 @@ const scoreboard = require('../services/scoreboard');
 const exposure = require('../services/exposure');
 const ondeck = require('../services/ondeck');
 const leaguesService = require('../services/leagues');
+const { schemas, checkResponse } = require('../lib/apiSchema');
 
 const router = express.Router();
 router.use(requireSession);
@@ -61,7 +62,7 @@ router.get('/home/league/:leagueId', async (req, res, next) => {
 // GET /api/portfolio — dynasty value dashboard + value-at-risk across leagues.
 router.get('/portfolio', async (req, res, next) => {
   try {
-    res.json(await portfolio.getDashboard(req.mflCookie, req.account));
+    res.json(checkResponse(schemas.Portfolio, await portfolio.getDashboard(req.mflCookie, req.account), 'GET /portfolio'));
   } catch (err) {
     next(err);
   }
@@ -81,7 +82,7 @@ router.post('/portfolio/holdings/:playerId/bait', async (req, res, next) => {
 // GET /api/scoreboard — live matchups across leagues, sorted by closeness.
 router.get('/scoreboard', async (req, res, next) => {
   try {
-    res.json(await scoreboard.getScoreboard(req.mflCookie));
+    res.json(checkResponse(schemas.Scoreboard, await scoreboard.getScoreboard(req.mflCookie), 'GET /scoreboard'));
   } catch (err) {
     next(err);
   }
