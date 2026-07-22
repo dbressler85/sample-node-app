@@ -1,8 +1,9 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, Pressable, ActivityIndicator, RefreshControl, Dimensions } from 'react-native';
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import useAndroidBack from '../useAndroidBack';
+import useCachedResource from '../useCachedResource';
 import Sparkline from '../components/Sparkline';
 import PressableScale from '../components/PressableScale';
 import Reveal from '../components/Reveal';
@@ -25,9 +26,12 @@ const strengthLabel = (pct) => {
 // the value "at risk" — tied up in hurt starters or players aging past their
 // position's decline curve. The strategic counterpart to the Home action list.
 export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) {
-  const [d, setD] = useState(null);
-  const [error, setError] = useState(null);
-  const [refreshing, setRefreshing] = useState(false);
+  // Portfolio via the shared cache hook: instant repaint on return, throttled reloads, and it keeps
+  // the last book on a failed refresh (C1/C2/C4). A shop/trade done elsewhere marks it stale
+  // (invalidate-on-write), so returning here refetches (C3).
+  const { data: d, error: fetchError, refreshing, reload } = useCachedResource('portfolio', () => api.portfolio());
+  const [shopError, setShopError] = useState(null); // a failed shop toggle surfaces here, separate from the fetch error
+  const error = fetchError || shopError;
   const [posFilter, setPosFilter] = useState(null); // tap an allocation segment to filter holdings by position
   const [showAllHoldings, setShowAllHoldings] = useState(false); // Top holdings: 12 by default, expand to the full book
   const [holdView, setHoldView] = useState('value'); // Top holdings ranking: 'value' (biggest bets) | 'exposure' (most leagues)
@@ -36,11 +40,6 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
 
   const [baitOverride, setBaitOverride] = useState({}); // id -> bool, optimistic "on the block" state
 
-  const load = useCallback(() => {
-    api.portfolio().then(setD).catch((e) => setError(e.message)).finally(() => setRefreshing(false));
-  }, []);
-  useEffect(() => { load(); }, [load]);
-
   const resolveBaited = (h) => (h.id in baitOverride ? baitOverride[h.id] : !!h.baited);
   // Shop / un-shop a holding across every league you roster him in — optimistic, reverts on failure.
   const toggleShop = (h) => {
@@ -48,7 +47,7 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
     setBaitOverride((m) => ({ ...m, [h.id]: next }));
     api.portfolioShop(h.id, next, h.leagueIds).catch(() => {
       setBaitOverride((m) => ({ ...m, [h.id]: !next }));
-      setError('Could not update trade bait');
+      setShopError('Could not update trade bait');
     });
   };
 
@@ -56,7 +55,7 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
     return (
       <View style={[styles.container, styles.center]}>
         <Text style={styles.error}>{error}</Text>
-        <Pressable onPress={() => { setError(null); load(); }} style={styles.retry}><Text style={styles.retryText}>Retry</Text></Pressable>
+        <Pressable onPress={() => { setShopError(null); reload(); }} style={styles.retry}><Text style={styles.retryText}>Retry</Text></Pressable>
       </View>
     );
   }
@@ -90,7 +89,7 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
 
       <ScrollView
         contentContainerStyle={styles.body}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.accent} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={reload} tintColor={colors.accent} />}
       >
         {/* Hero: total value, movement, and the value-over-time line — the portfolio glance. */}
         <View style={styles.card}>
