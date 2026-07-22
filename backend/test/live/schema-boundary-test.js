@@ -45,8 +45,19 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
     schemas.Portfolio.parse(await get('/api/portfolio', h));
     schemas.Scoreboard.parse(await get('/api/scoreboard', h));
     schemas.Lineups.parse(await get('/api/lineups', h));
+    schemas.Me.parse(await get('/api/me', h));
 
-    console.log('✓ demo payloads satisfy all 7 wired schemas (Dashboard/Leagues/Roster/Standings/Portfolio/Scoreboard/Lineups)');
+    const rankings = await get('/api/players/rankings', h);
+    schemas.Rankings.parse(rankings);
+    schemas.Profile.parse(await get(`/api/players/${rankings.players[0].id}`, h));
+
+    schemas.WaiversOverview.parse(await get('/api/waivers/overview', h));
+    schemas.WaiversBest.parse(await get('/api/waivers/best-available', h));
+    schemas.WaiversPending.parse(await get('/api/waivers/pending', h));
+    schemas.Watchlist.parse(await get('/api/watchlist', h));
+    schemas.WatchlistAlerts.parse(await get('/api/watchlist/alerts', h));
+
+    console.log('✓ demo payloads satisfy all 15 wired schemas');
   } finally {
     server.close();
   }

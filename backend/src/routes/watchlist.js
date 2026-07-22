@@ -3,6 +3,7 @@
 const express = require('express');
 const requireSession = require('../middleware/auth');
 const watchlist = require('../services/watchlist');
+const { schemas, checkResponse } = require('../lib/apiSchema');
 
 const router = express.Router();
 router.use(requireSession);
@@ -10,7 +11,7 @@ router.use(requireSession);
 // GET /api/watchlist — starred players with their cross-league standing.
 router.get('/watchlist', async (req, res, next) => {
   try {
-    res.json(await watchlist.getWatchlist(req.mflCookie, req.account));
+    res.json(checkResponse(schemas.Watchlist, await watchlist.getWatchlist(req.mflCookie, req.account), 'GET /watchlist'));
   } catch (err) {
     next(err);
   }
@@ -20,7 +21,7 @@ router.get('/watchlist', async (req, res, next) => {
 // you could claim, or on another owner's trade bait) in one of your leagues.
 router.get('/watchlist/alerts', async (req, res, next) => {
   try {
-    res.json(await watchlist.alerts(req.mflCookie, req.account));
+    res.json(checkResponse(schemas.WatchlistAlerts, await watchlist.alerts(req.mflCookie, req.account), 'GET /watchlist/alerts'));
   } catch (err) {
     next(err);
   }

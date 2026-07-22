@@ -3,6 +3,7 @@
 const express = require('express');
 const requireSession = require('../middleware/auth');
 const waivers = require('../services/waivers');
+const { schemas, checkResponse } = require('../lib/apiSchema');
 
 const router = express.Router();
 router.use(requireSession);
@@ -10,7 +11,7 @@ router.use(requireSession);
 // GET /api/waivers/overview — per-league waiver summary for the landing list.
 router.get('/waivers/overview', async (req, res, next) => {
   try {
-    res.json(await waivers.getOverview(req.mflCookie, req.account));
+    res.json(checkResponse(schemas.WaiversOverview, await waivers.getOverview(req.mflCookie, req.account), 'GET /waivers/overview'));
   } catch (err) {
     next(err);
   }
@@ -28,7 +29,7 @@ router.get('/waivers/suggestions', async (req, res, next) => {
 // GET /api/waivers/best-available — top free agents across all your leagues.
 router.get('/waivers/best-available', async (req, res, next) => {
   try {
-    res.json(await waivers.getBestAvailable(req.mflCookie, req.account));
+    res.json(checkResponse(schemas.WaiversBest, await waivers.getBestAvailable(req.mflCookie, req.account), 'GET /waivers/best-available'));
   } catch (err) {
     next(err);
   }
@@ -37,7 +38,7 @@ router.get('/waivers/best-available', async (req, res, next) => {
 // GET /api/waivers/pending — pending claims + recent results across leagues.
 router.get('/waivers/pending', async (req, res, next) => {
   try {
-    res.json(await waivers.getPending(req.mflCookie, req.account));
+    res.json(checkResponse(schemas.WaiversPending, await waivers.getPending(req.mflCookie, req.account), 'GET /waivers/pending'));
   } catch (err) {
     next(err);
   }

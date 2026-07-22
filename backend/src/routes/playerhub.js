@@ -4,6 +4,7 @@ const express = require('express');
 const requireSession = require('../middleware/auth');
 const hub = require('../services/playerhub');
 const playerTags = require('../store/playerTags');
+const { schemas, checkResponse } = require('../lib/apiSchema');
 
 const router = express.Router();
 router.use(requireSession);
@@ -40,7 +41,7 @@ router.get('/players/search', async (req, res, next) => {
 // GET /api/players/rankings?type=value|position|trending|rookies&position=&format=sf|1qb&offset=&limit=
 router.get('/players/rankings', async (req, res, next) => {
   try {
-    res.json(await hub.rankings(req.mflCookie, req.account, { type: req.query.type, position: req.query.position, format: req.query.format, offset: req.query.offset, limit: req.query.limit }));
+    res.json(checkResponse(schemas.Rankings, await hub.rankings(req.mflCookie, req.account, { type: req.query.type, position: req.query.position, format: req.query.format, offset: req.query.offset, limit: req.query.limit }), 'GET /players/rankings'));
   } catch (err) {
     next(err);
   }
@@ -76,7 +77,7 @@ router.post('/players/:id/drop', async (req, res, next) => {
 // GET /api/players/:id — full profile. (Registered last so static paths win.)
 router.get('/players/:id', async (req, res, next) => {
   try {
-    res.json(await hub.profile(req.mflCookie, req.account, req.params.id));
+    res.json(checkResponse(schemas.Profile, await hub.profile(req.mflCookie, req.account, req.params.id), 'GET /players/:id'));
   } catch (err) {
     next(err);
   }

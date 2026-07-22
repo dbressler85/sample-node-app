@@ -176,7 +176,109 @@ const Lineups = z.object({
   ),
 });
 
-const schemas = { Dashboard, Leagues, Roster, Standings, Portfolio, Scoreboard, Lineups };
+// A player identity row (rankings / best-available / watchlist all share this relied-on core).
+const PlayerIdentity = z.object({
+  id: z.string(),
+  name: z.string(),
+  position: z.string(),
+  value: z.number().nullable().optional(),
+});
+
+// GET /api/me — signed-in manager identity + league count (Profile screen).
+const Me = z.object({
+  username: z.string().nullable(), // behind auth, but the handler defaults to null defensively
+  account: z.string().nullable().optional(),
+  season: z.union([z.number(), z.string()]).nullable().optional(),
+  leagues: z.number(),
+});
+
+// GET /api/players/rankings — the paginated rankings board.
+const Rankings = z.object({
+  players: z.array(PlayerIdentity),
+  total: z.number().nullable().optional(),
+  hasMore: z.boolean().nullable().optional(),
+});
+
+// GET /api/players/:id — the cross-league player profile. Pins the two sections the screen reads
+// UNGUARDED (crossLeague[].relation drives the ownership map; actions.add/dropLeagues gate the
+// action bar); the many rich-but-optional blocks (outlook/season/gameLog/schedule/news) are
+// UI-guarded and left unvalidated.
+const Profile = z.object({
+  id: z.string(),
+  name: z.string(),
+  position: z.string(),
+  crossLeague: z.array(
+    z.object({
+      leagueId: z.string(),
+      name: z.string(),
+      relation: z.string(),
+    })
+  ),
+  actions: z.object({
+    addLeagues: z.array(z.any()),
+    dropLeagues: z.array(z.any()),
+  }),
+});
+
+// GET /api/waivers/overview — the per-league landing list (some entries may carry an error).
+const WaiversOverview = z.object({
+  leagues: z.array(
+    z.object({
+      leagueId: z.string(),
+      name: z.string(),
+      system: z.string().nullable().optional(),
+      rosterCount: z.number().nullable().optional(),
+      rosterSize: z.number().nullable().optional(),
+    })
+  ),
+  summary: z.object({ total: z.number() }).nullable().optional(),
+});
+
+// GET /api/waivers/best-available — cross-league free agents.
+const WaiversBest = z.object({
+  players: z.array(PlayerIdentity),
+});
+
+// GET /api/waivers/pending — pending claims + recent results.
+const WaiversPending = z.object({
+  pending: z.array(
+    z.object({
+      id: z.string(),
+      leagueId: z.string(),
+      leagueName: z.string().nullable().optional(),
+    })
+  ),
+  results: z.array(z.any()),
+  summary: z.object({ pending: z.number() }).nullable().optional(),
+});
+
+// GET /api/watchlist — the watched players.
+const Watchlist = z.object({
+  players: z.array(PlayerIdentity),
+});
+
+// GET /api/watchlist/alerts — home-screen watch alerts (item shape empty in demo; pins the key).
+const WatchlistAlerts = z.object({
+  alerts: z.array(z.any()),
+});
+
+const schemas = {
+  Dashboard,
+  Leagues,
+  Roster,
+  Standings,
+  Portfolio,
+  Scoreboard,
+  Lineups,
+  Me,
+  Rankings,
+  Profile,
+  WaiversOverview,
+  WaiversBest,
+  WaiversPending,
+  Watchlist,
+  WatchlistAlerts,
+};
 
 // Validate a response payload against its schema, FAIL SOFT. Returns the payload unchanged in all
 // cases; on drift it logs one concise line (label + up to 5 offending paths) and moves on. Never

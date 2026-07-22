@@ -19,13 +19,13 @@ router.use(requireSession);
 router.get('/me', async (req, res, next) => {
   try {
     const leagues = await leaguesService.orderedLeagues(req.mflCookie, req.account).catch(() => []);
-    res.json({
+    res.json(checkResponse(schemas.Me, {
       username: (req.session && req.session.username) || null,
       account: req.account,
       season: config.season,
       demoMode: config.demoMode,
       leagues: leagues.length,
-    });
+    }, 'GET /me'));
   } catch (err) {
     next(err);
   }
