@@ -37,10 +37,10 @@ router.get('/players/search', async (req, res, next) => {
   }
 });
 
-// GET /api/players/rankings?type=value|position|trending|rookies&position=&format=sf|1qb
+// GET /api/players/rankings?type=value|position|trending|rookies&position=&format=sf|1qb&offset=&limit=
 router.get('/players/rankings', async (req, res, next) => {
   try {
-    res.json(await hub.rankings(req.mflCookie, req.account, { type: req.query.type, position: req.query.position, format: req.query.format }));
+    res.json(await hub.rankings(req.mflCookie, req.account, { type: req.query.type, position: req.query.position, format: req.query.format, offset: req.query.offset, limit: req.query.limit }));
   } catch (err) {
     next(err);
   }

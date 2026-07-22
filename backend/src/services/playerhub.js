@@ -190,7 +190,7 @@ async function search(cookie, token, { q, position, status, format } = {}) {
   return { total: light.length, format: lensFormat(format) && lensFormat(format).numQbs === 2 ? 'sf' : '1qb', players: players2 };
 }
 
-async function rankings(cookie, token, { type = 'value', position, format } = {}) {
+async function rankings(cookie, token, { type = 'value', position, format, offset = 0, limit = 40 } = {}) {
   const [byId, enr, ctx] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(lensFormat(format), cookie), ctxFor(cookie)]);
   const ranks = computeRanks(byId, enr);
   const { myRostered, mineBy, freeBy, leagueCount } = await buildSets(cookie);
@@ -227,10 +227,19 @@ async function rankings(cookie, token, { type = 'value', position, format } = {}
     light = light.filter((x) => x.value != null).sort((a, b) => (b.value || 0) - (a.value || 0));
   }
 
-  const list = light.slice(0, 40).map((x) => annotate(x.p, byId, ranks, myRostered, mineBy, freeBy, enr, ctx, tags, watchSet, leagueCount));
+  // Page the sorted universe: annotate (availability resolution) only the window the
+  // client asked for. Offset/limit drive infinite scroll — page 0 is the initial load,
+  // later pages append as the user scrolls. Clamp limit so a bad param can't annotate
+  // the whole universe.
+  const start = Math.max(0, Number(offset) || 0);
+  const size = Math.min(100, Math.max(1, Number(limit) || 40));
+  const total = light.length;
+  const list = light
+    .slice(start, start + size)
+    .map((x) => annotate(x.p, byId, ranks, myRostered, mineBy, freeBy, enr, ctx, tags, watchSet, leagueCount));
 
   const note =
-    list.length === 0
+    total === 0
       ? type === 'trending'
         ? 'No trending players right now.'
         : type === 'rookies'
@@ -239,7 +248,16 @@ async function rankings(cookie, token, { type = 'value', position, format } = {}
         ? 'You don’t roster any players yet.'
         : 'Dynasty values are unavailable right now — search and My Players still work.'
       : null;
-  return { type, position: position || null, format: lensFormat(format) ? (lensFormat(format).numQbs === 2 ? 'sf' : '1qb') : '1qb', players: list, note };
+  return {
+    type,
+    position: position || null,
+    format: lensFormat(format) ? (lensFormat(format).numQbs === 2 ? 'sf' : '1qb') : '1qb',
+    players: list,
+    note,
+    offset: start,
+    total,
+    hasMore: start + list.length < total,
+  };
 }
 
 function leagueProjection(playerId, position, leagueId) {

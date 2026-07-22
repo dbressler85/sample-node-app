@@ -109,10 +109,11 @@ export const api = {
     if (format) p.set('format', format);
     return request(`/api/players/search?${p.toString()}`);
   },
-  playerRankings: (type = 'value', position, format) => {
+  playerRankings: (type = 'value', position, format, offset) => {
     const p = new URLSearchParams({ type });
     if (position) p.set('position', position);
     if (format) p.set('format', format);
+    if (offset) p.set('offset', String(offset));
     return request(`/api/players/rankings?${p.toString()}`);
   },
   playerProfile: (id) => request(`/api/players/${id}`),

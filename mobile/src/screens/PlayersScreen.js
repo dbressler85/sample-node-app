@@ -81,6 +81,7 @@ export default function PlayersScreen({ onOpenPlayer }) {
   const [tab, setTab] = useState('rankings');
   const [rankType, setRankType] = useState('value');
   const [rankings, setRankings] = useState(null);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [mine, setMine] = useState(null);
   const [news, setNews] = useState(null);
   const [watch, setWatch] = useState(null);
@@ -115,11 +116,33 @@ export default function PlayersScreen({ onOpenPlayer }) {
     try {
       const res = await api.playerRankings(rankType, pos, format);
       setRankings(res);
+      // Cache only page 0 — later pages append in-memory and are re-fetched on scroll.
       setValue(`players:rankings:${rankType}:${pos || 'all'}:${format}`, res);
     } catch (e) {
       setError(e.message);
     }
   }, [rankType, pos, format]);
+
+  // Infinite scroll: fetch the next window and append. Guard on loadingMore so the
+  // FlatList's onEndReached (which can fire repeatedly) only kicks off one fetch, and
+  // stop once the server says there's nothing more.
+  const loadMoreRankings = useCallback(async () => {
+    if (loadingMore || !rankings || !rankings.hasMore) return;
+    setLoadingMore(true);
+    try {
+      const res = await api.playerRankings(rankType, pos, format, rankings.players.length);
+      // Ignore a stale page if the rank type / filters changed while it was in flight.
+      setRankings((cur) =>
+        cur && cur.type === res.type && cur.position === res.position && cur.format === res.format
+          ? { ...res, players: [...cur.players, ...res.players] }
+          : cur
+      );
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [loadingMore, rankings, rankType, pos, format]);
 
   // Rankings tab uses stale-while-revalidate: paint the cached list for this rank
   // type instantly, then refresh. (Search is transient; My Players / News / Watch
@@ -246,6 +269,13 @@ export default function PlayersScreen({ onOpenPlayer }) {
                 extraData={{ tagOverride, watchOverride, listSort }}
                 contentContainerStyle={styles.list}
                 renderItem={({ item, index }) => <Reveal delay={Math.min(index, 12) * 32} animate={index < 14}><PlayerRow p={item} rank={rankById[item.id]} tag={resolveTag(item)} watched={resolveWatch(item)} showTrend={rankType === 'trending'} {...rowActions} onPress={() => onOpenPlayer(item.id)} /></Reveal>}
+                onEndReached={loadMoreRankings}
+                onEndReachedThreshold={0.5}
+                ListFooterComponent={
+                  loadingMore ? (
+                    <ActivityIndicator style={styles.loadMore} color={colors.gold} />
+                  ) : null
+                }
                 ListEmptyComponent={
                   !rankings ? (
                     <PlayerListSkeleton />
@@ -619,5 +649,6 @@ const styles = StyleSheet.create({
   chev: { color: colors.textDim, fontSize: 20, marginLeft: 8 },
   empty: { color: colors.textDim, textAlign: 'center', marginTop: 24 },
   note: { color: colors.textDim, textAlign: 'center', marginTop: 40, marginHorizontal: 28, fontSize: 14, lineHeight: 20 },
+  loadMore: { paddingVertical: 20 },
   errorBanner: { color: colors.bad, backgroundColor: colors.card, marginHorizontal: 16, marginBottom: 8, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, fontSize: 12, fontWeight: '600', textAlign: 'center' },
 });
