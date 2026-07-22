@@ -21,7 +21,7 @@ router.get('/lineups', async (req, res, next) => {
 // GET /api/lineups/plan?mode=... — preview "Set All" as per-league diffs, no writes.
 router.get('/lineups/plan', async (req, res, next) => {
   try {
-    res.json(await lineups.plan(req.mflCookie, req.account, req.query.mode));
+    res.json(checkResponse(schemas.LineupPlan, await lineups.plan(req.mflCookie, req.account, req.query.mode), 'GET /lineups/plan'));
   } catch (err) {
     next(err);
   }
@@ -41,7 +41,7 @@ router.post('/lineups/apply', async (req, res, next) => {
 // GET /api/leagues/:leagueId/lineup?mode=... — detailed slots for editing.
 router.get('/leagues/:leagueId/lineup', async (req, res, next) => {
   try {
-    res.json(await lineups.getLineup(req.mflCookie, req.account, req.params.leagueId, req.query.mode));
+    res.json(checkResponse(schemas.LineupDetail, await lineups.getLineup(req.mflCookie, req.account, req.params.leagueId, req.query.mode), 'GET /leagues/:leagueId/lineup'));
   } catch (err) {
     next(err);
   }

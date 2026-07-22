@@ -3,6 +3,7 @@
 const express = require('express');
 const requireSession = require('../middleware/auth');
 const trades = require('../services/trades');
+const { schemas, checkResponse } = require('../lib/apiSchema');
 
 const router = express.Router();
 router.use(requireSession);
@@ -10,7 +11,7 @@ router.use(requireSession);
 // GET /api/trades — all pending incoming offers across leagues, value-analyzed.
 router.get('/trades', async (req, res, next) => {
   try {
-    res.json(await trades.getOverview(req.mflCookie, req.account));
+    res.json(checkResponse(schemas.Trades, await trades.getOverview(req.mflCookie, req.account), 'GET /trades'));
   } catch (err) {
     next(err);
   }
@@ -42,7 +43,7 @@ router.post('/players/:id/trade', async (req, res, next) => {
 // GET /api/leagues/:leagueId/trades — one league's offers + partners for proposing.
 router.get('/leagues/:leagueId/trades', async (req, res, next) => {
   try {
-    res.json(await trades.getLeague(req.mflCookie, req.account, req.params.leagueId));
+    res.json(checkResponse(schemas.LeagueTrades, await trades.getLeague(req.mflCookie, req.account, req.params.leagueId), 'GET /leagues/:leagueId/trades'));
   } catch (err) {
     next(err);
   }

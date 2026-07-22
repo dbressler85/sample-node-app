@@ -13,7 +13,7 @@ router.use(requireSession);
 // personal value across the value-based surfaces.
 router.get('/tags', (req, res, next) => {
   try {
-    res.json({ tags: playerTags.all(req.account) });
+    res.json(checkResponse(schemas.Tags, { tags: playerTags.all(req.account) }, 'GET /tags'));
   } catch (err) {
     next(err);
   }
@@ -32,7 +32,7 @@ router.post('/players/:id/tag', (req, res, next) => {
 // GET /api/players/search?q=&position=&status=&format=  (status: mine|free|available; format: sf|1qb)
 router.get('/players/search', async (req, res, next) => {
   try {
-    res.json(await hub.search(req.mflCookie, req.account, { q: req.query.q, position: req.query.position, status: req.query.status, format: req.query.format }));
+    res.json(checkResponse(schemas.Search, await hub.search(req.mflCookie, req.account, { q: req.query.q, position: req.query.position, status: req.query.status, format: req.query.format }), 'GET /players/search'));
   } catch (err) {
     next(err);
   }

@@ -3,6 +3,7 @@
 const express = require('express');
 const requireSession = require('../middleware/auth');
 const tradebait = require('../services/tradebait');
+const { schemas, checkResponse } = require('../lib/apiSchema');
 
 const router = express.Router();
 router.use(requireSession);
@@ -10,7 +11,7 @@ router.use(requireSession);
 // GET /api/tradebait — everything on the block across your leagues, grouped by league.
 router.get('/tradebait', async (req, res, next) => {
   try {
-    res.json(await tradebait.getBlock(req.mflCookie, req.account));
+    res.json(checkResponse(schemas.TradeBait, await tradebait.getBlock(req.mflCookie, req.account), 'GET /tradebait'));
   } catch (err) {
     next(err);
   }
@@ -19,7 +20,7 @@ router.get('/tradebait', async (req, res, next) => {
 // GET /api/leagues/:leagueId/tradebait — ids on the block in one league (to mark rosters).
 router.get('/leagues/:leagueId/tradebait', (req, res, next) => {
   try {
-    res.json(tradebait.leagueIds(req.account, req.params.leagueId));
+    res.json(checkResponse(schemas.LeagueTradeBait, tradebait.leagueIds(req.account, req.params.leagueId), 'GET /leagues/:leagueId/tradebait'));
   } catch (err) {
     next(err);
   }

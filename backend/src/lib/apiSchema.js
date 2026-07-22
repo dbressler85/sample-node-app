@@ -262,6 +262,126 @@ const WatchlistAlerts = z.object({
   alerts: z.array(z.any()),
 });
 
+// --- secondary endpoints ----------------------------------------------------
+// Each pins the structural list/section its screen reads unguarded; rich per-row detail that the
+// UI already guards is left off so the backend can keep evolving it without tripping drift.
+
+// GET /api/home — cross-league command center (portfolio roll-up + per-league team list + triage).
+const Home = z.object({
+  phase: z.string().nullable().optional(),
+  week: z.number().nullable().optional(),
+  portfolio: z.object({ leagues: z.number() }).nullable().optional(),
+  teams: z.array(z.object({ leagueId: z.string(), name: z.string() })),
+  triage: z.array(z.any()),
+});
+
+// GET /api/home/league/:leagueId — one league's triage items (the progressive Home fan-out).
+const HomeLeague = z.object({
+  leagueId: z.string(),
+  name: z.string(),
+  items: z.array(z.object({ id: z.string(), type: z.string() })),
+});
+
+// GET /api/news — league-relevant player news.
+const News = z.object({
+  news: z.array(z.object({ id: z.string(), headline: z.string() })),
+});
+
+// GET /api/ondeck — time-sorted deadlines across leagues.
+const OnDeck = z.object({
+  items: z.array(z.object({ type: z.string() })),
+});
+
+// GET /api/players/exposure — every league you roster each player in.
+const Exposure = z.object({
+  players: z.array(PlayerIdentity),
+});
+
+// GET /api/players/search — universe search results.
+const Search = z.object({
+  players: z.array(PlayerIdentity),
+  total: z.number().nullable().optional(),
+});
+
+// GET /api/tags — the account's player Target/Avoid tags (id -> tag map).
+const Tags = z.object({
+  tags: z.record(z.string(), z.any()),
+});
+
+// GET /api/drafts — cross-league draft status list.
+const Drafts = z.object({
+  drafts: z.array(
+    z.object({ leagueId: z.string(), name: z.string(), status: z.string().nullable().optional() })
+  ),
+});
+
+// GET /api/leagues/:leagueId/draft — the draft grid.
+const DraftBoard = z.object({
+  leagueId: z.string(),
+  name: z.string(),
+  board: z.array(z.object({ overall: z.number(), round: z.number(), pick: z.number() })),
+});
+
+// GET /api/leagues/:leagueId/teams — every franchise's roster (opponent scouting).
+const Teams = z.object({
+  leagueId: z.string(),
+  teams: z.array(z.object({ franchiseId: z.string(), name: z.string() })),
+});
+
+// GET /api/leagues/:leagueId/transactions — the recent-activity feed.
+const Transactions = z.object({
+  leagueId: z.string(),
+  transactions: z.array(z.object({ id: z.string(), type: z.string() })),
+});
+
+// GET /api/leagues/:leagueId/lineup — the lineup editor detail (slots + player pool).
+const LineupDetail = z.object({
+  leagueId: z.string(),
+  name: z.string(),
+  slots: z.array(z.object({ name: z.string(), eligible: z.array(z.string()).nullable().optional() })),
+  players: z.array(RosterPlayer),
+  optimal: z.object({ total: z.number().nullable().optional() }).nullable().optional(),
+});
+
+// GET /api/lineups/plan — the "Set All" preview, one diff per league.
+const LineupPlan = z.object({
+  leagues: z.array(z.object({ leagueId: z.string(), name: z.string() })),
+});
+
+// GET /api/leagues/:leagueId/waivers — one league's waiver board.
+const WaiverBoard = z.object({
+  leagueId: z.string(),
+  name: z.string(),
+  system: z.string().nullable().optional(),
+  freeAgents: z.array(PlayerIdentity),
+});
+
+// GET /api/waivers/suggestions — the waiver-wizard per-league recommendations.
+const WaiverSuggestions = z.object({
+  leagues: z.array(z.object({ leagueId: z.string(), name: z.string() })),
+});
+
+// GET /api/tradebait — cross-league trade-bait board.
+const TradeBait = z.object({
+  leagues: z.array(z.object({ leagueId: z.string(), name: z.string() })),
+});
+
+// GET /api/leagues/:leagueId/tradebait — the player ids you have on the block in one league.
+const LeagueTradeBait = z.object({
+  ids: z.array(z.any()),
+});
+
+// GET /api/trades — cross-league trade offers inbox.
+const Trades = z.object({
+  offers: z.array(z.object({ id: z.string(), leagueId: z.string() })),
+});
+
+// GET /api/leagues/:leagueId/trades — one league's trade desk (my assets + partners).
+const LeagueTrades = z.object({
+  leagueId: z.string(),
+  myPlayers: z.array(PlayerIdentity),
+});
+
 const schemas = {
   Dashboard,
   Leagues,
@@ -278,6 +398,25 @@ const schemas = {
   WaiversPending,
   Watchlist,
   WatchlistAlerts,
+  Home,
+  HomeLeague,
+  News,
+  OnDeck,
+  Exposure,
+  Search,
+  Tags,
+  Drafts,
+  DraftBoard,
+  Teams,
+  Transactions,
+  LineupDetail,
+  LineupPlan,
+  WaiverBoard,
+  WaiverSuggestions,
+  TradeBait,
+  LeagueTradeBait,
+  Trades,
+  LeagueTrades,
 };
 
 // Validate a response payload against its schema, FAIL SOFT. Returns the payload unchanged in all

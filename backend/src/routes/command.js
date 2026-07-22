@@ -35,7 +35,7 @@ router.get('/me', async (req, res, next) => {
 // locks, scheduled drafts, waiver runs). The proactive "what needs me next" view.
 router.get('/ondeck', async (req, res, next) => {
   try {
-    res.json(await ondeck.getOnDeck(req.mflCookie, req.account));
+    res.json(checkResponse(schemas.OnDeck, await ondeck.getOnDeck(req.mflCookie, req.account), 'GET /ondeck'));
   } catch (err) {
     next(err);
   }
@@ -44,7 +44,7 @@ router.get('/ondeck', async (req, res, next) => {
 // GET /api/home — portfolio roll-up + cross-league triage queue (server-side).
 router.get('/home', async (req, res, next) => {
   try {
-    res.json(await portfolio.getHome(req.mflCookie, req.account));
+    res.json(checkResponse(schemas.Home, await portfolio.getHome(req.mflCookie, req.account), 'GET /home'));
   } catch (err) {
     next(err);
   }
@@ -53,7 +53,7 @@ router.get('/home', async (req, res, next) => {
 // GET /api/home/league/:leagueId — one league's triage, for progressive loading.
 router.get('/home/league/:leagueId', async (req, res, next) => {
   try {
-    res.json(await portfolio.getLeagueTriage(req.mflCookie, req.account, req.params.leagueId));
+    res.json(checkResponse(schemas.HomeLeague, await portfolio.getLeagueTriage(req.mflCookie, req.account, req.params.leagueId), 'GET /home/league/:leagueId'));
   } catch (err) {
     next(err);
   }
@@ -91,7 +91,7 @@ router.get('/scoreboard', async (req, res, next) => {
 // GET /api/players/exposure — every league you roster each player in.
 router.get('/players/exposure', async (req, res, next) => {
   try {
-    res.json(await exposure.getExposure(req.mflCookie, req.account));
+    res.json(checkResponse(schemas.Exposure, await exposure.getExposure(req.mflCookie, req.account), 'GET /players/exposure'));
   } catch (err) {
     next(err);
   }
@@ -100,7 +100,7 @@ router.get('/players/exposure', async (req, res, next) => {
 // GET /api/news — league news mapped to which of your teams it affects.
 router.get('/news', async (req, res, next) => {
   try {
-    res.json(await exposure.getNews(req.mflCookie, req.account));
+    res.json(checkResponse(schemas.News, await exposure.getNews(req.mflCookie, req.account), 'GET /news'));
   } catch (err) {
     next(err);
   }

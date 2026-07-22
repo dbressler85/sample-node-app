@@ -20,7 +20,7 @@ router.get('/waivers/overview', async (req, res, next) => {
 // GET /api/waivers/suggestions — league-by-league pickup suggestions (wizard).
 router.get('/waivers/suggestions', async (req, res, next) => {
   try {
-    res.json(await waivers.getSuggestions(req.mflCookie, req.account));
+    res.json(checkResponse(schemas.WaiverSuggestions, await waivers.getSuggestions(req.mflCookie, req.account), 'GET /waivers/suggestions'));
   } catch (err) {
     next(err);
   }
@@ -47,7 +47,7 @@ router.get('/waivers/pending', async (req, res, next) => {
 // GET /api/leagues/:leagueId/waivers?position=&sort= — one league's board.
 router.get('/leagues/:leagueId/waivers', async (req, res, next) => {
   try {
-    res.json(await waivers.getBoard(req.mflCookie, req.account, req.params.leagueId, { position: req.query.position, sort: req.query.sort }));
+    res.json(checkResponse(schemas.WaiverBoard, await waivers.getBoard(req.mflCookie, req.account, req.params.leagueId, { position: req.query.position, sort: req.query.sort }), 'GET /leagues/:leagueId/waivers'));
   } catch (err) {
     next(err);
   }

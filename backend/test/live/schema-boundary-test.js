@@ -57,7 +57,28 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
     schemas.Watchlist.parse(await get('/api/watchlist', h));
     schemas.WatchlistAlerts.parse(await get('/api/watchlist/alerts', h));
 
-    console.log('✓ demo payloads satisfy all 15 wired schemas');
+    // secondary endpoints
+    schemas.Home.parse(await get('/api/home', h));
+    schemas.HomeLeague.parse(await get(`/api/home/league/${leagueId}`, h));
+    schemas.News.parse(await get('/api/news', h));
+    schemas.OnDeck.parse(await get('/api/ondeck', h));
+    schemas.Exposure.parse(await get('/api/players/exposure', h));
+    schemas.Search.parse(await get('/api/players/search?q=chase', h));
+    schemas.Tags.parse(await get('/api/tags', h));
+    schemas.Drafts.parse(await get('/api/drafts', h));
+    schemas.DraftBoard.parse(await get(`/api/leagues/${leagueId}/draft`, h));
+    schemas.Teams.parse(await get(`/api/leagues/${leagueId}/teams`, h));
+    schemas.Transactions.parse(await get(`/api/leagues/${leagueId}/transactions`, h));
+    schemas.LineupDetail.parse(await get(`/api/leagues/${leagueId}/lineup`, h));
+    schemas.LineupPlan.parse(await get('/api/lineups/plan', h));
+    schemas.WaiverBoard.parse(await get(`/api/leagues/${leagueId}/waivers`, h));
+    schemas.WaiverSuggestions.parse(await get('/api/waivers/suggestions', h));
+    schemas.TradeBait.parse(await get('/api/tradebait', h));
+    schemas.LeagueTradeBait.parse(await get(`/api/leagues/${leagueId}/tradebait`, h));
+    schemas.Trades.parse(await get('/api/trades', h));
+    schemas.LeagueTrades.parse(await get(`/api/leagues/${leagueId}/trades`, h));
+
+    console.log('✓ demo payloads satisfy all 33 wired schemas');
   } finally {
     server.close();
   }
