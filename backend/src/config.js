@@ -22,8 +22,15 @@ const config = {
 
   // DEMO_MODE serves realistic fixture data instead of calling MFL. It lets the
   // mobile app (and reviewers) exercise the whole flow without a real account.
-  // Defaults ON so a fresh clone works immediately; set MFL_DEMO_MODE=false for live.
-  demoMode: bool(process.env.MFL_DEMO_MODE, true),
+  //
+  // Default is environment-aware: OFF under NODE_ENV=production (a real deploy runs
+  // LIVE unless someone explicitly opts into demo), ON everywhere else so a fresh
+  // clone / local dev boots with zero config. This is the robust half of the demo-in-
+  // prod guard below: production defaults to live even if MFL_DEMO_MODE is never set,
+  // instead of defaulting to demo and getting refused at boot. An explicit
+  // MFL_DEMO_MODE always wins (and MFL_DEMO_MODE=true in production still trips the
+  // guard — that's the real footgun we want to catch).
+  demoMode: bool(process.env.MFL_DEMO_MODE, process.env.NODE_ENV !== 'production'),
 
   // MFL asks API clients to identify themselves with a descriptive User-Agent and
   // to keep request volume reasonable. High-volume clients should register for an
