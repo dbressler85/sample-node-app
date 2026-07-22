@@ -7,7 +7,7 @@ import AddAcrossSheet from '../components/AddAcrossSheet';
 import TradeAcrossSheet from '../components/TradeAcrossSheet';
 import { TargetIcon, AvoidIcon, WatchIcon } from '../components/PlayerActionIcons';
 import useAndroidBack from '../useAndroidBack';
-import { getValue, setValue } from '../cache';
+import useCachedResource from '../useCachedResource';
 
 const RELATION = {
   rostered: { label: 'Rostered', color: colors.good },
@@ -58,39 +58,23 @@ function diffColor(d) {
 }
 
 export default function PlayerProfileScreen({ playerId, seed, onBack, onOpenTradeDesk, onOpenTradeWizard }) {
-  const [p, setP] = useState(null);
-  const [full, setFull] = useState(false); // true once the complete (not cached-stale) profile is in
-  const [error, setError] = useState(null);
+  // The cross-league profile is a heavy read (per-league value snapshots), so it runs through the
+  // shared cache hook: a warm remount (reopening the same player) paints instantly from memory,
+  // reloads are throttled, and a failed refresh keeps the last profile (C1/C2/C4). The key is
+  // per-player, so switching players paints that player's own cached value. `reload` after an
+  // add/drop reflects the action in the cross-league standing (C3). If nothing is cached yet, a
+  // `seed` from the caller (name/pos/team/value) still fills the header immediately.
+  const { data: p, error, reload } = useCachedResource(`player:profile:${playerId}`, () => api.playerProfile(playerId));
   const [sheet, setSheet] = useState(null); // 'add' | 'drop' | 'trade'
   const [watched, setWatched] = useState(false);
   const [tag, setTag] = useState(null); // 'target' | 'avoid' | null
 
-  // Refresh the live profile and update the cache. Reused by the initial load and after an
-  // add/drop from a sheet (so the cross-league standing reflects the action — guardrail C3).
-  const load = useCallback(async () => {
-    try {
-      const prof = await api.playerProfile(playerId);
-      setP(prof); setFull(true); setWatched(!!prof.watched); setTag(prof.tag || null);
-      setValue(`player:profile:${playerId}`, prof);
-    } catch (e) {
-      setError(e.message);
-    }
-  }, [playerId]);
-
-  // The cross-league profile is a heavy read (per-league value snapshots). To avoid a blank
-  // spinner — brutal when opened from Portfolio, where the players cache is cold — paint
-  // instantly from (a) the last cached profile, then (b) live data. If neither is ready yet,
-  // a `seed` from the caller (name/pos/team/value) still fills the header immediately.
+  // Keep the personal Watch/Target/Avoid controls in step with the loaded profile — reseeded
+  // whenever a fresh (or cached) profile paints. The optimistic toggles below don't touch `p`,
+  // so they survive until the next real profile update reseeds these.
   useEffect(() => {
-    let alive = true;
-    setP(null);
-    setFull(false);
-    getValue(`player:profile:${playerId}`).then((cached) => {
-      if (alive && cached) { setP(cached); setWatched(!!cached.watched); setTag(cached.tag || null); }
-    });
-    load();
-    return () => { alive = false; };
-  }, [playerId, load]);
+    if (p) { setWatched(!!p.watched); setTag(p.tag || null); }
+  }, [p]);
 
   // Star / unstar — optimistic, reverts on failure.
   const toggleWatch = useCallback(() => {
@@ -117,7 +101,7 @@ export default function PlayerProfileScreen({ playerId, seed, onBack, onOpenTrad
     return false;
   }, [sheet]));
 
-  if (error) {
+  if (error && !p) {
     return (
       <View style={[styles.container, styles.center]}>
         <Text style={styles.error}>{error}</Text>
@@ -308,7 +292,7 @@ export default function PlayerProfileScreen({ playerId, seed, onBack, onOpenTrad
         </View>
       ) : null}
 
-      {sheet === 'add' ? <AddAcrossSheet player={p} onClose={() => setSheet(null)} onDone={() => { setSheet(null); load(); }} /> : null}
+      {sheet === 'add' ? <AddAcrossSheet player={p} onClose={() => setSheet(null)} onDone={() => { setSheet(null); reload(); }} /> : null}
       {sheet === 'trade' ? (
         <TradeAcrossSheet
           player={p}
@@ -317,7 +301,7 @@ export default function PlayerProfileScreen({ playerId, seed, onBack, onOpenTrad
           onStartWizard={(queue) => { setSheet(null); onOpenTradeWizard && onOpenTradeWizard(queue); }}
         />
       ) : null}
-      {sheet === 'drop' ? <DropSheet player={p} onClose={() => setSheet(null)} onDone={() => { setSheet(null); load(); }} /> : null}
+      {sheet === 'drop' ? <DropSheet player={p} onClose={() => setSheet(null)} onDone={() => { setSheet(null); reload(); }} /> : null}
     </View>
   );
 }
