@@ -65,18 +65,52 @@ async function currentWeek(cookie) {
   }
 }
 
-// Reset the cache (used by tests to force re-detection).
+// Reset the caches (used by tests to force re-detection / re-fetch).
 function _resetWeekCache() {
   weekCache = { week: null, at: 0 };
+  scheduleCache.clear();
+  fullSeasonCache = { at: 0, byWeek: null };
 }
 
 // One week's NFL matchups, cached (the schedule is static once set), shared by
 // byeMap and upcomingOpponents so a profile view doesn't refetch the same week.
 const scheduleCache = new Map(); // week -> { at, matchups }
 const SCHED_TTL_MS = 6 * 60 * 60 * 1000;
+
+// Full-season schedule from one `nflSchedule?W=ALL` fetch, so a caller that needs several
+// weeks (e.g. upcomingOpponents looping 4 weeks) doesn't fan out one request per week.
+// W=ALL returns a DIFFERENT envelope than a single week: `fullNflSchedule.nflSchedule[]` is an
+// array of { week, matchup[] }, whereas `?W=<n>` returns `nflSchedule.{ week, matchup[] }`.
+let fullSeasonCache = { at: 0, byWeek: null }; // byWeek: Map(weekNumber -> matchups[])
+async function fullSeasonByWeek(cookie) {
+  if (fullSeasonCache.byWeek && Date.now() - fullSeasonCache.at < SCHED_TTL_MS) return fullSeasonCache.byWeek;
+  const res = await mfl.exportRequest('nflSchedule', { cookie, W: 'ALL' });
+  const weeks = mfl.toArray(res && res.fullNflSchedule && res.fullNflSchedule.nflSchedule);
+  if (!weeks.length) throw new Error('empty or unrecognized W=ALL schedule');
+  const byWeek = new Map();
+  for (const wk of weeks) {
+    const n = Number(wk && wk.week);
+    if (n >= 1) byWeek.set(n, mfl.toArray(wk && wk.matchup));
+  }
+  fullSeasonCache = { at: Date.now(), byWeek };
+  return byWeek;
+}
+
 async function scheduleMatchups(cookie, week) {
   const c = scheduleCache.get(week);
   if (c && Date.now() - c.at < SCHED_TTL_MS) return c.matchups;
+  // Prefer the single full-season fetch (one W=ALL serves every week). Fall back to a
+  // single-week fetch if W=ALL fails or doesn't carry this week (e.g. offseason).
+  try {
+    const byWeek = await fullSeasonByWeek(cookie);
+    if (byWeek.has(week)) {
+      const matchups = byWeek.get(week);
+      scheduleCache.set(week, { at: Date.now(), matchups });
+      return matchups;
+    }
+  } catch (e) {
+    /* fall through to the single-week request */
+  }
   const res = await mfl.exportRequest('nflSchedule', { cookie, W: week });
   const matchups = mfl.toArray(res && res.nflSchedule && res.nflSchedule.matchup);
   scheduleCache.set(week, { at: Date.now(), matchups });
