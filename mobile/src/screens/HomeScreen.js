@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, FlatList, StyleSheet, Pressable, RefreshControl, ActivityIndicator, Modal } from 'react-native';
 import { api } from '../api';
-import { getValue, setValue } from '../cache';
+import { getValue, setValue, onCacheInvalidate } from '../cache';
 import { colors } from '../theme';
 import { ScreenTitle } from '../components/Brand';
 import Pulse from '../components/Pulse';
@@ -65,6 +65,10 @@ async function runPool(items, limit, worker) {
 let homeCache = { leagues: null, statuses: null, drafts: null, onDeck: null, watchAlerts: null, at: 0 };
 let refreshInFlight = false; // guards the fan-out across remounts (a per-mount ref can't)
 const HOME_STALE_MS = 45 * 1000;
+
+// After any write, mark Home's snapshot stale so returning to it refetches the triage rather
+// than showing pre-action state through the throttle (keep the values for an instant paint).
+onCacheInvalidate(() => { homeCache.at = 0; });
 
 // Clear the in-memory snapshot on logout / session loss so the next account never sees the
 // previous one's Home. Called from App alongside the on-disk cache clear.

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, FlatList, RefreshControl, ActivityIndicator, Alert } from 'react-native';
 import { api } from '../api';
-import { getValue, setValue } from '../cache';
+import useCachedResource from '../useCachedResource';
 import { colors, positionColors } from '../theme';
 import { celebrate } from '../components/Celebrate';
 import InfoDot from '../components/InfoDot';
@@ -37,10 +37,10 @@ const teamCtx = (t) => {
 };
 
 export default function TradeInboxScreen({ onBack, onOpenLeague, onProposeInLeague, onOpenBlock, onCounter, onManualCounter, onOpenPlayer }) {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState(null);
+  // Offers via the shared hook: instant paint on remount (survives the tab-switch unmount),
+  // throttled reloads, non-destructive on a failed refresh. Same 'trades:overview' key the
+  // idle prefetch warms. `reload` refetches after responding to an offer / pull-to-refresh.
+  const { data, error, refreshing, loading, reload } = useCachedResource('trades:overview', () => api.trades());
   const [busy, setBusy] = useState(null); // `${leagueId}:${offerId}` being responded to
   const [baitByLeague, setBaitByLeague] = useState({}); // leagueId -> # players you're shopping
   const [fitByLeague, setFitByLeague] = useState({}); // leagueId -> fit hint (filled in progressively)
@@ -48,35 +48,15 @@ export default function TradeInboxScreen({ onBack, onOpenLeague, onProposeInLeag
   // As a top-level tab there's no onBack — let the app's handler take hardware back to Home.
   useAndroidBack(useCallback(() => { if (onBack) { onBack(); return true; } return false; }, [onBack]));
 
-  const load = useCallback(async () => {
-    setError(null);
-    try {
-      // Fetch offers + your trade-bait alongside, so the "Start a trade" list can flag
-      // the leagues where you already have players on the block (a head start on picking one).
-      const [d, block] = await Promise.all([api.trades(), api.tradeBait().catch(() => null)]);
-      setData(d);
-      setValue('trades:overview', d); // write-through so the next open (and idle prefetch) paints instantly
-      if (block && block.leagues) {
-        setBaitByLeague(Object.fromEntries(block.leagues.map((l) => [String(l.leagueId), l.count])));
-      }
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
-
-  // Stale-while-revalidate: paint the last-known inbox (possibly warmed by the idle
-  // prefetch while the user was on another tab) instantly, then refresh in the background.
+  // Your trade-bait board, alongside the offers: flags the leagues where you already have
+  // players on the block (a head start on the "Start a trade" list). Best-effort, background.
   useEffect(() => {
     let alive = true;
-    getValue('trades:overview').then((cached) => {
-      if (alive && cached != null) { setData(cached); setLoading(false); }
-      if (alive) load();
-    });
+    api.tradeBait().then((block) => {
+      if (alive && block && block.leagues) setBaitByLeague(Object.fromEntries(block.leagues.map((l) => [String(l.leagueId), l.count])));
+    }).catch(() => {});
     return () => { alive = false; };
-  }, [load]);
+  }, []);
 
   // The "deep at X" hint needs a per-league needs/surplus read (expensive), so the
   // inbox returns offers immediately and we fill the hint in here — one league at a
@@ -106,7 +86,7 @@ export default function TradeInboxScreen({ onBack, onOpenLeague, onProposeInLeag
     try {
       await api.respondTrade(offer.leagueId, offer.id, action);
       celebrate(action === 'accept' ? 'tradeAccepted' : 'offerRejected');
-      await load();
+      await reload();
     } catch (e) {
       Alert.alert('Could not respond', e.message);
     } finally {
@@ -192,14 +172,14 @@ export default function TradeInboxScreen({ onBack, onOpenLeague, onProposeInLeag
 
       {loading ? (
         <View style={styles.center}><ActivityIndicator color={colors.accent} size="large" /></View>
-      ) : error ? (
-        <ErrorView message={error} onRetry={() => { setLoading(true); load(); }} refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />
+      ) : error && !data ? (
+        <ErrorView message={error} onRetry={reload} refreshing={refreshing} onRefresh={reload} />
       ) : (
         <FlatList
           data={offers}
           keyExtractor={(o) => `${o.leagueId}:${o.id}`}
           contentContainerStyle={styles.list}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.accent} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={reload} tintColor={colors.accent} />}
           renderItem={({ item, index }) => (
             <Reveal delay={Math.min(index, 6) * 55} animate={index < 8}>
               <OfferCard

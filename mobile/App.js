@@ -8,6 +8,7 @@ import { clearAll as clearCache } from './src/cache';
 import { prefetchOtherTabs } from './src/prefetch';
 import LoginScreen from './src/screens/LoginScreen';
 import HomeScreen, { resetHomeCache } from './src/screens/HomeScreen';
+import { clearResourceCache } from './src/useCachedResource';
 import LeaguesScreen from './src/screens/LeaguesScreen';
 import LeagueScreen from './src/screens/LeagueScreen';
 import PortfolioScreen from './src/screens/PortfolioScreen';
@@ -159,6 +160,7 @@ export default function App() {
       await clearSession();
       await clearCache();
       resetHomeCache();
+      clearResourceCache();
       setAuthed(false);
       setTab('home');
       setOverlayStack([]);
@@ -188,6 +190,7 @@ export default function App() {
     await clearSession();
     await clearCache();
     resetHomeCache();
+    clearResourceCache();
     setAuthed(false);
     setTab('home');
     setOverlayStack([]);

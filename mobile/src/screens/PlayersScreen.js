@@ -5,6 +5,7 @@ import { colors, positionColors } from '../theme';
 import AvailabilityBadge from '../components/AvailabilityBadge';
 import { TargetIcon, AvoidIcon, WatchIcon } from '../components/PlayerActionIcons';
 import { getValue, setValue } from '../cache';
+import { peekResource, primeResource } from '../useCachedResource';
 import InfoDot from '../components/InfoDot';
 import Pulse from '../components/Pulse';
 import Reveal from '../components/Reveal';
@@ -112,16 +113,20 @@ export default function PlayersScreen({ onOpenPlayer }) {
     };
   }, [query, pos, format]);
 
+  const rankKey = `players:rankings:${rankType}:${pos || 'all'}:${format}`;
+
   const loadRankings = useCallback(async () => {
     try {
       const res = await api.playerRankings(rankType, pos, format);
       setRankings(res);
-      // Cache only page 0 — later pages append in-memory and are re-fetched on scroll.
-      setValue(`players:rankings:${rankType}:${pos || 'all'}:${format}`, res);
+      // In-memory (survives the tab-switch unmount, throttles re-entry) + disk page 0. Later
+      // pages append in-memory and are re-fetched on scroll.
+      primeResource(rankKey, res);
+      setValue(rankKey, res);
     } catch (e) {
       setError(e.message);
     }
-  }, [rankType, pos, format]);
+  }, [rankType, pos, format, rankKey]);
 
   // Infinite scroll: fetch the next window and append. Guard on loadingMore so the
   // FlatList's onEndReached (which can fire repeatedly) only kicks off one fetch, and
@@ -132,11 +137,16 @@ export default function PlayersScreen({ onOpenPlayer }) {
     try {
       const res = await api.playerRankings(rankType, pos, format, rankings.players.length);
       // Ignore a stale page if the rank type / filters changed while it was in flight.
-      setRankings((cur) =>
-        cur && cur.type === res.type && cur.position === res.position && cur.format === res.format
-          ? { ...res, players: [...cur.players, ...res.players] }
-          : cur
-      );
+      setRankings((cur) => {
+        if (!(cur && cur.type === res.type && cur.position === res.position && cur.format === res.format)) return cur;
+        const merged = { ...res, players: [...cur.players, ...res.players] };
+        // Keep the in-memory snapshot in sync so returning to Players repaints the full paged
+        // list, not just page 0. Preserve the last full-load timestamp so appended pages don't
+        // reset the reload throttle.
+        const at = (peekResource(rankKey) || {}).at || 0;
+        primeResource(rankKey, merged, at);
+        return merged;
+      });
     } catch (e) {
       setError(e.message);
     } finally {
@@ -144,19 +154,28 @@ export default function PlayersScreen({ onOpenPlayer }) {
     }
   }, [loadingMore, rankings, rankType, pos, format]);
 
-  // Rankings tab uses stale-while-revalidate: paint the cached list for this rank
-  // type instantly, then refresh. (Search is transient; My Players / News / Watch
-  // load fresh when opened.)
+  // Rankings tab, stale-while-revalidate with the shared in-memory layer: returning to Players
+  // (which fully unmounts on a tab switch) repaints the last list — including scrolled-in pages —
+  // instantly and only reloads once it's stale, instead of blanking to a skeleton and refetching
+  // every time. Cold (or a new filter with nothing cached) still paints disk then refreshes.
+  // (Search is transient; My Players / News / Watch load fresh when opened.)
+  const RANK_STALE_MS = 45 * 1000;
   useEffect(() => {
     if (tab !== 'rankings') return undefined;
     let alive = true;
+    const hit = peekResource(rankKey);
+    if (hit) {
+      setRankings(hit.value);
+      if (Date.now() - hit.at > RANK_STALE_MS) loadRankings();
+      return () => { alive = false; };
+    }
     setRankings(null);
-    getValue(`players:rankings:${rankType}:${pos || 'all'}:${format}`).then((cached) => {
-      if (alive && cached != null) setRankings(cached);
+    getValue(rankKey).then((cached) => {
+      if (alive && cached != null) { setRankings(cached); primeResource(rankKey, cached, 0); } // at:0 → stale, will refresh
       if (alive) loadRankings();
     });
     return () => { alive = false; };
-  }, [tab, rankType, pos, format, loadRankings]);
+  }, [tab, rankKey, loadRankings]);
 
   useEffect(() => {
     if (tab === 'mine' && !mine) api.exposure().then(setMine).catch((e) => setError(e.message));

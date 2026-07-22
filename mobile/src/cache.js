@@ -35,3 +35,18 @@ export async function clearAll() {
     /* ignore */
   }
 }
+
+// Cross-screen cache invalidation. Screens keep in-memory snapshots and throttle their
+// reloads (so read-only navigation doesn't refetch), but a WRITE (set a lineup, submit a
+// claim, propose/accept a trade, add/drop, star) must make the affected screens refetch on
+// next view. Rather than wire every mutation to every screen, the api layer fires
+// `invalidateCaches()` after any successful non-GET, and each screen registers a listener
+// that marks its snapshot stale — values stay for instant paint, but the next mount reloads.
+const invalidators = new Set();
+export function onCacheInvalidate(fn) {
+  invalidators.add(fn);
+  return () => invalidators.delete(fn);
+}
+export function invalidateCaches() {
+  for (const fn of invalidators) { try { fn(); } catch (e) { /* ignore */ } }
+}

@@ -8,6 +8,7 @@ import ErrorView from '../components/ErrorView';
 import Pulse from '../components/Pulse';
 import AnimatedNumber from '../components/AnimatedNumber';
 import { getValue, setValue } from '../cache';
+import useCachedResource from '../useCachedResource';
 import usePoll from '../usePoll';
 
 const STATUS = {
@@ -19,40 +20,16 @@ const STATUS = {
 };
 
 export default function ScoresScreen({ onOpenLineup }) {
-  const [data, setData] = useState(null);
-  const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  // Stale-while-revalidate via the shared hook: paints the last board instantly on remount
+  // (survives the tab-switch unmount), throttles redundant reloads, and keeps the board on a
+  // failed refresh. `reload` forces a fetch (used by the live poll and pull-to-refresh).
+  const { data, error, refreshing, loading, reload } = useCachedResource('scores:overview', () => api.scoreboard());
 
-  const load = useCallback(async () => {
-    setError(null);
-    try {
-      const res = await api.scoreboard();
-      setData(res);
-      setValue('scores:overview', res); // write-through so the next open (and idle prefetch) paints instantly
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
-
-  // Stale-while-revalidate: paint the last-known board (possibly warmed by the idle
-  // prefetch) instantly, then refresh. Live games keep ticking via the poll below.
-  useEffect(() => {
-    let alive = true;
-    getValue('scores:overview').then((cached) => {
-      if (alive && cached != null) { setData(cached); setLoading(false); }
-      if (alive) load();
-    });
-    return () => { alive = false; };
-  }, [load]);
   // Auto-refresh the board whenever any matchup is still unlocked — so it also starts
   // ticking on its own if the tab was opened before kickoff, not only once a game is
   // already live. All games final (or none scheduled) → no poll.
   const hasUnlocked = !!(data && data.games && data.games.some((g) => !g.locked));
-  usePoll(load, 45000, hasUnlocked);
+  usePoll(reload, 45000, hasUnlocked);
 
   // Celebrate (or commiserate) when matchups go final — a 🏆 for a win, a deadpan
   // 💀 for a loss. First-seen tracking keyed by league+week+result, persisted to
@@ -103,8 +80,8 @@ export default function ScoresScreen({ onOpenLineup }) {
         ) : null}
       </View>
 
-      {error ? (
-        <ErrorView message={error} onRetry={load} refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />
+      {error && !data ? (
+        <ErrorView message={error} onRetry={reload} refreshing={refreshing} onRefresh={reload} />
       ) : (
         <FlatList
           data={data ? data.games : []}
@@ -113,10 +90,7 @@ export default function ScoresScreen({ onOpenLineup }) {
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
-              onRefresh={() => {
-                setRefreshing(true);
-                load();
-              }}
+              onRefresh={reload}
               tintColor={colors.accent}
             />
           }

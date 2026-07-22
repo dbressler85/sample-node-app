@@ -1,4 +1,5 @@
 import { getEntry, setValue } from './cache';
+import { primeResource } from './useCachedResource';
 import { api } from './api';
 
 // Idle prefetch. While the user sits on one tab, quietly warm the on-device caches for
@@ -28,6 +29,9 @@ async function warm(res) {
   try {
     const data = await res.fetch();
     await setValue(res.key, data);
+    // Prime the in-memory layer too (stamped now), so opening the just-warmed tab paints
+    // instantly AND its throttle skips the immediate reload — the point of prefetching.
+    primeResource(res.key, data);
   } catch (e) {
     /* best-effort — a failed prefetch just means the screen loads normally when opened */
   } finally {

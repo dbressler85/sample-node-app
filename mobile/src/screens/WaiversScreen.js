@@ -19,7 +19,7 @@ import AddAcrossSheet from '../components/AddAcrossSheet';
 import ErrorView from '../components/ErrorView';
 import Reveal from '../components/Reveal';
 import useAndroidBack from '../useAndroidBack';
-import { getValue, setValue } from '../cache';
+import useCachedResource from '../useCachedResource';
 import { ScreenTitle } from '../components/Brand';
 
 const SORTS = [
@@ -30,8 +30,10 @@ const SORTS = [
 ];
 
 export default function WaiversScreen({ initialLeagueId, initialPosition, onStartWizard, onOpenPlayer, onOpenLineup }) {
-  const [overview, setOverview] = useState(null);
-  const [ovRefreshing, setOvRefreshing] = useState(false);
+  // Landing overview via the shared hook: instant paint on remount (survives the tab-switch
+  // unmount), throttled reloads, and it keeps the list on a failed refresh. `loadOverview`
+  // (reload) is also called after a claim to reflect it immediately.
+  const { data: overview, error: overviewError, refreshing: ovRefreshing, reload: loadOverview } = useCachedResource('waivers:overview', () => api.waiversOverview());
   const [wizardLoading, setWizardLoading] = useState(false);
   const [segment, setSegment] = useState('leagues'); // 'leagues' | 'best' | 'pending'
   // A league drill-in: the per-league board. Set from a card tap or a Home
@@ -72,31 +74,6 @@ export default function WaiversScreen({ initialLeagueId, initialPosition, onStar
     }
     return false;
   }, [addPlayer, claim, openLeagueId]));
-
-  // Landing list: one card per league. Stale-while-revalidate — paint the last
-  // overview from disk instantly, then refetch in the background.
-  const loadOverview = useCallback(async () => {
-    setError(null);
-    setOvRefreshing(true);
-    try {
-      const res = await api.waiversOverview();
-      setOverview(res);
-      setValue('waivers:overview', res);
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setOvRefreshing(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    let alive = true;
-    getValue('waivers:overview').then((cached) => {
-      if (alive && cached != null) setOverview(cached);
-      if (alive) loadOverview();
-    });
-    return () => { alive = false; };
-  }, [loadOverview]);
 
   // Board for the drilled-in league.
   const loadBoard = useCallback(async () => {
@@ -225,7 +202,7 @@ export default function WaiversScreen({ initialLeagueId, initialPosition, onStar
                 overview={overview}
                 loading={overview == null}
                 refreshing={ovRefreshing}
-                error={error}
+                error={overviewError}
                 onOpen={setOpenLeagueId}
                 onRefresh={loadOverview}
               />

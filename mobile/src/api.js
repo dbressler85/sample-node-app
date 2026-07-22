@@ -1,5 +1,6 @@
 // Thin client for the Dynasty Central backend.
 import { API_URL } from './config';
+import { invalidateCaches } from './cache';
 
 let authToken = null;
 
@@ -59,6 +60,9 @@ async function request(path, { method = 'GET', body } = {}) {
   if (!res.ok) {
     throw new Error((data && data.error) || `Request failed (${res.status})`);
   }
+  // A successful write changes server state the cached screens reflect — mark their snapshots
+  // stale so the next view refetches instead of showing pre-action data through the throttle.
+  if (method !== 'GET') invalidateCaches();
   return data;
 }
 
