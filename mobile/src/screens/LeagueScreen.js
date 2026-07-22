@@ -1,9 +1,10 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, FlatList, ScrollView, ActivityIndicator, RefreshControl } from 'react-native';
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import ErrorView from '../components/ErrorView';
 import useAndroidBack from '../useAndroidBack';
+import useCachedResource from '../useCachedResource';
 
 // The league hub: the ordinary league views the app was missing — Standings,
 // Rosters (browse every team = opponent scouting), and a Transactions feed. Reached
@@ -41,29 +42,13 @@ export default function LeagueScreen({ league, onBack, onOpenPlayer }) {
   );
 }
 
-// --- data hook: load once per tab, with pull-to-refresh -----------------------
-function useTab(fetcher) {
-  const [data, setData] = useState(null);
-  const [error, setError] = useState(null);
-  const [refreshing, setRefreshing] = useState(false);
-  const load = useCallback(async (isRefresh) => {
-    setError(null);
-    if (isRefresh) setRefreshing(true);
-    try {
-      setData(await fetcher());
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setRefreshing(false);
-    }
-  }, [fetcher]);
-  useEffect(() => { load(false); }, [load]);
-  return { data, error, refreshing, reload: () => load(true) };
-}
+// Per-league sub-tabs load through the shared cache hook (survive-remount + throttle +
+// non-destructive errors, unit-tested in test/resourceStore.test.js) — the bespoke useTab hook
+// this replaced was a third reinvention of the same load/refresh/error logic with no caching.
 
 // --- Standings ----------------------------------------------------------------
 function StandingsTab({ leagueId }) {
-  const { data, error, refreshing, reload } = useTab(useCallback(() => api.leagueStandings(leagueId), [leagueId]));
+  const { data, error, refreshing, reload } = useCachedResource(`league:standings:${leagueId}`, () => api.leagueStandings(leagueId));
   if (error && !data) return <ErrorView message={error} onRetry={reload} onRefresh={reload} refreshing={refreshing} />;
   if (!data) return <Center><ActivityIndicator color={colors.accent} size="large" /></Center>;
 
@@ -100,7 +85,7 @@ function StandingsTab({ leagueId }) {
 
 // --- Rosters (opponent scouting) ----------------------------------------------
 function RostersTab({ leagueId, onOpenPlayer }) {
-  const { data, error, refreshing, reload } = useTab(useCallback(() => api.leagueTeams(leagueId), [leagueId]));
+  const { data, error, refreshing, reload } = useCachedResource(`league:teams:${leagueId}`, () => api.leagueTeams(leagueId));
   const [sel, setSel] = useState(null);
   if (error && !data) return <ErrorView message={error} onRetry={reload} onRefresh={reload} refreshing={refreshing} />;
   if (!data) return <Center><ActivityIndicator color={colors.accent} size="large" /></Center>;
@@ -154,7 +139,7 @@ function timeAgo(at) {
 }
 
 function TransactionsTab({ leagueId, onOpenPlayer }) {
-  const { data, error, refreshing, reload } = useTab(useCallback(() => api.leagueTransactions(leagueId), [leagueId]));
+  const { data, error, refreshing, reload } = useCachedResource(`league:txns:${leagueId}`, () => api.leagueTransactions(leagueId));
   if (error && !data) return <ErrorView message={error} onRetry={reload} onRefresh={reload} refreshing={refreshing} />;
   if (!data) return <Center><ActivityIndicator color={colors.accent} size="large" /></Center>;
 

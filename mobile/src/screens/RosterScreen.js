@@ -4,34 +4,22 @@ import { api } from '../api';
 import PlayerRow from '../components/PlayerRow';
 import Reveal from '../components/Reveal';
 import { colors } from '../theme';
+import useCachedResource from '../useCachedResource';
 
 export default function RosterScreen({ league, onBack, onOpenTrades, onOpenDraft, onOpenPlayer }) {
-  const [roster, setRoster] = useState(null);
-  const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(true);
+  // Roster via the shared cache hook: instant repaint on return, throttled reloads, and it
+  // keeps the roster on a failed refresh (C1/C2/C4). A trade/draft done in an overlay marks it
+  // stale (invalidate-on-write), so returning here refetches (C3).
+  const { data: roster, error, loading } = useCachedResource(`roster:${league.leagueId}`, () => api.roster(league.leagueId));
   const [baited, setBaited] = useState(() => new Set()); // player ids on the block here
 
+  // Trade-bait board for this league, alongside — secondary, best-effort.
   useEffect(() => {
     let alive = true;
-    (async () => {
-      try {
-        const [r, bait] = await Promise.all([
-          api.roster(league.leagueId),
-          api.leagueBait(league.leagueId).catch(() => ({ ids: [] })),
-        ]);
-        if (alive) {
-          setRoster(r);
-          setBaited(new Set((bait.ids || []).map(String)));
-        }
-      } catch (e) {
-        if (alive) setError(e.message);
-      } finally {
-        if (alive) setLoading(false);
-      }
-    })();
-    return () => {
-      alive = false;
-    };
+    api.leagueBait(league.leagueId)
+      .then((bait) => { if (alive) setBaited(new Set((bait.ids || []).map(String))); })
+      .catch(() => {});
+    return () => { alive = false; };
   }, [league.leagueId]);
 
   // Optimistically flip the block state, then persist; revert on failure.
@@ -107,7 +95,7 @@ export default function RosterScreen({ league, onBack, onOpenTrades, onOpenDraft
         <View style={styles.center}>
           <ActivityIndicator color={colors.accent} size="large" />
         </View>
-      ) : error ? (
+      ) : error && !roster ? (
         <View style={styles.center}>
           <Text style={styles.error}>{error}</Text>
         </View>
