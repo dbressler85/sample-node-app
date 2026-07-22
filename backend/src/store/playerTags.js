@@ -7,12 +7,13 @@
 // durable via store/persist. Mirrors watchlist / tradebait / leaguePrefs.
 
 const persist = require('./persist');
+const { TAG_MOD } = require('../lib/tradeMath');
 
 const db = () => persist.ns('playerTags'); // token -> { [playerId]: 'target' | 'avoid' }
 
-// The multiplicative value modifiers. Stored as numbers so a future stronger tier
-// (e.g. 'cornerstone' 1.25) is config, not a rewrite.
-const MODIFIER = { target: 1.1, avoid: 0.9 };
+// The multiplicative value modifiers — sourced from the shared trade-math module so the
+// trade analysis and this store apply the SAME Target/Avoid weighting (one source of truth).
+const MODIFIER = TAG_MOD;
 const VALID = Object.keys(MODIFIER);
 
 function all(token) {

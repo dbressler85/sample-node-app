@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import { api } from '../api';
+import tradeMath from '../tradeMath';
 import { colors, positionColors } from '../theme';
 import { celebrate } from '../components/Celebrate';
 import TradeColumns from '../components/TradeColumns';
@@ -29,44 +30,26 @@ const CONSTRUCTION = {
   neutral: { color: colors.textDim, icon: '•' },
 };
 
-// Live roster-construction read for the builder (mirrors the backend tradefit verdict).
-// give/receive are asset lists from THIS team's side; subject phrases it ('you' | 'they').
+// Live roster-construction read for the builder. The RATING comes from the shared trade-math
+// module (single source with the backend — the verdict can't disagree); the terse chip wording
+// below is the mobile side's own. give/receive are asset lists from THIS team's side.
 function constructionOf(give, receive, needs, surplus, subject, posDepth) {
-  const you = subject !== 'they';
-  const needSet = new Set((needs || []).map((n) => n.pos));
-  const surSet = new Set((surplus || []).map((s) => s.pos));
-  const gNeed = give.filter((p) => needSet.has(p.position));
-  const gSurp = give.filter((p) => surSet.has(p.position));
-  const rNeed = receive.filter((p) => needSet.has(p.position));
-  const rSurp = receive.filter((p) => surSet.has(p.position));
-  const score = rNeed.length * 2 + gSurp.length - gNeed.length * 2 - rSurp.length * 0.5;
-  const fills = [...new Set(rNeed.map((p) => p.position))];
-  const thins = [...new Set(gNeed.map((p) => p.position))];
-  const depth = [...new Set(gSurp.map((p) => p.position))];
+  const { rating, branch, you, fills, thins, fromDepth, holes } = tradeMath.constructionRating(
+    give,
+    receive,
+    needs,
+    surplus,
+    subject,
+    posDepth
+  );
   const j = (a) => a.join('/');
-  // Hole detection (mirrors backend tradefit): a deal that drops a starting spot below
-  // its startable count, even when that spot wasn't a pre-existing need.
-  const holes = [];
-  if (posDepth) {
-    const byPos = {};
-    for (const p of give) if (p && p.position) (byPos[p.position] || (byPos[p.position] = [])).push(p);
-    for (const pos of Object.keys(byPos)) {
-      const d = posDepth[pos];
-      if (!d) continue;
-      const gaveStartable = byPos[pos].filter((p) => p.value != null && p.value >= d.threshold).length;
-      if (!gaveStartable) continue;
-      const recvStartable = receive.filter((p) => p.position === pos && p.value != null && p.value >= d.threshold).length;
-      if (d.startable - gaveStartable + recvStartable < d.slots) holes.push(pos);
-    }
-  }
-  if (holes.length) return { rating: 'caution', reason: you ? `Leaves you with no startable ${j(holes)} — replace the spot first` : `Strips their ${j(holes)} starter` };
-  if (thins.length && !fills.length) return { rating: 'caution', reason: you ? `Ships a ${j(thins)} you're thin at` : `Costs them a ${j(thins)} they need` };
-  if (score >= 2) {
-    if (you) return { rating: 'good', reason: fills.length ? `Fills your ${j(fills)} need${depth.length ? ` from ${j(depth)} depth` : ''}` : `From your ${j(depth)} depth` };
-    return { rating: 'good', reason: fills.length ? `Fills their ${j(fills)} need — likely to bite` : `From their ${j(depth)} depth` };
-  }
-  if (score <= -1) return { rating: 'caution', reason: you ? (thins.length ? `Thins your ${j(thins)}` : 'Onto your strength') : (thins.length ? `Thins their ${j(thins)}` : 'Onto their strength') };
-  return { rating: 'neutral', reason: you ? 'Roster-neutral' : 'Neutral for them' };
+  let reason;
+  if (branch === 'hole') reason = you ? `Leaves you with no startable ${j(holes)} — replace the spot first` : `Strips their ${j(holes)} starter`;
+  else if (branch === 'thin') reason = you ? `Ships a ${j(thins)} you're thin at` : `Costs them a ${j(thins)} they need`;
+  else if (branch === 'fit') reason = you ? (fills.length ? `Fills your ${j(fills)} need${fromDepth.length ? ` from ${j(fromDepth)} depth` : ''}` : `From your ${j(fromDepth)} depth`) : (fills.length ? `Fills their ${j(fills)} need — likely to bite` : `From their ${j(fromDepth)} depth`);
+  else if (branch === 'weak') reason = you ? (thins.length ? `Thins your ${j(thins)}` : 'Onto your strength') : (thins.length ? `Thins their ${j(thins)}` : 'Onto their strength');
+  else reason = you ? 'Roster-neutral' : 'Neutral for them';
+  return { rating, reason };
 }
 
 const VERDICT = {
@@ -77,29 +60,8 @@ const VERDICT = {
 // Reconciled bottom-line tone → color (value verdict × roster construction).
 const TONE = { good: colors.good, warn: colors.warn, bad: colors.bad, neutral: colors.textDim };
 
-// Local value analysis for the live proposal preview (mirrors the backend).
-function analyze(receive, send) {
-  const sum = (a) => Math.round(a.reduce((s, x) => s + (x.value || 0), 0) * 10) / 10;
-  const acquireValue = sum(receive);
-  const sendValue = sum(send);
-  const net = Math.round((acquireValue - sendValue) * 10) / 10;
-  const scale = Math.max(acquireValue, sendValue, 1);
-  const ratio = net / scale;
-  let verdict = 'fair';
-  if (net > 5 && ratio > 0.12) verdict = 'favorable';
-  else if (net < -5 && ratio < -0.12) verdict = 'unfavorable';
-  return { acquireValue, sendValue, net, verdict };
-}
-
-// Personal-value lens: the same analysis over Target/Avoid-adjusted values. Returns null
-// when nothing in the deal is tagged (so the UI only shows the "for you" line when it
-// actually differs from the market read).
-const TAG_MOD = { target: 1.1, avoid: 0.9 };
-function personalAnalyze(receive, send) {
-  if (![...receive, ...send].some((x) => x.tag)) return null;
-  const scale = (arr) => arr.map((x) => ({ ...x, value: (x.value || 0) * (TAG_MOD[x.tag] || 1) }));
-  return analyze(scale(receive), scale(send));
-}
+// Value analysis (market + personal Target/Avoid lens) comes from the shared trade-math module,
+// so the live preview here matches the backend's authoritative verdict on the same deal.
 
 // Compact dynasty outlook for a team header ("Win-now window" -> "Win-now"; the rest are
 // already short).
@@ -173,8 +135,8 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
   const sendOptions = useMemo(() => sortAssets([...((data && data.myPlayers) || []), ...((data && data.myPicks) || [])], sortKey), [data, sortKey]);
   const sendList = Object.values(send);
   const receiveList = Object.values(receive);
-  const preview = useMemo(() => analyze(receiveList, sendList), [receiveList, sendList]);
-  const personalPreview = useMemo(() => personalAnalyze(receiveList, sendList), [receiveList, sendList]);
+  const preview = useMemo(() => tradeMath.analyze(receiveList, sendList), [receiveList, sendList]);
+  const personalPreview = useMemo(() => tradeMath.personalAnalyze(receiveList, sendList), [receiveList, sendList]);
   // Live construction for BOTH sides of the offer being built.
   const buildFit = useMemo(() => {
     if (!partner || !sendList.length || !receiveList.length) return null;

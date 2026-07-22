@@ -11,6 +11,7 @@
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "lint": "eslint src scripts test",
+    "sync:trade-math": "node scripts/sync-trade-math.js",
     "smoke": "node scripts/smoke.js",
     "smoke:live": "node scripts/smoke-live.js",
     "smoke:all": "node scripts/smoke.js && node scripts/smoke-live.js"

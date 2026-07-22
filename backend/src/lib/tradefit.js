@@ -1,5 +1,7 @@
 'use strict';
 
+const tradeMath = require('./tradeMath');
+
 // Trade fit: positional NEEDS and SURPLUS for each franchise, league-relative, plus a
 // fit-aware give-package suggestion. "Needs" are the positions where a team's starters
 // are thin or below the league; "surplus" are positions where they hold startable-quality
@@ -130,59 +132,22 @@ function suggestGive(mine, targetValue, partnerNeeds, myBait) {
 // outgoing offer — a "good" for them means they're likely to accept).
 // Returns { rating: 'good'|'neutral'|'caution', reason, fills:[pos], thins:[pos] }.
 function constructionVerdict(give, receive, needs, surplus, subject, depth) {
-  const you = subject !== 'they';
-  const needSet = new Set((needs || []).map((n) => n.pos));
-  const surSet = new Set((surplus || []).map((s) => s.pos));
-  const giveFromNeed = (give || []).filter((p) => needSet.has(p.position));
-  const giveFromSurplus = (give || []).filter((p) => surSet.has(p.position));
-  const recvFillsNeed = (receive || []).filter((p) => needSet.has(p.position));
-  const recvOntoSurplus = (receive || []).filter((p) => surSet.has(p.position));
-
-  // Holes: a deal that drops a starting position below the number of startable-quality
-  // players you must field — even when it wasn't a pre-existing "need". This is what
-  // catches "trading your only good RB": RB isn't flagged a need (your one starter is
-  // fine), but sending him leaves zero startable RBs. Backfilled if you receive a
-  // startable player at the same spot.
-  const holes = [];
-  if (depth) {
-    const givenByPos = {};
-    for (const p of give || []) if (p && p.position) (givenByPos[p.position] || (givenByPos[p.position] = [])).push(p);
-    for (const [pos, gaveList] of Object.entries(givenByPos)) {
-      const d = depth[pos];
-      if (!d) continue;
-      const gaveStartable = gaveList.filter((p) => p.value != null && p.value >= d.threshold).length;
-      if (!gaveStartable) continue;
-      const recvStartable = (receive || []).filter((p) => p.position === pos && p.value != null && p.value >= d.threshold).length;
-      if (d.startable - gaveStartable + recvStartable < d.slots) holes.push(pos);
-    }
-  }
-
-  let score = 0;
-  score += recvFillsNeed.length * 2;     // getting what they're thin at — strong plus
-  score += giveFromSurplus.length;       // dealing from depth — plus
-  score -= giveFromNeed.length * 2;      // dealing away a need — strong minus
-  score -= recvOntoSurplus.length * 0.5; // piling onto a strength — minor minus
-
-  const fills = [...new Set(recvFillsNeed.map((p) => p.position))];
-  const thins = [...new Set(giveFromNeed.map((p) => p.position))];
-  const fromDepth = [...new Set(giveFromSurplus.map((p) => p.position))];
+  // Rating + structured result come from the shared module (single source, so the mobile
+  // preview can't disagree); the verbose wording below is the backend's own.
+  const r = tradeMath.constructionRating(give, receive, needs, surplus, subject, depth);
+  const { rating, branch, you, fills, thins, fromDepth, holes } = r;
   const j = (a) => a.join('/');
 
-  let rating;
   let reason;
-  if (holes.length) {
-    // Most severe: takes precedence over the softer need/score reads.
-    rating = 'caution';
+  if (branch === 'hole') {
     reason = you
       ? `Leaves you with no startable ${j(holes)} — don't do it unless you're replacing the spot.`
       : `Strips their ${j(holes)} starter — a tough sell.`;
-  } else if (thins.length && !fills.length) {
-    rating = 'caution';
+  } else if (branch === 'thin') {
     reason = you
       ? `Sends a ${j(thins)} you're already thin at — don't do it unless the value is a steal.`
       : `Costs them a ${j(thins)} they're thin at — a tough sell.`;
-  } else if (score >= 2) {
-    rating = 'good';
+  } else if (branch === 'fit') {
     if (you) {
       if (fills.length && fromDepth.length) reason = `Fills your ${j(fills)} need from ${j(fromDepth)} depth — a real roster fit.`;
       else if (fills.length) reason = `Fills your ${j(fills)} need.`;
@@ -190,13 +155,11 @@ function constructionVerdict(give, receive, needs, surplus, subject, depth) {
     } else {
       reason = fills.length ? `Fills their ${j(fills)} need — likely to bite.` : `Comes from their ${j(fromDepth)} depth.`;
     }
-  } else if (score <= -1) {
-    rating = 'caution';
+  } else if (branch === 'weak') {
     reason = you
       ? (thins.length ? `Thins your ${j(thins)} without filling a need.` : `Piles onto a spot you're already deep at.`)
       : (thins.length ? `Thins their ${j(thins)}.` : `Adds to a spot they're already deep at.`);
   } else {
-    rating = 'neutral';
     reason = you ? 'Roster-neutral — it comes down to value.' : 'Roster-neutral for them.';
   }
   return { rating, reason, fills, thins, holes };

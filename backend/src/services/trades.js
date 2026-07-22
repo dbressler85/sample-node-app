@@ -21,6 +21,7 @@ const tradeStore = require('../store/trades');
 const playerTags = require('../store/playerTags');
 const baitStore = require('../store/tradebait');
 const tradefit = require('../lib/tradefit');
+const tradeMath = require('../lib/tradeMath');
 const season = require('../lib/season');
 
 // Trade bait for every franchise in a league: my own from our store (or the demo seed),
@@ -98,20 +99,12 @@ function asset(tok, byId, enr) {
   return { kind: 'player', id: p.id, name: p.name, position: p.position, team: p.team, value: enr.value(p.id) };
 }
 
-// Value analysis for one side vs the other (from my perspective).
+// Value analysis for one side vs the other (from my perspective). The math is the shared
+// tradeMath.analyze (single source with the mobile preview); `estimated: true` is added here —
+// the values are model estimates (enrichment dynasty values + a pick model) and the thresholds
+// are heuristic, so the UI marks it.
 function analyze(acquire, send) {
-  const sum = (arr) => Math.round(arr.reduce((s, a) => s + (a.value || 0), 0) * 10) / 10;
-  const acquireValue = sum(acquire);
-  const sendValue = sum(send);
-  const net = Math.round((acquireValue - sendValue) * 10) / 10;
-  const scale = Math.max(acquireValue, sendValue, 1);
-  const ratio = net / scale;
-  let verdict = 'fair';
-  if (net > 5 && ratio > 0.12) verdict = 'favorable';
-  else if (net < -5 && ratio < -0.12) verdict = 'unfavorable';
-  // estimated: the values are model estimates (enrichment dynasty values + a
-  // pick model), and the verdict thresholds are heuristic — the UI marks it so.
-  return { acquireValue, sendValue, net, verdict, estimated: true };
+  return { ...tradeMath.analyze(acquire, send), estimated: true };
 }
 
 // Shape one raw offer ({acquire:[tok], send:[tok], ...}) into a full view.
@@ -183,9 +176,9 @@ function annotateConstruction(offers, ns, franchiseId) {
 // the honest, partner-visible read); this is "for YOU" — the same math over tag-adjusted
 // values (Target ×1.10, Avoid ×0.90). Only computed when a tagged player is involved.
 function personalAnalyze(acquire, send) {
-  if (![...acquire, ...send].some((a) => a.tag)) return null; // nothing tagged → no personal lens
-  const scale = (arr) => arr.map((a) => ({ ...a, value: (a.value || 0) * playerTags.modifier(a.tag) }));
-  return analyze(scale(acquire), scale(send));
+  // Shared tag-adjusted analysis (TAG_MOD matches playerTags.modifier); keep the `estimated` mark.
+  const pa = tradeMath.personalAnalyze(acquire, send);
+  return pa ? { ...pa, estimated: true } : null;
 }
 
 // Short, human notes about the tagged players in a deal (from your perspective).
