@@ -36,7 +36,10 @@ async function gather(cookie, token) {
   const data = await Promise.all(
     leagues.map(async (league) => {
       const [roster, faIds, draftOpen] = await Promise.all([
-        rosterService.getRoster(cookie, league.leagueId).catch(() => null),
+        // relationIn only needs bucket membership by id (via standing), not the enriched
+        // all-franchise build — so the LIGHT my-roster read suffices, and it shares the
+        // Players-screen HTTP cache key instead of triggering a separate all-franchise fetch.
+        rosterService.myRosterLight(cookie, league.leagueId).catch(() => null),
         waiversService.freeAgentIds(cookie, league).catch(() => []),
         draftService.freeAgencyOpen(cookie, token, league),
       ]);
