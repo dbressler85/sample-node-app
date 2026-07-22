@@ -123,19 +123,50 @@ function myBuckets(franchises, league) {
 // enrichment, no all-franchise valuation, no strength, no availability. For cross-league
 // "where do I own this player" sets (Players screen, watchlist) that only need ids, this
 // is far cheaper than the full getRoster build. Live reads only my franchise (FRANCHISE=me).
+// My franchise's raw roster buckets ({starters,bench,ir,taxi} of player-id strings), from the
+// LIGHT single-franchise read (live) or the fixture (demo) — no all-franchise fetch. Shared by
+// myRosterLight (ids only) and myRosterEnriched (ids + enrichment).
+async function myBucketIds(cookie, league) {
+  if (config.demoMode) return demo.roster(league.leagueId) || { starters: [], bench: [], ir: [], taxi: [] };
+  const franchises = await mflRepo.rosters(league, cookie, { FRANCHISE: league.franchiseId });
+  const mine = franchises.find((f) => String(f.id) === league.franchiseId) || franchises[0];
+  return mine ? bucketPlayers(mine.player) : { starters: [], bench: [], ir: [], taxi: [] };
+}
+
 async function myRosterLight(cookie, leagueId) {
   const league = await findLeague(cookie, leagueId);
   if (!league) return null;
-  let buckets;
-  if (config.demoMode) {
-    buckets = demo.roster(leagueId) || { starters: [], bench: [], ir: [], taxi: [] };
-  } else {
-    const franchises = await mflRepo.rosters(league, cookie, { FRANCHISE: league.franchiseId });
-    const mine = franchises.find((f) => String(f.id) === league.franchiseId) || franchises[0];
-    buckets = mine ? bucketPlayers(mine.player) : { starters: [], bench: [], ir: [], taxi: [] };
-  }
+  const buckets = await myBucketIds(cookie, league);
   const wrap = (ids) => (ids || []).map((id) => ({ id: String(id) }));
   return { leagueId: String(leagueId), starters: wrap(buckets.starters), bench: wrap(buckets.bench), ir: wrap(buckets.ir), taxi: wrap(buckets.taxi) };
+}
+
+// My roster with each player ENRICHED (name/position/team/age/value/availability), but WITHOUT
+// the all-franchise fetch, strength ranking, picks, or summary that getRoster carries. For a
+// cross-league fan-out that needs my valued players by bucket (exposure) but not the rival
+// context. Reuses the exact enrich() + snapshot so the player objects match getRoster's.
+async function myRosterEnriched(cookie, leagueId) {
+  const league = await findLeague(cookie, leagueId);
+  if (!league) return null;
+  const week = config.demoMode ? demo.week() : await nflLib.currentWeek(cookie);
+  const [byId, statusMap, byeMap, enr, src] = await Promise.all([
+    players.load(cookie),
+    config.demoMode ? Promise.resolve(demo.playerStatus()) : nflLib.injuryMap(cookie, week),
+    config.demoMode ? Promise.resolve(demo.byes()) : nflLib.byeMap(cookie, week),
+    leagueFormat.format(cookie, league).then((fmt) => enrichmentLib.snapshot(fmt, cookie)),
+    myBucketIds(cookie, league),
+  ]);
+  const ctx = { week, statusMap, byeMap, enr };
+  const map = (ids) => (ids || []).map((id) => enrich(players.resolve(byId, id), ctx));
+  return {
+    leagueId: league.leagueId,
+    name: league.name,
+    franchiseId: league.franchiseId,
+    starters: map(src.starters),
+    bench: map(src.bench),
+    ir: map(src.ir),
+    taxi: map(src.taxi),
+  };
 }
 
 async function getRoster(cookie, leagueId) {
@@ -248,4 +279,4 @@ async function leagueFranchises(cookie, leagueId) {
   });
 }
 
-module.exports = { getRoster, invalidate, computeOutlook, leagueFranchises, myRosterLight };
+module.exports = { getRoster, invalidate, computeOutlook, leagueFranchises, myRosterLight, myRosterEnriched };

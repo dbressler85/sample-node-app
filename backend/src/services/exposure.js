@@ -18,9 +18,11 @@ async function gather(cookie, token) {
   const rosters = (
     await Promise.all(
       leagues.map((l) =>
+        // Exposure only needs MY valued players by bucket, not the all-franchise strength build —
+        // the light enriched read skips the rival fetch + strength/picks/summary.
         rosterService
-          .getRoster(cookie, l.leagueId)
-          .then((roster) => ({ league: l, roster }))
+          .myRosterEnriched(cookie, l.leagueId)
+          .then((roster) => (roster ? { league: l, roster } : null))
           .catch(() => null)
       )
     )
