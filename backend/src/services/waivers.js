@@ -448,6 +448,39 @@ async function previewMulti(cookie, token, leagueId, claims) {
   };
 }
 
+// Submit ONE claim to MFL with the correct import per the league's pickup system.
+// (See docs/MFL_API_AUDIT.md §2 — the Import reference.)
+//   faab  -> blindBidWaiverRequest, PICKS="add_bid_drop" ($ bid; 0000 = no drop). ROUND is
+//            only required for *conditional* blind bidding, so it's omitted for standard
+//            bidding (MFL files it in the current round). One pick per call appends to the
+//            round (REPLACE unset), so a queue builds up in submission/priority order.
+//   free  -> fcfsWaiver, ADD + optional DROP, executed immediately (open free agency).
+//   fcfs  -> waiverRequest needs a ROUND we can't source reliably yet; rather than misfile a
+//            claim into the wrong round, surface an honest 501 (FAAB + free work in-app).
+// No-op in demo (callers already guard, but this is double-safe).
+async function submitClaimToMfl({ cookie, league, system, addId, dropId, bid }) {
+  if (config.demoMode) return;
+  const add = String(addId);
+  const drop = dropId ? String(dropId) : null;
+  const base = { host: league.host, cookie, L: league.leagueId };
+  if (system === 'faab') {
+    await mfl.importRequest('blindBidWaiverRequest', {
+      ...base,
+      PICKS: `${add}_${Math.round(Number(bid) || 0)}_${drop || '0000'}`,
+    });
+    return;
+  }
+  if (system === 'free') {
+    await mfl.importRequest('fcfsWaiver', { ...base, ADD: add, DROP: drop || undefined });
+    return;
+  }
+  const err = new Error(
+    'This league uses first-come waiver priority, which the app can’t submit yet — place this claim in MyFantasyLeague. FAAB and free-agent pickups work here.'
+  );
+  err.status = 501;
+  throw err;
+}
+
 // Submit a whole queue (validated together). Claims fire in order so FAAB priority is
 // preserved; each result is reported so a partial failure is visible.
 async function submitMulti(cookie, token, leagueId, claims) {
@@ -464,16 +497,7 @@ async function submitMulti(cookie, token, leagueId, claims) {
   for (const c of pv.claims) {
     try {
       if (!config.demoMode) {
-        const type = pv.system === 'faab' ? 'blindBidWaiver' : pv.system === 'fcfs' ? 'fcfsWaiver' : 'waiverRequest';
-        await mfl.importRequest(type, {
-          host: league.host,
-          cookie,
-          L: league.leagueId,
-          FRANCHISE: league.franchiseId,
-          ADD: c.add.id,
-          DROP: c.drop ? c.drop.id : undefined,
-          BID: c.bid != null ? c.bid : undefined,
-        });
+        await submitClaimToMfl({ cookie, league, system: pv.system, addId: c.add.id, dropId: c.drop ? c.drop.id : null, bid: c.bid });
       }
       const claim = store.add(token, leagueId, config.demoMode ? demo.pendingClaims(leagueId) : [], {
         system: pv.system,
@@ -508,16 +532,7 @@ async function submit(cookie, token, leagueId, payload) {
   const league = await findLeague(cookie, leagueId);
 
   if (!config.demoMode) {
-    const type = p.system === 'faab' ? 'blindBidWaiver' : p.system === 'fcfs' ? 'fcfsWaiver' : 'waiverRequest';
-    await mfl.importRequest(type, {
-      host: league.host,
-      cookie,
-      L: league.leagueId,
-      FRANCHISE: league.franchiseId,
-      ADD: p.add.id,
-      DROP: p.drop ? p.drop.id : undefined,
-      BID: p.bid != null ? p.bid : undefined,
-    });
+    await submitClaimToMfl({ cookie, league, system: p.system, addId: p.add.id, dropId: p.drop ? p.drop.id : null, bid: p.bid });
   }
 
   const claim = store.add(token, leagueId, config.demoMode ? demo.pendingClaims(leagueId) : [], {

@@ -516,7 +516,10 @@ async function submitDrop(cookie, token, playerId, leagueIds) {
       if (!rostered) return { leagueId, ok: false, error: 'Not on your roster in this league.' };
       try {
         if (!config.demoMode) {
-          await mfl.importRequest('drop', { host: d.league.host, cookie, L: leagueId, FRANCHISE: d.league.franchiseId, DROP: playerId });
+          // MFL has no standalone `drop` import — a plain drop to free agency is an immediate
+          // fcfsWaiver with only DROP ("you may also use this call to drop players"). No ADD.
+          // (See docs/MFL_API_AUDIT.md §2.) The cookie scopes it to this owner's franchise.
+          await mfl.importRequest('fcfsWaiver', { host: d.league.host, cookie, L: leagueId, DROP: playerId });
           // Roster shrank and the player is now a free agent — refresh both reads.
           waiversService.invalidate(cookie, leagueId);
         }
