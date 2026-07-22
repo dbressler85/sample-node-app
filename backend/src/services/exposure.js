@@ -111,12 +111,30 @@ async function getNews(cookie, token) {
     };
   });
 
+  const rank = { high: 3, medium: 2, low: 1 };
+
+  // Collapse duplicates: one story can tag several of your players (a trade, a two-name injury
+  // note), which the news lib emits as one item PER player — the same headline repeated down
+  // the tab. Keep one row per story (by headline), unioning the teams it touches and taking the
+  // worst severity, so a story that hits two of your players reads as one row affecting both.
+  const byStory = new Map();
+  for (const n of news) {
+    const key = (n.headline || '').trim().toLowerCase() || n.id;
+    const prev = byStory.get(key);
+    if (!prev) { byStory.set(key, { ...n, affectedLeagues: [...(n.affectedLeagues || [])] }); continue; }
+    const seen = new Set(prev.affectedLeagues.map((l) => l.leagueId));
+    for (const l of n.affectedLeagues || []) if (!seen.has(l.leagueId)) { prev.affectedLeagues.push(l); seen.add(l.leagueId); }
+    prev.affectedCount = prev.affectedLeagues.length;
+    prev.startingCount = prev.affectedLeagues.filter((l) => l.starting).length;
+    if ((rank[n.severity] || 0) > (rank[prev.severity] || 0)) prev.severity = n.severity;
+  }
+  news = [...byStory.values()];
+
   // Live: the ESPN feed is league-wide, so keep only news that touches a player
   // you actually roster — that's the "which of my teams does this hit" moat.
   if (!config.demoMode) news = news.filter((n) => n.affectedCount > 0);
 
   // Most impactful first: high severity, then most teams affected where you start him.
-  const rank = { high: 3, medium: 2, low: 1 };
   news.sort((a, b) => (rank[b.severity] || 0) - (rank[a.severity] || 0) || b.startingCount - a.startingCount);
   return { news };
 }

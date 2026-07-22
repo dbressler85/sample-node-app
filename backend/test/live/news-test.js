@@ -31,6 +31,16 @@ const ESPN = {
       links: { web: { href: 'https://www.espn.com/nfl/story/a2' } },
       categories: [{ type: 'athlete', athlete: { displayName: 'Travis Kelce' } }],
     },
+    {
+      // A second article with the SAME headline as a1 (a syndicated re-post about Mahomes) —
+      // must collapse into one row, not appear twice on the news tab.
+      id: 'a3',
+      headline: 'Patrick Mahomes ruled OUT with ankle injury',
+      description: 'The Chiefs QB will not play Sunday.',
+      published: '2026-07-18T12:30:00Z',
+      links: { web: { href: 'https://www.espn.com/nfl/story/a3' } },
+      categories: [{ type: 'athlete', athlete: { displayName: 'Patrick Mahomes' } }],
+    },
   ],
 };
 
@@ -63,7 +73,9 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
 
   const { news } = await exposure.getNews(CK);
   console.log('news:', JSON.stringify(news.map((n) => ({ p: n.player.id, sev: n.severity, aff: n.affectedCount, url: !!n.url }))));
-  assert(news.length === 1, `only the rostered player's news survives, got ${news.length}`);
+  // Only the rostered player's news survives — AND the two same-headline Mahomes articles
+  // collapse to a single row (no duplicate headlines on the tab).
+  assert(news.length === 1, `rostered + deduped by headline → 1 row, got ${news.length}`);
   const item = news[0];
   assert(item.player.id === '1', 'ESPN article name-matched to the MFL player');
   assert(item.affectedCount === 1 && item.startingCount === 1, 'mapped to the league I roster him in (starting)');

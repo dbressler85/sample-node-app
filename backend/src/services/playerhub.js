@@ -339,8 +339,12 @@ async function profile(cookie, token, playerId) {
     // C) News about this player (demo fixture, or ESPN mapped to MFL players in live).
     (async () => {
       const raw = config.demoMode ? demo.news() : await newsLib.mflNews(cookie);
+      const seen = new Set();
       return raw
         .filter((n) => String(n.playerId) === String(playerId))
+        // Drop duplicate headlines (a syndicated re-post of the same story), so the profile's
+        // News card shows each story once — same fix as the news tab.
+        .filter((n) => { const k = (n.headline || '').trim().toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; })
         .map((n) => ({ id: n.id, headline: n.headline, severity: n.severity, url: n.url || null }));
     })(),
     // D) Cross-league ownership + per-league projection.
