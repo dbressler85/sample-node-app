@@ -520,6 +520,28 @@ const TRENDS = { '16002': 5400, '16001': 3900, '16005': 2800, '16004': 2100, '16
 // the Rookies filter shows exactly the current class rather than "anyone young".
 const DRAFT_YEARS = { '19001': 2026, '19002': 2026, '19003': 2026, '19004': 2026, '19005': 2026, '19006': 2026, '16001': 2025, '16002': 2025, '16003': 2025, '16004': 2025, '16005': 2025 };
 
+// Real NFL draft slots + a Sleeper headshot id for the demo veterans, so the profile can show
+// "Drafted 2020 · Round 1, Pick 22" and a photo (a real live account gets these from MFL's
+// DETAILS export + the Sleeper crosswalk). year here also feeds draftYear for these vets.
+const DRAFT = {
+  '13593': { year: 2020, round: 1, pick: 22, sleeperId: '6794' },  // Jefferson
+  '14802': { year: 2021, round: 1, pick: 5, sleeperId: '7564' },   // Chase
+  '15267': { year: 2023, round: 1, pick: 8, sleeperId: '9509' },   // Bijan
+  '15859': { year: 2024, round: 1, pick: 4, sleeperId: '11631' },  // Marvin Harrison
+  '13116': { year: 2018, round: 1, pick: 32, sleeperId: '4881' },  // Lamar
+  '14086': { year: 2022, round: 2, pick: 36, sleeperId: '8138' },  // Breece Hall
+  '15264': { year: 2024, round: 1, pick: 6, sleeperId: '11566' },  // Nabers
+  '12171': { year: 2013, round: 3, pick: 63, sleeperId: '1466' },  // Kelce
+  '14990': { year: 2023, round: 1, pick: 2, sleeperId: '9758' },   // Stroud
+  '15870': { year: 2024, round: 1, pick: 12, sleeperId: '11563' }, // Bo Nix
+  '14106': { year: 2022, round: 1, pick: 11, sleeperId: '8110' },  // Olave
+  '13649': { year: 2023, round: 1, pick: 12, sleeperId: '9756' },  // Gibbs
+  '14835': { year: 2024, round: 1, pick: 13, sleeperId: '11604' }, // Bowers
+  '11686': { year: 2017, round: 2, pick: 41, sleeperId: '4029' },  // Dalvin Cook
+  '15266': { year: 2024, round: 1, pick: 9, sleeperId: '11565' },  // Odunze
+  '13138': { year: 2022, round: 1, pick: 8, sleeperId: '8112' },   // London
+};
+
 // Ownership %: share of leagues site-wide that roster the player. A key waiver
 // signal — how contested a pickup is / how fast he's being scooped up.
 const OWNERSHIP = { '16002': 41, '16001': 33, '16005': 22, '16004': 18, '16003': 12, '18002': 28, '17002': 24, '18004': 9, '17004': 7 };
@@ -601,7 +623,9 @@ module.exports = {
   waiverSettings: (leagueId) => (WAIVER_SETTINGS[leagueId] ? { ...WAIVER_SETTINGS[leagueId] } : null),
   freeAgents: (leagueId) => (FREE_AGENTS[leagueId] || []).slice(),
   trend: (playerId) => TRENDS[playerId] || 0,
-  draftYear: (playerId) => DRAFT_YEARS[playerId] || null,
+  draftYear: (playerId) => (DRAFT[playerId] && DRAFT[playerId].year) || DRAFT_YEARS[playerId] || null,
+  draftInfo: (playerId) => (DRAFT[playerId] ? { year: DRAFT[playerId].year, round: DRAFT[playerId].round, pick: DRAFT[playerId].pick } : null),
+  sleeperId: (playerId) => (DRAFT[playerId] && DRAFT[playerId].sleeperId) || null,
   ownership: (playerId) => (OWNERSHIP[playerId] != null ? OWNERSHIP[playerId] : 0),
   pendingClaims: (leagueId) => (PENDING_CLAIMS[leagueId] || []).map((c) => ({ ...c })),
   waiverResults: (leagueId) => (WAIVER_RESULTS[leagueId] || []).map((r) => ({ ...r })),

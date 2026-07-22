@@ -97,6 +97,7 @@ async function getFantasyCalc(format) {
   const rank = new Map();
   const pos = new Map();
   const sleeperToMfl = new Map();
+  const mflToSleeper = new Map(); // reverse crosswalk — drives the profile headshot (Sleeper CDN)
   try {
     const url = `https://api.fantasycalc.com/values/current?isDynasty=true&numQbs=${format.numQbs}&ppr=${format.ppr}`;
     const rows = await fetchJson(url);
@@ -107,7 +108,7 @@ async function getFantasyCalc(format) {
       const p = r.player || {};
       const mflId = p.mflId != null && p.mflId !== '' ? String(p.mflId) : null;
       const sleeperId = p.sleeperId != null && p.sleeperId !== '' ? String(p.sleeperId) : null;
-      if (sleeperId && mflId) sleeperToMfl.set(sleeperId, mflId);
+      if (sleeperId && mflId) { sleeperToMfl.set(sleeperId, mflId); mflToSleeper.set(mflId, sleeperId); }
       if (!mflId) continue;
       if (maxVal > 0 && r.value != null) value.set(mflId, Math.max(1, Math.round((Number(r.value) / maxVal) * 100)));
       if (r.overallRank != null) rank.set(mflId, Number(r.overallRank));
@@ -122,7 +123,7 @@ async function getFantasyCalc(format) {
     // keep serving the last-good snapshot (even if a bit stale) and retry later.
     if (hit) return hit;
   }
-  const entry = { at: Date.now(), value, age, rank, pos, sleeperToMfl };
+  const entry = { at: Date.now(), value, age, rank, pos, sleeperToMfl, mflToSleeper };
   fcCache.set(key, entry);
   return entry;
 }
@@ -239,6 +240,7 @@ async function buildLive(format, cookie) {
     age: (id) => (fc.age.has(String(id)) ? fc.age.get(String(id)) : null),
     trend: (id) => trend.get(String(id)) || 0,
     ownership: (id) => (owned.has(String(id)) ? owned.get(String(id)) : null), // MFL topOwns site-wide %
+    sleeperId: (id) => fc.mflToSleeper.get(String(id)) || null, // Sleeper player id, for the headshot
     rank: (id) => fc.rank.get(String(id)) || null,
   };
 }
@@ -259,6 +261,7 @@ async function buildDemo(format, cookie) {
     },
     trend: (id) => demo.trend(id),
     ownership: (id) => demo.ownership(id),
+    sleeperId: (id) => demo.sleeperId(id),
     rank: () => null,
   };
 }

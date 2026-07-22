@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, Pressable, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Pressable, ActivityIndicator, Alert, Image } from 'react-native';
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import AvailabilityBadge from '../components/AvailabilityBadge';
@@ -15,6 +15,39 @@ const RELATION = {
   dropped: { label: 'Dropped', color: colors.textDim },
   unavailable: { label: 'Not available', color: colors.textDim },
 };
+
+// A round headshot with the position badge tucked in the corner. Falls back to the plain
+// position badge if there's no photo URL or the image fails to load, so it never blanks.
+function PlayerAvatar({ photoUrl, position, size = 54 }) {
+  const [failed, setFailed] = useState(false);
+  const posColor = positionColors[position] || colors.textDim;
+  if (photoUrl && !failed) {
+    return (
+      <View style={[styles.avatar, { width: size, height: size, borderRadius: size / 2, borderColor: posColor }]}>
+        <Image
+          source={{ uri: photoUrl }}
+          style={{ width: size - 4, height: size - 4, borderRadius: (size - 4) / 2 }}
+          onError={() => setFailed(true)}
+        />
+        <View style={[styles.avatarPos, { backgroundColor: posColor }]}>
+          <Text style={styles.avatarPosText}>{position}</Text>
+        </View>
+      </View>
+    );
+  }
+  return (
+    <View style={[styles.posBadge, { backgroundColor: posColor + '22', borderColor: posColor }]}>
+      <Text style={[styles.pos, { color: posColor }]}>{position}</Text>
+    </View>
+  );
+}
+
+// "Drafted 2020 · Rd 1, Pk 22" (round/pick optional); null when the year is unknown (undrafted).
+function draftLabel(p) {
+  if (!p || !p.draftYear) return null;
+  if (!p.draftRound) return `Drafted ${p.draftYear}`;
+  return `Drafted ${p.draftYear} · Rd ${p.draftRound}${p.draftPick ? `, Pk ${p.draftPick}` : ''}`;
+}
 
 function diffColor(d) {
   if (d == null) return colors.textDim;
@@ -99,9 +132,7 @@ export default function PlayerProfileScreen({ playerId, seed, onBack, onOpenTrad
         {seed ? (
           <View style={styles.body}>
             <View style={styles.idRow}>
-              <View style={[styles.posBadge, { backgroundColor: sposColor + '22', borderColor: sposColor }]}>
-                <Text style={[styles.pos, { color: sposColor }]}>{seed.position}</Text>
-              </View>
+              <PlayerAvatar position={seed.position} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.name} numberOfLines={1}>{seed.name}</Text>
                 {seed.team ? <Text style={styles.sub}>{seed.team}</Text> : null}
@@ -136,9 +167,7 @@ export default function PlayerProfileScreen({ playerId, seed, onBack, onOpenTrad
       <ScrollView contentContainerStyle={styles.body}>
         {/* Identity */}
         <View style={styles.idRow}>
-          <View style={[styles.posBadge, { backgroundColor: posColor + '22', borderColor: posColor }]}>
-            <Text style={[styles.pos, { color: posColor }]}>{p.position}</Text>
-          </View>
+          <PlayerAvatar photoUrl={p.photoUrl} position={p.position} />
           <View style={{ flex: 1 }}>
             <View style={styles.nameRow}>
               <Text style={styles.name} numberOfLines={1}>{p.name}</Text>
@@ -148,6 +177,7 @@ export default function PlayerProfileScreen({ playerId, seed, onBack, onOpenTrad
               {p.team}{p.age != null ? ` · age ${p.age}` : ''}{p.byeWeek ? ` · bye ${p.byeWeek}` : ''}
               {p.posRank ? ` · ${p.position}${p.posRank}` : ''}
             </Text>
+            {draftLabel(p) ? <Text style={styles.draft}>{draftLabel(p)}</Text> : null}
           </View>
           {p.value != null ? (
             <View style={styles.valueBox}>
@@ -253,19 +283,21 @@ export default function PlayerProfileScreen({ playerId, seed, onBack, onOpenTrad
       {/* Action bar */}
       {canAdd || canTrade || canDrop ? (
         <View style={styles.actionBar}>
+          {/* Consistent labels: Add (N) · Trade for (N) · Drop (N) — each count is the number
+              of your leagues that action applies to. */}
           {canAdd ? (
             <Pressable style={[styles.actionBtn, { backgroundColor: colors.accent }]} onPress={() => setSheet('add')}>
-              <Text style={styles.actionText}>Add in {p.actions.addLeagues.length} league{p.actions.addLeagues.length === 1 ? '' : 's'}</Text>
+              <Text style={styles.actionText}>Add ({p.actions.addLeagues.length})</Text>
             </Pressable>
           ) : null}
           {canTrade ? (
             <Pressable style={[styles.actionBtn, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.accent }]} onPress={() => setSheet('trade')}>
-              <Text style={[styles.actionText, { color: colors.accent }]}>Trade for{tradeLeagues > 1 ? ` (${tradeLeagues})` : ''}</Text>
+              <Text style={[styles.actionText, { color: colors.accent }]}>Trade for ({tradeLeagues})</Text>
             </Pressable>
           ) : null}
           {canDrop ? (
             <Pressable style={[styles.actionBtn, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.bad }]} onPress={() => setSheet('drop')}>
-              <Text style={[styles.actionText, { color: colors.bad }]}>Drop</Text>
+              <Text style={[styles.actionText, { color: colors.bad }]}>Drop ({p.actions.dropLeagues.length})</Text>
             </Pressable>
           ) : null}
         </View>
@@ -377,6 +409,10 @@ const styles = StyleSheet.create({
   idRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
   posBadge: { width: 48, paddingVertical: 4, borderRadius: 8, borderWidth: 1, alignItems: 'center', marginRight: 12 },
   pos: { fontSize: 13, fontWeight: '900' },
+  avatar: { alignItems: 'center', justifyContent: 'center', borderWidth: 2, marginRight: 12, backgroundColor: colors.card },
+  avatarPos: { position: 'absolute', bottom: -2, right: -2, borderRadius: 8, paddingHorizontal: 5, paddingVertical: 1, borderWidth: 2, borderColor: colors.bg },
+  avatarPosText: { color: '#fff', fontSize: 9, fontWeight: '900' },
+  draft: { color: colors.textDim, fontSize: 12, marginTop: 3 },
   nameRow: { flexDirection: 'row', alignItems: 'center' },
   name: { color: colors.text, fontSize: 22, fontWeight: '900', flexShrink: 1 },
   sub: { color: colors.textDim, fontSize: 13, marginTop: 3 },

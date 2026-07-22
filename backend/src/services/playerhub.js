@@ -411,6 +411,13 @@ async function profile(cookie, token, playerId) {
     team: base.team,
     age: enr.age(playerId),
     byeWeek: byeMap[base.team] || null,
+    // Headshot from the Sleeper CDN (via the FantasyCalc mfl→sleeper crosswalk); null falls
+    // back to the position badge in the app.
+    photoUrl: enr.sleeperId(playerId) ? `https://sleepercdn.com/content/nfl/players/thumb/${enr.sleeperId(playerId)}.jpg` : null,
+    // NFL draft origin (year · round · pick). Null for undrafted players / unknown.
+    draftYear: base.draftYear || null,
+    draftRound: base.draftRound || null,
+    draftPick: base.draftPick || null,
     value: enr.value(playerId),
     valueRange,
     overallRank: ranks.overall.get(playerId) || null,
