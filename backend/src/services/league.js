@@ -7,6 +7,7 @@
 const config = require('../config');
 const demo = require('../demo/fixtures');
 const mfl = require('../lib/mfl');
+const mflRepo = require('../lib/mflRepo');
 const leaguesService = require('./leagues');
 const playersLib = require('../lib/players');
 const picksLib = require('../lib/picks');
@@ -51,12 +52,11 @@ async function getStandings(cookie, leagueId) {
     rows = demo.standings(leagueId);
     playoffSpots = 6;
   } else {
-    const [res, names, spots] = await Promise.all([
-      mfl.exportRequest('leagueStandings', { host: league.host, cookie, L: league.leagueId }),
+    const [franchises, names, spots] = await Promise.all([
+      mflRepo.standings(league, cookie),
       leaguesService.franchiseNames(cookie, league),
       playoffSpotsFor(cookie, league),
     ]);
-    const franchises = mfl.toArray(res && res.leagueStandings && res.leagueStandings.franchise);
     rows = franchises.map((f) => ({
       id: String(f.id),
       name: names.get(String(f.id)) || `Team ${f.id}`,
@@ -128,8 +128,7 @@ async function getTeams(cookie, leagueId) {
       })),
     ];
   } else {
-    const res = await mfl.exportRequest('rosters', { host: league.host, cookie, L: league.leagueId });
-    franchises = mfl.toArray(res && res.rosters && res.rosters.franchise).map((f) => ({
+    franchises = (await mflRepo.rosters(league, cookie)).map((f) => ({
       franchiseId: String(f.id),
       name: names.get(String(f.id)) || `Team ${f.id}`,
       mine: String(f.id) === league.franchiseId,

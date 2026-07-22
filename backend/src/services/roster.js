@@ -3,6 +3,7 @@
 // Roster for one franchise in one league, with player ids resolved to names.
 
 const mfl = require('../lib/mfl');
+const mflRepo = require('../lib/mflRepo');
 const config = require('../config');
 const demo = require('../demo/fixtures');
 const players = require('../lib/players');
@@ -107,8 +108,7 @@ async function findLeague(cookie, leagueId) {
 // a strength fixture instead).
 async function allFranchiseRosters(league, cookie) {
   if (config.demoMode) return null;
-  const res = await mfl.exportRequest('rosters', { host: league.host, cookie, L: league.leagueId });
-  return mfl.toArray(res && res.rosters && res.rosters.franchise);
+  return mflRepo.rosters(league, cookie);
 }
 
 // My raw roster id-lists (starters/bench/ir/taxi), from the all-franchise response
@@ -130,8 +130,7 @@ async function myRosterLight(cookie, leagueId) {
   if (config.demoMode) {
     buckets = demo.roster(leagueId) || { starters: [], bench: [], ir: [], taxi: [] };
   } else {
-    const res = await mfl.exportRequest('rosters', { host: league.host, cookie, L: league.leagueId, FRANCHISE: league.franchiseId });
-    const franchises = mfl.toArray(res && res.rosters && res.rosters.franchise);
+    const franchises = await mflRepo.rosters(league, cookie, { FRANCHISE: league.franchiseId });
     const mine = franchises.find((f) => String(f.id) === league.franchiseId) || franchises[0];
     buckets = mine ? bucketPlayers(mine.player) : { starters: [], bench: [], ir: [], taxi: [] };
   }

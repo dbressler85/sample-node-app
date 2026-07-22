@@ -5,6 +5,7 @@
 // including that account's franchise id and the league's host url.
 
 const mfl = require('../lib/mfl');
+const mflRepo = require('../lib/mflRepo');
 const config = require('../config');
 const demo = require('../demo/fixtures');
 const leaguePrefs = require('../store/leaguePrefs');
@@ -70,8 +71,7 @@ async function franchiseNames(cookie, league) {
   if (cached) return cached;
 
   try {
-    const res = await mfl.exportRequest('league', { host: league.host, cookie, L: league.leagueId });
-    const fr = mfl.toArray(res && res.league && res.league.franchises && res.league.franchises.franchise);
+    const fr = await mflRepo.leagueFranchises(league, cookie);
     const names = new Map(fr.map((f) => [String(f.id), f.name || `Team ${f.id}`]));
     setEntry(namesCache, key, names);
     return names;

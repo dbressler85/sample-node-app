@@ -6,6 +6,7 @@
 // one broken league never blanks the whole dashboard.
 
 const mfl = require('../lib/mfl');
+const mflRepo = require('../lib/mflRepo');
 const config = require('../config');
 const demo = require('../demo/fixtures');
 const leaguesService = require('./leagues');
@@ -51,8 +52,7 @@ async function liveMatchup(league, cookie) {
 
 async function standing(league, cookie) {
   try {
-    const res = await mfl.exportRequest('leagueStandings', { host: league.host, cookie, L: league.leagueId });
-    const franchises = mfl.toArray(res && res.leagueStandings && res.leagueStandings.franchise);
+    const franchises = await mflRepo.standings(league, cookie);
     const idx = franchises.findIndex((f) => String(f.id) === league.franchiseId);
     const mine = idx >= 0 ? franchises[idx] : null;
     if (!mine) return { record: null, standingRank: null };
