@@ -205,7 +205,9 @@ function annotateTags(offers, token) {
 
 async function livePendingOffers(cookie, league) {
   try {
-    const list = await mflRepo.pendingTrades(league, cookie, { FRANCHISE: league.franchiseId });
+    // MFL documents this param as FRANCHISE_ID (only honored for a commissioner request;
+    // an owner's cookie already scopes the response to their own franchise).
+    const list = await mflRepo.pendingTrades(league, cookie, { FRANCHISE_ID: league.franchiseId });
     if (!list.length) return [];
     const names = await leaguesService.franchiseNames(cookie, league);
     const toks = (v) => String(v || '').split(/[,;|]/).map((s) => s.trim()).filter(Boolean);

@@ -52,7 +52,9 @@ function dynastyOf(roster) {
 async function pendingTrades(cookie, league) {
   if (config.demoMode) return demo.trades(league.leagueId);
   try {
-    const list = await mflRepo.pendingTrades(league, cookie, { FRANCHISE: league.franchiseId });
+    // MFL documents this param as FRANCHISE_ID (honored only for a commissioner request;
+    // an owner's cookie already scopes the response to their own franchise).
+    const list = await mflRepo.pendingTrades(league, cookie, { FRANCHISE_ID: league.franchiseId });
     if (!list.length) return [];
     const [byId, names] = await Promise.all([playersLib.load(cookie), leaguesService.franchiseNames(cookie, league)]);
     const label = (tok) => {

@@ -47,6 +47,57 @@ changes we shipped from them:
 
 ---
 
+## 0b. Findings from the Export Request Reference page (source of truth)
+
+The owner pasted MFL's authenticated **Export** request reference. (The **Import**/write reference is a
+separate tab and still needed — the 🔴 write rows in §2 stay open until we have it.) Parsed findings:
+
+**Shipped this pass (deploy-safe backend):**
+- **`pendingTrades` param is `FRANCHISE_ID`** (we were sending `FRANCHISE`). Corrected at both call
+  sites. Benign for owners (cookie scopes it), but the doc name is now honored; `0000` fetches trades
+  pending commissioner action.
+- **`transactions` now bounded with `COUNT`.** The doc explicitly warns the full set is large and
+  recommends filtering; we only render the newest `limit`, so MFL truncates server-side.
+
+**Confirmed correct (no change):**
+- **Trade-asset token formats** (from `tradeBait`'s `INCLUDE_DRAFT_PICKS` note) — matches our rules
+  exactly: current-year pick `DP_<round-1>_<pick-1>` (both one **less** than the actual round/pick);
+  future pick `FP_<originalOwnerId4>_<year>_<round>` (round is the **actual** round); blind-bid dollars
+  `BB_<amount>`. Franchise `0000` = commissioner. This de-risks the trade-write audit.
+- **`playerScores`** — `W` accepts `YTD`/`AVG`; `RULES` recalcs to a league's scoring (current
+  year+week only); `YEAR`/`PLAYERS`/`POSITION`/`STATUS=freeagent`/`COUNT` all available. Our usage
+  (`W`,`PLAYERS`) is valid.
+- **`projectedScores`** — `PLAYERS`/`POSITION`/`STATUS`/`COUNT`; omitting `W` correctly defaults to the
+  upcoming week. (No `RULES` param here — that's `playerScores` only.)
+
+**Opportunities queued (need a response-shape check or touch trade/value logic — not auto-applied):**
+- **`players?SINCE=<unix ts>`** — incremental player-DB deltas. After the first full daily load, a
+  refresh could pull only changes. Medium effort (merge deltas into the cached map); biggest cold/refresh
+  win left. → new task.
+- **`nflSchedule?W=ALL`** — returns the **full season in one call**. `nfl.js#upcomingOpponents` currently
+  loops one `nflSchedule?W=<n>` per week (sequential per-week fan-out). Collapsing to one `W=ALL` fetch
+  needs the ALL response shape confirmed (per-week nesting) before changing. Also a dedicated
+  **`nflByeWeeks`** endpoint exists (we derive byes by scanning the player pool vs the week's matchups).
+- **`assets`** — "all tradable assets (players, current + future picks)" in one read; could simplify trade
+  construction (today we compose from `rosters` + `futureDraftPicks`). Touches trade logic → careful.
+- **`playerRosterStatus?P=`** — authoritative per-player status (`R/S/NS/IR/TS`, `is_fa`, `cant_add`,
+  `locked`) for add/drop eligibility, instead of inferring availability. Relevant to the player-centric
+  add/drop path.
+- **`pendingWaivers`** — dedicated pending-waiver read (vs inferring from `transactions`).
+- **`leagueStandings?COLUMN_NAMES=1`** — returns the column key→name mapping (and canonical order), so we
+  wouldn't guess `h2hw`/`pf`/`pa` field names.
+- **`adp`** dynasty tuning — `IS_KEEPER` (`K`/`R`/`N` combos), `FCOUNT`, `IS_PPR`, `CUTOFF`. Our value
+  model sends only `PERIOD=RECENT`; dynasty relevance might warrant `IS_KEEPER`. **Value-model change —
+  owner's call.**
+- **`playerProfile`** (DOB, ADP rank, height/weight) and **`playerRanks?POS=&SOURCE=`** — could enrich the
+  player hub.
+
+**Noted, no action:** MFL has a native **`myWatchList`** — we built our own richer cross-league watchlist,
+so we keep ours. Endpoints we don't use but exist if ever needed: `weeklyResults`, `auctionResults`,
+`salaries`/`salaryAdjustments`, `accounting`, `playoffBrackets`, `whoShouldIStart`, `pointsAllowed`.
+
+---
+
 ## 1. READ endpoints (export?TYPE=…)
 
 ### Per-league reads (send `L`, `host`, cookie; extras noted)
@@ -57,14 +108,14 @@ changes we shipped from them:
 | `rules` | — | scoring rules | PPR / TE-premium detection | ❓ Is `rules` the right export for scoring, and are we reading the rule structure correctly (vs `league` settings)? |
 | `rosters` | `FRANCHISE` (optional) | `rosters.franchise[].player[]` | player id + `status`/`roster_status` (starter/IR/taxi buckets) | ✅ — but confirm the status codes we bucket on (`INJURED_RESERVE`, `TAXI_SQUAD`, `starter`) are the exact documented values. |
 | `leagueStandings` | — | `leagueStandings.franchise[]` | h2hw/l/t, pf, pa | ✅ confirm field names (`h2hw`,`pf`,`pa`) are current. |
-| `liveScoring` | — | `liveScoring.franchise[]`; `liveScoring.week`; franchise `players.player[]` | score, playersYetToPlay, projectedScore, gameSecondsRemaining, opp_id | ⚠️ Confirm `opp_id`, `playersYetToPlay`, `projectedScore`, `gameSecondsRemaining` field names + that per-player statuses live under `franchise.players.player[]`. |
-| `freeAgents` | — | `freeAgents.leagueUnit.player[]` | player ids (cap 300) | ⚠️ Any filter params (position, count) to shrink this payload? We fetch all and slice client-side. |
+| `liveScoring` | — (`DETAILS=1` available) | `liveScoring.franchise[]`; `liveScoring.week`; franchise `players.player[]` | score, playersYetToPlay, projectedScore, gameSecondsRemaining, opp_id | ⚠️ Doc confirms the endpoint returns each franchise's score, game-seconds-remaining, players-yet-to-play, and currently-playing players; **`DETAILS=1`** additionally returns non-starters. Exact child attribute spellings still to confirm from the response sample. |
+| `freeAgents` | — | `freeAgents.leagueUnit.player[]` | player ids (cap 300) | ✅ Only filter MFL offers is `POSITION` (no COUNT). We fetch all and slice client-side, which is fine since best-available spans positions; add `POSITION` only if a caller ever wants one slot. |
 | `projectedScores` | `W` (optional) | `projectedScores.playerScore[]` | id, score | ❓ Does this need `W`/`COUNT`/`RULES` params to be accurate? We sometimes omit `W`. |
 | `playerScores` | `W`, `PLAYERS` | `playerScores.playerScore[]` | id, score | ❓ Correct params for a single player's week/YTD/avg score? |
 | `schedule` | `W` (optional) | `schedule.weeklySchedule[].matchup[].franchise[]` | opponent lookup | ⚠️ Is `weeklySchedule[].matchup[].franchise[]` the right nesting for the current season? |
 | `calendar` | — | `calendar.event[]` | waiver lock/unlock windows (text-scanned) | ❓ Is there a structured field for waiver open/close instead of scanning event text? |
-| `pendingTrades` | `FRANCHISE` | `pendingTrades.pendingTrade[]` | trade_id, offeredto, will_give_up/will_receive, expiration, comments | ⚠️ Confirm the exact attribute names (we match several spellings: `offeredto`, `will_give_up`, `will_receive`). |
-| `transactions` | — | `transactions.transaction[]` | type, timestamp, franchise, transaction payload | ⚠️ Confirm the `transaction` payload format per type (TRADE vs ADD/DROP) — we parse `|`-delimited fields. |
+| `pendingTrades` | `FRANCHISE_ID` *(was `FRANCHISE` — fixed)* | `pendingTrades.pendingTrade[]` | trade_id, offeredto, will_give_up/will_receive, expiration, comments | ✅ Param corrected to `FRANCHISE_ID` (doc name; only honored for a commissioner — an owner's cookie already scopes it). `0000` = trades pending commissioner action. Attribute names still matched defensively. |
+| `transactions` | `COUNT` *(newly added)* | `transactions.transaction[]` | type, timestamp, franchise, transaction payload | ✅ Now bounded with `COUNT` (doc warns the full set "can be a very large set"). Other filters available if needed: `TRANS_TYPE` (WAIVER, BBID_WAIVER, FREE_AGENT, WAIVER_REQUEST, BBID_WAIVER_REQUEST, TRADE, IR, TAXI, AUCTION_*, SURVIVOR_PICK, POOL_PICK; `*`/`DEFAULT`/CSV), `DAYS`, `FRANCHISE`, `W`. |
 | `draftResults` | — | `draftResults.draftUnit[].draftPick[]` | round/pick/franchise/player, unit=LEAGUE | ⚠️ Multi-unit (division) drafts — do we handle `draftUnit` selection right (we pick unit==='LEAGUE' else [0])? |
 | `futureDraftPicks` | `FRANCHISE` (optional) | future picks | pick ownership (FP tokens) | ❓ Confirm the export name/shape for **future** (not current-year) picks. |
 | `tradeBait` | — | `tradeBaits.tradeBait[]` | franchise_id, willGiveUp | ⚠️ Note TYPE is `tradeBait` but envelope is `tradeBaits.tradeBait` — confirm. |
@@ -74,7 +125,7 @@ changes we shipped from them:
 | TYPE | Params | Reads | Status · Verify |
 |---|---|---|---|
 | `myleagues` | `FRANCHISE_NAMES=1` | `leagues.league[]` (bootstrap: which leagues + host + franchise) | ✅ confirm `FRANCHISE_NAMES` is the right flag + response shape. |
-| `players` | `DETAILS=1` | full player universe (`players.player[]`) | ✅ MFL says the player DB changes once a day — **now cached 24h** (daily tier). Still worth asking if a `SINCE`/incremental variant exists to shrink the cold download. |
+| `players` | `DETAILS=1` | full player universe (`players.player[]`) | ✅ Cached 24h (daily tier). **`SINCE=<unix ts>` confirmed** — returns only DB changes since a timestamp, so a refresh after the first full load can be a cheap delta instead of re-downloading ~2,000+ players. Also `PLAYERS=<csv>` for a targeted subset. (Incremental merge = a queued opportunity, see §0b.) |
 | `injuries` | `W` | `injuries.injury[]` | status/details | ✅ confirm current-week semantics. |
 | `nflSchedule` | `W` (or none) | `nflSchedule.{week,matchup}[]` | bye/schedule | ⚠️ Confirm with/without `W` behavior. |
 | `adp` | `PERIOD=RECENT` | ADP | draft value model | ❓ Are `PERIOD` + other params (FCOUNT, IS_PPR, etc.) set optimally? |
@@ -115,17 +166,23 @@ the waiver `*Waiver` types? We currently route immediate adds through the waiver
 
 ---
 
-## 4. Prioritized questions for the authenticated docs
+## 4. What's still needed (the Export reference answered most read questions)
 
-Answer these (or paste the relevant doc sections) and we'll turn them into fixes:
+The Export reference page resolved the read-side unknowns (see §0 / §0b). The **highest-value gap left is
+the write side** — please paste the **Import request reference** (the `Import` tab on the same API
+reference page) so we can close the 🔴 rows in §2:
 
-1. **Waiver writes** 🔴 — exact TYPE per system + bid param (`BBID`?) + ADD/DROP single-vs-list + free-agent-add path.
-2. **Trade writes** 🔴 — proposal/response param names, asset token formats, FAAB in a trade.
-3. **Rate limits** — documented request-rate ceiling for a validated client (governs our throttle).
-4. **`players` payload** — is there an incremental/smaller variant than `DETAILS=1` (cold-start cost)?
-5. **FAAB/waiver settings field names** on the `league` export (we guess among several).
-6. **`freeAgents`/`projectedScores`/`topAdds`/`topOwns`** — any filter/period params we should be setting.
-7. **`liveScoring` field names** (opp_id, projectedScore, playersYetToPlay, gameSecondsRemaining).
+1. **Waiver writes** 🔴 — exact import TYPE per system (FAAB vs FCFS vs continuous) + bid param name +
+   ADD/DROP single-vs-list + whether an immediate free-agent add is a distinct import.
+2. **Trade writes** 🔴 — `tradeProposal`/`tradeResponse` param names (`OFFERINGTEAM`/`RECEIVINGTEAM`/
+   give-get lists/`TRADE_ID`/`RESPONSE`), and FAAB-in-a-trade. (Asset **token** formats are already
+   confirmed — see §0b.)
+3. **`drop` / `import` add / `lineup` / `draftPick` / `tradeBait`** 🔴 — exact param names + POST vs GET
+   (MFL recommends POST for imports) + whether the `DATA` field must be XML.
 
-> Once these are answered, each becomes a concrete backend change (a param added, a field renamed, a write
-> corrected) — verified by the smoke/live suite, and (for reads) shipped via Render with no app build.
+**Read-side follow-ups still worth doing** (tracked as tasks, from §0b): `players?SINCE=` incremental
+merge; `nflSchedule?W=ALL` to collapse the per-week schedule fan-out; `login` GET→POST; and the optional
+enrichments (`assets`, `playerRosterStatus`, `leagueStandings?COLUMN_NAMES=1`, `adp?IS_KEEPER=`).
+
+> Read-side fixes ship via Render with no app build and are verified by the smoke/live suite. Write-side
+> fixes are the same, but each needs a careful live test against a real league before merge.

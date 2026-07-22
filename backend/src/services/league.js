@@ -192,8 +192,12 @@ async function getTransactions(cookie, leagueId, { limit = 40 } = {}) {
   if (config.demoMode) {
     raw = demo.transactions(leagueId);
   } else {
+    // MFL warns the full transaction history "can be a very large set" and recommends
+    // filtering. We only render the newest `limit`, so let MFL truncate server-side with
+    // COUNT (returns the most-recent entries of the default/common types — exactly the
+    // add/drop/waiver/trade rows we show) instead of downloading the whole season.
     const [txns, nm] = await Promise.all([
-      mflRepo.transactions(league, cookie).catch(() => []),
+      mflRepo.transactions(league, cookie, { COUNT: limit }).catch(() => []),
       leaguesService.franchiseNames(cookie, league).catch(() => new Map()),
     ]);
     raw = parseLiveTransactions(txns);
