@@ -158,11 +158,11 @@ Audited against the **Import request reference**. Verdicts:
 | `tradeProposal` (`trades.js`) | `OFFEREDTO`,`WILL_GIVE_UP`,`WILL_RECEIVE`,`COMMENTS`,`FRANCHISE` | ✅ **Correct.** Optional `EXPIRES` (Unix; defaults to +1 week) available if we want to set it. |
 | `tradeResponse` (`trades.js`) | `TRADE_ID`,`RESPONSE`(accept/reject),`FRANCHISE` | ✅ **Correct.** `RESPONSE` also allows **`revoke`** (originator-only) — we don't expose it (missing feature, not a bug). |
 | `tradeBait` (`tradebait.js`) | `WILL_GIVE_UP`,`IN_EXCHANGE_FOR`,`FRANCHISE` | ✅ **Correct** (overwrites prior bait, as intended). `tradeBait` has **no** `FRANCHISE_ID` param — the `FRANCHISE` we send is simply ignored. |
-| immediate add/drop → `fcfsWaiver` (`waivers.js`) | `ADD`,`DROP`,`FRANCHISE` | ✅ **Correct** for the immediate/continuous case (`ADD` single, `DROP` csv). |
-| **drop a player → `drop`** (`playerhub.js`) | `DROP`,`FRANCHISE` | 🔴 **BROKEN — no `drop` TYPE exists.** Fix: use **`fcfsWaiver`** with `DROP=<id>` (ADD omitted). "You may also use this call to drop multiple players at once." |
-| **FAAB claim → `blindBidWaiver`** (`waivers.js`) | `ADD`,`DROP`,`BID` | 🔴 **BROKEN — wrong TYPE *and* shape.** Must be **`blindBidWaiverRequest`** with `ROUND` + `PICKS` where each pick is `add_bid_drop` (e.g. `1111_5_2222`; use `0000` as the drop id when not dropping). No `ADD`/`DROP`/`BID` params. |
-| **priority claim → `waiverRequest`** (`waivers.js`) | `ADD`,`DROP`,`BID` | 🔴 **BROKEN — wrong shape.** Needs `ROUND` + `PICKS` where each pick is `add_drop` (e.g. `1111_2222`). `REPLACE` toggles append-vs-replace for the round. |
-| **make a pick → `draftPick`** (`draft.js`) | `PLAYER`,`FRANCHISE` | 🔴 **No such TYPE.** MFL has **no documented live make-a-pick import** — `draftResults`/`auctionResults` are bulk commissioner XML loads ("not to implement a live draft application"). Live in-app drafting isn't supported by the documented API. |
+| immediate add/drop → `fcfsWaiver` (`waivers.js`) | `ADD`,`DROP` | ✅ **Correct** for the immediate/continuous case (`ADD` single, `DROP` csv). |
+| drop a player (`playerhub.js`) | **`fcfsWaiver`** `DROP` *(FIXED)* | ✅ **FIXED** — was TYPE `drop` (doesn't exist). Now `fcfsWaiver` with only `DROP` (immediate drop to FA). |
+| FAAB claim (`waivers.js`) | **`blindBidWaiverRequest`** `PICKS="add_bid_drop"` *(FIXED)* | ✅ **FIXED** — was `blindBidWaiver` (bogus TYPE) with ADD/DROP/BID. Now `blindBidWaiverRequest`, `PICKS=<add>_<bid>_<drop|0000>`; `ROUND` omitted (only needed for *conditional* blind bidding). |
+| priority claim (`waivers.js`) | **honest 501** *(guarded)* | ⚠️ `waiverRequest` needs a `ROUND` we can't source reliably yet, so we surface a 501 instead of misfiling. Open item: read the current waiver round, then submit `ROUND` + `PICKS="add_drop"`. |
+| make a pick → `draftPick` (`draft.js`) | **honest 501** *(guarded)* | ✅ **Handled** — no documented live make-a-pick import exists, so live drafting fails fast with a 501 pointing to MFL's draft room (mobile hide staged, task #70). |
 
 **`FRANCHISE` vs `FRANCHISE_ID` (applies to most writes above).** The doc's commissioner-impersonation
 param is **`FRANCHISE_ID`**; we send `FRANCHISE`, which is unrecognized and ignored — harmless because the
@@ -175,13 +175,19 @@ commissioner-impersonation path, and test it live.
 `fcfsWaiver` (`ADD`, optional `DROP`). Our immediate path already uses it correctly; the bug is only in the
 FAAB/priority-round paths (wrong TYPE/shape) and the standalone `drop`.
 
-**Fix plan (all 🔴 rows mutate real leagues → each needs a live test before merge):**
-1. **`drop` → `fcfsWaiver`** (smallest, unambiguous; the feature is currently dead in live).
-2. **Waiver rounds** — rework FAAB/priority to `blindBidWaiverRequest`/`waiverRequest` with `ROUND` +
-   `PICKS`. Needs a source for the current `ROUND` (league/calendar) and PICKS assembly. Highest value
-   (FAAB is the common dynasty system) and highest risk.
-3. **`draftPick`** — no documented API; decide whether to hide in-app live drafting in live mode (keep it
-   demo-only) or investigate MFL's separate live-draft mechanism.
+**Status — shipped (backend, verified by the `waiver-write` live test; pending a real-league smoke by the owner):**
+1. ✅ **`drop` → `fcfsWaiver`** with only `DROP`.
+2. ✅ **FAAB → `blindBidWaiverRequest`** with `PICKS="add_bid_drop"` (`0000` = no drop), no `ROUND`.
+3. ✅ **`draftPick` → 501** (no documented live-pick API); live drafting points to MFL's draft room.
+4. ⚠️ **FCFS priority → 501** (guarded). Remaining work: source the current waiver `ROUND`, then submit
+   `waiverRequest` with `ROUND` + `PICKS="add_drop"`. Likely not the owner's system (dynasty ≈ FAAB).
+
+**Known limitation (pre-existing, not introduced here):** in live, `loadSettings` classifies every league
+as `faab` or `fcfs` (never `free`), so an add during an OPEN free-agency window is still submitted as a
+waiver claim rather than an immediate `fcfsWaiver` add. In an active waiver period this is correct; outside
+one (e.g. deep offseason) MFL may reject with "no active round" — which we surface. Detecting the
+open-FA state (calendar `WAIVER_LOCK`/`UNLOCK`) to route immediate adds through `fcfsWaiver` is a
+follow-up.
 
 ---
 
