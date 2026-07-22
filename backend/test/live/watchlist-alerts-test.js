@@ -46,6 +46,18 @@ const L_BAIT = '64097';
   // Free alerts sort ahead of on-the-block ones.
   assert(alerts[0].type === 'free', 'claimable free agents are ordered first');
 
+  // The Watch-tab roll-up (getWatchlist) draws the same draft distinction per league: a
+  // watched, unrostered player is "free" only where the draft is complete (19622), and
+  // "draftable" where it hasn't run / is mid-way (64097 scheduled, 40750 in_progress).
+  const wl = await watchlist.getWatchlist('ck', TOKEN);
+  const fa = wl.players.find((p) => p.id === FA_ID); // free agent in every demo league
+  console.log('roll-up 16002 summary:', JSON.stringify(fa.summary), 'leagues:', JSON.stringify(fa.leagues.map((l) => `${l.leagueId}:${l.relation}`)));
+  assert(fa.summary.free === 1, 'free only in the drafted league (19622)');
+  assert(fa.summary.draftable === 2, 'draftable in the two undrafted leagues (64097, 40750)');
+  assert(fa.leagues.find((l) => String(l.leagueId) === L_DRAFTED).relation === 'free', 'drafted league → free');
+  assert(L_PREDRAFT.every((id) => fa.leagues.find((l) => String(l.leagueId) === id).relation === 'draftable'), 'undrafted leagues → draftable');
+  console.log('✓ watchlist roll-up: free vs draftable split by draft status');
+
   // Cleanup.
   for (const id of watchStore.list(TOKEN)) watchStore.remove(TOKEN, id);
 

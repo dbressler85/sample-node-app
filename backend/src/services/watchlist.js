@@ -28,27 +28,34 @@ async function ctxFor(cookie) {
   return { week, statusMap, byeMap };
 }
 
-// My roster + free-agent set per league (the cross-league "where does he stand" data).
+// My roster + free-agent set per league (the cross-league "where does he stand" data),
+// plus whether the league's draft has been held (free agency isn't live until then).
 async function gather(cookie, token) {
+  const draftService = require('./draft'); // lazy require — draft pulls in a lot
   const leagues = await leaguesService.orderedLeagues(cookie, token);
   const data = await Promise.all(
     leagues.map(async (league) => {
-      const [roster, faIds] = await Promise.all([
+      const [roster, faIds, draftOpen] = await Promise.all([
         rosterService.getRoster(cookie, league.leagueId).catch(() => null),
         waiversService.freeAgentIds(cookie, league).catch(() => []),
+        draftService.freeAgencyOpen(cookie, token, league),
       ]);
-      return { league, roster, faSet: new Set(faIds) };
+      return { league, roster, faSet: new Set(faIds), draftOpen };
     })
   );
   return data.filter((d) => d.roster);
 }
 
 // Where a watched player stands in one league — the watchlist's labels over the shared
-// canonical standing: "mine" (on my roster), "free", or "rostered" (on another team).
-function relationIn(roster, faSet, id) {
+// canonical standing: "mine" (on my roster), "rostered" (another team → trade target), or,
+// when he's unrostered, "free" vs "draftable". Before a league's draft is held the whole
+// pool reads as unrostered, so an unrostered watched player isn't actually claimable — he's
+// "draftable" (grabbed in the draft), and only becomes a true "free" agent once the draft's
+// complete and waivers open.
+function relationIn(roster, faSet, id, draftOpen) {
   const s = standingLib.standing(roster, faSet, id);
   if (s.mine) return { relation: 'mine', bucket: s.bucket };
-  if (s.where === 'free') return { relation: 'free', bucket: null };
+  if (s.where === 'free') return { relation: draftOpen ? 'free' : 'draftable', bucket: null };
   return { relation: 'rostered', bucket: null }; // on another team → trade target
 }
 
@@ -75,13 +82,14 @@ async function getWatchlist(cookie, token) {
 
   const players = ids.map((id) => {
     const base = playersLib.resolve(byId, id);
-    const leagues = data.map(({ league, roster, faSet }) => {
-      const r = relationIn(roster, faSet, id);
+    const leagues = data.map(({ league, roster, faSet, draftOpen }) => {
+      const r = relationIn(roster, faSet, id, draftOpen);
       return { leagueId: league.leagueId, name: league.name, relation: r.relation, bucket: r.bucket };
     });
     const summary = {
       mine: leagues.filter((l) => l.relation === 'mine').length,
       free: leagues.filter((l) => l.relation === 'free').length,
+      draftable: leagues.filter((l) => l.relation === 'draftable').length,
       tradeTarget: leagues.filter((l) => l.relation === 'rostered').length,
     };
     return {
@@ -100,8 +108,12 @@ async function getWatchlist(cookie, token) {
     };
   });
 
-  // Highest value first, but surface actionable ones (free somewhere) near the top.
-  players.sort((a, b) => (b.summary.free > 0) - (a.summary.free > 0) || (b.value || 0) - (a.value || 0));
+  // Highest value first, but surface actionable ones near the top: a claimable free agent
+  // outranks a merely draftable one, which outranks players you can only trade for.
+  players.sort((a, b) =>
+    (b.summary.free > 0) - (a.summary.free > 0) ||
+    (b.summary.draftable > 0) - (a.summary.draftable > 0) ||
+    (b.value || 0) - (a.value || 0));
   return { players, totalLeagues: data.length };
 }
 

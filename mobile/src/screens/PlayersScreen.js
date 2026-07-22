@@ -527,6 +527,7 @@ function WatchRow({ p, onPress }) {
         <View style={styles.chipRow}>
           {s.mine > 0 ? <Text style={[styles.chip, styles.chipMine]}>{s.mine} rostered</Text> : null}
           {s.free > 0 ? <Text style={[styles.chip, styles.chipFree]}>{s.free} free</Text> : null}
+          {s.draftable > 0 ? <Text style={[styles.chip, styles.chipDraftable]}>{s.draftable} draftable</Text> : null}
           {s.tradeTarget > 0 ? <Text style={[styles.chip, styles.chipTrade]}>{s.tradeTarget} on other teams</Text> : null}
           {p.news && p.news.length ? <Text style={[styles.chip, styles.chipNews]}>news</Text> : null}
         </View>
@@ -635,6 +636,7 @@ const styles = StyleSheet.create({
   chip: { fontSize: 11, fontWeight: '800', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, overflow: 'hidden' },
   chipMine: { color: colors.good, backgroundColor: colors.good + '22' },
   chipFree: { color: colors.accent, backgroundColor: colors.accent + '22' },
+  chipDraftable: { color: colors.warn, backgroundColor: colors.warn + '22' },
   chipTrade: { color: colors.gold, backgroundColor: colors.gold + '22' },
   chipNews: { color: colors.bad, backgroundColor: colors.bad + '22' },
   mine: { color: colors.good, fontSize: 9, fontWeight: '900', marginLeft: 6, borderWidth: 1, borderColor: colors.good, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1, overflow: 'hidden' },
