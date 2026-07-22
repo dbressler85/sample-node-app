@@ -87,7 +87,15 @@ const config = {
   // caching them for an hour drastically cuts calls across many leagues.
   mflStaticTtlMs: int(process.env.MFL_STATIC_TTL_MS, 60 * 60 * 1000),
 
-  // On HTTP 429/503, retry this many times with backoff (respecting Retry-After).
+  // Daily cache for data MFL explicitly says changes at most once a day: the player
+  // DATABASE ("only changed once a day, so request it no more than once a day and keep
+  // it for that long") and the NFL schedule (~fixed for the season). These sat in the
+  // 1h static tier before, so we re-downloaded the whole player universe ~24× more than
+  // MFL asks. A day-long TTL matches their guidance and slashes cold-start cost.
+  mflDailyTtlMs: int(process.env.MFL_DAILY_TTL_MS, 24 * 60 * 60 * 1000),
+
+  // On HTTP 503, retry this many times with backoff. NOTE: a 429 is NOT retried — MFL's
+  // docs say "if a request fails, don't retry"; we cool down and surface it instead.
   mflMaxRetries: int(process.env.MFL_MAX_RETRIES, 4),
 
   // Per-IP failed-login throttle for /api/auth/login (credentials pass straight to

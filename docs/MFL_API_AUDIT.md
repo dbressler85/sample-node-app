@@ -16,6 +16,37 @@ answer from those docs. Fill in / correct the "Verify" column, then we turn the 
 
 ---
 
+## 0. Findings applied from the MFL Developer Program overview (source of truth)
+
+The owner pasted MFL's authenticated Developer Program overview page. Confirmed facts and the
+changes we shipped from them:
+
+- **Client identity / auth.** MFL authenticates a client by its **registered + validated
+  User-Agent** (`dynasty-central…`) — there is **no API key to paste**. The optional per-account
+  `APIKEY` is export-only and *not* required for our throughput. ✅ We already send the UA; no change.
+- **Rate limits are unpublished and variable.** MFL does **not** state a fixed request ceiling; a
+  registered client simply gets limits **~2.5× higher** than an unregistered one, and limits are
+  **lower during games**. So there is no number to code to — the throttle stays **empirical/adaptive**
+  (8/75 via env, with the 429/503 cooldown). ✅ No throttle-rate change (we corrected an earlier
+  misreading that treated "wait a second" as a hard 1/sec cap).
+- **"If a request fails, don't retry."** → **Applied.** A **429 is no longer retried**: we cool down
+  (adaptive backoff, floored to 8× the min interval), **surface the failure** to the fail-soft caller,
+  and **log** it (`[MFL 429] …`) so the real limit is visible from live signal. A **503** (transient
+  server error, not rate limiting) keeps a bounded backoff-retry. (`mfl.js` retry loop.)
+- **Player DB changes once a day; request it no more than once a day.** → **Applied.** Split
+  `players` + `nflSchedule` into a new **daily TTL tier** (`mflDailyTtlMs`, 24h) instead of the 1h
+  static tier — we were re-downloading the whole player universe ~24× more than MFL asks.
+- **Login should be POST.** MFL recommends POST for `login` (and for imports). ⚠️ We currently GET
+  `login?…&XML=1`. Flagged for a careful follow-up (auth critical path; needs a real-login test).
+- **Player ids** are 4–5 digit strings; ids **under 1000 need a leading zero** (`0531`). **Franchise
+  ids** are 4-digit (`0001`; `0000` = commissioner). ✅ We already 4-pad franchise ids; confirm the
+  player-id padding on any id we format into a token.
+- **Hosts.** Non-`L` (account-level) requests must use host **`api`**; per-league requests use the
+  league's own host from `myleagues`. ✅ Matches our routing.
+- **JSON output** via `JSON=1` (XML is the default). ✅ We send `JSON=1`.
+
+---
+
 ## 1. READ endpoints (export?TYPE=…)
 
 ### Per-league reads (send `L`, `host`, cookie; extras noted)
@@ -43,7 +74,7 @@ answer from those docs. Fill in / correct the "Verify" column, then we turn the 
 | TYPE | Params | Reads | Status · Verify |
 |---|---|---|---|
 | `myleagues` | `FRANCHISE_NAMES=1` | `leagues.league[]` (bootstrap: which leagues + host + franchise) | ✅ confirm `FRANCHISE_NAMES` is the right flag + response shape. |
-| `players` | `DETAILS=1` | full player universe (`players.player[]`) | ⚠️ `DETAILS=1` is a big payload; is there `SINCE`/incremental or a smaller variant? We download the whole DB per backend process. |
+| `players` | `DETAILS=1` | full player universe (`players.player[]`) | ✅ MFL says the player DB changes once a day — **now cached 24h** (daily tier). Still worth asking if a `SINCE`/incremental variant exists to shrink the cold download. |
 | `injuries` | `W` | `injuries.injury[]` | status/details | ✅ confirm current-week semantics. |
 | `nflSchedule` | `W` (or none) | `nflSchedule.{week,matchup}[]` | bye/schedule | ⚠️ Confirm with/without `W` behavior. |
 | `adp` | `PERIOD=RECENT` | ADP | draft value model | ❓ Are `PERIOD` + other params (FCOUNT, IS_PPR, etc.) set optimally? |
@@ -78,7 +109,7 @@ the waiver `*Waiver` types? We currently route immediate adds through the waiver
 |---|---|---|
 | Auth | `login` (user/pass → MFLUSERID cookie); password never stored; cookie encrypted at rest | ✅ Confirm the login export and that cookie auth is the right mechanism for user-scoped read+write. |
 | Client identity | Validated User-Agent `dynasty-central`; optional `APIKEY` param supported but unused | ✅ Confirm nothing else (referer, etc.) is required for a validated client. |
-| Rate limits | Throttle 8 concurrent / 75 ms stagger (with validated client) + 429/503 backoff | ❓ **What are the documented request-rate limits for a validated developer client?** This sets whether 8/75 is safe or we can go further. |
+| Rate limits | Throttle 8 concurrent / 75 ms stagger (with validated client) + adaptive 429 cooldown / 503 backoff | ✅ **Resolved:** MFL publishes **no fixed ceiling** — registered clients get ~2.5× unregistered limits, and limits drop during games. Approach stays empirical/adaptive; 429s are logged (not retried) so the real limit shows in live signal. |
 | Host routing | Per-league `host` from `myleagues`; all pinned to `*.myfantasyleague.com` | ✅ Confirm league-specific host usage is correct (vs always api host). |
 | Caching | TTL tiers (static/live/slow); coalesced reads | ❓ Any documented cache/`If-Modified-Since` support to avoid re-fetching unchanged data? |
 

@@ -169,19 +169,30 @@ async function rawRequest({ host, command, params, cookie, method = 'GET', body 
     init.body = body;
   }
 
-  // MFL rate-limits bursts with 429 (and occasionally 503). Retry with backoff,
-  // honoring Retry-After, before giving up.
+  // 429 vs 503 are handled differently, per MFL's docs:
+  //  * 429 = rate limited. MFL is explicit: DON'T retry — "that will make things worse." So we
+  //    trip the global cooldown (the rest of an in-flight burst backs off) and FAIL this request;
+  //    callers are fail-soft. We also log it so throttling is visible in the server logs and the
+  //    request rate can be tuned from real signal (the limit is unpublished/variable).
+  //  * 503 = a transient server error (not rate limiting) — a bounded backoff-retry is fine.
   let res;
   let text;
   for (let attempt = 0; ; attempt++) {
     res = await throttle(() => fetchAllowlisted(url, init));
-    if ((res.status === 429 || res.status === 503) && attempt < config.mflMaxRetries) {
+    if (res.status === 429) {
       const retryAfter = parseInt(res.headers.get('retry-after') || '', 10);
-      const waitMs = Number.isFinite(retryAfter) ? retryAfter * 1000 : Math.min(10000, 800 * 2 ** attempt);
-      // Trip the global cooldown so the rest of an in-flight burst backs off too, and add a
-      // little jitter so many requests that 429'd together don't retry in lockstep.
+      const waitMs = Number.isFinite(retryAfter) ? retryAfter * 1000 : 2000;
       noteRateLimit(waitMs);
+      // noteRateLimit floors the window to 8× the min interval, so log the effective cooldown.
+      const cooldownMs = Math.max(waitMs, config.mflMinRequestIntervalMs * 8);
+      console.warn(`[MFL 429] throttled on ${command}?TYPE=${params.TYPE || ''} — cooling down ${cooldownMs}ms, not retrying`);
+      text = await res.text();
+      break;
+    }
+    if (res.status === 503 && attempt < config.mflMaxRetries) {
+      const waitMs = Math.min(10000, 800 * 2 ** attempt);
       const jitter = Math.floor(Math.random() * 250);
+      noteRateLimit(waitMs);
       await new Promise((r) => setTimeout(r, waitMs + jitter));
       continue;
     }
@@ -226,7 +237,12 @@ const READ_CACHE_MAX = 600; // bound memory: sweep expired entries once the map 
 
 // Slow-changing data gets a long TTL; live-polled data a very short one so it
 // keeps up with its poll cadence; everything else a moderate short one.
-const STATIC_TYPES = new Set(['league', 'rules', 'myleagues', 'players', 'nflSchedule', 'calendar']);
+const STATIC_TYPES = new Set(['league', 'rules', 'myleagues', 'calendar']);
+// Daily-changing data. MFL's docs are explicit: the player DATABASE "is only changed once a day,
+// so request it no more than once a day and keep it for that long." The NFL schedule is likewise
+// ~fixed for the season. Cache these ~a day instead of the 1h static tier (we were re-downloading
+// the whole player universe ~24× more than MFL asks).
+const DAILY_TYPES = new Set(['players', 'nflSchedule']);
 // liveScoring/draftResults are polled; pendingTrades isn't, but an incoming offer is
 // an EXTERNAL event nothing invalidates, so a 5m cache made new offers lag on the
 // inbox — keep it short so a pull-to-refresh actually surfaces them.
@@ -242,7 +258,9 @@ async function exportRequest(type, { host = config.apiHost, cookie = null, maxAg
   // JSON.stringify is insertion-order-sensitive, so {L,FRANCHISE} and {FRANCHISE,L} would hash to
   // different keys and silently double-fetch the same data. (params holds flat primitives.)
   const key = `${cookie || ''}|${host}|${type}|${JSON.stringify(params, Object.keys(params).sort())}`;
-  let ttl = STATIC_TYPES.has(type)
+  let ttl = DAILY_TYPES.has(type)
+    ? config.mflDailyTtlMs
+    : STATIC_TYPES.has(type)
     ? config.mflStaticTtlMs
     : LIVE_TYPES.has(type)
     ? config.mflLiveTtlMs
