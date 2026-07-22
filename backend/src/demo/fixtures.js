@@ -425,15 +425,15 @@ const DRAFTS = {
 // and projected final for me and my opponent. Drives the live scoreboard.
 const LIVE = {
   '64097': {
-    me: { score: 78.4, yetToPlay: 3, projectedFinal: 121.6 },
+    me: { score: 78.4, yetToPlay: 3, projectedFinal: 121.6, yetToPlayIds: ['13593', '14802', '12171'] },
     opp: { score: 84.1, yetToPlay: 2, projectedFinal: 118.0 },
   },
   '40750': {
-    me: { score: 91.0, yetToPlay: 1, projectedFinal: 133.8 },
+    me: { score: 91.0, yetToPlay: 1, projectedFinal: 133.8, yetToPlayIds: ['14990'] },
     opp: { score: 102.7, yetToPlay: 1, projectedFinal: 140.1 },
   },
   '19622': {
-    me: { score: 55.2, yetToPlay: 6, projectedFinal: 118.9 },
+    me: { score: 55.2, yetToPlay: 6, projectedFinal: 118.9, yetToPlayIds: ['13116', '15267', '13649', '14802', '13138', '12171'] },
     opp: { score: 60.8, yetToPlay: 5, projectedFinal: 121.0 },
   },
 };

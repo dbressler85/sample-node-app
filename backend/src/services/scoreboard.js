@@ -10,6 +10,18 @@ const demo = require('../demo/fixtures');
 const mfl = require('../lib/mfl');
 const nflLib = require('../lib/nfl');
 const leaguesService = require('./leagues');
+const playersLib = require('../lib/players');
+
+// Resolve a list of player ids to {name, position} for the "still to play" line — so the
+// scoreboard shows WHO you have coming, not just a count. Best-effort: unknown ids drop out.
+async function resolveYetToPlay(cookie, ids) {
+  if (!ids || !ids.length) return [];
+  const byId = await playersLib.load(cookie);
+  return ids.map((id) => {
+    const p = playersLib.resolve(byId, id);
+    return { id: String(id), name: p.name, position: p.position };
+  }).filter((p) => p.name && p.name !== 'Player undefined');
+}
 
 // Win probability from the projected-final margin, with uncertainty that grows
 // with how many players are still to play (more remaining -> closer to a coin flip).
@@ -49,7 +61,9 @@ async function liveForLeague(cookie, league) {
     const live = demo.live(league.leagueId);
     if (!live) return null;
     const mp = demo.matchupProjection(league.leagueId);
-    return buildCard(league, live, mp ? mp.opponent : 'Opponent');
+    const card = buildCard(league, live, mp ? mp.opponent : 'Opponent');
+    card.me.yetToPlayers = await resolveYetToPlay(cookie, live.me.yetToPlayIds);
+    return card;
   }
   // Live: MFL liveScoring exposes per-franchise score, playersYetToPlay and
   // gameSecondsRemaining. Best-effort; verify against a real account.
@@ -67,7 +81,21 @@ async function liveForLeague(cookie, league) {
     });
     const names = await leaguesService.franchiseNames(cookie, league);
     const oppName = opp ? names.get(String(opp.id)) || `Team ${opp.id}` : 'Opponent';
-    return buildCard(league, { me: toCard(mine), opp: toCard(opp) }, oppName);
+    const card = buildCard(league, { me: toCard(mine), opp: toCard(opp) }, oppName);
+    // Which of MY players are still to play. liveScoring nests per-player status under
+    // franchise.players.player[]; a player with a full game clock (or an explicit not-yet
+    // status) hasn't played. Best-effort — falls back to an empty list (the count still shows)
+    // if the sub-shape differs. Verify against a real liveScoring response.
+    const myPlayers = mfl.toArray(mine.players && mine.players.player);
+    const ytpIds = myPlayers
+      .filter((pp) => {
+        const secs = Number(pp.gameSecondsRemaining);
+        const status = String(pp.status || '').toLowerCase();
+        return (Number.isFinite(secs) && secs >= 3600) || status === 'yettoplay' || status === 'notplayed';
+      })
+      .map((pp) => pp.id);
+    card.me.yetToPlayers = await resolveYetToPlay(cookie, ytpIds);
+    return card;
   } catch (e) {
     return null;
   }

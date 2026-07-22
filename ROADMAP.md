@@ -244,16 +244,20 @@ Grouped into four "synergy systems", highest-leverage first:
   locking the vocabulary so they can't drift apart again.
 
 ### System 4 — In-season chains that stop one link short
-- [ ] **Lineup hole → waiver board (filtered by position).** The `initialPosition`
-  deep-link already exists (Home/On Deck use it); Lineups/Editor know the empty slot's
-  position but never call it.
-- [ ] **Scores → LineupEditor for the same league** (close game + benched players who
-  can still move); show *which* players are yet-to-play, not just a count.
-- [ ] **After a waiver claim, offer to set the lineup** if the add needs a starting slot
-  (today it dead-ends back to Waivers).
-- [ ] **Draft picks ↔ trade assets.** Draft room/hub never link to the trade desk, and
-  the desk can only *send* picks, never *receive* them — a real functional gap for a
-  core dynasty currency.
+- [x] **Lineup hole → waiver board (filtered by position).** Done: the Lineup editor's
+  empty-slot banner deep-links to the waiver board filtered to the hole's eligible position
+  (`onOpenWaivers({leagueId, position})`; FLEX → all positions).
+- [x] **Scores → LineupEditor for the same league.** Done: tapping a matchup opens that
+  league's lineup editor, and each card now lists **which** of your players are still to play
+  ("Still to play  Chase (WR), Gibbs (RB)…") — resolved from `me.yetToPlayers` — not just the
+  count. *(Live per-player parse from `liveScoring` is best-effort pending on-device verify.)*
+- [x] **After a waiver claim, offer to set the lineup.** Done: an immediate free-agent add
+  prompts "Added — Set lineup" (ClaimSheet) that opens the editor instead of dead-ending. (A
+  future waiver claim that processes overnight correctly doesn't prompt.)
+- [~] **Draft picks ↔ trade assets.** Done: the trade desk can now **receive** picks (each
+  partner's current-year + future picks are selectable on the "you get" side) and pick tokens
+  are first-class on the roster (tap → shop). The Draft room links to the trade desk
+  (`onOpenTrades`). *(Remaining: a direct link from the Draft **Hub** into a specific trade.)*
 
 ### Per-screen polish (from the same pass)
 - [x] **Players lists show no age** — the PlayersScreen row shows age, the **Trending** sort
