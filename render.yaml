@@ -63,6 +63,12 @@ services:
       # MFL_ALLOW_DEMO_IN_PROD if/when the guard grows that opt-in.
       - key: MFL_DEMO_MODE
         value: "false"
+      # MFL Developer API key. Dashboard-managed (secret — never commit the value). When
+      # set, the backend adds it to MFL requests AND automatically runs a higher-throughput
+      # throttle (see config.js mflMaxConcurrent/mflMinRequestIntervalMs), which is what makes
+      # the cold cross-league loads fast. Set the value in the Render dashboard → Environment.
+      - key: MFL_API_KEY
+        sync: false
       # Encrypts persisted sessions at rest. Auto-generated & kept stable by Render;
       # needed (with DATA_DIR on a disk) to keep users logged in across restarts.
       - key: SESSION_SECRET

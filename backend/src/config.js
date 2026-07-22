@@ -41,12 +41,17 @@ const config = {
 
   // Outbound MFL requests run with bounded concurrency plus a small stagger between
   // starts (polite, avoids bursts) — NOT strict serialization. Cold first-load fans
-  // out many per-league reads; serializing them at a big gap was the dominant
-  // latency. The 429/503 backoff handles it if MFL pushes back; dial these down via
-  // env if you see rate limiting.
-  mflMaxConcurrent: int(process.env.MFL_MAX_CONCURRENT, 4),
+  // out many per-league reads; serializing them at a big gap was the dominant latency.
+  //
+  // The defaults are API-KEY-AWARE. A registered MFL Developer key (MFL_API_KEY) raises
+  // your rate limits substantially, so with a key we run more in flight AND halve the
+  // start-stagger (the stagger, not the concurrency, is what caps the start RATE — so
+  // lowering it is what actually speeds a big cold fan-out). Without a key we stay at the
+  // conservative, polite values. Either way the 429/503 backoff pulls back if MFL pushes,
+  // and explicit MFL_MAX_CONCURRENT / MFL_MIN_REQUEST_INTERVAL_MS env vars still win.
+  mflMaxConcurrent: int(process.env.MFL_MAX_CONCURRENT, process.env.MFL_API_KEY ? 8 : 4),
   // Minimum milliseconds between the START of one outbound MFL request and the next.
-  mflMinRequestIntervalMs: int(process.env.MFL_MIN_REQUEST_INTERVAL_MS, 150),
+  mflMinRequestIntervalMs: int(process.env.MFL_MIN_REQUEST_INTERVAL_MS, process.env.MFL_API_KEY ? 75 : 150),
 
   // Cache for moderately volatile MFL export responses (rosters, free agents),
   // so the many services that build one screen don't re-fetch the same data and
