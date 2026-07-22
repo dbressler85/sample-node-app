@@ -15,6 +15,17 @@ config; `mobile/` is the Expo app.
   **merge directly** (squash) once the work is verified. Branch protection does not
   require reviews.
 
+## Planning & review docs
+
+- [`docs/ARCHITECTURE_REVIEW.md`](docs/ARCHITECTURE_REVIEW.md) — third-party architecture +
+  security findings and the phased roadmap (Phase 0 quick wins → structural bets). Start here
+  before large refactors.
+- [`docs/UX_GUARDRAILS.md`](docs/UX_GUARDRAILS.md) — **protected UX contracts** (instant paint,
+  no-reload-on-read-nav, reflect-action-immediately, non-destructive errors, instant local trade
+  preview, scroll survival, live animations, logout wipe, …). Any PR touching navigation, the
+  cache/data layer, lists, animations, or error surfaces must satisfy these and the pre-merge
+  checklist. Treat them as enforceable, not advisory.
+
 ## Hard-won rules
 
 The crisp, enforceable version of the lessons in [`docs/LESSONS.md`](docs/LESSONS.md).
