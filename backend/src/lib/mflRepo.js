@@ -61,4 +61,61 @@ async function freeAgentUnits(league, cookie, params = {}) {
   return mfl.toArray(res && res.freeAgents && res.freeAgents.leagueUnit);
 }
 
-module.exports = { read, rosters, standings, leagueFranchises, pendingTrades, liveScoring, freeAgentUnits };
+// `draftResults` export -> the draft unit(s); the caller picks the LEAGUE unit and reads draftPick[].
+async function draftResults(league, cookie, params = {}) {
+  const res = await read('draftResults', league, cookie, params);
+  return mfl.toArray(res && res.draftResults && res.draftResults.draftUnit);
+}
+
+// `playerScores` export -> per-player fantasy scores (league-scoped; pass W and PLAYERS).
+async function playerScores(league, cookie, params = {}) {
+  const res = await read('playerScores', league, cookie, params);
+  return mfl.toArray(res && res.playerScores && res.playerScores.playerScore);
+}
+
+// `projectedScores` export -> per-player projected points (league-scoped; optionally W).
+async function projectedScores(league, cookie, params = {}) {
+  const res = await read('projectedScores', league, cookie, params);
+  return mfl.toArray(res && res.projectedScores && res.projectedScores.playerScore);
+}
+
+// `schedule` export -> the weekly schedule rows (pass W); each nests matchup[].
+async function schedule(league, cookie, params = {}) {
+  const res = await read('schedule', league, cookie, params);
+  return mfl.toArray(res && res.schedule && res.schedule.weeklySchedule);
+}
+
+// `calendar` export -> league calendar events (waiver/lock windows, etc.).
+async function calendar(league, cookie, params = {}) {
+  const res = await read('calendar', league, cookie, params);
+  return mfl.toArray(res && res.calendar && res.calendar.event);
+}
+
+// `tradeBait` export -> the trade-bait board (note the envelope pluralizes: tradeBaits.tradeBait).
+async function tradeBaits(league, cookie, params = {}) {
+  const res = await read('tradeBait', league, cookie, params);
+  return mfl.toArray(res && res.tradeBaits && res.tradeBaits.tradeBait);
+}
+
+// `transactions` export -> the raw transaction rows (add/drop/trade); caller parses each.
+async function transactions(league, cookie, params = {}) {
+  const res = await read('transactions', league, cookie, params);
+  return mfl.toArray(res && res.transactions && res.transactions.transaction);
+}
+
+module.exports = {
+  read,
+  rosters,
+  standings,
+  leagueFranchises,
+  pendingTrades,
+  liveScoring,
+  freeAgentUnits,
+  draftResults,
+  playerScores,
+  projectedScores,
+  schedule,
+  calendar,
+  tradeBaits,
+  transactions,
+};

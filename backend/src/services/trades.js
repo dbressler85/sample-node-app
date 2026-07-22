@@ -39,8 +39,7 @@ async function tradeBaitByFranchise(cookie, token, league) {
     for (const b of demo.tradeBaitBoard(league.leagueId)) map.set(String(b.franchiseId), new Set((b.willGiveUp || []).map(String)));
   } else {
     try {
-      const res = await mfl.exportRequest('tradeBait', { host: league.host, cookie, L: league.leagueId });
-      for (const b of mfl.toArray(res && res.tradeBaits && res.tradeBaits.tradeBait)) {
+      for (const b of await mflRepo.tradeBaits(league, cookie)) {
         const fid = String(b.franchise_id != null ? b.franchise_id : (b.franchiseId || ''));
         if (!fid) continue;
         const ids = String(b.willGiveUp || b.will_give_up || '').split(/[,;|]/).map((s) => s.trim()).filter(Boolean);

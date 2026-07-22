@@ -167,8 +167,8 @@ const toks = (s) => String(s || '').split(',').map((x) => x.trim()).filter(Boole
 // Best-effort parse of MFL's transactions export into the raw shape getTransactions
 // resolves. Add/drop types carry "added,|dropped,"; a TRADE carries the two sides'
 // assets and the other franchise. Anything we can't parse still yields a typed row.
-function parseLiveTransactions(res) {
-  return mfl.toArray(res && res.transactions && res.transactions.transaction).map((t, i) => {
+function parseLiveTransactions(list) {
+  return (list || []).map((t, i) => {
     const type = String(t.type || '').toUpperCase();
     const payload = String(t.transaction || '');
     const base = { id: `${t.timestamp || 't'}:${i}`, type, at: num(t.timestamp), franchiseId: String(t.franchise || '') };
@@ -192,11 +192,11 @@ async function getTransactions(cookie, leagueId, { limit = 40 } = {}) {
   if (config.demoMode) {
     raw = demo.transactions(leagueId);
   } else {
-    const [res, nm] = await Promise.all([
-      mfl.exportRequest('transactions', { host: league.host, cookie, L: league.leagueId }).catch(() => ({})),
+    const [txns, nm] = await Promise.all([
+      mflRepo.transactions(league, cookie).catch(() => []),
       leaguesService.franchiseNames(cookie, league).catch(() => new Map()),
     ]);
-    raw = parseLiveTransactions(res);
+    raw = parseLiveTransactions(txns);
     names = nm;
   }
 

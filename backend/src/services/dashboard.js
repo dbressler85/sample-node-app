@@ -26,8 +26,7 @@ async function liveMatchup(league, cookie) {
   // Find my matchup via the schedule for that week.
   let opponentId = null;
   try {
-    const sched = await mfl.exportRequest('schedule', { host: league.host, cookie, L: league.leagueId, W: week });
-    const weeks = mfl.toArray(sched && sched.schedule && sched.schedule.weeklySchedule);
+    const weeks = await mflRepo.schedule(league, cookie, { W: week });
     const wk = weeks.find((w) => Number(w.week) === week) || weeks[0];
     for (const m of mfl.toArray(wk && wk.matchup)) {
       const fr = mfl.toArray(m.franchise).map((x) => String(x.id));

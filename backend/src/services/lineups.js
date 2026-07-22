@@ -11,6 +11,7 @@
 const config = require('../config');
 const demo = require('../demo/fixtures');
 const mfl = require('../lib/mfl');
+const mflRepo = require('../lib/mflRepo');
 const optimizer = require('../lib/optimizer');
 const scoringLib = require('../lib/scoring');
 const availabilityLib = require('../lib/availability');
@@ -61,8 +62,7 @@ async function loadByes(cookie, week) {
 
 // Find this week's opponent franchise id from the league schedule.
 async function opponentFranchiseId(cookie, league, week) {
-  const res = await mfl.exportRequest('schedule', { host: league.host, cookie, L: league.leagueId, W: week });
-  const weeks = mfl.toArray(res && res.schedule && res.schedule.weeklySchedule);
+  const weeks = await mflRepo.schedule(league, cookie, { W: week });
   const wk = weeks.find((w) => String(w.week) === String(week)) || weeks[0];
   for (const m of mfl.toArray(wk && wk.matchup)) {
     const ids = mfl.toArray(m && m.franchise).map((f) => String(f.id));
@@ -75,8 +75,7 @@ async function opponentFranchiseId(cookie, league, week) {
 // the weekly lineup with status "starter") and the full active pool. If they
 // haven't set a lineup yet, `starters` comes back empty.
 async function opponentRoster(cookie, league, oppId) {
-  const res = await mfl.exportRequest('rosters', { host: league.host, cookie, L: league.leagueId, FRANCHISE: oppId });
-  const opp = mfl.toArray(res && res.rosters && res.rosters.franchise).find((f) => String(f.id) === String(oppId));
+  const opp = (await mflRepo.rosters(league, cookie, { FRANCHISE: oppId })).find((f) => String(f.id) === String(oppId));
   if (!opp) return { all: [], starters: [] };
   const all = [];
   const starters = [];
@@ -92,9 +91,7 @@ async function opponentRoster(cookie, league, oppId) {
 
 async function opponentName(cookie, league, oppId) {
   try {
-    const res = await mfl.exportRequest('league', { host: league.host, cookie, L: league.leagueId });
-    const fr = mfl.toArray(res && res.league && res.league.franchises && res.league.franchises.franchise)
-      .find((f) => String(f.id) === String(oppId));
+    const fr = (await mflRepo.leagueFranchises(league, cookie)).find((f) => String(f.id) === String(oppId));
     return (fr && fr.name) || `Franchise ${oppId}`;
   } catch (e) {
     return `Franchise ${oppId}`;
@@ -157,13 +154,7 @@ async function leagueProjection(cookie, league, poolPlayers, scoring, week) {
     return map;
   }
   try {
-    const res = await mfl.exportRequest('projectedScores', {
-      host: league.host,
-      cookie,
-      L: league.leagueId,
-      W: week,
-    });
-    const list = mfl.toArray(res && res.projectedScores && res.projectedScores.playerScore);
+    const list = await mflRepo.projectedScores(league, cookie, { W: week });
     return new Map(list.map((p) => [String(p.id), Number(p.score) || 0]));
   } catch (e) {
     return new Map();

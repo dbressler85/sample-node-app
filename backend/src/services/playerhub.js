@@ -9,6 +9,7 @@
 const config = require('../config');
 const demo = require('../demo/fixtures');
 const mfl = require('../lib/mfl');
+const mflRepo = require('../lib/mflRepo');
 const scoringLib = require('../lib/scoring');
 const availabilityLib = require('../lib/availability');
 const playersLib = require('../lib/players');
@@ -271,8 +272,7 @@ function leagueProjection(playerId, position, leagueId) {
 // projectedScores for that league. Cached via the MFL client.
 async function liveLeagueProjection(cookie, league, playerId) {
   try {
-    const res = await mfl.exportRequest('projectedScores', { host: league.host, cookie, L: league.leagueId });
-    const hit = mfl.toArray(res && res.projectedScores && res.projectedScores.playerScore)
+    const hit = (await mflRepo.projectedScores(league, cookie))
       .find((p) => String(p.id) === String(playerId));
     return hit ? Math.round((Number(hit.score) || 0) * 10) / 10 : null;
   } catch (e) {
@@ -284,8 +284,7 @@ async function liveLeagueProjection(cookie, league, playerId) {
 // or 'AVG') under a league's scoring. MFL playerScores is league-scoped.
 async function livePlayerScore(cookie, league, playerId, W) {
   try {
-    const res = await mfl.exportRequest('playerScores', { host: league.host, cookie, L: league.leagueId, W, PLAYERS: playerId });
-    const hit = mfl.toArray(res && res.playerScores && res.playerScores.playerScore)
+    const hit = (await mflRepo.playerScores(league, cookie, { W, PLAYERS: playerId }))
       .find((p) => String(p.id) === String(playerId));
     return hit && hit.score !== '' && hit.score != null ? Math.round((Number(hit.score) || 0) * 10) / 10 : null;
   } catch (e) {

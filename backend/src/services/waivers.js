@@ -188,8 +188,7 @@ async function buildFreeAgents(cookie, league, settings) {
     }
     // Format-aware projections for the board (MFL projectedScores).
     try {
-      const pr = await mfl.exportRequest('projectedScores', { host: league.host, cookie, L: league.leagueId });
-      const list = mfl.toArray(pr && pr.projectedScores && pr.projectedScores.playerScore);
+      const list = await mflRepo.projectedScores(league, cookie);
       liveProj = new Map(list.map((p) => [String(p.id), Math.round((Number(p.score) || 0) * 10) / 10]));
     } catch (e) {
       /* projections are optional */
@@ -594,8 +593,7 @@ function eventTimeMs(ev) {
 // response just yields null and we fall back to the draft heuristic.
 async function calendarLock(cookie, league) {
   try {
-    const res = await mfl.exportRequest('calendar', { host: league.host, cookie, L: league.leagueId });
-    const events = mfl.toArray(res && res.calendar && res.calendar.event);
+    const events = await mflRepo.calendar(league, cookie);
     if (!events.length) return null;
     const now = Date.now();
     let latest = null;

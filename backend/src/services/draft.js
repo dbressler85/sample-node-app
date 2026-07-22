@@ -12,6 +12,7 @@
 const config = require('../config');
 const demo = require('../demo/fixtures');
 const mfl = require('../lib/mfl');
+const mflRepo = require('../lib/mflRepo');
 const enrichmentLib = require('../lib/enrichment');
 const leagueFormat = require('../lib/leagueformat');
 const playersLib = require('../lib/players');
@@ -73,8 +74,7 @@ async function loadDraft(cookie, token, league) {
   }
   // Live: MFL draftResults. Best-effort — shapes vary, so stay defensive.
   try {
-    const res = await mfl.exportRequest('draftResults', { host: league.host, cookie, L: league.leagueId });
-    const units = mfl.toArray(res && res.draftResults && res.draftResults.draftUnit);
+    const units = await mflRepo.draftResults(league, cookie);
     const unit = units.find((u) => String(u.unit || 'LEAGUE') === 'LEAGUE') || units[0];
     if (!unit) return null;
     const raw = mfl.toArray(unit.draftPick);
@@ -358,8 +358,7 @@ async function upcomingPicksByFranchise(cookie, token, league) {
   }
   // Live: read the draft grid; unpicked slots (empty player) carry their current owner.
   try {
-    const res = await mfl.exportRequest('draftResults', { host: league.host, cookie, L: league.leagueId });
-    const units = mfl.toArray(res && res.draftResults && res.draftResults.draftUnit);
+    const units = await mflRepo.draftResults(league, cookie);
     const unit = units.find((u) => String(u.unit || 'LEAGUE') === 'LEAGUE') || units[0];
     if (!unit) return {};
     const open = mfl.toArray(unit.draftPick)
