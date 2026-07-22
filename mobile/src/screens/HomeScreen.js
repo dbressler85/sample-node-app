@@ -115,6 +115,13 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
       // block by another owner. Background, best-effort; empty (fast) if you track no one.
       api.watchlistAlerts().then((r) => setWatchAlerts(r.alerts || [])).catch(() => {});
 
+      // Warm the Players tab in the background. Its rankings load pays for the heavy
+      // cross-league gather (a roster + free-agent read per league) that nothing else warms,
+      // so the first open cold-loads for seconds. Prefetch the default view (value / all / 1qb)
+      // now and write it to the same SWR key the Rankings tab reads, so opening Players paints
+      // instantly; the backend also memoizes the gather, so even an immediate open reuses it.
+      api.playerRankings('value', null, '1qb').then((res) => setValue('players:rankings:value:all:1qb', res)).catch(() => {});
+
       setProgress({ done: 0, total: list.length });
       const collected = {};
       await runPool(list, CONCURRENCY, async (lg) => {
