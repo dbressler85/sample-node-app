@@ -21,7 +21,11 @@ export default function TradeAcrossSheet({ player, onClose, onCraft, onStartWiza
 
   useEffect(() => {
     let alive = true;
-    api.playerTradePreview(player.id)
+    // The profile already classified every league; he's a trade target only where another team
+    // owns him ('unavailable'). Send just those so the backend probes a handful of leagues, not
+    // all of them. (Empty → the backend falls back to probing every league.)
+    const targetLeagueIds = (player.crossLeague || []).filter((c) => c.relation === 'unavailable').map((c) => c.leagueId);
+    api.playerTradePreview(player.id, targetLeagueIds)
       .then((pv) => {
         if (!alive) return;
         // Only a trade target in one league? Skip the picker and go straight to crafting.

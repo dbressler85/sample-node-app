@@ -20,7 +20,10 @@ router.get('/trades', async (req, res, next) => {
 // (on another team), with the owner + a suggested give-package per league.
 router.get('/players/:id/trade/preview', async (req, res, next) => {
   try {
-    res.json(await trades.crossLeaguePreview(req.mflCookie, req.account, req.params.id));
+    // Optional ?leagues=a,b,c — the leagues where the caller already knows he's a target, so
+    // we probe only those instead of every league.
+    const leagueIds = req.query.leagues ? String(req.query.leagues).split(',').filter(Boolean) : null;
+    res.json(await trades.crossLeaguePreview(req.mflCookie, req.account, req.params.id, leagueIds));
   } catch (err) {
     next(err);
   }

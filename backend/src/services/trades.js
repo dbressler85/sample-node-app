@@ -709,9 +709,16 @@ function suggestGive(mine, targetValue) {
 // he's on another team's roster, and for each surface the owner + a suggested
 // fair give-package from your roster there. The trade equivalent of "add across
 // leagues" — you shop the same player across your portfolio in one flow.
-async function crossLeaguePreview(cookie, token, targetId) {
+async function crossLeaguePreview(cookie, token, targetId, leagueIds) {
   const tid = String(targetId);
-  const leagues = await leaguesService.listLeagues(cookie);
+  let leagues = await leaguesService.listLeagues(cookie);
+  // The caller (player profile) already knows the leagues where he's a trade target — pass
+  // them so we probe ONLY those. Probing every league meant a full roster + all-franchise read
+  // per league just to discard the ones where he's already yours or a free agent.
+  if (Array.isArray(leagueIds) && leagueIds.length) {
+    const want = new Set(leagueIds.map(String));
+    leagues = leagues.filter((l) => want.has(String(l.leagueId)));
+  }
   const byId = await playersLib.load(cookie);
   const target = playersLib.resolve(byId, tid);
   // Probe every league in parallel — sequential awaits here meant N round-trips

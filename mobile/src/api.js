@@ -118,7 +118,7 @@ export const api = {
   playerProfile: (id) => request(`/api/players/${id}`),
   playerAddPreview: (id) => request(`/api/players/${id}/add/preview`),
   playerAdd: (id, leagues) => request(`/api/players/${id}/add`, { method: 'POST', body: { leagues } }),
-  playerTradePreview: (id) => request(`/api/players/${id}/trade/preview`),
+  playerTradePreview: (id, leagueIds) => request(`/api/players/${id}/trade/preview${leagueIds && leagueIds.length ? `?leagues=${leagueIds.map(encodeURIComponent).join(',')}` : ''}`),
   playerTrade: (id, leagues) => request(`/api/players/${id}/trade`, { method: 'POST', body: { leagues } }),
   playerDrop: (id, leagues) => request(`/api/players/${id}/drop`, { method: 'POST', body: { leagues } }),
 

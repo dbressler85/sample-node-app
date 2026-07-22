@@ -309,6 +309,11 @@ async function profile(cookie, token, playerId) {
   // ctx already carries the (live-fetched) bye map, so availability + the
   // profile's byeWeek are real.
   const byeMap = ctx.byeMap;
+  // Per-league projected points are only meaningful during the NFL season. In the offseason
+  // the cross-league card fans out a projectedScores MFL call PER LEAGUE for nothing — the
+  // dominant cost of opening a profile. Skip it out of season (the card still shows relation +
+  // per-league value).
+  const inSeason = ctx.week >= 1 && ctx.week <= 18;
 
   // Four independent MFL fan-outs — game log, upcoming schedule, per-player news, and the
   // cross-league roll-up — used to run one after another, so the profile's latency was
@@ -357,7 +362,7 @@ async function profile(cookie, token, playerId) {
           }
           const proj = config.demoMode
             ? leagueProjection(playerId, base.position, league.leagueId)
-            : await liveLeagueProjection(cookie, league, playerId);
+            : (inSeason ? await liveLeagueProjection(cookie, league, playerId) : null);
           // Format-aware dynasty value for THIS league — a superflex QB is worth far
           // more here than in a 1QB league, so the value differs per format. Snapshots
           // cache per format, so repeated formats across leagues are cheap.
