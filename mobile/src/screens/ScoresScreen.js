@@ -6,6 +6,7 @@ import { ScreenTitle } from '../components/Brand';
 import { celebrate } from '../components/Celebrate';
 import ErrorView from '../components/ErrorView';
 import Pulse from '../components/Pulse';
+import AnimatedNumber from '../components/AnimatedNumber';
 import { getValue, setValue } from '../cache';
 import usePoll from '../usePoll';
 
@@ -181,7 +182,8 @@ function Side({ label, score, proj, ytp, alignEnd, highlight }) {
       <Text style={styles.sideLabel} numberOfLines={1}>
         {label}
       </Text>
-      <Text style={[styles.sideScore, highlight && { color: colors.good }]}>{(score || 0).toFixed(1)}</Text>
+      <AnimatedNumber value={score || 0} style={[styles.sideScore, highlight && { color: colors.good }]} duration={620} format={(n) => n.toFixed(1)} />
+
       <Text style={styles.sideProj}>
         proj {(proj || 0).toFixed(0)} · {ytp || 0} left
       </Text>

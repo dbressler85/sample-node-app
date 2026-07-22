@@ -298,14 +298,18 @@ Moving the app from "functional but uninspired" toward a slick, branded product.
   + soft gold glow + faint yard-lines), a choreographed entrance (crest springs in,
   wordmark rises, a gold rule wipes out under "Central"), and a tactile `PressableScale`
   button. All with the built-in `Animated` API (no new native deps).
-- [~] **Roll the motion primitives across the app.** Done so far: `PressableScale` on the tab
-  bar, the **Home hero tiles + Portfolio link**, and **Portfolio movers / by-league rows**; a
-  `Pulse` breathing component on the on-the-clock "PICK" pill **and now the Scores live
-  indicator** (a pulsing dot in the summary and on each in-progress game card). `FieldBackdrop`
-  is app-wide (behind every screen on transparent), so Home/Portfolio already sit on it.
-  *(Still to apply: `PressableScale` on roster / waiver / trade-desk cards, and staggered
-  section reveals on Home — deferred since Home remounts on every overlay open/close, which
-  would replay the animation.)*
+- [~] **Roll the motion primitives across the app.** A real motion system now runs on RN
+  `Animated` (native driver): **`PressableScale`** (springy dip + overshoot pop) on the tab bar,
+  Home tiles, Portfolio link/rows, and the **shared `PlayerRow`** (so Roster / Waivers / Trades /
+  Watch all get a tactile press); **`Pulse`** on the draft "PICK" pill and the Scores live
+  indicator; a new **`Reveal`** (staggered fade-and-rise entrance) cascading the Portfolio
+  holdings + movers rows; a new **`AnimatedNumber`** counting up the headline stats (Portfolio
+  total, Home tiles, live Scores); and the **tab transition** lengthened with a slide + scale so
+  a switch is felt. `FieldBackdrop` is app-wide. *(Still open: `Reveal` on more screens' cards,
+  and Home-level section reveals — deferred since Home remounts on every overlay open/close.)*
+- [ ] **Haptics.** Add `expo-haptics` so key actions (accept/reject trade, draft a pick, submit
+  a claim) carry a physical tap alongside the visual motion — the one "vibrancy" lever RN
+  `Animated` can't provide. Deferred to avoid adding a native dep mid-motion-pass.
 - [x] **Bundle a display typeface.** **Oswald** (condensed "broadcast" face) via `expo-font`
   + `@expo-google-fonts/oswald`, wired into `ScreenTitle` and the Login wordmark. Loaded
   defensively (`src/typography.js`): the packages are `require`d in a try/catch and the

@@ -6,6 +6,7 @@ import { colors } from '../theme';
 import { ScreenTitle } from '../components/Brand';
 import Pulse from '../components/Pulse';
 import PressableScale from '../components/PressableScale';
+import AnimatedNumber from '../components/AnimatedNumber';
 import GearIcon from '../components/GearIcon';
 import InfoDot from '../components/InfoDot';
 
@@ -425,6 +426,9 @@ function Portfolio({ p, phase, loading, onLeagues, onPortfolio, onOpenAttention 
 }
 
 function Tile({ label, value, accent, gold, loading, onPress }) {
+  const num = Number(value);
+  const isNum = value != null && value !== '' && !Number.isNaN(num);
+  const valStyle = [styles.tileValue, accent && { color: colors.accent }, gold && { color: colors.gold }];
   const inner = (
     <>
       <Text style={styles.tileLabel}>{label}</Text>
@@ -432,8 +436,10 @@ function Tile({ label, value, accent, gold, loading, onPress }) {
         <View style={styles.tileSpinner}>
           <ActivityIndicator size="small" color={colors.textDim} />
         </View>
+      ) : isNum ? (
+        <AnimatedNumber value={num} style={valStyle} duration={640} />
       ) : (
-        <Text style={[styles.tileValue, accent && { color: colors.accent }, gold && { color: colors.gold }]}>{value}</Text>
+        <Text style={valStyle}>{value}</Text>
       )}
     </>
   );

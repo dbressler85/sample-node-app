@@ -5,6 +5,8 @@ import { colors, positionColors } from '../theme';
 import useAndroidBack from '../useAndroidBack';
 import Sparkline from '../components/Sparkline';
 import PressableScale from '../components/PressableScale';
+import Reveal from '../components/Reveal';
+import AnimatedNumber from '../components/AnimatedNumber';
 
 // Chart width = screen minus the body padding (16×2) and card padding (16×2).
 const CHART_W = Dimensions.get('window').width - 64;
@@ -93,7 +95,7 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
         {/* Hero: total value, movement, and the value-over-time line — the portfolio glance. */}
         <View style={styles.card}>
           <Text style={styles.totalLabel}>Total dynasty value · {d.totals.teams} team{d.totals.teams === 1 ? '' : 's'}</Text>
-          <Text style={styles.totalValue}>{d.totals.rosterValue.toLocaleString()}</Text>
+          <AnimatedNumber value={d.totals.rosterValue} style={styles.totalValue} />
           <ChangeLine change={d.change} />
           {d.history && d.history.length >= 2 ? (
             <View style={styles.chartWrap}>
@@ -118,11 +120,11 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
         {d.movers && d.movers.length ? (
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Your movers</Text>
-            {d.movers.map((m) => {
+            {d.movers.map((m, i) => {
               const up = m.delta > 0;
               return (
+                <Reveal key={m.id} delay={Math.min(i, 6) * 45}>
                 <PressableScale
-                  key={m.id}
                   style={styles.moverRow}
                   onPress={() => onOpenPlayer && onOpenPlayer(m.id, { id: m.id, name: m.name, position: m.position })}
                 >
@@ -134,6 +136,7 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
                     {up ? '▲' : '▼'} {up ? '+' : '−'}{Math.abs(m.delta)} ({up ? '+' : '−'}{Math.abs(m.pct)}%)
                   </Text>
                 </PressableScale>
+                </Reveal>
               );
             })}
             <Text style={styles.hint}>Biggest value swings among your holdings since tracking began — where your book is heating up or cooling off.</Text>
@@ -289,10 +292,10 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
                 <Text style={styles.holdKeyPct}>vs. biggest</Text>
               </View>
             </View>
-            {(posFilter ? rankedHoldings.filter((h) => h.position === posFilter) : (showAllHoldings ? rankedHoldings : rankedHoldings.slice(0, 12))).map((h) => {
+            {(posFilter ? rankedHoldings.filter((h) => h.position === posFilter) : (showAllHoldings ? rankedHoldings : rankedHoldings.slice(0, 12))).map((h, i) => {
               const baited = resolveBaited(h);
               return (
-                <View key={h.id} style={styles.holdRow}>
+                <Reveal key={h.id} delay={Math.min(i, 10) * 40}><View style={styles.holdRow}>
                   <Pressable
                     style={({ pressed }) => [styles.holdIdentity, pressed && { opacity: 0.7 }]}
                     onPress={() => onOpenPlayer && onOpenPlayer(h.id, { id: h.id, name: h.name, position: h.position, team: h.team, value: h.avg })}
@@ -320,7 +323,7 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
                   >
                     <Text style={[styles.shopTxt, baited && styles.shopTxtOn]}>{baited ? '⇄ Shopping' : '⇄ Shop'}</Text>
                   </Pressable>
-                </View>
+                </View></Reveal>
               );
             })}
             {/* Top 12 by default; expand to the full ranked book (only when unfiltered — a

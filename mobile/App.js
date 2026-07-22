@@ -85,6 +85,7 @@ export default function App() {
   // no-op and the content can never strand off-screen. Native-driven, purely cosmetic.
   const tabSlide = useRef(new Animated.Value(0)).current;
   const tabFade = useRef(new Animated.Value(1)).current;
+  const tabScale = useRef(new Animated.Value(1)).current;
   const prevTabRef = useRef(tab);
   useEffect(() => {
     const order = TABS.map((t) => t.key);
@@ -93,13 +94,16 @@ export default function App() {
     prevTabRef.current = tab;
     if (from === -1 || to === -1 || from === to) return;
     const dir = to > from ? 1 : -1; // right in the bar → enter from the right
-    tabSlide.setValue(dir * 64);
-    tabFade.setValue(0.25);
+    // A little longer + a touch of slide and scale so the switch is felt, not just seen.
+    tabSlide.setValue(dir * 80);
+    tabFade.setValue(0.15);
+    tabScale.setValue(0.98);
     Animated.parallel([
-      Animated.timing(tabSlide, { toValue: 0, duration: 360, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-      Animated.timing(tabFade, { toValue: 1, duration: 360, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(tabSlide, { toValue: 0, duration: 430, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(tabFade, { toValue: 1, duration: 430, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.spring(tabScale, { toValue: 1, useNativeDriver: true, friction: 7, tension: 60 }),
     ]).start();
-  }, [tab, tabSlide, tabFade]);
+  }, [tab, tabSlide, tabFade, tabScale]);
 
   function handleLoggedIn(info) {
     if (info && typeof info.demoMode === 'boolean') setDemoMode(info.demoMode);
@@ -378,7 +382,7 @@ export default function App() {
 
     return (
       <View style={styles.flex}>
-        <Animated.View style={[styles.flex, { opacity: tabFade, transform: [{ translateX: tabSlide }] }]}>
+        <Animated.View style={[styles.flex, { opacity: tabFade, transform: [{ translateX: tabSlide }, { scale: tabScale }] }]}>
           {renderTab()}
         </Animated.View>
         <TabBar tab={tab} onChange={setTab} />
