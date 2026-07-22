@@ -1,9 +1,10 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, RefreshControl, ActivityIndicator } from 'react-native';
 import { api } from '../api';
 import { colors } from '../theme';
 import ErrorView from '../components/ErrorView';
 import useAndroidBack from '../useAndroidBack';
+import useCachedResource from '../useCachedResource';
 import usePoll from '../usePoll';
 
 // Cross-league draft hub: every league's draft in one place, grouped by what needs
@@ -27,31 +28,16 @@ const ordinal = (n) => {
 };
 
 export default function DraftHubScreen({ onBack, onOpenDraft }) {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState(null);
+  // Stale-while-revalidate: Home already fetched `api.drafts()` and wrote it to this same
+  // 'drafts' cache key, so opening the hub from Home paints instantly, then revalidates.
+  const { data, error, refreshing, loading, reload } = useCachedResource('drafts', () => api.drafts());
 
   useAndroidBack(useCallback(() => { onBack(); return true; }, [onBack]));
-
-  const load = useCallback(async () => {
-    setError(null);
-    try {
-      setData(await api.drafts());
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
 
   const drafts = (data && data.drafts) || [];
   // Poll while any draft is live or on the clock, so a new "your turn" appears
   // across leagues without a manual refresh.
-  usePoll(load, 15000, drafts.some((d) => d.myOnClock || d.status === 'in_progress'));
+  usePoll(reload, 15000, drafts.some((d) => d.myOnClock || d.status === 'in_progress'));
   const onClock = drafts.filter((d) => d.myOnClock);
   const live = drafts.filter((d) => !d.myOnClock && d.status === 'in_progress');
   const scheduled = drafts.filter((d) => d.status === 'scheduled')
@@ -80,13 +66,13 @@ export default function DraftHubScreen({ onBack, onOpenDraft }) {
       {loading ? (
         <View style={styles.center}><ActivityIndicator color={colors.accent} size="large" /></View>
       ) : error ? (
-        <ErrorView message={error} onRetry={() => { setLoading(true); load(); }} refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />
+        <ErrorView message={error} onRetry={reload} refreshing={refreshing} onRefresh={reload} />
       ) : drafts.length === 0 ? (
         <View style={styles.center}><Text style={styles.emptyText}>No drafts across your leagues right now.</Text></View>
       ) : (
         <ScrollView
           contentContainerStyle={styles.list}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.accent} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={reload} tintColor={colors.accent} />}
         >
           {onClock.length ? (
             <Section label="On the clock — you">

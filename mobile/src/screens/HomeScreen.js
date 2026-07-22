@@ -104,10 +104,12 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
       // you now — on the clock, live, or starting within ~3 days. A draft a month
       // out isn't an action; it lives in the Draft Hub (and On Deck). News moved
       // off Home entirely — it's on the Players → News tab.
-      api.drafts().then((d) => setDrafts((d.drafts || []).filter(isDraftActionable))).catch(() => {});
+      // Write-through to the shared SWR cache keys so opening the Draft Hub / On Deck from
+      // here paints Home's already-fetched data instantly instead of cold-loading.
+      api.drafts().then((d) => { setDrafts((d.drafts || []).filter(isDraftActionable)); setValue('drafts', d); }).catch(() => {});
 
       // On Deck — time-sorted deadlines across leagues (the proactive layer).
-      api.onDeck().then(setOnDeck).catch(() => {});
+      api.onDeck().then((d) => { setOnDeck(d); setValue('ondeck', d); }).catch(() => {});
 
       // Watchlist alerts — a player you track just became a free agent or was put on the
       // block by another owner. Background, best-effort; empty (fast) if you track no one.

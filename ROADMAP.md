@@ -356,9 +356,11 @@ Remaining, in rough priority order:
   (never skips the fetch), so there's no stale-after-action surprise — the trap
   that sank the earlier time-based Home gate. *(Not applied to Scores — it's live
   and freshness matters. Draft Hub and Trade Inbox could get the same treatment.)*
-- [ ] **Seed overlays from Home's already-fetched data.** Home fetches `drafts`,
-  `onDeck`, and `news`; the Draft Hub / On Deck / News screens then refetch the
-  same endpoints cold. Pass the loaded data as an initial prop (still revalidate).
+- [x] **Seed overlays from Home's already-fetched data.** Done: Home now write-throughs its
+  `api.drafts()` / `api.onDeck()` results to the shared SWR cache keys (`'drafts'` / `'ondeck'`),
+  and the **Draft Hub** was converted to `useCachedResource('drafts', …)` (On Deck already used
+  `useCachedResource('ondeck', …)`), so opening either from Home paints Home's data instantly
+  then revalidates — no cold spinner. (News isn't fetched on Home; it lives on the Players tab.)
 - [~] **`React.memo` the long-list rows.** Done: the shared `PlayerRow` (Roster / Waivers /
   Trades / Watch) and the draft `PoolRow` are memoized, so a parent re-render no longer re-renders
   every visible row. *(Remaining: the Players-screen local `PlayerRow`/`WatchRow` and Waivers
@@ -368,8 +370,8 @@ Remaining, in rough priority order:
   overlay *instead of* the tab view, so opening/closing any overlay unmounts and
   remounts the active tab. The Home freshness gate mitigates the refetch cost;
   keeping the tab mounted under the overlay would remove the remount entirely.
-- [ ] **`SlotEditor` picker: memoize filter+sort.** Small (roster-sized), trivial
-  `useMemo`.
+- [x] **`SlotEditor` picker: memoize filter+sort.** Done — the eligible-candidates
+  filter+sort is now a `useMemo` keyed on `players` / `slot.eligible`.
 - [ ] **Enrichment provider in-flight coalescing (minor).** The four external
   providers (FantasyCalc / Sleeper / MFL topOwns / topAdds) cache resolved values,
   not in-flight promises. The snapshot memo already coalesces same-format callers;

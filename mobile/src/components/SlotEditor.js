@@ -88,7 +88,11 @@ function SlotRow({ slot, player, onPress }) {
 }
 
 function PlayerPicker({ slot, players, assignments, slotIndex, onPick, onClose }) {
-  const candidates = players.filter((p) => slot.eligible.includes(p.position)).sort((a, b) => b.median - a.median);
+  // Memoized so re-renders (e.g. the parent's slot-tap state) don't re-filter/sort the roster.
+  const candidates = useMemo(
+    () => players.filter((p) => slot.eligible.includes(p.position)).sort((a, b) => b.median - a.median),
+    [players, slot.eligible],
+  );
   return (
     <Pressable style={styles.sheetBackdrop} onPress={onClose}>
       <Pressable style={styles.sheet} onPress={() => {}}>
