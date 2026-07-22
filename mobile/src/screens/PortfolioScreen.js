@@ -294,7 +294,7 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
             {(posFilter ? rankedHoldings.filter((h) => h.position === posFilter) : (showAllHoldings ? rankedHoldings : rankedHoldings.slice(0, 12))).map((h, i) => {
               const baited = resolveBaited(h);
               return (
-                <Reveal key={h.id} delay={Math.min(i, 10) * 40}><View style={styles.holdRow}>
+                <Reveal key={h.id} delay={Math.min(i, 10) * 40} animate={i < 12}><View style={styles.holdRow}>
                   <Pressable
                     style={({ pressed }) => [styles.holdIdentity, pressed && { opacity: 0.7 }]}
                     onPress={() => onOpenPlayer && onOpenPlayer(h.id, { id: h.id, name: h.name, position: h.position, team: h.team, value: h.avg })}
