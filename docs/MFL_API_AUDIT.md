@@ -150,18 +150,38 @@ imports without a `DATA` arg can go via GET. **Our `importRequest` matches this*
 still missing is the **per-type Import *reference*** (the args each write TYPE expects) — the sample
 page only demonstrates `auctionResults`. The rows below stay open until we have that reference.
 
-| TYPE | Params we send | Status · Verify from docs |
-|---|---|---|
-| `lineup` | starters for the week | 🔴 Confirm exact param name for the starter list + week + whether it replaces or merges. |
-| `tradeProposal` | offer (give/get assets, partner, expiration, FAAB `BB_`) | 🔴 Confirm asset token format (players numeric; picks `FP_<owner>_<year>_<round>`; current pick `DP_`; FAAB `BB_<dollars>`), the will-give/receive param names, and franchise-id padding. |
-| `tradeResponse` | `TRADE_ID`, `RESPONSE` (accept/reject) | 🔴 Confirm `RESPONSE` allowed values + that `TRADE_ID` is the right identifier from `pendingTrades`. |
-| `tradeBait` | give/get lists | 🔴 Confirm set-vs-append semantics and token format. |
-| `draftPick` | `PLAYER` (+ franchise) | 🔴 Confirm the make-pick params (does it need round/pick or infer from on-the-clock?). |
-| `drop` | `DROP` (player id) | 🔴 Confirm — plain drop to free agency. |
-| waiver claim: `blindBidWaiver` / `fcfsWaiver` / `waiverRequest` | `ADD`, `DROP?`, `BBID?` (FAAB) | 🔴 **Highest priority.** Confirm the exact TYPE per system (FAAB vs FCFS vs continuous), the bid param name (`BBID`?), whether ADD/DROP take single ids or lists, and how immediate free-agent adds differ from waiver claims. |
+Audited against the **Import request reference**. Verdicts:
 
-**Open write question:** is there a distinct **free-agent "add"** import (immediate acquisition) separate from
-the waiver `*Waiver` types? We currently route immediate adds through the waiver path — confirm that's right.
+| Our call (file) | TYPE / params we send | Verdict vs. the Import reference |
+|---|---|---|
+| `lineup` (`lineups.js`) | `L`,`W`,`STARTERS`(csv),`FRANCHISE` | ✅ **Correct.** Doc: `L`,`W`,`STARTERS`(csv),optional `COMMENTS`/`TIEBREAKERS`. (`FRANCHISE` → see note below.) |
+| `tradeProposal` (`trades.js`) | `OFFEREDTO`,`WILL_GIVE_UP`,`WILL_RECEIVE`,`COMMENTS`,`FRANCHISE` | ✅ **Correct.** Optional `EXPIRES` (Unix; defaults to +1 week) available if we want to set it. |
+| `tradeResponse` (`trades.js`) | `TRADE_ID`,`RESPONSE`(accept/reject),`FRANCHISE` | ✅ **Correct.** `RESPONSE` also allows **`revoke`** (originator-only) — we don't expose it (missing feature, not a bug). |
+| `tradeBait` (`tradebait.js`) | `WILL_GIVE_UP`,`IN_EXCHANGE_FOR`,`FRANCHISE` | ✅ **Correct** (overwrites prior bait, as intended). `tradeBait` has **no** `FRANCHISE_ID` param — the `FRANCHISE` we send is simply ignored. |
+| immediate add/drop → `fcfsWaiver` (`waivers.js`) | `ADD`,`DROP`,`FRANCHISE` | ✅ **Correct** for the immediate/continuous case (`ADD` single, `DROP` csv). |
+| **drop a player → `drop`** (`playerhub.js`) | `DROP`,`FRANCHISE` | 🔴 **BROKEN — no `drop` TYPE exists.** Fix: use **`fcfsWaiver`** with `DROP=<id>` (ADD omitted). "You may also use this call to drop multiple players at once." |
+| **FAAB claim → `blindBidWaiver`** (`waivers.js`) | `ADD`,`DROP`,`BID` | 🔴 **BROKEN — wrong TYPE *and* shape.** Must be **`blindBidWaiverRequest`** with `ROUND` + `PICKS` where each pick is `add_bid_drop` (e.g. `1111_5_2222`; use `0000` as the drop id when not dropping). No `ADD`/`DROP`/`BID` params. |
+| **priority claim → `waiverRequest`** (`waivers.js`) | `ADD`,`DROP`,`BID` | 🔴 **BROKEN — wrong shape.** Needs `ROUND` + `PICKS` where each pick is `add_drop` (e.g. `1111_2222`). `REPLACE` toggles append-vs-replace for the round. |
+| **make a pick → `draftPick`** (`draft.js`) | `PLAYER`,`FRANCHISE` | 🔴 **No such TYPE.** MFL has **no documented live make-a-pick import** — `draftResults`/`auctionResults` are bulk commissioner XML loads ("not to implement a live draft application"). Live in-app drafting isn't supported by the documented API. |
+
+**`FRANCHISE` vs `FRANCHISE_ID` (applies to most writes above).** The doc's commissioner-impersonation
+param is **`FRANCHISE_ID`**; we send `FRANCHISE`, which is unrecognized and ignored — harmless because the
+session **cookie already identifies the owner**. Do **not** blind-rename it: passing `FRANCHISE_ID` as a
+*non*-commissioner could trip MFL's commissioner-validation and break a currently-working owner write. The
+safe options are to leave it (ignored) or drop it entirely; only wire real `FRANCHISE_ID` if/when we add a
+commissioner-impersonation path, and test it live.
+
+**Answered open question:** there is **no separate free-agent "add"** import — an immediate acquisition IS
+`fcfsWaiver` (`ADD`, optional `DROP`). Our immediate path already uses it correctly; the bug is only in the
+FAAB/priority-round paths (wrong TYPE/shape) and the standalone `drop`.
+
+**Fix plan (all 🔴 rows mutate real leagues → each needs a live test before merge):**
+1. **`drop` → `fcfsWaiver`** (smallest, unambiguous; the feature is currently dead in live).
+2. **Waiver rounds** — rework FAAB/priority to `blindBidWaiverRequest`/`waiverRequest` with `ROUND` +
+   `PICKS`. Needs a source for the current `ROUND` (league/calendar) and PICKS assembly. Highest value
+   (FAAB is the common dynasty system) and highest risk.
+3. **`draftPick`** — no documented API; decide whether to hide in-app live drafting in live mode (keep it
+   demo-only) or investigate MFL's separate live-draft mechanism.
 
 ---
 
@@ -177,24 +197,26 @@ the waiver `*Waiver` types? We currently route immediate adds through the waiver
 
 ---
 
-## 4. What's still needed (the Export reference answered most read questions)
+## 4. Status — audit complete; remaining work is implementation
 
-The Export reference page resolved the read-side unknowns (see §0 / §0b), and the API Test Area sample
-code confirmed the **login and import *mechanics*** (see §2 / §3). The **one gap left is the per-type
-Import *reference*** — the `Import` tab of the API Reference page that lists each write TYPE and its args.
-That page (not the sample page) is what closes the 🔴 rows in §2:
+Both the **Export** and **Import** references, plus the sample code, have now been checked against our
+code. The unknowns are resolved:
 
-1. **Waiver writes** 🔴 — exact import TYPE per system (FAAB vs FCFS vs continuous) + bid param name +
-   ADD/DROP single-vs-list + whether an immediate free-agent add is a distinct import.
-2. **Trade writes** 🔴 — `tradeProposal`/`tradeResponse` param names (`OFFERINGTEAM`/`RECEIVINGTEAM`/
-   give-get lists/`TRADE_ID`/`RESPONSE`), and FAAB-in-a-trade. (Asset **token** formats are already
-   confirmed — see §0b.)
-3. **`drop` / `import` add / `lineup` / `draftPick` / `tradeBait`** 🔴 — exact param names + POST vs GET
-   (MFL recommends POST for imports) + whether the `DATA` field must be XML.
+- **Reads** — verified; the deploy-safe wins already shipped (§0, §0b), the rest are queued opportunities.
+- **Auth / mechanics** — login and import both match MFL's official samples (§2, §3).
+- **Writes** — three 🔴 bugs found (`drop`, FAAB/priority waivers, `draftPick`); the rest are correct.
 
-**Read-side follow-ups still worth doing** (tracked as tasks, from §0b): `players?SINCE=` incremental
-merge; `nflSchedule?W=ALL` to collapse the per-week schedule fan-out; `login` GET→POST; and the optional
-enrichments (`assets`, `playerRosterStatus`, `leagueStandings?COLUMN_NAMES=1`, `adp?IS_KEEPER=`).
+**Remaining work, in priority order** (each 🔴 mutates a real league → live test required before merge):
+
+1. 🔴 **Waiver writes** — the highest-value fix (FAAB is broken today). Rework to
+   `blindBidWaiverRequest`/`waiverRequest` with `ROUND` + `PICKS` (§2).
+2. 🔴 **`drop` → `fcfsWaiver`** — small, unambiguous; restores a dead feature.
+3. 🔴 **`draftPick`** — no documented API; decide demo-only vs. investigate MFL's live-draft mechanism.
+4. **Read-side opportunities** (no app build, smoke-verified): `players?SINCE=` incremental merge,
+   `nflSchedule?W=ALL` fan-out collapse, and the enrichments in §0b (`assets`, `playerRosterStatus`,
+   `leagueStandings?COLUMN_NAMES=1`, `adp?IS_KEEPER=`).
+5. **Optional hygiene:** `login` GET→POST (credentials out of the URL); requires a live-login test.
 
 > Read-side fixes ship via Render with no app build and are verified by the smoke/live suite. Write-side
-> fixes are the same, but each needs a careful live test against a real league before merge.
+> fixes ship the same way, but **each needs a careful live test against a real league before merge** — a
+> wrong write can't be undone by a redeploy.
