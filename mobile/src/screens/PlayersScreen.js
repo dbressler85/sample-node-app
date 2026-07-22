@@ -17,6 +17,9 @@ const TABS = [
   ['mine', 'My Players'],
   ['news', 'News'],
 ];
+// Only ever hand an http(s) URL to the OS opener — a hostile/compromised upstream news `url`
+// must not be able to launch arbitrary schemes (tel:, sms:, market:, custom app deep links).
+const isHttpUrl = (u) => typeof u === 'string' && /^https?:\/\//i.test(u);
 const RANK_TYPES = [
   ['value', 'Market value'],
   ['myvalue', 'My value'],
@@ -372,7 +375,7 @@ export default function PlayersScreen({ onOpenPlayer }) {
                 keyExtractor={(n) => n.id}
                 contentContainerStyle={styles.list}
                 renderItem={({ item }) => (
-                  <NewsRow n={item} onPress={() => (item.url ? Linking.openURL(item.url).catch(() => {}) : item.player.id && onOpenPlayer(item.player.id))} />
+                  <NewsRow n={item} onPress={() => (isHttpUrl(item.url) ? Linking.openURL(item.url).catch(() => {}) : item.player.id && onOpenPlayer(item.player.id))} />
                 )}
                 ListEmptyComponent={
                   !news ? (

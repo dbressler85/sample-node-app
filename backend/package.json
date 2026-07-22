@@ -10,6 +10,7 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
+    "lint": "eslint src scripts test",
     "smoke": "node scripts/smoke.js",
     "smoke:live": "node scripts/smoke-live.js",
     "smoke:all": "node scripts/smoke.js && node scripts/smoke-live.js"
@@ -18,5 +19,8 @@
     "cors": "^2.8.5",
     "express": "^4.19.2",
     "morgan": "^1.10.0"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.1"
   }
 }

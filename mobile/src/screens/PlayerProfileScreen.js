@@ -65,6 +65,18 @@ export default function PlayerProfileScreen({ playerId, seed, onBack, onOpenTrad
   const [watched, setWatched] = useState(false);
   const [tag, setTag] = useState(null); // 'target' | 'avoid' | null
 
+  // Refresh the live profile and update the cache. Reused by the initial load and after an
+  // add/drop from a sheet (so the cross-league standing reflects the action — guardrail C3).
+  const load = useCallback(async () => {
+    try {
+      const prof = await api.playerProfile(playerId);
+      setP(prof); setFull(true); setWatched(!!prof.watched); setTag(prof.tag || null);
+      setValue(`player:profile:${playerId}`, prof);
+    } catch (e) {
+      setError(e.message);
+    }
+  }, [playerId]);
+
   // The cross-league profile is a heavy read (per-league value snapshots). To avoid a blank
   // spinner — brutal when opened from Portfolio, where the players cache is cold — paint
   // instantly from (a) the last cached profile, then (b) live data. If neither is ready yet,
@@ -73,20 +85,12 @@ export default function PlayerProfileScreen({ playerId, seed, onBack, onOpenTrad
     let alive = true;
     setP(null);
     setFull(false);
-    const key = `player:profile:${playerId}`;
-    getValue(key).then((cached) => {
-      if (alive && cached && !full) { setP(cached); setWatched(!!cached.watched); setTag(cached.tag || null); }
+    getValue(`player:profile:${playerId}`).then((cached) => {
+      if (alive && cached) { setP(cached); setWatched(!!cached.watched); setTag(cached.tag || null); }
     });
-    api.playerProfile(playerId)
-      .then((prof) => {
-        if (!alive) return;
-        setP(prof); setFull(true); setWatched(!!prof.watched); setTag(prof.tag || null);
-        setValue(key, prof);
-      })
-      .catch((e) => alive && setError(e.message));
+    load();
     return () => { alive = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playerId]);
+  }, [playerId, load]);
 
   // Star / unstar — optimistic, reverts on failure.
   const toggleWatch = useCallback(() => {

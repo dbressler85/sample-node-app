@@ -1,0 +1,22 @@
+{
+  "root": true,
+  "extends": "expo",
+  "env": {
+    "browser": true,
+    "node": true,
+    "es2021": true
+  },
+  "rules": {
+    "no-undef": "error",
+    "no-unused-vars": "off",
+    "import/no-unresolved": "off",
+    "react-hooks/exhaustive-deps": "off",
+    "react-hooks/rules-of-hooks": "off",
+    "react-hooks/refs": "off",
+    "react-hooks/set-state-in-effect": "off",
+    "react-hooks/immutability": "off",
+    "react-hooks/purity": "off",
+    "react-hooks/static-components": "off",
+    "react-hooks/preserve-manual-memoization": "off"
+  }
+}

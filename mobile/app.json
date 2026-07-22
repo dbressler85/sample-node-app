@@ -30,7 +30,8 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0A0F1C"
       },
-      "backgroundColor": "#080B15"
+      "backgroundColor": "#080B15",
+      "allowBackup": false
     },
     "ios": {
       "supportsTablet": true,

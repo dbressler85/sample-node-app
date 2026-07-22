@@ -1,0 +1,57 @@
+name: CI
+
+# The automated safety net the codebase lacked. Two gates on every push and PR:
+#  - backend: lint (no-undef — the login-crash ReferenceError class) + the full smoke suite
+#    (demo walkthrough + live-path harnesses). No MFL secrets/network needed (fetch is stubbed,
+#    demo uses fixtures).
+#  - mobile: no-undef lint — guards the uncatchable root-component ReferenceError the project
+#    fears most (it already caught two real latent crashes in PlayerProfileScreen).
+# Make both required checks so changes can't merge/deploy unverified.
+
+on:
+  push:
+    branches:
+      - master
+      - 'claude/**'
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Lint (no-undef enforced)
+        run: npm run lint
+      - name: Smoke tests (demo + live)
+        run: npm run smoke:all
+
+  mobile:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Lint (no-undef)
+        run: npm run lint
