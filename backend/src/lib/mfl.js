@@ -238,7 +238,10 @@ const SLOW_TYPES = new Set(['projectedScores', 'playerScores']);
 
 // Read data via the export command (cached, TTL depends on how volatile it is).
 async function exportRequest(type, { host = config.apiHost, cookie = null, maxAge = null, ...params } = {}) {
-  const key = `${cookie || ''}|${host}|${type}|${JSON.stringify(params)}`;
+  // Key on params with SORTED keys: the read cache coalesces identical reads, but
+  // JSON.stringify is insertion-order-sensitive, so {L,FRANCHISE} and {FRANCHISE,L} would hash to
+  // different keys and silently double-fetch the same data. (params holds flat primitives.)
+  const key = `${cookie || ''}|${host}|${type}|${JSON.stringify(params, Object.keys(params).sort())}`;
   let ttl = STATIC_TYPES.has(type)
     ? config.mflStaticTtlMs
     : LIVE_TYPES.has(type)
