@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, FlatList, StyleSheet, Pressable, TextInput, ActivityIndicator, Linking, ScrollView } from 'react-native';
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
@@ -206,9 +206,27 @@ export default function PlayersScreen({ onOpenPlayer }) {
   const searching = query.trim().length >= 2;
 
   // A player's rank in the CURRENT rank type's natural order, so the rank number stays true
-  // even when the list is re-sorted by name/position (you still see where he ranks).
-  const rankById = {};
-  if (rankings) rankings.players.forEach((p, i) => { rankById[p.id] = i + 1; });
+  // even when the list is re-sorted by name/position (you still see where he ranks). Memoized
+  // so it only rebuilds when the rankings change, not on every keystroke/state tick.
+  const rankById = useMemo(() => {
+    const m = {};
+    if (rankings) rankings.players.forEach((p, i) => { m[p.id] = i + 1; });
+    return m;
+  }, [rankings]);
+
+  // Each list's sorted (and filtered) data, memoized on its real inputs — so a FlatList doesn't
+  // get a brand-new array identity (and re-sort 300+ rows) on every unrelated re-render.
+  const searchData = useMemo(() => (searchRes ? sortPlayers(searchRes.players, listSort) : []), [searchRes, listSort]);
+  const rankingsData = useMemo(() => (rankings ? sortPlayers(rankings.players, listSort) : []), [rankings, listSort]);
+  const watchData = useMemo(() => (watch ? sortPlayers(watch.players, listSort) : []), [watch, listSort]);
+  const mineData = useMemo(
+    () => (mine ? sortPlayers(mine.players.filter((p) => !pos || p.position === pos), listSort) : []),
+    [mine, pos, listSort]
+  );
+  const newsData = useMemo(
+    () => (news ? sortNews(news.news.filter((n) => matchNews(n, newsQuery)), newsSort) : []),
+    [news, newsQuery, newsSort]
+  );
 
   return (
     <View style={styles.container}>
@@ -251,7 +269,7 @@ export default function PlayersScreen({ onOpenPlayer }) {
             <PlayerListSkeleton />
           ) : (
             <FlatList
-              data={sortPlayers(searchRes.players, listSort)}
+              data={searchData}
               keyExtractor={(p) => p.id}
               extraData={{ tagOverride, watchOverride, listSort }}
               contentContainerStyle={styles.list}
@@ -286,7 +304,7 @@ export default function PlayersScreen({ onOpenPlayer }) {
               <LensSortRow format={format} setFormat={setFormat} sort={listSort} onSort={setListSort} />
               <FlatList
                 style={styles.grow}
-                data={rankings ? sortPlayers(rankings.players, listSort) : []}
+                data={rankingsData}
                 keyExtractor={(p) => p.id}
                 extraData={{ tagOverride, watchOverride, listSort }}
                 contentContainerStyle={styles.list}
@@ -311,7 +329,7 @@ export default function PlayersScreen({ onOpenPlayer }) {
             <>
               {watch && watch.players.length ? <SortRow value={listSort} onChange={setListSort} /> : null}
               <FlatList
-              data={watch ? sortPlayers(watch.players, listSort) : []}
+              data={watchData}
               keyExtractor={(p) => p.id}
               extraData={{ listSort }}
               contentContainerStyle={styles.list}
@@ -330,7 +348,7 @@ export default function PlayersScreen({ onOpenPlayer }) {
               <PosFilter pos={pos} setPos={setPos} />
               <SortRow value={listSort} onChange={setListSort} />
               <FlatList
-                data={mine ? sortPlayers(mine.players.filter((p) => !pos || p.position === pos), listSort) : []}
+                data={mineData}
                 keyExtractor={(p) => p.id}
                 extraData={{ tagOverride, watchOverride }}
                 contentContainerStyle={styles.list}
@@ -371,7 +389,7 @@ export default function PlayersScreen({ onOpenPlayer }) {
                 ))}
               </View>
               <FlatList
-                data={news ? sortNews(news.news.filter((n) => matchNews(n, newsQuery)), newsSort) : []}
+                data={newsData}
                 keyExtractor={(n) => n.id}
                 contentContainerStyle={styles.list}
                 renderItem={({ item }) => (

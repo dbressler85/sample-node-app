@@ -11,7 +11,9 @@ import Svg, { Defs, LinearGradient, RadialGradient, Stop, Rect, Line, G } from '
 //                     readable while the whole app still reads gold-over-navy.
 // Drawn in a 0–100 square stretched to fill (preserveAspectRatio none) so it adapts to any
 // container without measuring. Purely decorative — never intercepts touches.
-export default function FieldBackdrop({ hero = false, watermark = true }) {
+// Memoized: props are stable (the app renders it with none, login with a fixed `hero`), so the
+// heavy static SVG shouldn't re-render on every unrelated App state change (tab/overlay/etc.).
+function FieldBackdrop({ hero = false, watermark = true }) {
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
       <Svg style={StyleSheet.absoluteFill} viewBox="0 0 100 100" preserveAspectRatio="none">
@@ -72,3 +74,5 @@ const styles = StyleSheet.create({
   wmWrap: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', paddingBottom: '14%' },
   wmImg: { width: '74%', aspectRatio: 1, opacity: 0.06 },
 });
+
+export default React.memo(FieldBackdrop);
