@@ -36,8 +36,11 @@ changes we shipped from them:
 - **Player DB changes once a day; request it no more than once a day.** → **Applied.** Split
   `players` + `nflSchedule` into a new **daily TTL tier** (`mflDailyTtlMs`, 24h) instead of the 1h
   static tier — we were re-downloading the whole player universe ~24× more than MFL asks.
-- **Login should be POST.** MFL recommends POST for `login` (and for imports). ⚠️ We currently GET
-  `login?…&XML=1`. Flagged for a careful follow-up (auth critical path; needs a real-login test).
+- **Login.** ✅ MFL's own **official sample code uses GET** `login?USERNAME=&PASSWORD=&XML=1` and reads
+  the cookie from the response (`MFL_USER_ID="…">OK`) — which is *exactly* what we do. So GET is **not**
+  wrong; it's the documented example. POST is only a *credentials-hygiene* option (keeps user/pass out of
+  the URL / upstream access logs). Optional, owner-gated, and needs a real-login test before switching —
+  not a bug.
 - **Player ids** are 4–5 digit strings; ids **under 1000 need a leading zero** (`0531`). **Franchise
   ids** are 4-digit (`0001`; `0000` = commissioner). ✅ We already 4-pad franchise ids; confirm the
   player-id padding on any id we format into a token.
@@ -139,6 +142,14 @@ so we keep ours. Endpoints we don't use but exist if ever needed: `weeklyResults
 Writes are the highest-risk: a wrong param can fail silently or do the wrong thing to a real league.
 (Reminder from our rules: **zero-pad franchise ids to 4 digits**; **always surface `err.mflError`**.)
 
+**Import mechanics — ✅ confirmed against MFL's official sample code** (the API Test Area page):
+`POST protocol://<league_host>/<year>/import?L=<id>&TYPE=<type>` with any XML payload sent as a
+form-encoded `DATA=<xml>` field in the body (`Content-Type: application/x-www-form-urlencoded`);
+imports without a `DATA` arg can go via GET. **Our `importRequest` matches this**: `method:'POST'`,
+`Content-Type` set, params (incl. any `DATA`) URL-encoded in the body, `TYPE` in the query. What's
+still missing is the **per-type Import *reference*** (the args each write TYPE expects) — the sample
+page only demonstrates `auctionResults`. The rows below stay open until we have that reference.
+
 | TYPE | Params we send | Status · Verify from docs |
 |---|---|---|
 | `lineup` | starters for the week | 🔴 Confirm exact param name for the starter list + week + whether it replaces or merges. |
@@ -158,7 +169,7 @@ the waiver `*Waiver` types? We currently route immediate adds through the waiver
 
 | Topic | Our behavior | Verify from docs |
 |---|---|---|
-| Auth | `login` (user/pass → MFLUSERID cookie); password never stored; cookie encrypted at rest | ✅ Confirm the login export and that cookie auth is the right mechanism for user-scoped read+write. |
+| Auth | GET `login?USERNAME=&PASSWORD=&XML=1` → `MFL_USER_ID` cookie; password never stored; cookie encrypted at rest | ✅ **Matches MFL's official sample exactly** (GET login, cookie read from the response, then reused as `Cookie: MFL_USER_ID=…` across leagues). POST-login is an optional credentials-hygiene tweak (owner-gated, needs a live test). |
 | Client identity | Validated User-Agent `dynasty-central`; optional `APIKEY` param supported but unused | ✅ Confirm nothing else (referer, etc.) is required for a validated client. |
 | Rate limits | Throttle 8 concurrent / 75 ms stagger (with validated client) + adaptive 429 cooldown / 503 backoff | ✅ **Resolved:** MFL publishes **no fixed ceiling** — registered clients get ~2.5× unregistered limits, and limits drop during games. Approach stays empirical/adaptive; 429s are logged (not retried) so the real limit shows in live signal. |
 | Host routing | Per-league `host` from `myleagues`; all pinned to `*.myfantasyleague.com` | ✅ Confirm league-specific host usage is correct (vs always api host). |
@@ -168,9 +179,10 @@ the waiver `*Waiver` types? We currently route immediate adds through the waiver
 
 ## 4. What's still needed (the Export reference answered most read questions)
 
-The Export reference page resolved the read-side unknowns (see §0 / §0b). The **highest-value gap left is
-the write side** — please paste the **Import request reference** (the `Import` tab on the same API
-reference page) so we can close the 🔴 rows in §2:
+The Export reference page resolved the read-side unknowns (see §0 / §0b), and the API Test Area sample
+code confirmed the **login and import *mechanics*** (see §2 / §3). The **one gap left is the per-type
+Import *reference*** — the `Import` tab of the API Reference page that lists each write TYPE and its args.
+That page (not the sample page) is what closes the 🔴 rows in §2:
 
 1. **Waiver writes** 🔴 — exact import TYPE per system (FAAB vs FCFS vs continuous) + bid param name +
    ADD/DROP single-vs-list + whether an immediate free-agent add is a distinct import.
