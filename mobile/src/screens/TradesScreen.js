@@ -193,6 +193,19 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
       return next;
     });
   }
+  // FAAB (blind-bidding budget) as a tradeable asset: one synthetic BB_<amount> entry per side,
+  // driven by a stepper (not the checkbox list). Its value uses the same per-dollar weight as
+  // the backend so the live preview matches the analyzed offer. Editing replaces the entry.
+  const faabOf = (map) => { const f = Object.values(map).find((a) => a.kind === 'faab'); return f ? f.amount : 0; };
+  const setFaab = (setFn, amount) => setFn((cur) => {
+    const next = {};
+    for (const [k, a] of Object.entries(cur)) if (a.kind !== 'faab') next[k] = a;
+    if (amount > 0) {
+      const tok = `BB_${amount}`;
+      next[tok] = { id: tok, kind: 'faab', name: `$${amount} FAAB`, position: 'FAAB', amount, value: Math.round(amount * 0.2) };
+    }
+    return next;
+  });
   // Reset the "you get" side when switching partners (and drop any counter context).
   function pickPartner(id) {
     setPartnerId(id);
@@ -429,6 +442,8 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
                   {sendOptions.map((a) => (
                     <AssetRow key={a.id} asset={a} on={!!send[a.id]} onPress={() => toggle(setSend, send, a)} tint={colors.accent} compact />
                   ))}
+                  {/* FAAB is tradeable in most leagues — add blind-bid budget to your side. */}
+                  <FaabStepper amount={faabOf(send)} onChange={(n) => setFaab(setSend, n)} tint={colors.accent} />
                 </View>
                 <View style={styles.buildColDiv} />
                 <View style={styles.buildCol}>
@@ -436,6 +451,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
                   {receiveOptions.map((a) => (
                     <AssetRow key={a.id} asset={a} on={!!receive[a.id]} onPress={() => toggle(setReceive, receive, a)} tint={colors.good} compact />
                   ))}
+                  <FaabStepper amount={faabOf(receive)} onChange={(n) => setFaab(setReceive, n)} tint={colors.good} />
                 </View>
               </View>
             </>
@@ -538,14 +554,18 @@ function OfferCard({ offer, busy, onRespond, onCounter, onOpenPlayer }) {
           <Text style={[styles.bottomLineText, { color: TONE[offer.bottomLine.tone] || colors.text }]}>{offer.bottomLine.text}</Text>
         </View>
       ) : null}
-      <View style={styles.cardActions}>
-        <Pressable style={[styles.act, styles.reject]} onPress={() => onRespond(offer, 'reject')} disabled={busy}>
-          <Text style={styles.rejectText}>Reject</Text>
-        </Pressable>
-        <Pressable style={[styles.act, styles.accept]} onPress={() => onRespond(offer, 'accept')} disabled={busy}>
-          {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.acceptText}>Accept</Text>}
-        </Pressable>
-      </View>
+      {offer.canRespond === false ? (
+        <Text style={styles.noRespond}>This offer can’t be actioned here — open it in MyFantasyLeague.</Text>
+      ) : (
+        <View style={styles.cardActions}>
+          <Pressable style={[styles.act, styles.reject]} onPress={() => onRespond(offer, 'reject')} disabled={busy}>
+            <Text style={styles.rejectText}>Reject</Text>
+          </Pressable>
+          <Pressable style={[styles.act, styles.accept]} onPress={() => onRespond(offer, 'accept')} disabled={busy}>
+            {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.acceptText}>Accept</Text>}
+          </Pressable>
+        </View>
+      )}
       {onCounter ? (
         <Pressable style={({ pressed }) => [styles.counterBtn, pressed && { opacity: 0.7 }]} onPress={() => onCounter(offer)} disabled={busy}>
           <Text style={styles.counterBtnText}>↩ Counter with a balanced offer</Text>
@@ -560,20 +580,42 @@ function Side({ label, assets, total, tint, onOpenPlayer }) {
     <View style={styles.side}>
       <Text style={styles.sideLabel}>{label} · {total}</Text>
       {assets.map((a) => {
-        // Players open their cross-league profile; picks aren't players, so they stay inert.
-        const tappable = onOpenPlayer && a.kind !== 'pick';
+        // Only players open a profile; picks and FAAB (blind-bid budget) aren't players.
+        const faab = a.kind === 'faab' || a.position === 'FAAB';
+        const tappable = onOpenPlayer && a.kind === 'player';
         const Row = tappable ? Pressable : View;
         const rowProps = tappable ? { onPress: () => onOpenPlayer(a.id) } : {};
+        const meta = a.kind === 'pick'
+          ? (a.value != null ? `val ${a.value}` : 'pick')
+          : faab
+          ? `budget${a.value != null ? ` · ${a.value}` : ''}`
+          : `${a.position}${a.value != null ? ` · ${a.value}` : ''}`;
         return (
           <Row key={a.id} style={styles.sideRow} {...rowProps}>
-            <View style={[styles.dot, { backgroundColor: positionColors[a.position] || colors.textDim }]} />
+            <View style={[styles.dot, { backgroundColor: faab ? colors.gold : (positionColors[a.position] || colors.textDim) }]} />
             <Text style={styles.sideName} numberOfLines={1}>{a.name}</Text>
             {/* Picks show "val N" (dynasty value 0–100), never a bare number that reads as a
                 pick slot — future picks have no known slot until the draft order is set. */}
-            <Text style={styles.sideMeta}>{a.kind === 'pick' ? (a.value != null ? `val ${a.value}` : 'pick') : `${a.position}${a.value != null ? ` · ${a.value}` : ''}`}</Text>
+            <Text style={styles.sideMeta}>{meta}</Text>
           </Row>
         );
       })}
+    </View>
+  );
+}
+
+// Stepper to add blind-bidding budget (FAAB) to one side of the builder, in $5 steps. Shows
+// "+ FAAB" when zero, "$20 FAAB" (tinted) once set. Compact enough for the narrow build column.
+function FaabStepper({ amount, onChange, tint }) {
+  return (
+    <View style={styles.faabRow}>
+      <Pressable onPress={() => onChange(Math.max(0, amount - 5))} disabled={amount <= 0} style={[styles.faabBtn, amount <= 0 && { opacity: 0.35 }]} hitSlop={8}>
+        <Text style={styles.faabBtnTxt}>−</Text>
+      </Pressable>
+      <Text style={[styles.faabAmt, amount > 0 && { color: tint }]} numberOfLines={1}>{amount > 0 ? `$${amount} FAAB` : '+ FAAB'}</Text>
+      <Pressable onPress={() => onChange(amount + 5)} style={styles.faabBtn} hitSlop={8}>
+        <Text style={styles.faabBtnTxt}>+</Text>
+      </Pressable>
     </View>
   );
 }
@@ -683,6 +725,11 @@ const styles = StyleSheet.create({
   buildFit: { marginBottom: 8, gap: 2 },
   buildFitLine: { fontSize: 12, fontWeight: '700' },
   cardActions: { flexDirection: 'row', gap: 10, marginTop: 12 },
+  noRespond: { color: colors.textDim, fontSize: 12, textAlign: 'center', marginTop: 10, fontStyle: 'italic' },
+  faabRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6, paddingVertical: 4, paddingHorizontal: 5, borderRadius: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, backgroundColor: colors.card },
+  faabBtn: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.cardAlt },
+  faabBtnTxt: { color: colors.text, fontSize: 16, fontWeight: '900', lineHeight: 18 },
+  faabAmt: { flex: 1, textAlign: 'center', color: colors.textDim, fontSize: 11, fontWeight: '800' },
   act: { flex: 1, borderRadius: 10, paddingVertical: 11, alignItems: 'center' },
   reject: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
   rejectText: { color: colors.textDim, fontWeight: '800', fontSize: 14 },

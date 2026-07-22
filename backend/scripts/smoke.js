@@ -237,10 +237,14 @@ function assert(cond, msg) {
         `${prof.season.ppg} ppg, sched diff ${prof.schedule.avgDifficulty}, rostered in ${prof.actions.dropLeagues.length} of your leagues`
     );
 
-    // Profile of a free agent → cross-league add options.
+    // Profile of a free agent → cross-league add options. Draft-aware: he's addable only in
+    // leagues whose draft has been HELD (waivers open); where the draft hasn't run he shows as
+    // "draftable", not a claimable free agent, so the Add CTA excludes those.
     const faProf = (await j(await fetch(`${base}/api/players/16002`, authed))).body; // Tracy
-    assert(faProf.actions.addLeagues.length >= 2, 'free agent is addable in multiple leagues');
-    console.log(`✓ cross-league: ${faProf.name} is available to add in ${faProf.actions.addLeagues.length} of your leagues`);
+    assert(faProf.actions.addLeagues.length >= 1, 'free agent is addable where the draft has been held');
+    const draftableCount = (faProf.crossLeague || []).filter((c) => c.relation === 'draftable').length;
+    assert(draftableCount >= 1, 'and shows as "draftable" (not free) where the draft has not run');
+    console.log(`✓ cross-league: ${faProf.name} addable in ${faProf.actions.addLeagues.length} drafted league(s), draftable in ${draftableCount}`);
 
     // Preview + submit the player-centric add across leagues.
     const prevAdd = (await j(await fetch(`${base}/api/players/16002/add/preview`, authed))).body;

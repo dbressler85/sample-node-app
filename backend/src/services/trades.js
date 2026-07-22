@@ -58,11 +58,38 @@ function pickValue(label) {
   return picksLib.value(label);
 }
 
+// Blind-bidding budget (FAAB) is tradeable in most leagues; MFL represents an amount of it
+// as a `BB_<dollars>` token in a trade's give/receive lists (e.g. `BB_20` = $20, decimals
+// possible). Parse the amount, or null if the token isn't FAAB.
+function faabAmount(tok) {
+  const m = /^BB_(\d+(?:\.\d+)?)$/.exec(String(tok));
+  return m ? Number(m[1]) : null;
+}
+// The FAAB token to put in a proposal for `$amount`. MFL wants no trailing zeros ("BB_20").
+function faabToken(amount) {
+  return `BB_${Number(amount)}`;
+}
+// A rough dynasty value for $X of FAAB so the deal's value read isn't blind to it. FAAB is
+// worth far less than its face in dynasty terms (and varies by league budget), so weight it
+// lightly and mark the whole analysis "estimated" as we already do. Tunable in one place.
+const FAAB_VALUE_PER_DOLLAR = 0.2;
+function faabValue(amount) {
+  return Math.round((amount || 0) * FAAB_VALUE_PER_DOLLAR);
+}
+function faabLabel(amount) {
+  const n = Number(amount);
+  return `$${Number.isInteger(n) ? n : n.toFixed(2)} FAAB`;
+}
+
 // Resolve an asset token to a display object + value. A token is a player id, a
-// demo 'pick:LABEL', a live MFL future-pick token 'FP_<orig>_<year>_<round>', or
-// an upcoming-draft pick token 'DP_<round>_<pick>' (both zero-based).
+// demo 'pick:LABEL', a live MFL future-pick token 'FP_<orig>_<year>_<round>', an
+// upcoming-draft pick token 'DP_<round>_<pick>' (both zero-based), or FAAB 'BB_<dollars>'.
 function asset(tok, byId, enr) {
   const t = String(tok);
+  const bb = faabAmount(t);
+  if (bb != null) {
+    return { kind: 'faab', id: t, name: faabLabel(bb), position: 'FAAB', team: null, amount: bb, value: faabValue(bb) };
+  }
   if (t.startsWith('pick:') || t.startsWith('FP_') || t.startsWith('DP_')) {
     const label = t.startsWith('pick:') ? t.slice(5) : picksLib.labelForToken(t);
     return { kind: 'pick', id: t, name: label, position: 'PICK', team: null, value: pickValue(label) };
@@ -99,6 +126,11 @@ function buildOffer(raw, league, byId, enr) {
     status: raw.status || 'pending',
     withFranchiseId: raw.withFranchiseId || null,
     withName: raw.withName || 'Another team',
+    expires: raw.expires || null,
+    comments: raw.comments || null,
+    // Accept/reject only make sense on an incoming offer we can actually target on MFL (has a
+    // trade id). The UI hides the buttons when this is false rather than firing a doomed call.
+    canRespond: (raw.direction || 'incoming') === 'incoming' && raw.id != null,
     acquire,
     send,
     analysis: analyze(acquire, send),
@@ -169,7 +201,7 @@ function tagNotes(acquire, send) {
 // Stamp each player asset with its tag, then attach the personal analysis + notes.
 function annotateTags(offers, token) {
   for (const o of offers) {
-    for (const a of [...o.acquire, ...o.send]) if (a.kind !== 'pick') a.tag = playerTags.get(token, a.id) || null;
+    for (const a of [...o.acquire, ...o.send]) if (a.kind === 'player') a.tag = playerTags.get(token, a.id) || null;
     o.personal = personalAnalyze(o.acquire, o.send); // null when nothing's tagged
     o.tagNotes = tagNotes(o.acquire, o.send);
   }
@@ -189,12 +221,20 @@ async function livePendingOffers(cookie, league) {
       .filter((tr) => String(mfl.attr(tr, 'offeredto')) === league.franchiseId)
       .map((tr, i) => {
         const from = String(mfl.attr(tr, 'offeringteam') || '');
+        // The trade id is what tradeResponse targets — accepting/rejecting the WRONG id (or a
+        // made-up one) is the worst failure mode here, so extract it explicitly and never fall
+        // back to an array index. If MFL doesn't give one, log the raw keys (so we can see the
+        // real field name) and leave id null — the UI keeps the offer visible but read-only.
+        const tradeId = mfl.attr(tr, 'trade_id', 'id', 'tradeid');
+        if (tradeId == null) console.warn(`[trades] pendingTrade with no trade_id (L=${league.leagueId}); attrs: ${Object.keys(tr || {}).join(',')}`);
         return {
-          id: String(mfl.attr(tr, 'trade_id', 'id') || i),
+          id: tradeId != null ? String(tradeId) : null,
           direction: 'incoming',
           status: 'pending',
           withFranchiseId: from,
           withName: names.get(from) || 'Another team',
+          expires: mfl.attr(tr, 'expires') || null,
+          comments: mfl.attr(tr, 'comments', 'message') || null,
           // MFL names these `will_give_up` / `will_receive` (snake_case) here — the
           // receive side previously only checked camelCase, so what you'd give up
           // came back empty ("You give · 0"). attr() matches any casing.
@@ -338,13 +378,17 @@ async function tradeData(cookie, token, leagueId) {
   const [byId, fmt] = await Promise.all([playersLib.load(cookie), leagueFormat.format(cookie, league)]);
   const enr = await enrichmentLib.snapshot(fmt, cookie);
 
+  // Each read is independently caught: a single flaky MFL response (a malformed roster, an
+  // unreadable partner list) must degrade the desk — fewer selectable assets — not 500 the
+  // whole screen. A failed roster falls back to an empty one so incoming offers still load.
+  const EMPTY_ROSTER = { starters: [], bench: [], ir: [], taxi: [], franchiseName: null };
   const [roster, rawPartners, requirements] = await Promise.all([
-    rosterService.getRoster(cookie, leagueId),
-    config.demoMode ? Promise.resolve(demo.tradePartners(leagueId)) : liveRosters(cookie, league),
+    rosterService.getRoster(cookie, leagueId).catch((e) => { console.warn(`[trades] getRoster failed for L=${leagueId}: ${e.message}`); return EMPTY_ROSTER; }),
+    (config.demoMode ? Promise.resolve(demo.tradePartners(leagueId)) : liveRosters(cookie, league)).catch(() => []),
     leagueFormat.requirements(cookie, league).catch(() => []),
   ]);
 
-  const myPlayersAll = [...roster.starters, ...roster.bench];
+  const myPlayersAll = [...(roster.starters || []), ...(roster.bench || [])];
   // Every franchise's players as { id, position, value, age } — value+age drive the
   // needs/surplus model AND the per-team dynasty outlook / average age below.
   const franchises = [
@@ -392,12 +436,14 @@ async function getLeague(cookie, token, leagueId) {
   //   • futureDraftPicks covers only FUTURE seasons; current-year picks live in the draft
   //     order, so pull those too or they'd be un-tradeable in the builder/counter.
   //   • in demo the live picks map is empty, so my own picks come from the demo fixture.
+  // Every read is caught to a safe default: the offers you came to review must render even if
+  // the bait board or a picks read is momentarily flaky — a partial desk beats a 500.
   const [rawLeagueOffers, baitMap, picksMap, upcoming, demoMyPicks] = await Promise.all([
-    offersForLeague(cookie, token, league, byId, enr),
-    tradeBaitByFranchise(cookie, token, league),
-    picksLib.franchisePicksMap(cookie, league),
+    offersForLeague(cookie, token, league, byId, enr).catch((e) => { console.warn(`[trades] offersForLeague failed for L=${leagueId}: ${e.message}`); return []; }),
+    tradeBaitByFranchise(cookie, token, league).catch(() => new Map()),
+    picksLib.franchisePicksMap(cookie, league).catch(() => ({})),
     draftService.upcomingPicksByFranchise(cookie, token, league).catch(() => ({})),
-    config.demoMode ? picksLib.franchisePicks(cookie, league) : Promise.resolve(null),
+    (config.demoMode ? picksLib.franchisePicks(cookie, league) : Promise.resolve(null)).catch(() => null),
   ]);
 
   const offers = annotateConstruction(rawLeagueOffers, ns, league.franchiseId);
@@ -405,7 +451,7 @@ async function getLeague(cookie, token, leagueId) {
   const picksFor = (fid) => (picksMap[String(fid)] || []).map((p) => asset(p.token, byId, enr));
   const upcomingFor = (fid) => (upcoming[String(fid)] || []).map((p) => asset(p.token, byId, enr));
 
-  const myPlayers = [...roster.starters, ...roster.bench]
+  const myPlayers = [...(roster.starters || []), ...(roster.bench || [])]
     .map((p) => ({ id: p.id, name: p.name, position: p.position, team: p.team, value: enr.value(p.id), tag: playerTags.get(token, p.id), bait: myBait.has(String(p.id)) }))
     .sort((a, b) => (b.value || 0) - (a.value || 0));
   // Picks carry the real MFL trade token as their id, so a proposal can include them.
@@ -600,6 +646,10 @@ async function counterFor(cookie, token, leagueId, offerId) {
 // Accept or reject a pending incoming offer.
 async function respond(cookie, token, leagueId, tradeId, action) {
   const act = action === 'accept' ? 'accept' : 'reject';
+  // Never send MFL a blank/placeholder trade id — that could hit the wrong pending trade.
+  if (tradeId == null || tradeId === '' || tradeId === 'null' || tradeId === 'undefined') {
+    throwBad('This offer is missing its trade id, so it can’t be accepted or rejected here — open it in MyFantasyLeague.');
+  }
   const league = await findLeague(cookie, leagueId);
   if (!config.demoMode) {
     try {

@@ -444,6 +444,9 @@ const LIVE = {
 const TRADE_OFFERS = {
   '40750': [
     { id: 't1', withFranchiseId: '0002', withName: 'Superflex Savants', acquire: ['13649'], send: ['15870'] }, // Gibbs for my Nix
+    // FAAB is tradeable: they offer a player + $20 of blind-bidding budget for my Nix. MFL
+    // represents the budget as a BB_<dollars> token in the give/receive lists.
+    { id: 't3', withFranchiseId: '0009', withName: 'Dynasty Sharks', acquire: ['14106', 'BB_20'], send: ['15870'] },
   ],
   '19622': [
     { id: 't2', withFranchiseId: '0005', withName: 'Rebuild Rangers', acquire: ['pick:2027 1st', 'pick:2027 2nd'], send: ['13649'] }, // picks for my Gibbs

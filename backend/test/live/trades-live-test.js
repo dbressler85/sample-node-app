@@ -30,7 +30,8 @@ mfl.exportRequest = async (type, opts = {}) => {
       return { rosters: { franchise: Object.entries(ids).map(([id, list]) => ({ id, player: list.map((pid) => ({ id: pid, status: 'starter' })) })) } };
     }
     case 'pendingTrades':
-      return { pendingTrades: { pendingTrade: [{ trade_id: 'TR9', offeringteam: '0002', offeredto: '0001', willGiveUp: '20', willReceiveInReturn: '1' }] } };
+      // They give up player 20 + $15 FAAB (BB_15) for my player 1. FAAB is a tradeable asset.
+      return { pendingTrades: { pendingTrade: [{ trade_id: 'TR9', offeringteam: '0002', offeredto: '0001', willGiveUp: '20,BB_15', willReceiveInReturn: '1' }] } };
     case 'injuries':
       return { injuries: { injury: [] } };
     case 'nflSchedule':
@@ -64,6 +65,13 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   assert(o.acquire[0].value === 100 && o.send[0].value === 50, 'enrichment values on assets');
   assert(o.analysis.verdict === 'favorable', `favorable (100 vs 50), got ${o.analysis.verdict}`);
   assert(o.withName === 'Rival Squad', 'offering team name resolved');
+  // FAAB (BB_15) parses as a first-class 'faab' asset — not a bogus "Player BB_15" — with the
+  // dollar amount and a light value, and it's on the correct (acquire) side.
+  const faab = o.acquire.find((a) => a.kind === 'faab');
+  assert(faab && faab.amount === 15 && /\$15/.test(faab.name), `FAAB asset parsed ($15), got ${JSON.stringify(faab)}`);
+  assert(!o.acquire.concat(o.send).some((a) => a.name === 'Player BB_15'), 'FAAB is never rendered as a bogus player');
+  assert(o.canRespond === true, 'incoming offer with a trade id is respondable');
+  console.log('✓ live FAAB: BB_15 → $15 FAAB asset on the acquire side (value ' + faab.value + ')');
   // The hub lists every league so you can START a trade in any of them, not just
   // respond to offers sitting in the inbox.
   assert(Array.isArray(ov.leagues) && ov.leagues.length === 1, 'overview carries the league list for proposing');

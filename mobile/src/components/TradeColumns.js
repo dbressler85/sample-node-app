@@ -12,6 +12,7 @@ import { colors, positionColors } from '../theme';
 // read as one endless list. Picks sort by year → round → pick within their year.
 
 const isPick = (a) => a.kind === 'pick' || a.position === 'PICK';
+const isFaab = (a) => a.kind === 'faab' || a.position === 'FAAB';
 
 // "Love, Josh" -> "J. Love"; a single-token name is left as-is.
 function initialLast(name) {
@@ -53,20 +54,23 @@ function organize(assets) {
   return { players, groups };
 }
 
-// A roster player: "J. Love" with "QB · GB · 85" beneath (position · team · value).
+// A roster player: "J. Love" with "QB · GB · 85" beneath (position · team · value). FAAB
+// (blind-bidding budget) reads as its own thing — "$20 FAAB" with a gold dot, never tappable.
 function PlayerRow({ asset, right, onOpenPlayer }) {
-  const tappable = onOpenPlayer && !isPick(asset);
+  const faab = isFaab(asset);
+  const tappable = onOpenPlayer && !isPick(asset) && !faab;
   const Row = tappable ? Pressable : View;
   const rowProps = tappable ? { onPress: () => onOpenPlayer(asset.id) } : {};
-  const meta = [asset.position, asset.team].filter(Boolean).join(' · ');
+  const name = faab ? asset.name : initialLast(asset.name);
+  const meta = faab
+    ? `budget${asset.value != null ? ` · ${asset.value}` : ''}`
+    : [asset.position, asset.team].filter(Boolean).join(' · ') + (asset.value != null ? ` · ${asset.value}` : '');
   return (
     <Row style={[styles.colRow, right && { flexDirection: 'row-reverse' }]} {...rowProps}>
-      <View style={[styles.dot, { backgroundColor: positionColors[asset.position] || colors.textDim }]} />
+      <View style={[styles.dot, { backgroundColor: faab ? colors.gold : (positionColors[asset.position] || colors.textDim) }]} />
       <View style={{ flex: 1 }}>
-        <Text style={[styles.colName, right && styles.alignRight]} numberOfLines={1}>{initialLast(asset.name)}</Text>
-        <Text style={[styles.colMeta, right && styles.alignRight]} numberOfLines={1}>
-          {meta}{asset.value != null ? ` · ${asset.value}` : ''}
-        </Text>
+        <Text style={[styles.colName, right && styles.alignRight]} numberOfLines={1}>{name}</Text>
+        <Text style={[styles.colMeta, right && styles.alignRight]} numberOfLines={1}>{meta}</Text>
       </View>
     </Row>
   );

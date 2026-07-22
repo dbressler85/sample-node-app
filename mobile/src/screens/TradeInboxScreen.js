@@ -163,6 +163,20 @@ export default function TradeInboxScreen({ onBack, onOpenLeague, onProposeInLeag
           {summary.favorable ? <Text style={{ color: colors.good, fontWeight: '800' }}>{`  ·  ${summary.favorable} favorable`}</Text> : null}
         </Text>
       ) : null}
+      {/* Trade Block, front and centre (the header link alone was easy to miss): advertise your
+          players as available and see who else is shopping. */}
+      {onOpenBlock ? (
+        <Pressable onPress={onOpenBlock} style={({ pressed }) => [styles.blockBanner, pressed && { opacity: 0.85 }]}>
+          <Text style={styles.blockBannerIcon}>🏷</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.blockBannerTitle}>Trade Block</Text>
+            <Text style={styles.blockBannerSub} numberOfLines={1}>
+              {(() => { const n = Object.values(baitByLeague).reduce((a, b) => a + (b || 0), 0); return n ? `You’re shopping ${n} player${n === 1 ? '' : 's'} · tap to manage` : 'Advertise players & see who else is shopping'; })()}
+            </Text>
+          </View>
+          <Text style={styles.blockBannerChev}>›</Text>
+        </Pressable>
+      ) : null}
       {data && data.seasonal ? (
         <View style={styles.seasonBanner}>
           <Text style={styles.seasonLabel}>🗓  {data.seasonal.label}</Text>
@@ -320,6 +334,11 @@ const styles = StyleSheet.create({
   blockLink: { color: colors.accent, fontSize: 14, fontWeight: '800', width: 54, textAlign: 'right' },
   title: { color: colors.text, fontSize: 20, fontWeight: '900' },
   subtitle: { color: colors.textDim, fontSize: 13, textAlign: 'center', marginTop: 4 },
+  blockBanner: { flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: 16, marginTop: 12, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: colors.card, borderRadius: 14, borderWidth: 1, borderColor: colors.border },
+  blockBannerIcon: { fontSize: 20 },
+  blockBannerTitle: { color: colors.gold, fontSize: 15, fontWeight: '900' },
+  blockBannerSub: { color: colors.textDim, fontSize: 12, marginTop: 1 },
+  blockBannerChev: { color: colors.textDim, fontSize: 22, fontWeight: '300' },
   list: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 32 },
   card: { backgroundColor: colors.card, borderRadius: 16, borderWidth: 1, borderColor: colors.border, padding: 16, marginBottom: 14 },
   leagueRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 10, marginBottom: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
