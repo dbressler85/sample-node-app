@@ -486,14 +486,27 @@ async function plan(cookie, token, mode) {
 
 async function submitLineup(cookie, token, league, starterIds, week) {
   if (!config.demoMode) {
-    await mfl.importRequest('lineup', {
-      host: league.host,
-      cookie,
-      L: league.leagueId,
-      W: week,
-      FRANCHISE: league.franchiseId,
-      STARTERS: starterIds.join(','),
-    });
+    try {
+      await mfl.importRequest('lineup', {
+        host: league.host,
+        cookie,
+        L: league.leagueId,
+        W: week,
+        FRANCHISE: league.franchiseId,
+        STARTERS: starterIds.join(','),
+      });
+    } catch (e) {
+      // Surface MFL's ACTUAL reason (hard-won rule). A successful save returns "OK" (handled by
+      // importRequest), so reaching here is a real rejection — and for an HTML 500 the reason lives
+      // on e.body, not e.message, which is exactly what errorDetail digs out. Set err.detail so the
+      // Set-All results (and single-apply) can show the real cause per league instead of "(502)".
+      const detail = mfl.errorDetail(e);
+      console.warn(`[lineups] MFL rejected lineup — L=${league.leagueId} W=${week} starters=${starterIds.length} — ${detail}`);
+      const err = new Error(`MyFantasyLeague couldn’t save this lineup: ${detail}`);
+      err.status = e.status || 502;
+      err.detail = detail;
+      throw err;
+    }
     // The starter/bench split just changed — drop this league's cached roster so
     // the re-read after applying reflects the new lineup instead of a stale one.
     rosterService.invalidate(cookie, league.leagueId);
