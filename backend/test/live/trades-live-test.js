@@ -93,6 +93,19 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   assert(resp && resp.params.TRADE_ID === 'TR9' && resp.params.RESPONSE === 'accept', 'tradeResponse imported to MFL');
   console.log('✓ live respond: tradeResponse sent to MFL', JSON.stringify({ TRADE_ID: resp.params.TRADE_ID, RESPONSE: resp.params.RESPONSE }));
 
+  // A reject must drop the league's cached MFL reads so the inbox refetch reflects the removal
+  // right away — the offer is no longer pending on MFL, but pendingTrades is cached (~12s), so
+  // without this the resolved offer would linger on the Trades screen until the TTL lapsed.
+  const invalidated = [];
+  const realInvalidate = mfl.invalidateLeague;
+  mfl.invalidateLeague = (ck, lid) => { invalidated.push(String(lid)); return realInvalidate.call(mfl, ck, lid); };
+  await trades.respond(CK, TK, '1000', 'TR9', 'reject');
+  mfl.invalidateLeague = realInvalidate;
+  const rej = imported.filter((c) => c.type === 'tradeResponse').pop();
+  assert(rej && rej.params.RESPONSE === 'reject', 'reject sent to MFL as tradeResponse');
+  assert(invalidated.includes('1000'), 'reject invalidated the league cache so the inbox refetches fresh');
+  console.log('✓ live respond: reject invalidates the league cache (resolved offer clears on refetch)');
+
   // Propose a player + a future PICK for their player -> MFL import tradeProposal.
   const prop = await trades.propose(CK, TK, '1000', { toFranchiseId: '0002', give: ['1', 'FP_0003_2027_1'], receive: ['20'] });
   const tp = imported.find((c) => c.type === 'tradeProposal');

@@ -658,12 +658,17 @@ async function respond(cookie, token, leagueId, tradeId, action) {
       err.detail = detail;
       throw err;
     }
+    // Whether accepted OR rejected, the trade is no longer PENDING on MFL. The inbox is built from
+    // MFL's pendingTrades, which we cache (~12s), so without this the app's immediate refetch would
+    // re-serve the pre-response snapshot and the resolved offer would linger on the Trades screen.
+    // Drop this league's cached reads so the reload reflects the removal right away.
+    mfl.invalidateLeague(cookie, league.leagueId);
   }
   const seed = config.demoMode ? demo.tradeOffers(leagueId) : [];
   tradeStore.resolve(token, leagueId, seed, tradeId, act === 'accept' ? 'accepted' : 'rejected');
-  // Accepting a trade changes my roster on MFL — drop the cached roster so the next
-  // read reflects it, and the Players tab's cross-league map with it. (Rejecting
-  // changes nothing.) Lazy require avoids a playerhub↔trades cycle.
+  // Accepting a trade also changes my roster on MFL — drop the cached roster so the next read
+  // reflects it, and the Players tab's cross-league map with it. (Rejecting doesn't touch rosters.)
+  // Lazy require avoids a playerhub↔trades cycle.
   if (act === 'accept') {
     rosterService.invalidate(cookie, leagueId);
     require('./playerhub').invalidateGather(cookie);
