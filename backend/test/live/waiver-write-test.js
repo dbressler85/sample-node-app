@@ -21,6 +21,7 @@ const past = String(Math.floor(Date.now() / 1000) - 86400);
 const state = {
   calendar: { event: [] },                 // [] → open; a past "lock" event → locked
   pending: {},                             // pendingWaivers payload (carries the round)
+  rosterStatus: [{ id: '50', is_fa: '1' }], // playerRosterStatus for the add pre-flight (addable FA)
 };
 
 function leagueExport(L) {
@@ -47,6 +48,7 @@ mfl.exportRequest = async (type, opts = {}) => {
     case 'nflSchedule': return { nflSchedule: { week: '3', matchup: [{ team: [{ id: 'CCC' }, { id: 'ZZZ' }] }] } };
     case 'calendar': return { calendar: state.calendar };
     case 'pendingWaivers': return { pendingWaivers: state.pending };
+    case 'playerRosterStatus': return { playerRosterStatuses: { playerStatus: state.rosterStatus } };
     default: return {};
   }
 };
@@ -100,6 +102,18 @@ const unlockEvent = { title: 'Allow Add/Drops', start: past };
   catch (e) { threw = true; assert(e.status === 501, `locked FCFS w/o round → 501, got ${e.status}`); }
   assert(threw && imports.length === 0, 'no MFL write when the FCFS round is unknown');
   console.log('✓ locked FCFS, no round: 501, no write');
+
+  // 4b) OPEN add of a LOCKED free agent → pre-flight blocks with 409, no write fired.
+  state.calendar = { event: [unlockEvent] };
+  state.pending = {};
+  state.rosterStatus = [{ id: '50', is_fa: '1', locked: '1' }];
+  imports = [];
+  let blocked = false;
+  try { await waivers.submit(CK, TK, 'LFAAB', { addId: '50', dropId: '2', bid: 5 }); }
+  catch (e) { blocked = true; assert(e.status === 409, `locked FA add → 409, got ${e.status}`); assert(/locked/i.test(e.message), 'reason mentions locked'); }
+  assert(blocked && !imports.some((i) => i.type === 'fcfsWaiver'), 'no immediate add fired for a locked player');
+  state.rosterStatus = [{ id: '50', is_fa: '1' }]; // restore addable for later scenarios
+  console.log('✓ open add pre-flight: locked free agent → 409, no write');
 
   // 5) Drop (playerhub) is always an immediate fcfsWaiver DROP — unaffected by the window.
   state.calendar = { event: [] };

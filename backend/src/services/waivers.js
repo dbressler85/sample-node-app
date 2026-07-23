@@ -486,6 +486,25 @@ async function submitClaimToMfl({ cookie, league, system, addId, dropId, bid, lo
 
   if (!locked) {
     // Open free agency → immediate add/drop, whatever the league's waiver system is.
+    // Pre-flight the add against MFL's AUTHORITATIVE status (playerRosterStatus): a free agent
+    // whose game has locked, or who was just grabbed by another team, can't be picked up now —
+    // fail with a precise reason instead of a cryptic rejected write. Fail-soft: any read/parse
+    // failure here does NOT block the add (the write still surfaces MFL's own error). Only the
+    // immediate path is gated — a locked-window claim is a bid, not a direct add.
+    try {
+      const [status] = await mflRepo.playerRosterStatus(league, cookie, add);
+      if (status) {
+        const elig = mflRepo.addEligibility(status);
+        if (!elig.addable) {
+          const err = new Error(elig.reason);
+          err.status = 409;
+          throw err;
+        }
+      }
+    } catch (e) {
+      if (e.status === 409) throw e; // our own precise block — surface it
+      /* read/parse failure → proceed to the write */
+    }
     await mfl.importRequest('fcfsWaiver', { ...base, ADD: add, DROP: drop || undefined });
     return;
   }
