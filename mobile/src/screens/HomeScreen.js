@@ -83,6 +83,7 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
   const [drafts, setDrafts] = useState(homeCache.drafts || []); // only ACTIONABLE drafts (on the clock / live / imminent)
   const [onDeck, setOnDeck] = useState(homeCache.onDeck || null); // time-sorted deadlines across leagues
   const [watchAlerts, setWatchAlerts] = useState(homeCache.watchAlerts || []); // watched players now free / on the block
+  const [showAllWatch, setShowAllWatch] = useState(false); // Watchlist section: show all vs. the first few
   const [expanded, setExpanded] = useState(new Set(GROUP_ORDER.filter((t) => GROUPS[t].open)));
   const [progress, setProgress] = useState(null); // { done, total }
   const [error, setError] = useState(null);
@@ -346,7 +347,7 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
             {watchAlerts.length ? (
               <View>
                 <Text style={styles.section}>Watchlist · {watchAlerts.length}</Text>
-                {watchAlerts.slice(0, 6).map((a, i) => (
+                {(showAllWatch ? watchAlerts : watchAlerts.slice(0, 6)).map((a, i) => (
                   <Pressable
                     key={`${a.playerId}-${a.leagueId}-${i}`}
                     style={({ pressed }) => [styles.watchRow, pressed && { opacity: 0.7 }]}
@@ -362,6 +363,16 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
                     <Text style={styles.teamChev}>›</Text>
                   </Pressable>
                 ))}
+                {watchAlerts.length > 6 ? (
+                  <Pressable
+                    style={({ pressed }) => [styles.viewAll, pressed && { opacity: 0.7 }]}
+                    onPress={() => setShowAllWatch((v) => !v)}
+                  >
+                    <Text style={styles.viewAllText}>
+                      {showAllWatch ? 'Show less' : `View all ${watchAlerts.length}`}
+                    </Text>
+                  </Pressable>
+                ) : null}
               </View>
             ) : null}
             <Pressable
@@ -597,6 +608,8 @@ const styles = StyleSheet.create({
   watchIcon: { fontSize: 16, marginRight: 12 },
   watchName: { color: colors.text, fontSize: 15, fontWeight: '700' },
   watchSub: { color: colors.textDim, fontSize: 12, marginTop: 2 },
+  viewAll: { alignItems: 'center', paddingVertical: 10, marginBottom: 4 },
+  viewAllText: { color: colors.accent, fontSize: 13, fontWeight: '700' },
   inboxRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 14, marginTop: 12 },
   inboxName: { color: colors.text, fontSize: 15, fontWeight: '800' },
   inboxSub: { color: colors.textDim, fontSize: 12, marginTop: 3 },
