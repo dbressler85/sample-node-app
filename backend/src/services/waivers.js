@@ -883,6 +883,7 @@ async function waiverLocks(cookie, token) {
 // free agents are worth a look, top available by value, and pending claims.
 async function getOverview(cookie, token) {
   const leagues = await leaguesService.orderedLeagues(cookie, token);
+  const byId = await playersLib.load(cookie); // cached; used to resolve reconciled pending names
   const [locks, out] = await Promise.all([
     waiverLocks(cookie, token),
     Promise.all(
@@ -893,13 +894,15 @@ async function getOverview(cookie, token) {
         // (no projections / per-player build) instead of the full getRoster + board build.
         // Settings, roster, FA summary, and the next waiver-process time are independent reads —
         // fetch them all together so the league costs one throttle round-trip, not four in sequence.
-        const [settings, roster, fa, waiverRun] = await Promise.all([
+        const [settings, roster, fa, waiverRun, pending] = await Promise.all([
           loadSettings(league, cookie),
           rosterService.myRosterLight(cookie, league.leagueId),
           freeAgentSummary(cookie, league),
           config.demoMode ? Promise.resolve(null) : nextWaiverRun(cookie, league),
+          // Reconcile with MFL's queue so the count reflects claims placed on the site too, not just
+          // in-app ones (byId is cached from the reads above).
+          reconciledPending(cookie, token, league, byId),
         ]);
-        const pending = store.list(token, league.leagueId, config.demoMode ? demo.pendingClaims(league.leagueId) : []);
         const pendingCount = pending.filter((c) => (c.status || 'pending') === 'pending').length;
         // "Imminent" = the next run is ahead of us but within the act-now window. A run already
         // in the past (stale calendar occurrence) doesn't count.
@@ -1054,4 +1057,4 @@ async function getPending(cookie, token) {
   return { pending, results, summary: { pending: pending.length, results: results.length } };
 }
 
-module.exports = { getBoard, getOverview, getSuggestions, preview, submit, previewMulti, submitMulti, cancel, getBestAvailable, getPending, freeAgentIds, invalidate, nextWaiverRun };
+module.exports = { getBoard, getOverview, getSuggestions, preview, submit, previewMulti, submitMulti, cancel, getBestAvailable, getPending, freeAgentIds, invalidate, nextWaiverRun, reconciledPending };

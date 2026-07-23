@@ -78,18 +78,20 @@ async function pendingTrades(cookie, league) {
   }
 }
 
-// My pending waiver/FAAB claims. Live: from our claim store (what the app has
-// submitted). Demo keeps its fixture.
-function pendingWaivers(token, league) {
+// My pending waiver/FAAB claims. Live: reconciled with MFL's AUTHORITATIVE queue (via the waivers
+// service) so claims placed on the MFL site — not just in-app — surface in the Home triage too.
+// Best-effort + fail-soft: falls back to the local store on any read trouble. Demo keeps its fixture.
+async function pendingWaivers(cookie, token, league) {
   if (config.demoMode) return demo.waivers(league.leagueId);
-  return waiverStore
-    .list(token, league.leagueId, [])
-    .filter((c) => (c.status || 'pending') === 'pending')
-    .map((c) => ({
-      player: (c.add && c.add.name) || 'Player',
-      bid: c.bid != null ? c.bid : null,
-      runsAt: c.processTime || 'next run',
-    }));
+  const toItem = (c) => ({ player: (c.add && c.add.name) || 'Player', bid: c.bid != null ? c.bid : null, runsAt: c.processTime || 'next run' });
+  try {
+    const waiversService = require('./waivers'); // lazy require avoids a portfolio↔waivers cycle
+    const byId = await playersLib.load(cookie);
+    const claims = await waiversService.reconciledPending(cookie, token, league, byId);
+    return claims.filter((c) => (c.status || 'pending') === 'pending').map(toItem);
+  } catch (e) {
+    return waiverStore.list(token, league.leagueId, []).filter((c) => (c.status || 'pending') === 'pending').map(toItem);
+  }
 }
 
 // The single lineup-derived triage item for a league (or null if it's fine).
@@ -128,7 +130,7 @@ async function extraItems(cookie, token, league) {
     const detail = t.gives.length || t.gets.length ? `They give ${t.gives.join(', ') || '—'} for ${t.gets.join(', ') || '—'}` : 'Tap to review the offer';
     items.push({ id: `trade-${league.leagueId}-${t.id}`, type: 'trade_offer', severity: 'high', action: 'trade', leagueId: league.leagueId, leagueName: league.name, title: `Trade offer from ${t.from}`, subtitle: detail });
   }
-  for (const w of pendingWaivers(token, league)) {
+  for (const w of await pendingWaivers(cookie, token, league)) {
     items.push({ id: `waiver-${league.leagueId}-${w.player}`, type: 'waiver_pending', severity: 'low', action: 'waiver', leagueId: league.leagueId, leagueName: league.name, title: `Waiver claim pending: ${w.player.split(',')[0]}`, subtitle: `${w.bid != null ? `$${w.bid} · ` : ''}runs ${w.runsAt}` });
   }
   // Waivers about to process: if this league's calendar shows a run within the act-now window,
