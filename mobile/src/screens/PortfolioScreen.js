@@ -35,6 +35,8 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
   const [posFilter, setPosFilter] = useState(null); // tap an allocation segment to filter holdings by position
   const [showAllHoldings, setShowAllHoldings] = useState(false); // Top holdings: 12 by default, expand to the full book
   const [holdView, setHoldView] = useState('value'); // Top holdings ranking: 'value' (biggest bets) | 'exposure' (most leagues)
+  const [showAllRisk, setShowAllRisk] = useState(false); // Value at risk: 8 by default, expand to the full list
+  const [riskView, setRiskView] = useState('value'); // Value at risk ranking: 'value' | 'exposure' (leagues held)
 
   useAndroidBack(useCallback(() => { onBack(); return true; }, [onBack]));
 
@@ -54,6 +56,16 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
     api.portfolioShop(h.id, next, h.leagueIds).catch(() => {
       setBaitOverride((m) => ({ ...m, [h.id]: cur }));
       setShopError('Could not update trade bait');
+    });
+  }, []);
+
+  // Untag a player from the Your-tags list — optimistic local removal, reverted on failure.
+  const [untagged, setUntagged] = useState(() => new Set());
+  const untagPlayer = useCallback((id) => {
+    setUntagged((s) => new Set(s).add(id));
+    api.setTag(id, null).catch(() => {
+      setUntagged((s) => { const n = new Set(s); n.delete(id); return n; });
+      setShopError('Could not remove tag');
     });
   }, []);
 
@@ -84,6 +96,14 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
 
   const maxBand = Math.max(1, ...d.ageCurve.map((b) => b.value));
   const risk = d.atRisk;
+  // Value at risk mirrors Top holdings: deduped per player (backend), sortable by value or by
+  // leagues held, and expandable from a default slice to the full list.
+  const RISK_DEFAULT = 8;
+  const riskSorted =
+    riskView === 'exposure'
+      ? [...risk.top].sort((a, b) => (b.leagues || 1) - (a.leagues || 1) || b.value - a.value)
+      : risk.top; // backend already orders by at-risk value
+  const riskShown = showAllRisk ? riskSorted : riskSorted.slice(0, RISK_DEFAULT);
   // Top holdings can be ranked two ways: by value (backend's default order — your biggest bets)
   // or by exposure (how many of your leagues roster him — your most widely-held). Same players,
   // different lens: depth vs breadth. Exposure ties break on value.
@@ -172,7 +192,10 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
                   <View style={[styles.posBadge, { borderColor: positionColors[m.position] || colors.textDim }]}>
                     <Text style={[styles.pos, { color: positionColors[m.position] || colors.textDim }]}>{m.position}</Text>
                   </View>
-                  <Text style={styles.moverName} numberOfLines={1}>{m.name}</Text>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={styles.moverName} numberOfLines={1}>{m.name}</Text>
+                    {m.team ? <Text style={styles.moverTeam}>{m.team}</Text> : null}
+                  </View>
                   <Text style={[styles.moverDelta, { color: up ? colors.good : colors.bad }]}>
                     {up ? '▲' : '▼'} {up ? '+' : '−'}{Math.abs(m.delta)} ({up ? '+' : '−'}{Math.abs(m.pct)}%)
                   </Text>
@@ -181,14 +204,6 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
               );
             })}
             <Text style={styles.hint}>Biggest value swings among your holdings since tracking began — where your book is heating up or cooling off.</Text>
-          </View>
-        ) : null}
-
-        {/* Season timing — advisory only; frames whether to hold or sell right now. */}
-        {d.seasonal && d.seasonal.message ? (
-          <View style={[styles.seasonBanner, d.seasonal.holdToSell && styles.seasonBannerActive]}>
-            <Text style={styles.seasonLabel}>{d.seasonal.label.toUpperCase()}</Text>
-            <Text style={styles.seasonMsg}>{d.seasonal.message}</Text>
           </View>
         ) : null}
 
@@ -332,7 +347,7 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
               <Text style={styles.holdKeyName}>Player · leagues held</Text>
               <View style={styles.holdRight}>
                 <Text style={styles.holdKeyVal}>value</Text>
-                <Text style={styles.holdKeyPct}>vs. biggest</Text>
+                <Text style={styles.holdKeyPct}>7-day</Text>
               </View>
             </View>
           </View>
@@ -355,7 +370,7 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
               </Pressable>
             ) : null}
             <Text style={styles.hint}>
-              <Text style={{ color: colors.gold, fontWeight: '900' }}>Value</Text> = each player’s value summed across every league you roster him in (your real exposure); <Text style={{ fontWeight: '900' }}>vs. biggest</Text> = his size next to your largest holding (your top bet = 100%). Think of each league you hold him in as one <Text style={{ fontWeight: '900' }}>share</Text>: <Text style={{ fontWeight: '900' }}>By value</Text> ranks by total value (shares × per-league value), <Text style={{ fontWeight: '900' }}>By shares</Text> ranks by how many leagues hold him. <Text style={{ fontWeight: '900' }}>⇄ Shop</Text> puts him on the block in every league you hold him.
+              <Text style={{ color: colors.gold, fontWeight: '900' }}>Value</Text> = each player’s value summed across every league you roster him in (your real exposure); <Text style={{ fontWeight: '900' }}>7-day</Text> = how his dynasty value has moved over the last week (<Text style={{ color: colors.good, fontWeight: '900' }}>▲</Text> rising, <Text style={{ color: colors.bad, fontWeight: '900' }}>▼</Text> falling, <Text style={{ fontWeight: '900' }}>◆</Text> flat). Think of each league you hold him in as one <Text style={{ fontWeight: '900' }}>share</Text>: <Text style={{ fontWeight: '900' }}>By value</Text> ranks by total value (shares × per-league value), <Text style={{ fontWeight: '900' }}>By shares</Text> ranks by how many leagues hold him. <Text style={{ fontWeight: '900' }}>⇄ Shop</Text> puts him on the block in every league you hold him.
             </Text>
           </View>
         ) : null}
@@ -371,36 +386,58 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
             <RiskStat label="Aging" value={risk.aging.value} count={risk.aging.count} color={colors.warn} />
           </View>
           {risk.top.length ? (
-            <View style={styles.topList}>
-              {risk.top.map((p, i) => {
-                const baited = resolveBaited(p);
-                return (
-                  <View key={`${p.leagueId}-${p.id}-${i}`} style={styles.riskRow}>
-                    <Pressable
-                      style={({ pressed }) => [styles.holdIdentity, pressed && { opacity: 0.7 }]}
-                      onPress={() => onOpenPlayer && onOpenPlayer(p.id, { id: p.id, name: p.name, position: p.position, team: p.team, value: p.value })}
-                    >
-                      <View style={[styles.posBadge, { borderColor: positionColors[p.position] || colors.textDim }]}>
-                        <Text style={[styles.pos, { color: positionColors[p.position] || colors.textDim }]}>{p.position}</Text>
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.riskName} numberOfLines={1}>{p.name}</Text>
-                        <Text style={styles.riskSub} numberOfLines={1}>{p.reason} · {p.leagueName}</Text>
-                      </View>
-                      <Text style={styles.riskVal}>{p.value}</Text>
-                    </Pressable>
-                    <Pressable
-                      onPress={() => toggleShop(p)}
-                      hitSlop={6}
-                      style={[styles.shop, baited && styles.shopOn]}
-                      accessibilityLabel={baited ? `Stop shopping ${p.name}` : `Shop ${p.name} in all ${p.leagues || 1} leagues`}
-                    >
-                      <Text style={[styles.shopTxt, baited && styles.shopTxtOn]}>{baited ? '⇄ Shopping' : '⇄ Shop'}</Text>
-                    </Pressable>
-                  </View>
-                );
-              })}
-            </View>
+            <>
+              {/* Same value/exposure lens as Top holdings. */}
+              <View style={styles.holdTabs}>
+                <Pressable onPress={() => setRiskView('value')} style={[styles.holdTab, riskView === 'value' && styles.holdTabOn]}>
+                  <Text style={[styles.holdTabTxt, riskView === 'value' && styles.holdTabTxtOn]}>By value</Text>
+                </Pressable>
+                <Pressable onPress={() => setRiskView('exposure')} style={[styles.holdTab, riskView === 'exposure' && styles.holdTabOn]}>
+                  <Text style={[styles.holdTabTxt, riskView === 'exposure' && styles.holdTabTxtOn]}>By shares</Text>
+                </Pressable>
+              </View>
+              <View style={styles.topList}>
+                {riskShown.map((p) => {
+                  const baited = resolveBaited(p);
+                  const leaguesLbl = (p.leagues || 1) === 1 ? '1 league' : `${p.leagues} leagues`;
+                  const reasons = (p.reasons && p.reasons.length ? p.reasons : [p.reason]).filter(Boolean).join(' · ');
+                  return (
+                    <View key={p.id} style={styles.riskRow}>
+                      <Pressable
+                        style={({ pressed }) => [styles.holdIdentity, pressed && { opacity: 0.7 }]}
+                        onPress={() => onOpenPlayer && onOpenPlayer(p.id, { id: p.id, name: p.name, position: p.position, team: p.team, value: p.value })}
+                      >
+                        <View style={[styles.posBadge, { borderColor: positionColors[p.position] || colors.textDim }]}>
+                          <Text style={[styles.pos, { color: positionColors[p.position] || colors.textDim }]}>{p.position}</Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.riskName} numberOfLines={1}>{p.name}</Text>
+                          <Text style={styles.riskSub} numberOfLines={1}>
+                            {reasons}{p.team ? ` · ${p.team}` : ''} · {leaguesLbl}
+                          </Text>
+                        </View>
+                        <Text style={styles.riskVal}>{p.value}</Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => toggleShop(p)}
+                        hitSlop={6}
+                        style={[styles.shop, baited && styles.shopOn]}
+                        accessibilityLabel={baited ? `Stop shopping ${p.name}` : `Shop ${p.name} in all ${p.leagues || 1} leagues`}
+                      >
+                        <Text style={[styles.shopTxt, baited && styles.shopTxtOn]}>{baited ? '⇄ Shopping' : '⇄ Shop'}</Text>
+                      </Pressable>
+                    </View>
+                  );
+                })}
+              </View>
+              {risk.top.length > RISK_DEFAULT ? (
+                <Pressable onPress={() => setShowAllRisk((v) => !v)} style={({ pressed }) => [styles.showAll, pressed && { opacity: 0.7 }]}>
+                  <Text style={styles.showAllTxt}>
+                    {showAllRisk ? 'Show less ▲' : `Show all ${risk.top.length} at risk ▼`}
+                  </Text>
+                </Pressable>
+              ) : null}
+            </>
           ) : (
             <Text style={styles.clear}>Nothing at risk — healthy and young across the board.</Text>
           )}
@@ -421,22 +458,45 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
           <Text style={styles.hint}>Where your value sits by player age. A left-heavy curve is a younger, ascending portfolio.</Text>
         </View>
 
-        {/* Your tags */}
-        {d.tags && (d.tags.avoids > 0 || d.tags.targets > 0) ? (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Your tags</Text>
-            {d.tags.avoids > 0 ? (
-              <Text style={styles.tagLine}>
-                <Text style={{ color: colors.bad, fontWeight: '900' }}>⊘ {d.tags.avoids}</Text> Avoid{d.tags.avoids === 1 ? '' : 's'} on your rosters — shop them.
+        {/* Your tags — the players you've flagged Target/Avoid, on your rosters. Tap a name to open
+            the card; tap ⊗ to untag. */}
+        {(() => {
+          const tagged = (d.taggedPlayers || []).filter((p) => !untagged.has(p.id));
+          if (!tagged.length) return null;
+          return (
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Your tags</Text>
+              <Text style={styles.hint}>
+                <Text style={{ color: colors.good, fontWeight: '900' }}>◎ Targets</Text> are protected in trade suggestions; <Text style={{ color: colors.bad, fontWeight: '900' }}>⊘ Avoids</Text> are ones to shop. Tap ⊗ to untag.
               </Text>
-            ) : null}
-            {d.tags.targets > 0 ? (
-              <Text style={styles.tagLine}>
-                <Text style={{ color: colors.good, fontWeight: '900' }}>◎ {d.tags.targets}</Text> Target{d.tags.targets === 1 ? '' : 's'} you hold — protected in trade suggestions.
-              </Text>
-            ) : null}
-          </View>
-        ) : null}
+              {tagged.map((p) => (
+                <View key={p.id} style={styles.tagRow}>
+                  <Pressable
+                    style={({ pressed }) => [styles.holdIdentity, pressed && { opacity: 0.7 }]}
+                    onPress={() => onOpenPlayer && onOpenPlayer(p.id, { id: p.id, name: p.name, position: p.position, team: p.team, value: p.value })}
+                  >
+                    <View style={[styles.posBadge, { borderColor: positionColors[p.position] || colors.textDim }]}>
+                      <Text style={[styles.pos, { color: positionColors[p.position] || colors.textDim }]}>{p.position}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.riskName} numberOfLines={1}>
+                        <Text style={{ color: p.tag === 'target' ? colors.good : colors.bad, fontWeight: '900' }}>{p.tag === 'target' ? '◎ ' : '⊘ '}</Text>
+                        {p.name}
+                      </Text>
+                      <Text style={styles.riskSub} numberOfLines={1}>
+                        {p.tag === 'target' ? 'Target' : 'Avoid'}{p.team ? ` · ${p.team}` : ''} · {(p.leagues || 1) === 1 ? '1 league' : `${p.leagues} leagues`}
+                      </Text>
+                    </View>
+                    <Text style={styles.riskVal}>{p.value}</Text>
+                  </Pressable>
+                  <Pressable onPress={() => untagPlayer(p.id)} hitSlop={8} style={styles.untagBtn} accessibilityLabel={`Untag ${p.name}`}>
+                    <Text style={styles.untagTxt}>⊗</Text>
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+          );
+        })()}
 
         {/* Per-league */}
         <View style={styles.card}>
@@ -477,6 +537,14 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
 // `baited` is passed in (not derived here) and toggleShop is stable, so only the row whose bait
 // state changed re-renders. Sides of the holdings card are drawn by the row-frame wrapper in
 // renderHolding; this renders the row content + its bottom hairline.
+// 7-day value-trend arrow for a holding: rising / falling / flat.
+function trendGlyph(dir) {
+  return dir === 'up' ? '▲' : dir === 'down' ? '▼' : '◆';
+}
+function trendColor(dir) {
+  return dir === 'up' ? colors.good : dir === 'down' ? colors.bad : colors.textDim;
+}
+
 const HoldingRow = React.memo(function HoldingRow({ h, index, baited, onOpen, onToggleShop }) {
   return (
     <Reveal delay={Math.min(index, 10) * 40} animate={index < 12}>
@@ -497,7 +565,13 @@ const HoldingRow = React.memo(function HoldingRow({ h, index, baited, onOpen, on
           </View>
           <View style={styles.holdRight}>
             <Text style={styles.holdVal}>{h.value.toLocaleString()}</Text>
-            <Text style={styles.holdPct}>{h.rel != null ? h.rel : h.pct}%</Text>
+            {h.trend7 ? (
+              <Text style={[styles.holdTrend, { color: trendColor(h.trend7.dir) }]}>
+                {trendGlyph(h.trend7.dir)}{h.trend7.dir === 'flat' ? '' : ` ${h.trend7.pct > 0 ? '+' : '−'}${Math.abs(h.trend7.pct)}%`}
+              </Text>
+            ) : (
+              <Text style={styles.holdTrendNone}>–</Text>
+            )}
           </View>
         </Pressable>
         <Pressable
@@ -607,13 +681,19 @@ const styles = StyleSheet.create({
   concPct: { color: colors.text, fontSize: 12, fontWeight: '800', width: 38, textAlign: 'right' },
   concBye: { color: colors.textDim, fontSize: 13, marginTop: 8, lineHeight: 18 },
   moverRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
-  moverName: { flex: 1, color: colors.text, fontSize: 14, fontWeight: '700', marginLeft: 2 },
+  moverName: { color: colors.text, fontSize: 14, fontWeight: '700', marginLeft: 2 },
+  moverTeam: { color: colors.textDim, fontSize: 11, fontWeight: '700', marginLeft: 2, marginTop: 1 },
   moverDelta: { fontSize: 13, fontWeight: '900', marginLeft: 8 },
   holdName: { color: colors.text, fontSize: 14, fontWeight: '700' },
   holdSub: { color: colors.textDim, fontSize: 12, marginTop: 1 },
   holdRight: { alignItems: 'flex-end', marginLeft: 8, minWidth: 52 },
   holdVal: { color: colors.gold, fontSize: 15, fontWeight: '900' },
   holdPct: { color: colors.textDim, fontSize: 11, fontWeight: '700', marginTop: 1 },
+  holdTrend: { fontSize: 12, fontWeight: '900', marginTop: 1 },
+  holdTrendNone: { color: colors.textDim, fontSize: 12, fontWeight: '700', marginTop: 1 },
+  tagRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+  untagBtn: { paddingHorizontal: 10, paddingVertical: 6, marginLeft: 8 },
+  untagTxt: { color: colors.textDim, fontSize: 18, fontWeight: '900' },
   statRow: { flexDirection: 'row', marginTop: 16, gap: 10 },
   stat: { flex: 1, backgroundColor: colors.bg, borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
   statValue: { color: colors.text, fontSize: 18, fontWeight: '800' },

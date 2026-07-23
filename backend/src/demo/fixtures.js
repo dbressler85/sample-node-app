@@ -565,6 +565,22 @@ const WAIVER_RESULTS = {
 };
 
 // Recent game logs (weeks 1-2) keyed by player id. Season totals derive from these.
+// Prior-season final fantasy totals (last completed year) for the players with game logs, so a
+// player card shows what they actually did last year even in the offseason. Points/games only;
+// the service stamps the concrete year (config.season − 1) so it stays correct as seasons roll.
+const PRIOR_SEASON = {
+  '13593': { points: 268.4, games: 16, stats: { receiving: { rec: 103, yds: 1533, td: 10 } } },
+  '14802': { points: 301.7, games: 17, stats: { receiving: { rec: 108, yds: 1612, td: 13 } } },
+  '15267': { points: 244.9, games: 15, stats: { rushing: { att: 240, yds: 1102, td: 9 }, receiving: { rec: 44, yds: 335, td: 2 } } },
+  '13116': { points: 372.1, games: 17, stats: { passing: { att: 560, cmp: 372, yds: 4210, td: 33 }, rushing: { att: 88, yds: 512, td: 6 } } },
+  '13649': { points: 289.5, games: 17, stats: { rushing: { att: 250, yds: 1288, td: 12 }, receiving: { rec: 52, yds: 431, td: 3 } } },
+  '12171': { points: 158.3, games: 16, stats: { receiving: { rec: 71, yds: 902, td: 5 } } },
+  '14990': { points: 331.0, games: 17, stats: { passing: { att: 520, cmp: 341, yds: 3980, td: 29 }, rushing: { att: 40, yds: 176, td: 2 } } },
+  '15264': { points: 226.8, games: 16, stats: { receiving: { rec: 88, yds: 1176, td: 7 } } },
+  '14086': { points: 241.2, games: 17, stats: { rushing: { att: 198, yds: 921, td: 7 }, receiving: { rec: 60, yds: 508, td: 3 } } },
+  '16002': { points: 198.6, games: 14, stats: { rushing: { att: 176, yds: 843, td: 6 }, receiving: { rec: 28, yds: 191, td: 1 } } },
+};
+
 const GAME_LOG = {
   '13593': [{ week: 1, pts: 22.4, line: '7-118, TD' }, { week: 2, pts: 15.1, line: '6-71' }],
   '14802': [{ week: 1, pts: 26.0, line: '9-121, TD' }, { week: 2, pts: 18.4, line: '7-88' }],
@@ -633,6 +649,16 @@ module.exports = {
   pendingClaims: (leagueId) => (PENDING_CLAIMS[leagueId] || []).map((c) => ({ ...c })),
   waiverResults: (leagueId) => (WAIVER_RESULTS[leagueId] || []).map((r) => ({ ...r })),
   gameLog: (playerId) => (GAME_LOG[playerId] || []).map((g) => ({ ...g })),
+  priorSeason: (playerId) => {
+    const s = PRIOR_SEASON[playerId];
+    if (!s) return null;
+    return {
+      points: s.points,
+      games: s.games,
+      ppg: s.games ? Math.round((s.points / s.games) * 10) / 10 : null,
+      stats: s.stats ? { passing: s.stats.passing || null, rushing: s.stats.rushing || null, receiving: s.stats.receiving || null } : null,
+    };
+  },
   schedule: (team) => (SCHEDULE[team] || []).map((s) => ({ ...s })),
   allPlayers: () => PLAYERS.map((p) => ({ ...p })),
   draftClass: () => DRAFT_CLASS.slice(),

@@ -6,12 +6,39 @@ import Reveal from '../components/Reveal';
 import { colors } from '../theme';
 import useCachedResource from '../useCachedResource';
 
+// Roster sort options. `null` (Slots) keeps the lineup-slot grouping; the rest flatten to one list.
+const SORT_OPTIONS = [
+  { key: null, label: 'Slots' },
+  { key: 'position', label: 'Pos' },
+  { key: 'name', label: 'Name' },
+  { key: 'age', label: 'Age' },
+  { key: 'value', label: 'Value' },
+  { key: 'team', label: 'Team' },
+];
+const SORT_LABELS = { position: 'position', name: 'name', age: 'age', value: 'value', team: 'team' };
+const POS_ORDER = { QB: 0, RB: 1, WR: 2, TE: 3, PK: 4, K: 4, PN: 5, DEF: 6, Def: 6 };
+
+function posRank(p) {
+  return POS_ORDER[p] != null ? POS_ORDER[p] : 9;
+}
+function sortPlayers(arr, key) {
+  const a = [...arr];
+  const byVal = (x, y) => (y.value || 0) - (x.value || 0);
+  if (key === 'position') a.sort((x, y) => posRank(x.position) - posRank(y.position) || byVal(x, y));
+  else if (key === 'name') a.sort((x, y) => String(x.name || '').localeCompare(String(y.name || '')));
+  else if (key === 'age') a.sort((x, y) => (x.age != null ? x.age : 999) - (y.age != null ? y.age : 999) || byVal(x, y));
+  else if (key === 'value') a.sort(byVal);
+  else if (key === 'team') a.sort((x, y) => String(x.team || 'ZZZ').localeCompare(String(y.team || 'ZZZ')) || byVal(x, y));
+  return a;
+}
+
 export default function RosterScreen({ league, onBack, onOpenTrades, onOpenDraft, onOpenPlayer }) {
   // Roster via the shared cache hook: instant repaint on return, throttled reloads, and it
   // keeps the roster on a failed refresh (C1/C2/C4). A trade/draft done in an overlay marks it
   // stale (invalidate-on-write), so returning here refetches (C3).
   const { data: roster, error, loading } = useCachedResource(`roster:${league.leagueId}`, () => api.roster(league.leagueId));
   const [baited, setBaited] = useState(() => new Set()); // player ids on the block here
+  const [sortKey, setSortKey] = useState(null); // null = group by lineup slot; else a flat sorted list
 
   // Trade-bait board for this league, alongside — secondary, best-effort.
   useEffect(() => {
@@ -43,7 +70,9 @@ export default function RosterScreen({ league, onBack, onOpenTrades, onOpenDraft
     }
   };
 
-  const sections = roster
+  // Default view groups by lineup slot. Picking a sort flattens the whole roster into one list
+  // ordered by that key, so you can scan the team by position, name, age, value or NFL team.
+  const slotSections = roster
     ? [
         { title: 'Starters', data: roster.starters },
         { title: 'Bench', data: roster.bench },
@@ -51,6 +80,12 @@ export default function RosterScreen({ league, onBack, onOpenTrades, onOpenDraft
         { title: 'Taxi Squad', data: roster.taxi },
       ].filter((s) => s.data && s.data.length > 0)
     : [];
+  const allPlayers = roster ? [roster.starters, roster.bench, roster.ir, roster.taxi].flat().filter(Boolean) : [];
+  const sections = !roster
+    ? []
+    : sortKey
+    ? [{ title: `${allPlayers.length} players · by ${SORT_LABELS[sortKey]}`, data: sortPlayers(allPlayers, sortKey) }]
+    : slotSections;
 
   // Combined dynasty value of the draft picks (when they're the enriched objects).
   const picksTotal = roster && roster.picks && roster.picks.length && typeof roster.picks[0] === 'object'
@@ -88,6 +123,20 @@ export default function RosterScreen({ league, onBack, onOpenTrades, onOpenDraft
           <Summary label="Roster value" value={roster.summary.rosterValue} gold />
           <Summary label="Core age" value={roster.summary.coreAge != null ? `${roster.summary.coreAge}y` : '—'} />
           <Summary label="Outlook" value={roster.summary.outlook} wide />
+        </View>
+      ) : null}
+
+      {roster ? (
+        <View style={styles.sortRow}>
+          <Text style={styles.sortLabel}>Sort</Text>
+          {SORT_OPTIONS.map((o) => {
+            const on = sortKey === o.key;
+            return (
+              <Pressable key={o.label} onPress={() => setSortKey(o.key)} style={[styles.sortChip, on && styles.sortChipOn]} hitSlop={4}>
+                <Text style={[styles.sortChipTxt, on && styles.sortChipTxtOn]}>{o.label}</Text>
+              </Pressable>
+            );
+          })}
         </View>
       ) : null}
 
@@ -190,6 +239,12 @@ const styles = StyleSheet.create({
   picksTotal: { color: colors.gold, fontSize: 13, fontWeight: '800' },
   picksHint: { color: colors.textDim, fontSize: 11, marginTop: 8, lineHeight: 15 },
   subtitle: { color: colors.textDim, fontSize: 14, marginTop: 2 },
+  sortRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, paddingHorizontal: 16, marginTop: 6, marginBottom: 2 },
+  sortLabel: { color: colors.textDim, fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4, marginRight: 2 },
+  sortChip: { paddingHorizontal: 11, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
+  sortChipOn: { borderColor: colors.accent, backgroundColor: colors.accent + '22' },
+  sortChipTxt: { color: colors.textDim, fontSize: 12, fontWeight: '800' },
+  sortChipTxtOn: { color: colors.accent },
   list: { paddingHorizontal: 20, paddingBottom: 32 },
   sectionHeader: {
     color: colors.accent,

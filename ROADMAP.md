@@ -320,7 +320,8 @@ Moving the app from "functional but uninspired" toward a slick, branded product.
   the splash or crash — it just falls back to the system face. Numbers stay in the system
   face for tabular alignment. *(Needs `npx expo install` + a rebuild to activate on-device;
   verify the weights render.)*
-- [ ] **Regenerate the app icon / splash** from the new DC crest.
+- [x] **Regenerate the app icon / splash** from the new DC crest. *(Done — icon /
+  adaptive-icon / favicon / splash re-rendered from the redesigned crest, 2026-07.)*
 
 ## Performance & caching backlog
 
@@ -383,12 +384,14 @@ Remaining, in rough priority order:
 Tracked so we stay honest rather than fabricating. Revisit if MFL adds fields or we
 add another data source.
 
-- [ ] **Real trade-deadline dates.** MFL has no machine-readable trade deadline, so
-  On Deck omits it rather than guessing. Could be sourced from league rules text
-  if a reliable parse exists, or entered manually per league.
-- [ ] **Machine-readable waiver run times.** MFL exposes only a human run-time
-  string, so waiver items on On Deck are label-only (sorted after timestamped
-  items). Revisit if a structured field appears.
+- [x] **Real trade-deadline dates.** *(Earlier note was wrong — MFL DOES carry it.)* Read from the
+  league `calendar` export's `TRADE_DEADLINE` event (`trades.nextTradeDeadline`, same shape as the
+  waiver-process events) and auto-surfaced as a timed `trade_deadline` item on On Deck + shown on the
+  trade desk. A manual per-league entry (store/tradeDeadlines, `POST /leagues/:id/trade-deadline`)
+  overrides it for any league without one on the calendar.
+- [x] **Machine-readable waiver run times.** Resolved via the `calendar` export
+  (`nextWaiverRun` → real ms): On Deck sorts waiver items by time, and the Pending tab shows
+  a live countdown, with MFL's human run-time string kept only as a fallback label.
 - [ ] **Live projections floor/ceiling.** Floor/median/ceiling bands are a model
   estimate (position volatility around the projection), flagged as estimates in the
   UI — not a real distribution. A better source would replace the heuristic.

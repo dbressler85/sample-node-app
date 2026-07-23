@@ -20,6 +20,7 @@ const draftService = require('./draft');
 const tradeStore = require('../store/trades');
 const playerTags = require('../store/playerTags');
 const baitStore = require('../store/tradebait');
+const tradeDeadlines = require('../store/tradeDeadlines');
 const tradefit = require('../lib/tradefit');
 const tradeMath = require('../lib/tradeMath');
 const season = require('../lib/season');
@@ -438,13 +439,16 @@ async function getLeague(cookie, token, leagueId) {
   //   • in demo the live picks map is empty, so my own picks come from the demo fixture.
   // Every read is caught to a safe default: the offers you came to review must render even if
   // the bait board or a picks read is momentarily flaky — a partial desk beats a 500.
-  const [rawLeagueOffers, baitMap, picksMap, upcoming, demoMyPicks] = await Promise.all([
+  const [rawLeagueOffers, baitMap, picksMap, upcoming, demoMyPicks, autoDeadlineMs] = await Promise.all([
     offersForLeague(cookie, token, league, byId, enr).catch((e) => { console.warn(`[trades] offersForLeague failed for L=${leagueId}: ${e.message}`); return []; }),
     tradeBaitByFranchise(cookie, token, league).catch(() => new Map()),
     picksLib.franchisePicksMap(cookie, league).catch(() => ({})),
     draftService.upcomingPicksByFranchise(cookie, token, league).catch(() => ({})),
     (config.demoMode ? picksLib.franchisePicks(cookie, league) : Promise.resolve(null)).catch(() => null),
+    // MFL's own trade deadline from the league calendar (live only). Manual entry overrides it.
+    config.demoMode ? Promise.resolve(null) : nextTradeDeadline(cookie, league).catch(() => null),
   ]);
+  const tradeDeadlineAuto = autoDeadlineMs ? new Date(autoDeadlineMs).toISOString().slice(0, 10) : null;
 
   const offers = annotateConstruction(rawLeagueOffers, ns, league.franchiseId);
   const myBait = baitMap.get(String(league.franchiseId)) || new Set();
@@ -488,6 +492,10 @@ async function getLeague(cookie, token, leagueId) {
     myPicks,
     partners,
     me: { name: roster.franchiseName || 'My Team', outlook: myOutlook.outlook || null, avgAge: myOutlook.avgAge || null, needs: mine.needs, surplus: mine.surplus, depth: mine.depth },
+    // Trade deadline. `tradeDeadlineAuto` is MFL's own (from the league calendar); `tradeDeadline`
+    // is the owner's manual override (used when set, e.g. a league without one on the calendar).
+    tradeDeadline: tradeDeadlines.get(token, leagueId),
+    tradeDeadlineAuto,
     // The scoring/roster format these values reflect (e.g. "Superflex · TE-premium").
     format: leagueFormat.label(fmt),
   };
@@ -514,6 +522,185 @@ async function suggestFor(cookie, token, leagueId, targetId, partnerFranchiseId)
     give: give.map((g) => ({ id: g.id, name: g.name, position: g.position, value: g.value, bait: myBait.has(String(g.id)), tag: g.tag || null })),
     giveValue: Math.round(give.reduce((s, g) => s + (g.value || 0), 0) * 10) / 10,
     partnerNeeds,
+  };
+}
+
+// The counter-ASK: you pick what you'd SEND (players and/or picks from your side), and this
+// proposes a fair return to ASK FOR from `partnerFranchiseId` — a package worth ~your send value,
+// biased to (a) YOUR positional needs, (b) players the partner is already shopping (their trade
+// bait — the ones they'll actually part with), and (c) your tagged Targets (never your Avoids).
+// The mirror image of suggestFor. Returns the ask package + a fairness read.
+async function askFor(cookie, token, leagueId, sendIds, partnerFranchiseId) {
+  const data = await tradeData(cookie, token, leagueId);
+  const { league, byId, enr, roster, rawPartners, ns } = data;
+  const ids = (Array.isArray(sendIds) ? sendIds : String(sendIds || '').split(','))
+    .map((s) => String(s).trim())
+    .filter(Boolean);
+  if (!ids.length) { const e = new Error('Pick at least one player or pick to send.'); e.status = 400; throw e; }
+
+  const partnerId = String(partnerFranchiseId || '');
+  const partner = rawPartners.find((p) => String(p.franchiseId) === partnerId);
+  if (!partner) { const e = new Error('That team is not in this league.'); e.status = 404; throw e; }
+
+  const myIds = new Set([...roster.starters, ...roster.bench].map((p) => String(p.id)));
+  const send = ids.map((id) => asset(id, byId, enr));
+  const sendSet = new Set(send.map((a) => String(a.id)));
+  const val = (arr) => Math.round(arr.reduce((s, a) => s + (a.value || 0), 0) * 10) / 10;
+  const sendValue = val(send);
+
+  const baitMap = await tradeBaitByFranchise(cookie, token, league);
+  const theirBait = baitMap.get(partnerId) || new Set();
+  const myNeeds = new Set(((ns[String(league.franchiseId)] || {}).needs || []).map((n) => n.pos));
+
+  // Their tradeable players I could ask for (value>0, not already in the deal, not mine).
+  const pool = (partner.roster || [])
+    .map((id) => { const a = asset(id, byId, enr); a.tag = playerTags.get(token, a.id) || null; a.bait = theirBait.has(String(a.id)); return a; })
+    .filter((a) => (a.value || 0) > 0 && !sendSet.has(String(a.id)) && !myIds.has(String(a.id)));
+
+  // Score a candidate for the ask: close to the remaining deficit, prefer their bait, my needs,
+  // and my Targets; steer off my Avoids. (Same weights as the counter-offer rebalancer.)
+  const score = (a, deficit) => {
+    const v = a.value || 0;
+    const near = -Math.abs(v - deficit);
+    const baitBonus = a.bait ? 30 : 0;
+    const needBonus = myNeeds.has(a.position) ? 15 : 0;
+    const tagBonus = a.tag === 'target' ? 25 : a.tag === 'avoid' ? -25 : 0;
+    return near * 0.5 + baitBonus + needBonus + tagBonus;
+  };
+
+  const ask = [];
+  const chosen = new Set();
+  let guard = 0;
+  while (val(ask) < sendValue * 0.9 && guard++ < 3) {
+    const deficit = sendValue - val(ask);
+    const cands = pool.filter((a) => !chosen.has(String(a.id)) && val(ask) + (a.value || 0) <= sendValue * 1.25);
+    if (!cands.length) break;
+    cands.sort((a, b) => score(b, deficit) - score(a, deficit));
+    ask.push(cands[0]);
+    chosen.add(String(cands[0].id));
+  }
+  // Everyone left is above the 125% cap (a top-heavy roster) — ask for their single closest.
+  if (!ask.length && pool.length) {
+    ask.push(pool.slice().sort((a, b) => Math.abs((a.value || 0) - sendValue) - Math.abs((b.value || 0) - sendValue))[0]);
+  }
+
+  const askValue = val(ask);
+  const scaleV = Math.max(sendValue, askValue, 1);
+  const diff = askValue - sendValue;
+  const verdict = diff > 0.08 * scaleV ? 'favorable' : diff < -0.08 * scaleV ? 'light' : 'fair';
+
+  return {
+    leagueId: league.leagueId,
+    partnerFranchiseId: partnerId,
+    partnerName: partner.name || 'Their team',
+    send: send.map((a) => ({ id: a.id, name: a.name, position: a.position, value: a.value, kind: a.kind })),
+    sendValue,
+    ask: ask.map((a) => ({ id: a.id, name: a.name, position: a.position, value: a.value, bait: !!a.bait, tag: a.tag || null, kind: a.kind })),
+    askValue,
+    verdict,
+    myNeeds: [...myNeeds],
+    format: leagueFormat.label(data.fmt),
+  };
+}
+
+// A full deal from ZERO with `partnerFranchiseId`: propose BOTH sides at once. Acquire one of their
+// players that fills YOUR need (preferring their surplus + trade bait — the ones they'll move), and
+// pay for it with a fair package from your side biased to THEIR needs + your bait. Considers the
+// strongest few targets and returns the best-scoring, needs-fitting, fair deal. Never ships your
+// Targets or acquires your Avoids if avoidable.
+async function fullDealFor(cookie, token, leagueId, partnerFranchiseId) {
+  const data = await tradeData(cookie, token, leagueId);
+  const { league, byId, enr, roster, rawPartners, ns } = data;
+  const partnerId = String(partnerFranchiseId || '');
+  const partner = rawPartners.find((p) => String(p.franchiseId) === partnerId);
+  if (!partner) { const e = new Error('That team is not in this league.'); e.status = 404; throw e; }
+  const myFid = String(league.franchiseId);
+
+  const myIds = new Set([...roster.starters, ...roster.bench].map((p) => String(p.id)));
+  const mine = [...roster.starters, ...roster.bench].map((p) => ({ id: String(p.id), name: p.name, position: p.position, value: enr.value(p.id) || 0, tag: playerTags.get(token, p.id) || null }));
+
+  const baitMap = await tradeBaitByFranchise(cookie, token, league);
+  const myBait = baitMap.get(myFid) || new Set();
+  const theirBait = baitMap.get(partnerId) || new Set();
+
+  const myNeeds = (ns[myFid] || {}).needs || [];
+  const myNeedSet = new Set(myNeeds.map((x) => x.pos));
+  const partnerNeeds = (ns[partnerId] || {}).needs || [];
+  const partnerNeedSet = new Set(partnerNeeds.map((x) => x.pos));
+  const partnerSurplusSet = new Set(((ns[partnerId] || {}).surplus || []).map((x) => x.pos));
+
+  // Their acquirable players (value>0, not mine). Picks aren't targets here — we deal for players.
+  const theirPool = (partner.roster || [])
+    .map((id) => { const a = asset(id, byId, enr); a.tag = playerTags.get(token, a.id) || null; a.bait = theirBait.has(String(a.id)); return a; })
+    .filter((a) => a.kind === 'player' && (a.value || 0) > 0 && !myIds.has(String(a.id)));
+  if (!theirPool.length || !mine.length) { const e = new Error('Not enough tradeable pieces to build a deal.'); e.status = 422; throw e; }
+
+  // How much I'd want to acquire each of their players.
+  const targetScore = (a) => {
+    let s = 0;
+    if (myNeedSet.has(a.position)) s += 45; // fills MY need
+    if (partnerSurplusSet.has(a.position)) s += 20; // from THEIR surplus — they can spare it
+    if (a.bait) s += 25; // they're shopping him
+    if (a.tag === 'target') s += 30; else if (a.tag === 'avoid') s -= 50;
+    return s;
+  };
+  const candidates = theirPool.slice().sort((a, b) => targetScore(b) - targetScore(a) || (b.value || 0) - (a.value || 0)).slice(0, 5);
+
+  // Score a full deal (a target + the give-package that pays for it).
+  const dealScore = (target, give) => {
+    const rv = target.value || 0;
+    const sv = give.reduce((s, g) => s + (g.value || 0), 0);
+    const scaleV = Math.max(rv, sv, 1);
+    let s = -(Math.abs(rv - sv) / scaleV) * 40; // fairness — the closer the better
+    if (myNeedSet.has(target.position)) s += 45; // I fill a need
+    if (give.some((g) => partnerNeedSet.has(g.position))) s += 30; // they fill a need
+    if (target.bait) s += 20;
+    if (give.some((g) => myBait.has(String(g.id)))) s += 15;
+    if (target.tag === 'target') s += 20;
+    if (give.some((g) => g.tag === 'target')) s -= 40; // protect my Targets
+    if (give.some((g) => g.tag === 'avoid')) s += 10; // glad to move my Avoids
+    return s;
+  };
+
+  let best = null;
+  for (const target of candidates) {
+    const give = tradefit.suggestGive(mine.filter((m) => String(m.id) !== String(target.id)), target.value || 0, partnerNeeds, myBait);
+    if (!give.length) continue;
+    const score = dealScore(target, give);
+    if (!best || score > best.score) best = { target, give, score };
+  }
+  if (!best) { const e = new Error('Could not build a fair deal with this team.'); e.status = 422; throw e; }
+
+  const val = (arr) => Math.round(arr.reduce((s, a) => s + (a.value || 0), 0) * 10) / 10;
+  const receive = [best.target];
+  const send = best.give;
+  const receiveValue = val(receive);
+  const sendValue = val(send);
+  const scaleV = Math.max(receiveValue, sendValue, 1);
+  const diff = receiveValue - sendValue;
+  const verdict = diff > 0.08 * scaleV ? 'favorable' : diff < -0.08 * scaleV ? 'light' : 'fair';
+
+  const givesTheir = [...new Set(send.filter((g) => partnerNeedSet.has(g.position)).map((g) => g.position))];
+  const bits = [];
+  bits.push(myNeedSet.has(best.target.position) ? `lands a ${best.target.position} at your need` : `adds ${best.target.name.split(',')[0]} (${best.target.position})`);
+  if (givesTheir.length) bits.push(`sends ${givesTheir.join('/')} they're light at`);
+  if (best.target.bait) bits.push('he’s on their block');
+  const rationale = bits.join(' · ');
+
+  const fmt = (a, baitSet) => ({ id: a.id, name: a.name, position: a.position, value: a.value, bait: baitSet.has(String(a.id)), tag: a.tag || null, kind: a.kind });
+  return {
+    leagueId: league.leagueId,
+    partnerFranchiseId: partnerId,
+    partnerName: partner.name || 'Their team',
+    receive: receive.map((a) => fmt(a, theirBait)),
+    receiveValue,
+    send: send.map((a) => fmt(a, myBait)),
+    sendValue,
+    verdict,
+    rationale,
+    myNeeds: [...myNeedSet],
+    partnerNeeds: [...partnerNeedSet],
+    format: leagueFormat.label(data.fmt),
   };
 }
 
@@ -866,4 +1053,32 @@ async function getLeagueFit(cookie, token, leagueId) {
   }
 }
 
-module.exports = { getOverview, getLeague, getLeagueFit, respond, propose, analyze, crossLeaguePreview, crossLeaguePropose, suggestFor, counterFor, tradeFitSummary, tradeBaitByFranchise, personalAnalyze, tagNotes };
+// The league's trade deadline from MFL's `calendar` export — MFL DOES carry it as a typed event
+// (`TRADE_DEADLINE`, epoch-seconds `start_time`), same shape as the waiver-process events. Returns
+// the soonest future deadline in ms, or null. Tolerant of type/label variants; fully fail-soft.
+const TRADE_DEADLINE_TYPES = new Set(['TRADE_DEADLINE', 'TRADEDEADLINE']);
+async function nextTradeDeadline(cookie, league) {
+  try {
+    const events = await mflRepo.calendar(league, cookie);
+    const now = Date.now();
+    let soonest = null;
+    for (const ev of events) {
+      const type = mfl.text(ev.type).toUpperCase();
+      const label = `${mfl.text(ev.title)} ${mfl.text(ev.description)}`.toUpperCase();
+      const isDeadline =
+        TRADE_DEADLINE_TYPES.has(type) ||
+        (/TRADE/.test(type) && /DEADLINE/.test(type)) ||
+        (/TRADE/.test(label) && /DEADLINE/.test(label));
+      if (!isDeadline) continue;
+      const startSec = mfl.num(ev.start_time);
+      if (!Number.isFinite(startSec) || startSec <= 0) continue;
+      const t = startSec * 1000;
+      if (t >= now && (soonest == null || t < soonest)) soonest = t;
+    }
+    return soonest;
+  } catch (e) {
+    return null;
+  }
+}
+
+module.exports = { getOverview, getLeague, getLeagueFit, respond, propose, analyze, crossLeaguePreview, crossLeaguePropose, suggestFor, askFor, fullDealFor, counterFor, nextTradeDeadline, tradeFitSummary, tradeBaitByFranchise, personalAnalyze, tagNotes };

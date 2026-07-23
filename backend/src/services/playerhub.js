@@ -16,6 +16,7 @@ const playersLib = require('../lib/players');
 const nflLib = require('../lib/nfl');
 const newsLib = require('../lib/news');
 const enrichmentLib = require('../lib/enrichment');
+const seasonStatsLib = require('../lib/seasonStats');
 const leagueFormat = require('../lib/leagueformat');
 const standingLib = require('../lib/standing');
 const leaguesService = require('./leagues');
@@ -318,6 +319,44 @@ async function liveSeasonAndLog(cookie, league, playerId, week) {
   return { season, log };
 }
 
+// Last completed season's final fantasy total for a player, read from MFL's prior-year
+// playerScores (YTD over the previous season), plus the real box score (passing/rushing/receiving)
+// from Sleeper via the MFL↔Sleeper crosswalk. Scored under one of the owner's leagues, and
+// year-overridden in the URL path. Fail-soft — a card without a prior line is fine.
+async function livePriorSeasonTotal(cookie, league, playerId, enr) {
+  if (!league) return null;
+  const priorYear = Number(config.season) - 1;
+  try {
+    const sleeperId = enr ? enr.sleeperId(playerId) : null;
+    const [ytdArr, avgArr, box] = await Promise.all([
+      mflRepo.playerScores(league, cookie, { W: 'YTD', PLAYERS: playerId, year: priorYear }),
+      mflRepo.playerScores(league, cookie, { W: 'AVG', PLAYERS: playerId, year: priorYear }),
+      seasonStatsLib.forPlayer(sleeperId, priorYear).catch(() => null),
+    ]);
+    const pick = (arr) => {
+      const hit = arr.find((p) => String(p.id) === String(playerId));
+      return hit && hit.score !== '' && hit.score != null ? Math.round((Number(hit.score) || 0) * 10) / 10 : null;
+    };
+    const points = pick(ytdArr);
+    // Show the card if we have EITHER a fantasy total or a real box score (a player can have stats
+    // even when MFL's prior-year fantasy total is missing for this league's scoring).
+    if ((points == null || points <= 0) && !box) return null;
+    const avg = pick(avgArr);
+    // Prefer Sleeper's games-played; fall back to the YTD/AVG estimate.
+    const games = box && box.gp ? box.gp : avg && avg > 0 && points ? Math.max(1, Math.round(points / avg)) : null;
+    const stats = box ? { passing: box.passing || null, rushing: box.rushing || null, receiving: box.receiving || null } : null;
+    return {
+      year: priorYear,
+      points: points != null ? points : null,
+      games,
+      ppg: avg != null ? avg : games && points ? Math.round((points / games) * 10) / 10 : null,
+      stats,
+    };
+  } catch (e) {
+    return null;
+  }
+}
+
 async function profile(cookie, token, playerId) {
   const [byId, enr] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(undefined, cookie)]);
   const base = playersLib.resolve(byId, playerId);
@@ -344,11 +383,19 @@ async function profile(cookie, token, playerId) {
       if (config.demoMode) {
         const l = demo.gameLog(playerId);
         const pts = Math.round(l.reduce((s, g) => s + g.pts, 0) * 10) / 10;
-        return { log: l, season: l.length ? { points: pts, games: l.length, ppg: Math.round((pts / l.length) * 10) / 10 } : null };
+        const prior = demo.priorSeason(playerId);
+        return {
+          log: l,
+          season: l.length ? { points: pts, games: l.length, ppg: Math.round((pts / l.length) * 10) / 10 } : null,
+          priorSeason: prior ? { year: Number(config.season) - 1, ...prior } : null,
+        };
       }
       const leagues = await leaguesService.listLeagues(cookie);
-      const res = await liveSeasonAndLog(cookie, leagues[0], playerId, ctx.week);
-      return { log: res.log, season: res.season };
+      const [res, prior] = await Promise.all([
+        liveSeasonAndLog(cookie, leagues[0], playerId, ctx.week),
+        livePriorSeasonTotal(cookie, leagues[0], playerId, enr),
+      ]);
+      return { log: res.log, season: res.season, priorSeason: prior };
     })(),
     // B) Upcoming schedule. Demo has difficulty ratings; live surfaces the real opponents
     // from the NFL schedule (difficulty null — no strength-of-schedule source live yet).
@@ -418,7 +465,7 @@ async function profile(cookie, token, playerId) {
       }
     })(),
   ]);
-  const { log, season } = logSeason;
+  const { log, season, priorSeason } = logSeason;
   const rated = upcoming.filter((g) => g.difficulty != null);
   const avgDifficulty = rated.length === upcoming.length && upcoming.length
     ? Math.round((upcoming.reduce((s, g) => s + g.difficulty, 0) / upcoming.length) * 10) / 10
@@ -469,6 +516,7 @@ async function profile(cookie, token, playerId) {
     availability: availabilityLib.resolve(base, ctx.statusMap, byeMap, ctx.week),
     outlook,
     season,
+    priorSeason: priorSeason || null,
     gameLog: log,
     schedule: { upcoming, avgDifficulty },
     news,

@@ -137,6 +137,7 @@ export default function WaiversScreen({ active = true, initialLeagueId, initialP
       await api.cancelClaim(lid, cid);
       loadPending();
       loadOverview();
+      if (openLeagueId) loadBoard(); // reflect the removed claim in the board's claims strip
     } catch (e) {
       Alert.alert('Could not cancel', e.message);
     }
@@ -171,6 +172,7 @@ export default function WaiversScreen({ active = true, initialLeagueId, initialP
           onPick={(addId) => setClaim({ leagueId: openLeagueId, addId })}
           onOpenPlayer={onOpenPlayer}
           onRetry={loadBoard}
+          onCancel={cancelClaim}
         />
       ) : (
         <>
@@ -333,7 +335,7 @@ function LeagueCard({ item, onPress }) {
   );
 }
 
-function BoardView({ board, loading, error, position, setPosition, sort, setSort, onPick, onBack, leagueName, onOpenPlayer, onRetry }) {
+function BoardView({ board, loading, error, position, setPosition, sort, setSort, onPick, onBack, leagueName, onOpenPlayer, onRetry, onCancel }) {
   const header = onBack ? (
     <Pressable style={styles.backRow} onPress={onBack} hitSlop={8}>
       <Text style={styles.backChev}>‹</Text>
@@ -348,32 +350,60 @@ function BoardView({ board, loading, error, position, setPosition, sort, setSort
   return (
     <View style={{ flex: 1 }}>
       {header}
-      <View style={styles.boardMeta}>
-        <SystemBadge system={board.system} />
-        {board.system === 'faab' && board.settings.faabRemaining != null ? (
-          <Text style={styles.metaText}>${board.settings.faabRemaining} left</Text>
-        ) : null}
-        {board.system === 'fcfs' && board.settings.waiverPriority ? (
-          <Text style={styles.metaText}>Priority #{board.settings.waiverPriority}</Text>
-        ) : null}
-        <Text style={styles.metaText}>
-          Roster {board.rosterCount}/{board.settings.rosterSize}
-          {board.rosterFull ? ' · FULL' : ''}
-        </Text>
-      </View>
-
-      <View style={styles.filterRow}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
-          <FilterChip label="All" active={!position} onPress={() => setPosition(null)} />
-          {board.positions.map((p) => (
-            <FilterChip key={p} label={p} active={position === p} onPress={() => setPosition(p)} />
-          ))}
-          <View style={{ width: 12 }} />
+      {/* Roster details on the left, sorts on the right of the SAME line — so the filter row
+          below carries only positions and nothing has to side-scroll. Both rows wrap. */}
+      <View style={styles.metaSortRow}>
+        <View style={styles.boardMeta}>
+          <SystemBadge system={board.system} />
+          {board.system === 'faab' && board.settings.faabRemaining != null ? (
+            <Text style={styles.metaText}>${board.settings.faabRemaining} left</Text>
+          ) : null}
+          {board.system === 'fcfs' && board.settings.waiverPriority ? (
+            <Text style={styles.metaText}>Priority #{board.settings.waiverPriority}</Text>
+          ) : null}
+          <Text style={styles.metaText}>
+            Roster {board.rosterCount}/{board.settings.rosterSize}
+            {board.rosterFull ? ' · FULL' : ''}
+          </Text>
+        </View>
+        <View style={styles.sortChips}>
           {SORTS.map((s) => (
             <FilterChip key={s.key} label={s.label} active={sort === s.key} onPress={() => setSort(s.key)} sortStyle />
           ))}
-        </ScrollView>
+        </View>
       </View>
+
+      <View style={styles.filterRow}>
+        <FilterChip label="All" active={!position} onPress={() => setPosition(null)} />
+        {board.positions.map((p) => (
+          <FilterChip key={p} label={p} active={position === p} onPress={() => setPosition(p)} />
+        ))}
+      </View>
+
+      {/* Claims already in for THIS league — so you can see the two you've submitted while
+          building a third, and remove one without leaving the board. */}
+      {board.pending && board.pending.length ? (
+        <View style={styles.claimsStrip}>
+          <Text style={styles.claimsTitle}>
+            {board.pending.length} claim{board.pending.length === 1 ? '' : 's'} submitted here
+          </Text>
+          {board.pending.map((c) => (
+            <View key={c.id} style={styles.claimRow}>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={styles.claimAdd} numberOfLines={1}>
+                  + {c.add ? c.add.name : '—'}
+                  {c.bid != null ? <Text style={styles.claimMeta}>  ${c.bid}</Text> : null}
+                  {c.priority != null ? <Text style={styles.claimMeta}>  #{c.priority}</Text> : null}
+                </Text>
+                {c.drop ? <Text style={styles.claimDrop} numberOfLines={1}>− {c.drop.name}</Text> : null}
+              </View>
+              <Pressable onPress={() => onCancel && onCancel(c.id, board.leagueId)} hitSlop={8} style={styles.claimDelBtn}>
+                <Text style={styles.claimDel}>Delete</Text>
+              </Pressable>
+            </View>
+          ))}
+        </View>
+      ) : null}
 
       <FlatList
         data={board.freeAgents}
@@ -481,6 +511,24 @@ function ResultName({ player, onOpenPlayer }) {
   return <Text>{short}</Text>;
 }
 
+// When a claim processes: a real countdown from the calendar-derived run time (c.at), falling back
+// to MFL's human run-time label, then a generic "pending".
+function waiverWhen(c) {
+  if (c && c.at) {
+    const ms = new Date(c.at).getTime() - Date.now();
+    if (!Number.isNaN(ms)) {
+      if (ms <= 60 * 1000) return 'processing now';
+      const mins = Math.round(ms / 60000);
+      if (mins < 60) return `in ${mins}m`;
+      const hrs = Math.floor(mins / 60);
+      if (hrs < 24) return `in ${hrs}h ${mins % 60}m`;
+      const days = Math.floor(hrs / 24);
+      return `in ${days}d ${hrs % 24}h`;
+    }
+  }
+  return (c && (c.atLabel || c.processTime)) || 'pending';
+}
+
 function PendingView({ pending, onCancel, onOpenPlayer }) {
   if (!pending) return <Center><ActivityIndicator color={colors.accent} size="large" /></Center>;
   return (
@@ -496,7 +544,7 @@ function PendingView({ pending, onCancel, onOpenPlayer }) {
               {c.priority != null ? <Text style={styles.pendBid}>  #{c.priority}</Text> : null}
             </Text>
             {c.drop ? <Text style={styles.pendDrop}>− {c.drop.name}</Text> : null}
-            <Text style={styles.pendLeague}>{c.leagueName} · {c.processTime || 'pending'}</Text>
+            <Text style={styles.pendLeague}>{c.leagueName} · {waiverWhen(c)}</Text>
           </View>
           <Pressable onPress={() => onCancel(c.id, c.leagueId)} hitSlop={8}>
             <Text style={styles.cancel}>Cancel</Text>
@@ -729,9 +777,19 @@ const styles = StyleSheet.create({
   segActive: { backgroundColor: colors.cardAlt },
   segText: { color: colors.textDim, fontSize: 13, fontWeight: '700' },
   segTextActive: { color: colors.text },
-  boardMeta: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingVertical: 8 },
+  metaSortRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', paddingHorizontal: 16, paddingTop: 8, rowGap: 6 },
+  boardMeta: { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 1 },
+  sortChips: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   metaText: { color: colors.textDim, fontSize: 12, fontWeight: '700' },
-  filterRow: { paddingLeft: 16, paddingVertical: 6 },
+  filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingHorizontal: 16, paddingVertical: 8 },
+  claimsStrip: { marginHorizontal: 16, marginBottom: 4, backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.accent + '55', paddingHorizontal: 12, paddingTop: 8, paddingBottom: 4 },
+  claimsTitle: { color: colors.accent, fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 4 },
+  claimRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+  claimAdd: { color: colors.text, fontSize: 14, fontWeight: '800' },
+  claimMeta: { color: colors.gold, fontSize: 13, fontWeight: '800' },
+  claimDrop: { color: colors.textDim, fontSize: 12, marginTop: 1 },
+  claimDelBtn: { paddingHorizontal: 10, paddingVertical: 6, marginLeft: 8 },
+  claimDel: { color: colors.bad, fontSize: 13, fontWeight: '800' },
   filterChip: { backgroundColor: colors.card, borderRadius: 8, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 6 },
   filterChipActive: { backgroundColor: colors.cardAlt, borderColor: colors.accent },
   sortChip: { borderStyle: 'dashed' },

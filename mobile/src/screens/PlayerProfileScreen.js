@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, Pressable, ActivityIndicator, Alert, Image } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Pressable, ActivityIndicator, Alert, Image, Linking } from 'react-native';
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import AvailabilityBadge from '../components/AvailabilityBadge';
@@ -55,6 +55,40 @@ function diffColor(d) {
   if (d <= 4) return colors.good;
   if (d <= 6) return colors.warn;
   return colors.bad;
+}
+
+function newsColor(severity) {
+  if (severity === 'high') return colors.bad;
+  if (severity === 'medium') return colors.warn;
+  return colors.textDim;
+}
+
+// Prior-season box score: one line per category present (passing / rushing / receiving).
+function PriorStatLines({ stats }) {
+  const rows = [];
+  if (stats.passing && (stats.passing.att || stats.passing.yds)) {
+    const p = stats.passing;
+    rows.push({ key: 'pass', label: 'Passing', parts: [`${p.cmp}/${p.att} cmp`, `${p.yds} yds`, `${p.td} TD`] });
+  }
+  if (stats.rushing && (stats.rushing.att || stats.rushing.yds)) {
+    const r = stats.rushing;
+    rows.push({ key: 'rush', label: 'Rushing', parts: [`${r.att} att`, `${r.yds} yds`, `${r.td} TD`] });
+  }
+  if (stats.receiving && (stats.receiving.rec || stats.receiving.yds)) {
+    const c = stats.receiving;
+    rows.push({ key: 'rec', label: 'Receiving', parts: [`${c.rec} rec`, `${c.yds} yds`, `${c.td} TD`] });
+  }
+  if (!rows.length) return null;
+  return (
+    <View style={styles.statLines}>
+      {rows.map((row) => (
+        <View key={row.key} style={styles.statLine}>
+          <Text style={styles.statLineLabel}>{row.label}</Text>
+          <Text style={styles.statLineVals}>{row.parts.join('  ·  ')}</Text>
+        </View>
+      ))}
+    </View>
+  );
 }
 
 export default function PlayerProfileScreen({ playerId, seed, onBack, onOpenTradeDesk, onOpenTradeWizard }) {
@@ -129,7 +163,7 @@ export default function PlayerProfileScreen({ playerId, seed, onBack, onOpenTrad
               {seed.value != null ? (
                 <View style={styles.valueBox}>
                   <Text style={styles.valueNum}>{seed.value}</Text>
-                  <Text style={styles.valueLabel}>market value</Text>
+                  <Text style={styles.valueLabel}>dynasty value</Text>
                 </View>
               ) : null}
             </View>
@@ -169,13 +203,26 @@ export default function PlayerProfileScreen({ playerId, seed, onBack, onOpenTrad
             {draftLabel(p) ? <Text style={styles.draft}>{draftLabel(p)}</Text> : null}
           </View>
           {p.value != null ? (
-            <View style={styles.valueBox}>
+            <Pressable
+              style={styles.valueBox}
+              hitSlop={8}
+              onPress={() =>
+                Alert.alert(
+                  'Dynasty value',
+                  `A player's trade value on the dynasty market, priced for each league's format — Superflex and PPR raise a player's worth, so the same player is valued differently in each of your leagues.\n\n${
+                    p.valueRange && p.valueRange.min !== p.valueRange.max
+                      ? `“${p.valueRange.min}–${p.valueRange.max} across leagues” is the spread: ${p.valueRange.min} in your lowest-valuing league, ${p.valueRange.max} in your highest. The big number is the value in the league you opened.`
+                      : 'The number is this player’s value in the league you opened.'
+                  }`
+                )
+              }
+            >
               <Text style={styles.valueNum}>{p.value}</Text>
-              <Text style={styles.valueLabel}>market value</Text>
+              <Text style={styles.valueLabel}>dynasty value ⓘ</Text>
               {p.valueRange && p.valueRange.min !== p.valueRange.max ? (
-                <Text style={styles.valueSpread}>{p.valueRange.min}–{p.valueRange.max} in leagues</Text>
+                <Text style={styles.valueSpread}>{p.valueRange.min}–{p.valueRange.max} across leagues</Text>
               ) : null}
-            </View>
+            </Pressable>
           ) : null}
         </View>
 
@@ -220,6 +267,31 @@ export default function PlayerProfileScreen({ playerId, seed, onBack, onOpenTrad
           </Card>
         ) : null}
 
+        {/* Prior season totals — what they actually produced last year (from MFL). */}
+        {p.priorSeason ? (
+          <Card title={`${p.priorSeason.year} season`}>
+            <View style={styles.priorRow}>
+              <View style={styles.priorCell}>
+                <Text style={styles.priorNum}>{p.priorSeason.points}</Text>
+                <Text style={styles.priorLbl}>fantasy pts</Text>
+              </View>
+              {p.priorSeason.games ? (
+                <View style={styles.priorCell}>
+                  <Text style={styles.priorNum}>{p.priorSeason.games}</Text>
+                  <Text style={styles.priorLbl}>games</Text>
+                </View>
+              ) : null}
+              {p.priorSeason.ppg != null ? (
+                <View style={styles.priorCell}>
+                  <Text style={styles.priorNum}>{p.priorSeason.ppg}</Text>
+                  <Text style={styles.priorLbl}>ppg</Text>
+                </View>
+              ) : null}
+            </View>
+            {p.priorSeason.stats ? <PriorStatLines stats={p.priorSeason.stats} /> : null}
+          </Card>
+        ) : null}
+
         {/* Schedule */}
         {p.schedule.upcoming.length ? (
           <Card title={p.schedule.avgDifficulty != null ? `Upcoming · avg difficulty ${p.schedule.avgDifficulty}` : 'Upcoming'}>
@@ -236,15 +308,6 @@ export default function PlayerProfileScreen({ playerId, seed, onBack, onOpenTrad
                 </View>
               ))}
             </View>
-          </Card>
-        ) : null}
-
-        {/* News */}
-        {p.news.length ? (
-          <Card title="News">
-            {p.news.map((n) => (
-              <Text key={n.id} style={styles.news}>• {n.headline}</Text>
-            ))}
           </Card>
         ) : null}
 
@@ -265,6 +328,26 @@ export default function PlayerProfileScreen({ playerId, seed, onBack, onOpenTrad
             );
           })}
         </Card>
+
+        {/* Recent news — at the bottom. Tapping a headline opens the source story. */}
+        {p.news.length ? (
+          <Card title="Recent news">
+            {p.news.map((n) => (
+              <Pressable
+                key={n.id}
+                disabled={!n.url}
+                onPress={() => n.url && Linking.openURL(n.url).catch(() => {})}
+                style={({ pressed }) => [styles.newsRow, pressed && n.url && { opacity: 0.6 }]}
+              >
+                <View style={[styles.newsDot, { backgroundColor: newsColor(n.severity) }]} />
+                <Text style={styles.news}>
+                  {n.headline}
+                  {n.url ? <Text style={styles.newsLink}>  ›</Text> : null}
+                </Text>
+              </Pressable>
+            ))}
+          </Card>
+        ) : null}
 
         <View style={{ height: 90 }} />
       </ScrollView>
@@ -432,7 +515,18 @@ const styles = StyleSheet.create({
   schedOpp: { color: colors.text, fontSize: 13, fontWeight: '700', marginVertical: 4 },
   diffPill: { borderWidth: 1, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 1 },
   diffText: { fontSize: 12, fontWeight: '900' },
-  news: { color: colors.text, fontSize: 13, marginBottom: 6, lineHeight: 18 },
+  news: { color: colors.text, fontSize: 13, lineHeight: 18, flex: 1 },
+  newsRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 8 },
+  newsDot: { width: 7, height: 7, borderRadius: 4, marginTop: 5, marginRight: 8 },
+  newsLink: { color: colors.accent, fontWeight: '800' },
+  priorRow: { flexDirection: 'row', justifyContent: 'space-around' },
+  priorCell: { alignItems: 'center', flex: 1 },
+  priorNum: { color: colors.text, fontSize: 20, fontWeight: '900' },
+  priorLbl: { color: colors.textDim, fontSize: 11, fontWeight: '700', marginTop: 2 },
+  statLines: { marginTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, paddingTop: 10, gap: 6 },
+  statLine: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  statLineLabel: { color: colors.textDim, fontSize: 12, fontWeight: '800', width: 76 },
+  statLineVals: { color: colors.text, fontSize: 13, fontWeight: '700', flex: 1, textAlign: 'right' },
   clRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   dot: { width: 8, height: 8, borderRadius: 4, marginRight: 10 },
   clName: { color: colors.text, fontSize: 14, flex: 1 },

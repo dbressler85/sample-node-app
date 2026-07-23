@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, FlatList, StyleSheet, Pressable, RefreshControl, ActivityIndicator, Modal } from 'react-native';
+import { View, Text, FlatList, StyleSheet, Pressable, RefreshControl, ActivityIndicator } from 'react-native';
 import { api } from '../api';
 import { getValue, setValue, onCacheInvalidate } from '../cache';
 import { colors } from '../theme';
@@ -10,17 +10,6 @@ import AnimatedNumber from '../components/AnimatedNumber';
 import GearIcon from '../components/GearIcon';
 import InfoDot from '../components/InfoDot';
 
-const GROUPS = {
-  lineup_risk: { label: 'Unavailable player in lineup', color: colors.bad, open: true },
-  lineup_incomplete: { label: 'Empty slot — needs a pickup', color: colors.bad, open: true },
-  trade_offer: { label: 'Trade offers', color: colors.bad, open: true },
-  waiver_imminent: { label: 'Waivers processing soon', color: colors.warn, open: true },
-  lineup_unset: { label: 'Lineups not set', color: colors.warn, open: false },
-  lineup_suboptimal: { label: 'Better lineup available', color: colors.warn, open: false },
-  waiver_pending: { label: 'Pending waivers', color: colors.textDim, open: false },
-};
-const GROUP_ORDER = ['lineup_risk', 'lineup_incomplete', 'trade_offer', 'waiver_imminent', 'lineup_unset', 'lineup_suboptimal', 'waiver_pending'];
-const ACTION_LABEL = { lineup: 'Set ›', waiver: 'Waivers ›', trade: 'View ›' };
 const CONCURRENCY = 4;
 
 // A draft belongs on the Home action list only if it needs you soon: you're on the
@@ -85,10 +74,8 @@ export default function HomeScreen({ active = true, demoMode, onOpenLineup, onOp
   const [onDeck, setOnDeck] = useState(homeCache.onDeck || null); // time-sorted deadlines across leagues
   const [watchAlerts, setWatchAlerts] = useState(homeCache.watchAlerts || []); // watched players now free / on the block
   const [showAllWatch, setShowAllWatch] = useState(false); // Watchlist section: show all vs. the first few
-  const [expanded, setExpanded] = useState(new Set(GROUP_ORDER.filter((t) => GROUPS[t].open)));
   const [progress, setProgress] = useState(null); // { done, total }
   const [error, setError] = useState(null);
-  const [attentionOpen, setAttentionOpen] = useState(false); // the "Needs attention" feed is now a modal
   const [booting, setBooting] = useState(!homeCache.leagues); // in-memory data → paint immediately, no spinner
   const [busy, setBusy] = useState(false); // a refresh cycle is in flight
   const running = useRef(false);
@@ -193,27 +180,8 @@ export default function HomeScreen({ active = true, demoMode, onOpenLineup, onOp
     }
   }, []);
 
-  function handleAction(item) {
-    // Acting on an item leaves the feed for an overlay — close the modal first so we don't
-    // return to a stale sheet stacked under the destination.
-    setAttentionOpen(false);
-    const league = { leagueId: item.leagueId, name: item.leagueName };
-    if (item.action === 'lineup') onOpenLineup(league);
-    else if (item.action === 'waiver') onOpenWaivers(league);
-    else if (item.action === 'trade') onOpenTrades(league);
-    else onOpenLeague(league);
-  }
-
-  function toggle(type) {
-    setExpanded((s) => {
-      const n = new Set(s);
-      n.has(type) ? n.delete(type) : n.add(type);
-      return n;
-    });
-  }
-
   // Derive everything from the (current) leagues + their statuses.
-  const { portfolio, allItems, phase } = useMemo(() => {
+  const { portfolio, phase } = useMemo(() => {
     const vals = leagues.map((l) => statuses[l.leagueId]).filter(Boolean);
     const items = vals.flatMap((v) => v.items || []);
     const ph = (vals.find((v) => v.phase) || {}).phase || 'in_season';
@@ -238,19 +206,6 @@ export default function HomeScreen({ active = true, demoMode, onOpenLineup, onOp
       },
     };
   }, [leagues, statuses]);
-
-  const rows = useMemo(() => {
-    const byType = {};
-    for (const t of allItems) (byType[t.type] || (byType[t.type] = [])).push(t);
-    const out = [];
-    for (const type of GROUP_ORDER) {
-      const its = byType[type];
-      if (!its || !its.length) continue;
-      out.push({ kind: 'header', type, count: its.length });
-      if (expanded.has(type)) for (const item of its) out.push({ kind: 'item', item });
-    }
-    return out;
-  }, [allItems, expanded]);
 
   if (booting) {
     return (
@@ -324,7 +279,7 @@ export default function HomeScreen({ active = true, demoMode, onOpenLineup, onOp
               loading={summaryLoading}
               onLeagues={onOpenLeagues}
               onPortfolio={onOpenPortfolio}
-              onOpenAttention={portfolio.actionItems > 0 ? () => setAttentionOpen(true) : null}
+              onOpenAttention={onOpenOnDeck}
             />
             {drafts.length ? (
               <View>
@@ -413,36 +368,8 @@ export default function HomeScreen({ active = true, demoMode, onOpenLineup, onOp
         }
       />
 
-      {/* The needs-attention feed, on demand. Tapping the "Needs attention" tile opens it as
-          a sheet instead of a permanent list crowding Home. Same grouped rows, same
-          expand/collapse, same actions — acting on a row closes the sheet and navigates. */}
-      <Modal visible={attentionOpen} animationType="slide" transparent onRequestClose={() => setAttentionOpen(false)}>
-        <View style={styles.modalWrap}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalHead}>
-              <Text style={styles.modalTitle}>
-                Needs attention{summaryLoading ? '  ·  updating…' : ` · ${portfolio.actionItems}`}
-              </Text>
-              <Pressable onPress={() => setAttentionOpen(false)} hitSlop={12} accessibilityLabel="Close">
-                <Text style={styles.modalClose}>✕</Text>
-              </Pressable>
-            </View>
-            <FlatList
-              data={rows}
-              keyExtractor={(r) => (r.kind === 'header' ? `h-${r.type}` : `i-${r.item.id}`)}
-              contentContainerStyle={styles.modalList}
-              renderItem={({ item: row }) =>
-                row.kind === 'header' ? (
-                  <GroupHeader type={row.type} count={row.count} open={expanded.has(row.type)} onPress={() => toggle(row.type)} />
-                ) : (
-                  <TriageRow item={row.item} onPress={() => handleAction(row.item)} />
-                )
-              }
-              ListEmptyComponent={<Text style={styles.clear}>🎉 Nothing needs you right now.</Text>}
-            />
-          </View>
-        </View>
-      </Modal>
+      {/* "Needs attention" is now folded into On Deck (the tile + the On Deck row both open it),
+          so there's no separate bottom-sheet feed here anymore. */}
     </View>
   );
 }
@@ -538,28 +465,6 @@ function Chip({ label, value, bad, warn, loading, onPress }) {
     </Wrap>
   );
 }
-
-function GroupHeader({ type, count, open, onPress }) {
-  const g = GROUPS[type] || { label: type, color: colors.textDim };
-  return (
-    <Pressable style={({ pressed }) => [styles.groupHeader, pressed && { opacity: 0.7 }]} onPress={onPress}>
-      <View style={[styles.dot, { backgroundColor: g.color }]} />
-      <Text style={styles.groupLabel} numberOfLines={1}>{g.label}</Text>
-      <View style={styles.countPill}><Text style={styles.countText}>{count}</Text></View>
-      <Text style={styles.caret}>{open ? '⌄' : '›'}</Text>
-    </Pressable>
-  );
-}
-
-function TriageRow({ item, onPress }) {
-  return (
-    <Pressable style={({ pressed }) => [styles.row, pressed && { opacity: 0.7 }]} onPress={onPress}>
-      <Text style={styles.rowLeague} numberOfLines={1}>{item.leagueName}</Text>
-      <Text style={styles.rowAction}>{ACTION_LABEL[item.action] || '›'}</Text>
-    </Pressable>
-  );
-}
-
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'transparent' },

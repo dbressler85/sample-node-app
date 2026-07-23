@@ -361,6 +361,7 @@ export default function App() {
             onOpenLineup={openLineup}
             onOpenDraft={openDraft}
             onOpenWaivers={(league) => openWaivers({ leagueId: league.leagueId })}
+            onOpenTradeInbox={openTradeInbox}
           />
         );
       case 'playerProfile':

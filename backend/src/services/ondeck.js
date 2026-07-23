@@ -17,6 +17,12 @@ const nflLib = require('../lib/nfl');
 const draftService = require('./draft');
 const lineupsService = require('./lineups');
 const waiversService = require('./waivers');
+const leaguesService = require('./leagues');
+const tradesService = require('./trades');
+const tradeDeadlines = require('../store/tradeDeadlines');
+
+// Waiver runs this soon count as "on deck" even with no claim in yet — the window to get one in.
+const WAIVER_IMMINENT_MS = 3 * 24 * 60 * 60 * 1000;
 
 const LINEUP_DETAIL = {
   risk: 'unavailable starter',
@@ -49,10 +55,11 @@ async function getOnDeck(cookie, token) {
   // The three cross-league aggregations are independent — run them concurrently
   // instead of one-after-another (draft overview + lineup status + waiver pending
   // each fan out per league, so serializing them tripled On Deck's load time).
-  const [draftOv, locks, pend] = await Promise.all([
+  const [draftOv, locks, pend, tradeOv] = await Promise.all([
     draftService.getOverview(cookie, token).catch(() => ({ drafts: [] })),
     inSeason ? lineupLocks(cookie, token, week).catch(() => null) : Promise.resolve(null),
     waiversService.getPending(cookie, token).catch(() => ({ pending: [] })),
+    tradesService.getOverview(cookie, token).catch(() => ({ offers: [] })),
   ]);
 
   // Drafts run year-round in dynasty.
@@ -72,15 +79,98 @@ async function getOnDeck(cookie, token) {
       }
     }
   }
-  const byLeague = new Map();
+  // Waiver runs on deck are TWO things, shown distinctly:
+  //   • leagues where you already have claims in (any run time), and
+  //   • leagues whose next run is imminent (≤3 days) even with no claim yet — your window to act.
+  // The owner's leagues — used for waiver runs (live) AND the manual trade deadlines below.
+  const leagueList = await leaguesService.listLeagues(cookie).catch(() => []);
+
+  const byLeague = new Map(); // leagueId -> { leagueName, count, when }
   for (const c of pend.pending || []) {
     if (!byLeague.has(c.leagueId)) byLeague.set(c.leagueId, { leagueName: c.leagueName, count: 0, when: null });
     const g = byLeague.get(c.leagueId);
     g.count += 1;
     if (!g.when && c.processTime) g.when = c.processTime;
   }
-  for (const [leagueId, g] of byLeague) {
-    items.push({ type: 'waiver_run', leagueId, leagueName: g.leagueName, at: null, atLabel: g.when || null, action: 'waiver', label: 'Waivers process', detail: `${g.count} pending claim${g.count === 1 ? '' : 's'}` });
+
+  // Trade deadlines — MFL DOES carry them on the league calendar, so use that automatically; a
+  // manual entry (for a league without one on the calendar) overrides. One timed item per league.
+  const manualDeadlines = tradeDeadlines.all(token);
+  const autoDeadlines = {};
+  if (!config.demoMode) {
+    const ds = await Promise.all(leagueList.map((l) => tradesService.nextTradeDeadline(cookie, l).catch(() => null)));
+    leagueList.forEach((l, i) => { if (ds[i]) autoDeadlines[String(l.leagueId)] = ds[i]; });
+  }
+  for (const l of leagueList) {
+    const lid = String(l.leagueId);
+    const m = manualDeadlines[lid];
+    let atMs = null;
+    let source = null;
+    if (m) {
+      const d = new Date(`${m}T23:59:59Z`);
+      if (!Number.isNaN(d.getTime())) { atMs = d.getTime(); source = 'manual'; }
+    } else if (autoDeadlines[lid]) {
+      atMs = autoDeadlines[lid];
+      source = 'mfl';
+    }
+    if (atMs == null || atMs <= Date.now()) continue; // none / already passed → not on deck
+    items.push({
+      type: 'trade_deadline', leagueId: l.leagueId, leagueName: l.name, at: new Date(atMs).toISOString(),
+      action: 'trade', label: 'Trade deadline', source,
+      detail: source === 'mfl' ? 'From your league calendar' : 'Last day to make a trade',
+    });
+  }
+
+  if (config.demoMode) {
+    // Demo has no machine-readable run time — surface the claim leagues (all "have claims").
+    for (const [leagueId, g] of byLeague) {
+      items.push({
+        type: 'waiver_run', leagueId, leagueName: g.leagueName, at: null, atLabel: g.when || null,
+        action: 'waiver', label: 'Waivers process', hasClaims: true, claimCount: g.count,
+        detail: `${g.count} claim${g.count === 1 ? '' : 's'} in`,
+      });
+    }
+  } else {
+    // Live: resolve each league's next run time so waiver items sort by time (not dumped last),
+    // and so a claim-free league with an imminent run still shows up.
+    const leagues = leagueList;
+    const runs = await Promise.all(
+      leagues.map((l) => waiversService.nextWaiverRun(cookie, l).catch(() => null))
+    );
+    leagues.forEach((l, i) => {
+      const runMs = runs[i];
+      const g = byLeague.get(l.leagueId);
+      const claimCount = g ? g.count : 0;
+      const imminent = runMs && runMs > Date.now() && runMs - Date.now() <= WAIVER_IMMINENT_MS;
+      if (claimCount === 0 && !imminent) return; // no claim + not soon → not on deck
+      items.push({
+        type: 'waiver_run',
+        leagueId: l.leagueId,
+        leagueName: l.name,
+        at: runMs ? new Date(runMs).toISOString() : null,
+        atLabel: runMs ? null : g && g.when ? g.when : null,
+        action: 'waiver',
+        label: 'Waivers process',
+        hasClaims: claimCount > 0,
+        claimCount,
+        detail: claimCount > 0 ? `${claimCount} claim${claimCount === 1 ? '' : 's'} in` : 'no claims yet — window open',
+      });
+    });
+  }
+
+  // Pending trade offers waiting on your response — the one "needs attention" item that isn't a
+  // timed deadline. MFL exposes no offer expiry, so these are untimed (sort after timed items).
+  for (const o of tradeOv.offers || []) {
+    items.push({
+      type: 'trade_offer',
+      leagueId: o.leagueId,
+      leagueName: o.leagueName,
+      at: null,
+      action: 'trade',
+      offerId: o.id,
+      label: `Trade offer from ${o.withName || 'another team'}`,
+      detail: o.analysis && o.analysis.verdict ? `${o.analysis.verdict} for you` : 'Review and respond',
+    });
   }
 
   // (On Deck is time-sorted, so pinning doesn't reorder deadlines.)

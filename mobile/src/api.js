@@ -148,6 +148,13 @@ export const api = {
   leagueTrades: (leagueId) => request(`/api/leagues/${leagueId}/trades`),
   tradeFit: (leagueId) => request(`/api/leagues/${leagueId}/trades/fit`),
   suggestTrade: (leagueId, targetId, partnerId) => request(`/api/leagues/${leagueId}/trades/suggest?target=${targetId}&partner=${partnerId}`),
+  // Counter-ask: given what you'd send (array of player/pick ids) to a partner, what to ask for.
+  askTrade: (leagueId, sendIds, partnerId) =>
+    request(`/api/leagues/${leagueId}/trades/ask?send=${encodeURIComponent((sendIds || []).join(','))}&partner=${partnerId}`),
+  // Full deal from zero with a partner — both sides proposed at once.
+  fullDeal: (leagueId, partnerId) => request(`/api/leagues/${leagueId}/trades/deal?partner=${partnerId}`),
+  // Manual per-league trade deadline (MFL exposes none). Pass 'YYYY-MM-DD' or null to clear.
+  setTradeDeadline: (leagueId, deadline) => request(`/api/leagues/${leagueId}/trade-deadline`, { method: 'POST', body: { deadline } }),
   counterTrade: (leagueId, offerId) => request(`/api/leagues/${leagueId}/trades/counter?offer=${offerId}`),
   proposeTrade: (leagueId, body) => request(`/api/leagues/${leagueId}/trades`, { method: 'POST', body }),
   respondTrade: (leagueId, tradeId, action) =>

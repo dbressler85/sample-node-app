@@ -27,7 +27,6 @@ const historyStore = require('../store/portfolioHistory');
 const pvHistory = require('../store/playerValueHistory');
 const tradebaitStore = require('../store/tradebait');
 const tradebaitService = require('./tradebait');
-const season = require('../lib/season');
 
 const SEV = { high: 3, medium: 2, low: 1 };
 
@@ -333,6 +332,10 @@ async function getDashboard(cookie, token) {
   // Distinct rostered players you've tagged — "shop your Avoids" / "your Targets are safe".
   const tags = playerTags.all(token);
   const taggedRostered = { target: new Set(), avoid: new Set() };
+  // At-risk aggregated PER PLAYER (not per league-row): a player hurt/aging in several leagues is
+  // one holding whose at-risk value is his exposure summed across those leagues. Mirrors the Top
+  // holdings shape so the app can sort/expand/shop it the same way.
+  const atRiskMap = new Map(); // playerId -> { id, name, position, team, value, leagueIds:[], reasons:Set }
 
   for (const { league, roster } of valid) {
     const all = [...roster.starters, ...roster.bench, ...roster.ir, ...roster.taxi];
@@ -368,7 +371,17 @@ async function getDashboard(cookie, token) {
       const entry = { id: p.id, name: p.name, position: p.position, team: p.team, age: p.age, value: v, leagueId: league.leagueId, leagueName: league.name };
       if (hurt) injured.push({ ...entry, reason: p.availability.status });
       if (old) aging.push({ ...entry, reason: `age ${p.age}` });
-      if (hurt || old) { if (!riskIds.has(key)) { riskIds.add(key); riskValue += v; leagueRisk += v; } }
+      if (hurt || old) {
+        if (!riskIds.has(key)) {
+          riskIds.add(key); riskValue += v; leagueRisk += v;
+          const ar = atRiskMap.get(p.id) || { id: p.id, name: p.name, position: p.position, team: p.team, value: 0, leagueIds: [], reasons: new Set() };
+          ar.value += v;
+          ar.leagueIds.push(league.leagueId);
+          if (hurt) ar.reasons.add(p.availability.status || 'injured');
+          if (old) ar.reasons.add(`age ${p.age}`);
+          atRiskMap.set(p.id, ar);
+        }
+      }
     }
     const s = roster.summary || {};
     if (s.outlook === 'Win-now window') outlookMix.winNow += 1;
@@ -390,14 +403,19 @@ async function getDashboard(cookie, token) {
   const bySizeDesc = (a, b) => b.value - a.value;
   injured.sort(bySizeDesc);
   aging.sort(bySizeDesc);
-  // Top single at-risk holdings (dedupe by name+league already distinct), biggest first.
-  // Attach each player's full league set + shopping state so the at-risk rows can drive the
-  // same cross-league "Shop" toggle as Top holdings (shop him everywhere you roster him).
-  const top = [...injured, ...aging].sort(bySizeDesc).slice(0, 8).map((p) => {
-    const h = holdMap.get(p.id);
-    const leagueIds = h ? h.leagueIds : [p.leagueId];
-    return { ...p, leagueIds, leagues: leagueIds.length, baited: leagueIds.some((lid) => tradebaitStore.has(token, lid, p.id)) };
-  });
+  // At-risk holdings — deduped to ONE row per player (a player hurt/aging in three leagues was
+  // three rows before), sorted by at-risk value then breadth, and returned in FULL so the app can
+  // show a default slice and expand-all exactly like Top holdings. Each row carries its league set
+  // + shopping state to drive the same cross-league "Shop" toggle.
+  const top = [...atRiskMap.values()]
+    .map((ar) => ({
+      id: ar.id, name: ar.name, position: ar.position, team: ar.team,
+      value: Math.round(ar.value), leagues: ar.leagueIds.length,
+      reason: [...ar.reasons][0] || null, reasons: [...ar.reasons],
+      leagueIds: ar.leagueIds,
+      baited: ar.leagueIds.some((lid) => tradebaitStore.has(token, lid, ar.id)),
+    }))
+    .sort((a, b) => b.value - a.value || b.leagues - a.leagues);
   byLeague.sort((a, b) => (b.value || 0) - (a.value || 0));
 
   // Top holdings: your positions by aggregate value across all leagues, with exposure
@@ -450,17 +468,23 @@ async function getDashboard(cookie, token) {
   // earliest point we have — "which of your players rose/fell most." Demo seeds a mixed
   // synthetic history (some up, some down) the first time so movers aren't empty. Scoped to
   // the top holdings so we don't write value history for the entire (now full) book each load.
+  // Record value history for the holdings the app shows (a bit beyond the default 12) so both the
+  // movers and each Top-holding's 7-day trend arrow have a series, without writing the entire book.
+  const RECORD_N = 30;
   const moverList = [];
-  holdings.slice(0, 12).forEach((h, i) => {
+  holdings.slice(0, RECORD_N).forEach((h, i) => {
     if (config.demoMode && pvHistory.series(token, h.id).length === 0 && h.value > 0) {
       pvHistory.seed(token, h.id, syntheticPlayerHistory(h.value, i));
     }
     const s = pvHistory.record(token, h.id, h.value);
-    if (s.length >= 2) {
+    // 7-day value-trend arrow for Top holdings (replaces the old "% vs biggest" size bar).
+    h.trend7 = sevenDayTrend(s, h.value);
+    if (i < 12 && s.length >= 2) {
       const first = s[0].value;
       const delta = h.value - first;
       if (delta !== 0) {
-        moverList.push({ id: h.id, name: h.name, position: h.position, value: h.value, delta, pct: first > 0 ? round1((delta / first) * 100) : 0 });
+        // Include the player's NFL team so the movers list disambiguates same-named players.
+        moverList.push({ id: h.id, name: h.name, position: h.position, team: h.team, value: h.value, delta, pct: first > 0 ? round1((delta / first) * 100) : 0 });
       }
     }
   });
@@ -475,6 +499,17 @@ async function getDashboard(cookie, token) {
   }
   const series = historyStore.record(token, totalRounded);
   const change = seriesChange(series);
+
+  // Your tagged rostered players, listed so the app can show them and untag inline. One row per
+  // distinct player (aggregated across leagues), Targets and Avoids, biggest value first.
+  const taggedPlayers = [...holdMap.values()]
+    .map((h) => ({ h, tag: tags[String(h.id)] }))
+    .filter((x) => x.tag === 'target' || x.tag === 'avoid')
+    .map(({ h, tag }) => ({
+      id: h.id, name: h.name, position: h.position, team: h.team, tag,
+      value: Math.round(h.total), leagues: h.leagues, leagueIds: h.leagueIds,
+    }))
+    .sort((a, b) => b.value - a.value);
 
   return {
     totals: {
@@ -497,15 +532,32 @@ async function getDashboard(cookie, token) {
     },
     outlookMix,
     tags: { avoids: taggedRostered.avoid.size, targets: taggedRostered.target.size },
+    taggedPlayers,
     holdings,
     allocation,
     movers,
     concentration: { byTeam, byBye },
-    seasonal: season.advisory(),
     history: series,
     change,
     byLeague,
   };
+}
+
+// A player's 7-day value trend, as a direction + percentage, for the Top-holdings arrow. Uses the
+// newest recorded point that's at least ~7 days old as the baseline (or the earliest point we have
+// on a young account). Null until there are two points to compare. ±2% is the flat dead-band.
+function sevenDayTrend(series, todayValue) {
+  if (!series || series.length < 2) return null;
+  const lastT = Date.parse(series[series.length - 1].date);
+  let ref = series[0];
+  for (const pt of series) {
+    if ((lastT - Date.parse(pt.date)) / 86400000 >= 7) ref = pt;
+  }
+  const base = ref.value;
+  if (!base) return null;
+  const pct = round1(((todayValue - base) / base) * 100);
+  const dir = pct >= 2 ? 'up' : pct <= -2 ? 'down' : 'flat';
+  return { dir, pct, days: Math.min(7, Math.max(1, Math.round((lastT - Date.parse(ref.date)) / 86400000))) };
 }
 
 // Change over the recorded window: latest value vs the earliest point we have, as an

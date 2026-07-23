@@ -1041,13 +1041,17 @@ async function getPending(cookie, token) {
   const byId = await playersLib.load(cookie); // cached (Home/overview warmed it); used to resolve names
   const perLeague = await Promise.all(
     leagues.map(async (league) => {
-      const [pend, rs] = await Promise.all([
+      const [pend, rs, runMs] = await Promise.all([
         reconciledPending(cookie, token, league, byId),
         config.demoMode ? Promise.resolve(demo.waiverResults(league.leagueId)) : liveWaiverResults(cookie, league, byId),
+        // The calendar gives a machine-readable next-run time — attach it so the Pending tab shows a
+        // real countdown, not just MFL's human "Wed 3:00 AM" string (kept as the fallback label).
+        config.demoMode ? Promise.resolve(null) : nextWaiverRun(cookie, league).catch(() => null),
       ]);
+      const at = runMs ? new Date(runMs).toISOString() : null;
       const pending = pend
         .filter((c) => (c.status || 'pending') === 'pending')
-        .map((c) => ({ ...c, leagueId: league.leagueId, leagueName: league.name }));
+        .map((c) => ({ ...c, leagueId: league.leagueId, leagueName: league.name, at, atLabel: c.processTime || null }));
       const results = rs.map(normResult).map((r) => ({ ...r, leagueId: league.leagueId, leagueName: league.name }));
       return { pending, results };
     })

@@ -107,8 +107,15 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   // second day accrues, but the fields are always present).
   assert(d.concentration && Array.isArray(d.concentration.byTeam) && d.concentration.byTeam[0].team === 'AAA', `concentration.byTeam present, got ${JSON.stringify(d.concentration && d.concentration.byTeam)}`);
   assert(Array.isArray(d.movers), 'movers is always an array');
-  assert(d.seasonal && d.seasonal.label, 'seasonal advisory present');
-  console.log('✓ concentration (byTeam/byBye), movers, and seasonal advisory present');
+  // Seasonality advice was removed by request — it must NOT be in the payload.
+  assert(d.seasonal === undefined, 'seasonal advisory removed');
+  // Top holdings carry a 7-day trend field (null here — only one recorded point in a stubbed run).
+  assert('trend7' in d.holdings[0], 'holdings carry a trend7 field (7-day arrow)');
+  // At-risk rows are deduped to one per player (aging RB + hurt WR = two distinct players).
+  assert(d.atRisk.top.length === 2 && new Set(d.atRisk.top.map((p) => p.id)).size === 2, `at-risk deduped per player, got ${JSON.stringify(d.atRisk.top.map((p) => p.id))}`);
+  // Tagged rostered players are listed (none tagged in this run → empty array, always present).
+  assert(Array.isArray(d.taggedPlayers), 'taggedPlayers is always an array');
+  console.log('✓ concentration/movers present; seasonal removed; holdings.trend7 + deduped atRisk + taggedPlayers');
 
   // Value-over-time: a point is recorded today; change is null until a second day accrues.
   assert(Array.isArray(d.history) && d.history.length >= 1, `history has at least today's point, got ${d.history.length}`);

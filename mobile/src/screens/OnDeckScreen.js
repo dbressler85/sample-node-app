@@ -15,6 +15,8 @@ const TYPE = {
   draft_start: { icon: '🎯', tint: colors.accent },
   lineup_lock: { icon: '⚑', tint: colors.warn },
   waiver_run: { icon: '⇄', tint: colors.accent },
+  trade_offer: { icon: '🤝', tint: colors.accent },
+  trade_deadline: { icon: '⏳', tint: colors.bad },
 };
 
 // Human "time until" for an ISO timestamp. Near times count down; far ones show
@@ -32,7 +34,7 @@ function countdown(iso) {
   return new Date(iso).toLocaleString(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' });
 }
 
-export default function OnDeckScreen({ onBack, onOpenLineup, onOpenDraft, onOpenWaivers }) {
+export default function OnDeckScreen({ onBack, onOpenLineup, onOpenDraft, onOpenWaivers, onOpenTradeInbox }) {
   // Stale-while-revalidate: paint the last On Deck snapshot from disk instantly,
   // then refetch in the background (and on the 60s poll). Countdowns recompute from
   // each item's timestamp client-side, so a briefly-stale paint is fine.
@@ -67,6 +69,7 @@ export default function OnDeckScreen({ onBack, onOpenLineup, onOpenDraft, onOpen
     if (item.action === 'draft') onOpenDraft(league);
     else if (item.action === 'lineup') onOpenLineup(league);
     else if (item.action === 'waiver') onOpenWaivers(league);
+    else if (item.action === 'trade') onOpenTradeInbox && onOpenTradeInbox(league);
   }
 
   const items = (data && data.items) || [];
@@ -79,10 +82,15 @@ export default function OnDeckScreen({ onBack, onOpenLineup, onOpenDraft, onOpen
         <View style={{ width: 54 }} />
       </View>
       {data ? (
-        <Text style={styles.subtitle}>
-          {items.length ? `${items.length} deadline${items.length === 1 ? '' : 's'} across your leagues` : 'Nothing on deck'}
-          {data.summary && data.summary.onClock ? <Text style={{ color: colors.gold, fontWeight: '800' }}>{`  ·  ${data.summary.onClock} on the clock`}</Text> : null}
-        </Text>
+        <>
+          <Text style={styles.subtitle}>
+            {items.length ? `${items.length} deadline${items.length === 1 ? '' : 's'} across your leagues` : 'Nothing on deck'}
+            {data.summary && data.summary.onClock ? <Text style={{ color: colors.gold, fontWeight: '800' }}>{`  ·  ${data.summary.onClock} on the clock`}</Text> : null}
+          </Text>
+          <Text style={styles.explain}>
+            Everything with a deadline, soonest first — draft clocks, lineup locks, and waiver runs (leagues you have claims in, plus any running in the next 3 days).
+          </Text>
+        </>
       ) : null}
 
       {loading ? (
@@ -112,6 +120,9 @@ function DeadlineRow({ item, onPress }) {
   const t = TYPE[item.type] || { icon: '•', tint: colors.textDim };
   const when = item.now ? 'NOW' : countdown(item.at) || item.atLabel || null;
   const whenColor = item.now ? colors.gold : item.type === 'lineup_lock' ? colors.warn : colors.textDim;
+  // Waiver rows read their status from claim state: claims-in (good) vs window-open-no-claims (warn).
+  const isWaiver = item.type === 'waiver_run';
+  const detailColor = isWaiver ? (item.hasClaims ? colors.good : colors.warn) : colors.textDim;
   return (
     <Pressable style={({ pressed }) => [styles.row, item.now && styles.rowNow, pressed && { opacity: 0.75 }]} onPress={onPress}>
       <Text style={[styles.icon, { color: t.tint }]}>{t.icon}</Text>
@@ -120,7 +131,7 @@ function DeadlineRow({ item, onPress }) {
           {item.label}
           <Text style={styles.league}>{`  ·  ${item.leagueName}`}</Text>
         </Text>
-        {item.detail ? <Text style={styles.detail} numberOfLines={1}>{item.detail}</Text> : null}
+        {item.detail ? <Text style={[styles.detail, { color: detailColor }, isWaiver && { fontWeight: '700' }]} numberOfLines={1}>{item.detail}</Text> : null}
       </View>
       {when ? <Text style={[styles.when, { color: whenColor }]}>{when}</Text> : <Text style={styles.chev}>›</Text>}
     </Pressable>
@@ -134,6 +145,7 @@ const styles = StyleSheet.create({
   back: { color: colors.accent, fontSize: 16, fontWeight: '600', width: 54 },
   title: { color: colors.text, fontSize: 20, fontWeight: '900' },
   subtitle: { color: colors.textDim, fontSize: 13, textAlign: 'center', marginTop: 4 },
+  explain: { color: colors.textDim, fontSize: 12, textAlign: 'center', marginTop: 4, paddingHorizontal: 24, lineHeight: 17, opacity: 0.85 },
   list: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 32 },
   row: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 15, marginBottom: 8 },
   rowNow: { borderColor: colors.gold, backgroundColor: colors.cardAlt },

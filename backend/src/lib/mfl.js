@@ -155,7 +155,7 @@ function isMflHost(host) {
   return MFL_HOST_RE.test(String(host || '').split(':')[0]);
 }
 
-function buildUrl(host, command, params) {
+function buildUrl(host, command, params, year) {
   // Defence in depth: `host` is already sanitized at its source (hostFromLeagueUrl falls back
   // to the MFL apiHost for anything non-MFL), so this never fires in normal operation — it just
   // guarantees we can't be tricked into building a request to a non-MFL host.
@@ -164,7 +164,11 @@ function buildUrl(host, command, params) {
     err.status = 502;
     throw err;
   }
-  const url = new URL(`https://${host}/${config.season}/${command}`);
+  // The season year lives in the URL path (…/2026/export). A caller can override it to read a
+  // prior season (e.g. last year's final stat totals); it's constrained to 4 digits so it can
+  // never inject path segments.
+  const season = /^\d{4}$/.test(String(year || '')) ? String(year) : config.season;
+  const url = new URL(`https://${host}/${season}/${command}`);
   for (const [key, val] of Object.entries(params)) {
     if (val === undefined || val === null) continue;
     url.searchParams.set(key, String(val));
@@ -199,8 +203,8 @@ async function fetchAllowlisted(startUrl, init) {
   throw err;
 }
 
-async function rawRequest({ host, command, params, cookie, method = 'GET', body }) {
-  const url = buildUrl(host, command, params);
+async function rawRequest({ host, command, params, cookie, method = 'GET', body, year }) {
+  const url = buildUrl(host, command, params, year);
   const headers = { 'User-Agent': config.userAgent, Accept: 'application/json' };
   if (cookie) headers.Cookie = `MFL_USER_ID=${cookie}`;
 
@@ -297,11 +301,13 @@ const LIVE_TYPES = new Set(['liveScoring', 'draftResults', 'pendingTrades']);
 const SLOW_TYPES = new Set(['projectedScores', 'playerScores']);
 
 // Read data via the export command (cached, TTL depends on how volatile it is).
-async function exportRequest(type, { host = config.apiHost, cookie = null, maxAge = null, ...params } = {}) {
+async function exportRequest(type, { host = config.apiHost, cookie = null, maxAge = null, year = null, ...params } = {}) {
   // Key on params with SORTED keys: the read cache coalesces identical reads, but
   // JSON.stringify is insertion-order-sensitive, so {L,FRANCHISE} and {FRANCHISE,L} would hash to
   // different keys and silently double-fetch the same data. (params holds flat primitives.)
-  const key = `${cookie || ''}|${host}|${type}|${JSON.stringify(params, Object.keys(params).sort())}`;
+  // `year` overrides the season in the URL path, so it must be part of the key or a prior-season
+  // read would collide with the current one.
+  const key = `${cookie || ''}|${host}|${type}|${year || ''}|${JSON.stringify(params, Object.keys(params).sort())}`;
   let ttl = DAILY_TYPES.has(type)
     ? config.mflDailyTtlMs
     : STATIC_TYPES.has(type)
@@ -318,7 +324,7 @@ async function exportRequest(type, { host = config.apiHost, cookie = null, maxAg
   const hit = readCache.get(key);
   if (hit && Date.now() - hit.at < ttl) return hit.promise;
 
-  const promise = rawRequest({ host, command: 'export', params: { TYPE: type, ...params }, cookie });
+  const promise = rawRequest({ host, command: 'export', params: { TYPE: type, ...params }, cookie, year });
   const entry = { at: Date.now(), ttl, promise };
   readCache.set(key, entry);
   // A failed read must not be cached: drop it so the next call retries.

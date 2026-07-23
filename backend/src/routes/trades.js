@@ -3,6 +3,7 @@
 const express = require('express');
 const requireSession = require('../middleware/auth');
 const trades = require('../services/trades');
+const tradeDeadlines = require('../store/tradeDeadlines');
 const { schemas, checkResponse } = require('../lib/apiSchema');
 
 const router = express.Router();
@@ -64,6 +65,37 @@ router.get('/leagues/:leagueId/trades/fit', async (req, res, next) => {
 router.get('/leagues/:leagueId/trades/suggest', async (req, res, next) => {
   try {
     res.json(await trades.suggestFor(req.mflCookie, req.account, req.params.leagueId, req.query.target, req.query.partner));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/leagues/:leagueId/trade-deadline — set/clear the manual trade deadline. Body:
+// { deadline: 'YYYY-MM-DD' | null }. MFL has no machine-readable deadline, so the owner enters it.
+router.post('/leagues/:leagueId/trade-deadline', (req, res, next) => {
+  try {
+    const deadline = tradeDeadlines.set(req.account, req.params.leagueId, req.body && req.body.deadline);
+    res.json({ ok: true, leagueId: String(req.params.leagueId), deadline });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/leagues/:leagueId/trades/deal?partner= — a full deal from zero with `partner`: both
+// sides proposed at once (their surplus/bait at your need ⇄ your bait/surplus at their need).
+router.get('/leagues/:leagueId/trades/deal', async (req, res, next) => {
+  try {
+    res.json(await trades.fullDealFor(req.mflCookie, req.account, req.params.leagueId, req.query.partner));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/leagues/:leagueId/trades/ask?send=&partner= — given what you'd SEND (comma-separated
+// player/pick ids) to `partner`, a fair return package to ASK FOR (their bait + your needs).
+router.get('/leagues/:leagueId/trades/ask', async (req, res, next) => {
+  try {
+    res.json(await trades.askFor(req.mflCookie, req.account, req.params.leagueId, req.query.send, req.query.partner));
   } catch (err) {
     next(err);
   }

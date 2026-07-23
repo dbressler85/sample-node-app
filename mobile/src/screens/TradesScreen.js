@@ -100,9 +100,33 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
   const [sending, setSending] = useState(false);
   const [suggesting, setSuggesting] = useState(false);
   const [counterInfo, setCounterInfo] = useState(null); // { offerId, rationale } when countering
+  const [dealNote, setDealNote] = useState(null); // { rationale, verdict } from a full-deal suggestion
   const [sortKey, setSortKey] = useState('position'); // offer lists: position | value | name
   const [footerH, setFooterH] = useState(0); // measured height of the absolute propose footer
   const seededRef = useRef(false);
+  // Manual trade deadline (MFL exposes none). `undefined` override = use the desk's stored value.
+  const [deadlineOverride, setDeadlineOverride] = useState(undefined);
+  const [editingDeadline, setEditingDeadline] = useState(false);
+  const [deadlineInput, setDeadlineInput] = useState('');
+  const [savingDeadline, setSavingDeadline] = useState(false);
+  // MFL's own deadline (from the league calendar) shows automatically; a manual entry overrides it.
+  const manualDeadline = deadlineOverride !== undefined ? deadlineOverride : (data && data.tradeDeadline) || null;
+  const autoDeadline = (data && data.tradeDeadlineAuto) || null;
+  const deadline = manualDeadline || autoDeadline;
+  const deadlineIsAuto = !manualDeadline && !!autoDeadline;
+
+  async function saveDeadline(value) {
+    setSavingDeadline(true);
+    try {
+      const res = await api.setTradeDeadline(league.leagueId, value);
+      setDeadlineOverride(res.deadline);
+      setEditingDeadline(false);
+    } catch (e) {
+      Alert.alert('Could not save', e.message);
+    } finally {
+      setSavingDeadline(false);
+    }
+  }
 
   useAndroidBack(useCallback(() => { onBack(); return true; }, [onBack]));
 
@@ -180,6 +204,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
     setPartnerId(id);
     setReceive({});
     setCounterInfo(null);
+    setDealNote(null);
   }
 
   // Ask the backend for a fair, needs-fitting package to acquire `targetId` and load it
@@ -200,6 +225,39 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
       setSuggesting(false);
     }
   }, [league.leagueId, partnerId, receive]);
+
+  // The counter-ASK: given what you've picked to SEND, ask the backend for a fair return from the
+  // partner (their trade bait + your needs) and load it into the "you get" side.
+  const applyAsk = useCallback(async () => {
+    const ids = Object.values(send).map((a) => a.id);
+    if (!partnerId || !ids.length) return;
+    setSuggesting(true);
+    try {
+      const a = await api.askTrade(league.leagueId, ids, partnerId);
+      setReceive(Object.fromEntries((a.ask || []).map((x) => [x.id, x])));
+    } catch (e) {
+      Alert.alert('Could not suggest an ask', e.message);
+    } finally {
+      setSuggesting(false);
+    }
+  }, [league.leagueId, partnerId, send]);
+
+  // Build a full deal from zero with the current partner — fills BOTH sides of the builder.
+  const applyFullDeal = useCallback(async () => {
+    if (!partnerId) return;
+    setSuggesting(true);
+    try {
+      const d = await api.fullDeal(league.leagueId, partnerId);
+      setSend(Object.fromEntries((d.send || []).map((a) => [a.id, a])));
+      setReceive(Object.fromEntries((d.receive || []).map((a) => [a.id, a])));
+      setCounterInfo(null);
+      setDealNote({ rationale: d.rationale, verdict: d.verdict });
+    } catch (e) {
+      Alert.alert('Could not build a deal', e.message);
+    } finally {
+      setSuggesting(false);
+    }
+  }, [league.leagueId, partnerId]);
 
   // Build a value-balanced counter to an incoming offer and load it into the builder
   // (both sides prefilled, partner = the offering team). Keeps their construction.
@@ -326,6 +384,47 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
         ))}
       </View>
 
+      {/* Manual trade deadline — MFL exposes none, so the owner sets it; it then counts down on
+          On Deck. */}
+      <View style={styles.deadlineRow}>
+        <Text style={styles.deadlineLabel}>Trade deadline</Text>
+        {editingDeadline ? (
+          <View style={styles.deadlineEdit}>
+            <TextInput
+              style={styles.deadlineInput}
+              value={deadlineInput}
+              onChangeText={setDeadlineInput}
+              placeholder="YYYY-MM-DD"
+              placeholderTextColor={colors.textDim}
+              autoCapitalize="none"
+              keyboardType="numbers-and-punctuation"
+              maxLength={10}
+            />
+            <Pressable
+              onPress={() => /^\d{4}-\d{2}-\d{2}$/.test(deadlineInput.trim()) ? saveDeadline(deadlineInput.trim()) : Alert.alert('Enter a date', 'Use the format YYYY-MM-DD (e.g. 2026-11-15).')}
+              disabled={savingDeadline}
+              style={styles.deadlineSave}
+            >
+              {savingDeadline ? <ActivityIndicator size="small" color={colors.accent} /> : <Text style={styles.deadlineSaveTxt}>Save</Text>}
+            </Pressable>
+            <Pressable onPress={() => setEditingDeadline(false)} hitSlop={8}><Text style={styles.deadlineCancel}>✕</Text></Pressable>
+          </View>
+        ) : deadline ? (
+          <View style={styles.deadlineEdit}>
+            <Text style={styles.deadlineVal}>{deadline}</Text>
+            {deadlineIsAuto ? <Text style={styles.deadlineSrc}>· from your league</Text> : null}
+            <Pressable onPress={() => { setDeadlineInput(deadlineIsAuto ? '' : deadline); setEditingDeadline(true); }} hitSlop={8}>
+              <Text style={styles.deadlineEditBtn}>{deadlineIsAuto ? 'Override' : 'Edit'}</Text>
+            </Pressable>
+            {deadlineIsAuto ? null : <Pressable onPress={() => saveDeadline(null)} hitSlop={8}><Text style={styles.deadlineClear}>Clear</Text></Pressable>}
+          </View>
+        ) : (
+          <Pressable onPress={() => { setDeadlineInput(''); setEditingDeadline(true); }} hitSlop={8}>
+            <Text style={styles.deadlineSet}>＋ Set</Text>
+          </Pressable>
+        )}
+      </View>
+
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
       {tab === 'offers' ? (
@@ -346,6 +445,11 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
             <View style={styles.counterBanner}>
               <Text style={styles.counterTitle}>↩ Countering their offer</Text>
               <Text style={styles.counterText}>{counterInfo.rationale}</Text>
+            </View>
+          ) : dealNote ? (
+            <View style={styles.counterBanner}>
+              <Text style={styles.counterTitle}>✦ Suggested deal · {dealNote.verdict}</Text>
+              <Text style={styles.counterText}>{dealNote.rationale}</Text>
             </View>
           ) : null}
           <Text style={styles.label}>Trade with</Text>
@@ -393,15 +497,40 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
 
           {partner ? (
             <>
+              {/* One-tap full deal from zero: fills BOTH sides at once (their surplus/bait at your
+                  need ⇄ your bait at their need). */}
               <Pressable
-                onPress={() => applySuggestion()}
-                disabled={!receiveList.length || suggesting}
-                style={({ pressed }) => [styles.suggestWide, (!receiveList.length || suggesting) && styles.suggestOff, pressed && { opacity: 0.85 }]}
+                onPress={() => applyFullDeal()}
+                disabled={suggesting}
+                style={({ pressed }) => [styles.dealBtn, suggesting && styles.suggestOff, pressed && { opacity: 0.85 }]}
               >
-                {suggesting ? <ActivityIndicator size="small" color={colors.accent} /> : (
-                  <Text style={styles.suggestTxt}>✦ {receiveList.length ? 'Suggest a fair package to send' : 'Pick what you want first, then Suggest'}</Text>
+                {suggesting ? <ActivityIndicator size="small" color={colors.gold} /> : (
+                  <Text style={styles.dealBtnTxt}>✦ Suggest a full deal</Text>
                 )}
               </Pressable>
+
+              {/* Two-way suggester: pick what you WANT → suggest what to send; or pick what you'll
+                  SEND → suggest a fair ask from their side (their trade bait + your needs). */}
+              <View style={styles.suggestRow}>
+                <Pressable
+                  onPress={() => applySuggestion()}
+                  disabled={!receiveList.length || suggesting}
+                  style={({ pressed }) => [styles.suggestHalf, (!receiveList.length || suggesting) && styles.suggestOff, pressed && { opacity: 0.85 }]}
+                >
+                  {suggesting ? <ActivityIndicator size="small" color={colors.accent} /> : (
+                    <Text style={styles.suggestTxt} numberOfLines={2}>✦ {receiveList.length ? 'Suggest what to send' : 'Pick what you want →'}</Text>
+                  )}
+                </Pressable>
+                <Pressable
+                  onPress={() => applyAsk()}
+                  disabled={!sendList.length || suggesting}
+                  style={({ pressed }) => [styles.suggestHalf, (!sendList.length || suggesting) && styles.suggestOff, pressed && { opacity: 0.85 }]}
+                >
+                  {suggesting ? <ActivityIndicator size="small" color={colors.good} /> : (
+                    <Text style={[styles.suggestTxt, { color: colors.good }]} numberOfLines={2}>✦ {sendList.length ? 'Suggest what to ask for' : 'Pick what you send →'}</Text>
+                  )}
+                </Pressable>
+              </View>
 
               {/* The builder itself, side by side: check YOUR players/picks on the left to send,
                   and THEIR players/picks on the right to get. */}
@@ -653,6 +782,18 @@ const styles = StyleSheet.create({
   title: { color: colors.text, fontSize: 17, fontWeight: '800', flex: 1, textAlign: 'center' },
   formatNote: { color: colors.textDim, fontSize: 11, textAlign: 'center', marginTop: 2 },
   segment: { flexDirection: 'row', marginHorizontal: 16, marginTop: 10, backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 3 },
+  deadlineRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: 16, marginTop: 8, gap: 10 },
+  deadlineLabel: { color: colors.textDim, fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4 },
+  deadlineEdit: { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 1 },
+  deadlineVal: { color: colors.text, fontSize: 14, fontWeight: '800' },
+  deadlineSrc: { color: colors.textDim, fontSize: 11, fontWeight: '700' },
+  deadlineInput: { color: colors.text, fontSize: 14, fontWeight: '700', borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, minWidth: 118, backgroundColor: colors.card },
+  deadlineSave: { paddingHorizontal: 4 },
+  deadlineSaveTxt: { color: colors.accent, fontSize: 14, fontWeight: '800' },
+  deadlineCancel: { color: colors.textDim, fontSize: 16, fontWeight: '800' },
+  deadlineEditBtn: { color: colors.accent, fontSize: 13, fontWeight: '800' },
+  deadlineClear: { color: colors.bad, fontSize: 13, fontWeight: '800' },
+  deadlineSet: { color: colors.accent, fontSize: 14, fontWeight: '800' },
   seg: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
   segActive: { backgroundColor: colors.cardAlt },
   segText: { color: colors.textDim, fontSize: 13, fontWeight: '700' },
@@ -682,6 +823,10 @@ const styles = StyleSheet.create({
   suggestTxt: { color: colors.accent, fontSize: 13, fontWeight: '800' },
   // Full-width "suggest a package" button that sits above the two builder columns.
   suggestWide: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.accent, borderRadius: 10, paddingVertical: 11, marginHorizontal: 16, marginTop: 12, minHeight: 42 },
+  suggestRow: { flexDirection: 'row', gap: 10, marginHorizontal: 16, marginTop: 10 },
+  suggestHalf: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 8, minHeight: 44 },
+  dealBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.gold, backgroundColor: colors.gold + '18', borderRadius: 10, paddingVertical: 12, marginHorizontal: 16, marginTop: 12, minHeight: 46 },
+  dealBtnTxt: { color: colors.gold, fontSize: 14, fontWeight: '900' },
   // Two-column builder: your assets (left, check to send) vs theirs (right, check to get).
   buildCols: { flexDirection: 'row', marginHorizontal: 16, marginTop: 14 },
   buildCol: { flex: 1 },
