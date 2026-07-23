@@ -528,6 +528,23 @@ async function submitClaimToMfl({ cookie, league, system, addId, dropId, bid, lo
   const drop = dropId ? String(dropId) : null;
   const base = { host: league.host, cookie, L: league.leagueId };
 
+  try {
+    await submitClaimInner({ cookie, league, system, add, drop, bid, locked, round, base });
+  } catch (e) {
+    // Preserve our OWN precise, intentional errors (locked-FA pre-flight 409, no-round 501).
+    if (e.status === 409 || e.status === 501) throw e;
+    // An MFL rejection of the real write: log the actual reason (hard-won rule — never let a bare
+    // "(500)" be all anyone sees) and surface it to the caller as err.detail so the app shows it.
+    const detail = mfl.errorDetail(e);
+    console.warn(`[waivers] MFL rejected ${system} claim — L=${league.leagueId} add=${add} drop=${drop || '—'} bid=${bid != null ? bid : '—'} locked=${locked} round=${round != null ? round : '—'} — ${detail}`);
+    const err = new Error(`MyFantasyLeague rejected the claim: ${detail}`);
+    err.status = e.status || 502;
+    err.detail = detail;
+    throw err;
+  }
+}
+
+async function submitClaimInner({ cookie, league, system, add, drop, bid, locked, round, base }) {
   if (!locked) {
     // Open free agency → immediate add/drop, whatever the league's waiver system is.
     // Pre-flight the add against MFL's AUTHORITATIVE status (playerRosterStatus): a free agent
