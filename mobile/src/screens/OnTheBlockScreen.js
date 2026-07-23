@@ -10,7 +10,9 @@ const NOTE_MAX = 120;
 // slot / an asking-price note and a jump to that league's trade desk to actually build
 // the offer. Add players to the block from a roster (the ⇄ Block toggle on each player).
 export default function OnTheBlockScreen({ onBack, onShopLeague, onOpenPlayer, onShopPlayer, onOpenInbox }) {
+  const [segment, setSegment] = useState('block'); // 'block' (mine) | 'market' (rivals)
   const [data, setData] = useState(null);
+  const [market, setMarket] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
@@ -37,6 +39,19 @@ export default function OnTheBlockScreen({ onBack, onShopLeague, onOpenPlayer, o
     }
   }, []);
   useEffect(() => { load(); }, [load]);
+
+  // The market (rivals' blocks) loads lazily the first time you open that tab.
+  const loadMarket = useCallback(async () => {
+    setError(null);
+    try {
+      setMarket(await api.tradeMarket());
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
+  useEffect(() => { if (segment === 'market' && !market) loadMarket(); }, [segment, market, loadMarket]);
 
   async function removeOne(leagueId, player) {
     const k = `${leagueId}:${player.id}`;
@@ -87,90 +102,153 @@ export default function OnTheBlockScreen({ onBack, onShopLeague, onOpenPlayer, o
           </Pressable>
         ) : <View style={{ width: 60 }} />}
       </View>
-      {totals && totals.count > 0 ? (
-        <>
-          <Text style={styles.subtitle}>
-            {totals.count} player{totals.count === 1 ? '' : 's'} shopped across {totals.leagues} league{totals.leagues === 1 ? '' : 's'}
-            <Text style={{ color: colors.gold, fontWeight: '800' }}>{`  ·  ${totals.value} value`}</Text>
-          </Text>
-          <Text style={styles.syncNote}>Also posted to each league's MFL Trade Bait board</Text>
-        </>
+      <View style={styles.segment}>
+        {[['block', 'My Block'], ['market', 'Market']].map(([k, label]) => (
+          <Pressable key={k} onPress={() => setSegment(k)} style={[styles.seg, segment === k && styles.segOn]}>
+            <Text style={[styles.segTxt, segment === k && styles.segTxtOn]}>{label}</Text>
+          </Pressable>
+        ))}
+      </View>
+
+      {segment === 'block' && totals && totals.count > 0 ? (
+        <Text style={styles.subtitle}>
+          {totals.count} asset{totals.count === 1 ? '' : 's'} shopped across {totals.leagues} league{totals.leagues === 1 ? '' : 's'}
+          <Text style={{ color: colors.gold, fontWeight: '800' }}>{`  ·  ${totals.value} value`}</Text>
+        </Text>
       ) : null}
 
-      {loading ? (
+      {segment === 'block' ? (
+        loading ? (
+          <View style={styles.center}><ActivityIndicator color={colors.accent} size="large" /></View>
+        ) : error ? (
+          <View style={styles.center}><Text style={styles.error}>{error}</Text></View>
+        ) : (
+          <FlatList
+            data={(data && data.leagues) || []}
+            keyExtractor={(l) => l.leagueId}
+            contentContainerStyle={styles.list}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.accent} />}
+            renderItem={({ item: lg }) => (
+              <View style={styles.card}>
+                <Pressable style={({ pressed }) => [styles.leagueRow, pressed && { opacity: 0.7 }]} onPress={() => onShopLeague({ leagueId: lg.leagueId, name: lg.name })}>
+                  <Text style={styles.leagueName} numberOfLines={1}>{lg.name}</Text>
+                  <Text style={styles.shopLink}>Shop ›</Text>
+                </Pressable>
+                {lg.note ? <Text style={styles.leagueNote} numberOfLines={2}>{`Asking: ${lg.note}`}</Text> : null}
+                {lg.players.map((p) => {
+                  const isPick = p.kind === 'pick';
+                  return (
+                    <View key={p.id} style={styles.playerBlock}>
+                      <View style={styles.playerRow}>
+                        <Pressable
+                          style={styles.blockIdentity}
+                          onPress={!isPick && onOpenPlayer ? () => onOpenPlayer(p.id) : undefined}
+                          disabled={isPick || !onOpenPlayer}
+                        >
+                          <View style={[styles.dot, { backgroundColor: isPick ? colors.accent : positionColors[p.position] || colors.textDim }]} />
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.playerName} numberOfLines={1}>
+                              {p.name}
+                              {p.stale ? <Text style={styles.stale}>  · no longer rostered</Text> : null}
+                            </Text>
+                            <Text style={styles.playerMeta} numberOfLines={1}>
+                              {isPick ? 'Draft pick' : [p.position, p.bucket, p.age != null ? `${p.age}y` : null].filter(Boolean).join(' · ')}
+                            </Text>
+                          </View>
+                          {p.value != null ? <Text style={styles.playerVal}>{p.value}</Text> : null}
+                        </Pressable>
+                        <Pressable onPress={() => removeOne(lg.leagueId, p)} hitSlop={8} style={styles.remove} disabled={busy === `${lg.leagueId}:${p.id}`}>
+                          {busy === `${lg.leagueId}:${p.id}` ? <ActivityIndicator size="small" color={colors.textDim} /> : <Text style={styles.removeTxt}>✕</Text>}
+                        </Pressable>
+                      </View>
+                      {/* Per-player note + rival fits are player-only (picks carry no roster fit, and MFL's
+                          asking-price note is per-league — shown above). */}
+                      {!isPick ? (
+                        <Pressable style={({ pressed }) => [styles.noteRow, pressed && { opacity: 0.7 }]} onPress={() => openEditor(lg.leagueId, p)}>
+                          {p.note ? (
+                            <Text style={styles.noteText} numberOfLines={2}>{`“${p.note}”`}<Text style={styles.noteEdit}>  ✎</Text></Text>
+                          ) : (
+                            <Text style={styles.noteAdd}>+ Asking price / target</Text>
+                          )}
+                        </Pressable>
+                      ) : null}
+                      {!isPick && p.suggestions && p.suggestions.length ? (
+                        <View style={styles.fitRow}>
+                          <Text style={styles.fitLabel}>Best fits</Text>
+                          <View style={styles.fitChips}>
+                            {p.suggestions.map((s, si) => {
+                              const Chip = onShopPlayer ? Pressable : View;
+                              const chipProps = onShopPlayer
+                                ? { onPress: () => onShopPlayer({ leagueId: lg.leagueId, name: lg.name, sendPlayerId: p.id, partnerFranchiseId: s.franchiseId }) }
+                                : {};
+                              return (
+                                <Chip key={si} style={({ pressed }) => [styles.fitChip, pressed && { opacity: 0.7 }]} {...chipProps}>
+                                  <Text style={styles.fitChipName} numberOfLines={1}>{s.name}</Text>
+                                  <Text style={styles.fitChipReason} numberOfLines={1}>{s.reason}{onShopPlayer ? '  ›' : ''}</Text>
+                                </Chip>
+                              );
+                            })}
+                          </View>
+                        </View>
+                      ) : null}
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+            ListEmptyComponent={
+              <View style={styles.emptyWrap}>
+                <Text style={styles.emptyTitle}>Nobody on the block</Text>
+                <Text style={styles.emptyText}>Nothing on your MFL trade bait right now. Add players from any league's roster (⇄ Block) or set bait on MFL — it'll all show here.</Text>
+              </View>
+            }
+          />
+        )
+      ) : market == null && !error ? (
         <View style={styles.center}><ActivityIndicator color={colors.accent} size="large" /></View>
-      ) : error ? (
+      ) : error && !market ? (
         <View style={styles.center}><Text style={styles.error}>{error}</Text></View>
       ) : (
         <FlatList
-          data={(data && data.leagues) || []}
+          data={(market && market.leagues) || []}
           keyExtractor={(l) => l.leagueId}
           contentContainerStyle={styles.list}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.accent} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadMarket(); }} tintColor={colors.accent} />}
           renderItem={({ item: lg }) => (
             <View style={styles.card}>
               <Pressable style={({ pressed }) => [styles.leagueRow, pressed && { opacity: 0.7 }]} onPress={() => onShopLeague({ leagueId: lg.leagueId, name: lg.name })}>
                 <Text style={styles.leagueName} numberOfLines={1}>{lg.name}</Text>
                 <Text style={styles.shopLink}>Shop ›</Text>
               </Pressable>
-              {lg.players.map((p) => (
-                <View key={p.id} style={styles.playerBlock}>
-                  <View style={styles.playerRow}>
-                    <Pressable
-                      style={styles.blockIdentity}
-                      onPress={onOpenPlayer ? () => onOpenPlayer(p.id) : undefined}
-                      disabled={!onOpenPlayer}
-                    >
-                      <View style={[styles.dot, { backgroundColor: positionColors[p.position] || colors.textDim }]} />
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.playerName} numberOfLines={1}>
-                          {p.name}
-                          {p.stale ? <Text style={styles.stale}>  · no longer rostered</Text> : null}
-                        </Text>
-                        <Text style={styles.playerMeta} numberOfLines={1}>
-                          {[p.position, p.bucket, p.age != null ? `${p.age}y` : null].filter(Boolean).join(' · ')}
-                        </Text>
-                      </View>
-                      {p.value != null ? <Text style={styles.playerVal}>{p.value}</Text> : null}
-                    </Pressable>
-                    <Pressable onPress={() => removeOne(lg.leagueId, p)} hitSlop={8} style={styles.remove} disabled={busy === `${lg.leagueId}:${p.id}`}>
-                      {busy === `${lg.leagueId}:${p.id}` ? <ActivityIndicator size="small" color={colors.textDim} /> : <Text style={styles.removeTxt}>✕</Text>}
-                    </Pressable>
+              {lg.teams.map((team) => (
+                <View key={team.franchiseId} style={styles.teamBlock}>
+                  <View style={styles.teamHead}>
+                    <Text style={styles.teamName} numberOfLines={1}>{team.name}</Text>
+                    <Text style={styles.teamVal}>{team.value}</Text>
                   </View>
-                  <Pressable style={({ pressed }) => [styles.noteRow, pressed && { opacity: 0.7 }]} onPress={() => openEditor(lg.leagueId, p)}>
-                    {p.note ? (
-                      <Text style={styles.noteText} numberOfLines={2}>{`“${p.note}”`}<Text style={styles.noteEdit}>  ✎</Text></Text>
-                    ) : (
-                      <Text style={styles.noteAdd}>+ Asking price / target</Text>
-                    )}
-                  </Pressable>
-                  {p.suggestions && p.suggestions.length ? (
-                    <View style={styles.fitRow}>
-                      <Text style={styles.fitLabel}>Best fits</Text>
-                      <View style={styles.fitChips}>
-                        {p.suggestions.map((s, si) => {
-                          const Chip = onShopPlayer ? Pressable : View;
-                          const chipProps = onShopPlayer
-                            ? { onPress: () => onShopPlayer({ leagueId: lg.leagueId, name: lg.name, sendPlayerId: p.id, partnerFranchiseId: s.franchiseId }) }
-                            : {};
-                          return (
-                            <Chip key={si} style={({ pressed }) => [styles.fitChip, pressed && { opacity: 0.7 }]} {...chipProps}>
-                              <Text style={styles.fitChipName} numberOfLines={1}>{s.name}</Text>
-                              <Text style={styles.fitChipReason} numberOfLines={1}>{s.reason}{onShopPlayer ? '  ›' : ''}</Text>
-                            </Chip>
-                          );
-                        })}
-                      </View>
-                    </View>
-                  ) : null}
+                  {team.note ? <Text style={styles.teamNote} numberOfLines={2}>{`Wants: ${team.note}`}</Text> : null}
+                  <View style={styles.assetWrap}>
+                    {team.assets.map((a) => {
+                      const isPick = a.kind === 'pick';
+                      const Chip = !isPick && onOpenPlayer ? Pressable : View;
+                      const chipProps = !isPick && onOpenPlayer ? { onPress: () => onOpenPlayer(a.id) } : {};
+                      return (
+                        <Chip key={a.id} style={({ pressed }) => [styles.assetChip, pressed && { opacity: 0.7 }]} {...chipProps}>
+                          <View style={[styles.assetDot, { backgroundColor: isPick ? colors.accent : positionColors[a.position] || colors.textDim }]} />
+                          <Text style={styles.assetName} numberOfLines={1}>{a.name.split(',')[0]}</Text>
+                          {a.value != null ? <Text style={styles.assetVal}>{a.value}</Text> : null}
+                        </Chip>
+                      );
+                    })}
+                  </View>
                 </View>
               ))}
             </View>
           )}
           ListEmptyComponent={
             <View style={styles.emptyWrap}>
-              <Text style={styles.emptyTitle}>Nobody on the block</Text>
-              <Text style={styles.emptyText}>Open any league's roster and tap ⇄ Block on a player to start shopping him. They'll all show up here.</Text>
+              <Text style={styles.emptyTitle}>No one's shopping</Text>
+              <Text style={styles.emptyText}>No other team has anything on their MFL trade bait across your leagues right now.</Text>
             </View>
           }
         />
@@ -218,7 +296,24 @@ const styles = StyleSheet.create({
   title: { color: colors.text, fontSize: 20, fontWeight: '900' },
   subtitle: { color: colors.textDim, fontSize: 13, textAlign: 'center', marginTop: 4 },
   syncNote: { color: colors.textDim, fontSize: 11, textAlign: 'center', marginTop: 2, opacity: 0.7 },
+  segment: { flexDirection: 'row', marginHorizontal: 16, marginTop: 10, backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 3 },
+  seg: { flex: 1, paddingVertical: 7, borderRadius: 8, alignItems: 'center' },
+  segOn: { backgroundColor: colors.cardAlt },
+  segTxt: { color: colors.textDim, fontSize: 13, fontWeight: '800' },
+  segTxtOn: { color: colors.text },
   list: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 32 },
+  leagueNote: { color: colors.textDim, fontSize: 12, fontStyle: 'italic', marginBottom: 8, lineHeight: 16 },
+  // Market (rivals' blocks)
+  teamBlock: { paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+  teamHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  teamName: { color: colors.text, fontSize: 14, fontWeight: '800', flex: 1, marginRight: 10 },
+  teamVal: { color: colors.gold, fontSize: 14, fontWeight: '900' },
+  teamNote: { color: colors.textDim, fontSize: 12, fontStyle: 'italic', marginTop: 3, lineHeight: 16 },
+  assetWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
+  assetChip: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.cardAlt, borderRadius: 8, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 9, paddingVertical: 6, gap: 6 },
+  assetDot: { width: 7, height: 7, borderRadius: 4 },
+  assetName: { color: colors.text, fontSize: 12, fontWeight: '700', maxWidth: 130 },
+  assetVal: { color: colors.gold, fontSize: 11, fontWeight: '800' },
   card: { backgroundColor: colors.card, borderRadius: 16, borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: 14 },
   leagueRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 10, marginBottom: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   leagueName: { color: colors.text, fontSize: 13, fontWeight: '800', letterSpacing: 0.3, flex: 1, marginRight: 10, textTransform: 'uppercase' },

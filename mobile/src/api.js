@@ -155,6 +155,7 @@ export const api = {
 
   // Trade bait ("on the block") — centralized across leagues.
   tradeBait: () => request('/api/tradebait'),
+  tradeMarket: () => request('/api/tradebait/market'),
   leagueBait: (leagueId) => request(`/api/leagues/${leagueId}/tradebait`),
   addBait: (leagueId, playerId, note) => request(`/api/leagues/${leagueId}/tradebait/${playerId}`, { method: 'POST', body: { note } }),
   removeBait: (leagueId, playerId) => request(`/api/leagues/${leagueId}/tradebait/${playerId}`, { method: 'DELETE' }),
