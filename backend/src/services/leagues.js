@@ -14,7 +14,7 @@ function normalize(l) {
   const url = l.url || '';
   return {
     leagueId: String(l.league_id),
-    name: l.name || `League ${l.league_id}`,
+    name: mfl.cleanName(l.name) || `League ${l.league_id}`,
     url,
     host: mfl.hostFromLeagueUrl(url),
     franchiseId: l.franchise_id ? String(l.franchise_id) : null,
@@ -72,7 +72,8 @@ async function franchiseNames(cookie, league) {
 
   try {
     const fr = await mflRepo.leagueFranchises(league, cookie);
-    const names = new Map(fr.map((f) => [String(f.id), f.name || `Team ${f.id}`]));
+    // MFL team names can contain HTML (an owner styling their name) — strip it to plain text.
+    const names = new Map(fr.map((f) => [String(f.id), mfl.cleanName(f.name) || `Team ${f.id}`]));
     setEntry(namesCache, key, names);
     return names;
   } catch (e) {

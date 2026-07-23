@@ -23,6 +23,14 @@ assert(mfl.num('N/A', 0) === 0, 'non-numeric → given fallback');
 assert(mfl.num({ $t: '3.5' }) === 3.5, 'wrapped decimal');
 console.log('✓ text()/num() collapse plain, {$t}, number, and blank forms');
 
+// 3) cleanName(): strip HTML an owner put in a team/league name, decode common entities.
+assert(mfl.cleanName("<font color='green'>Kellen</font>") === 'Kellen', 'strips <font> styling');
+assert(mfl.cleanName('<b>Team</b> Legend') === 'Team Legend', 'strips <b> and keeps text');
+assert(mfl.cleanName('Smith &amp; Sons') === 'Smith & Sons', 'decodes &amp;');
+assert(mfl.cleanName('Plain Team') === 'Plain Team', 'plain name unchanged');
+assert(mfl.cleanName({ $t: '<i>Rebuild</i>' }) === 'Rebuild', 'unwraps $t then strips');
+console.log('✓ cleanName() strips team-name HTML');
+
 const mflRepo = require('../../src/lib/mflRepo');
 const league = { leagueId: 'L1', host: 'www49.myfantasyleague.com', franchiseId: '0001' };
 

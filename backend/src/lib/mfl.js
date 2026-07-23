@@ -117,6 +117,22 @@ function num(value, fallback = null) {
   return Number.isFinite(n) ? n : fallback;
 }
 
+// MFL lets owners style a TEAM or LEAGUE name with HTML — e.g. <font color='green'>Kellen</font>,
+// <b>…</b> — and stores it verbatim. Strip the tags (and decode the handful of common entities) so
+// a name renders as plain text everywhere it appears, instead of leaking "<font color='green'>Kell…".
+function cleanName(value) {
+  return text(value)
+    .replace(/<[^>]+>/g, '')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&#0*39;|&apos;/gi, "'")
+    .replace(/&quot;/gi, '"')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 // Read an MFL attribute by any of several candidate names, matching
 // case- AND underscore-insensitively. MFL's attribute naming is inconsistent
 // across (and within) export types — pendingTrades returns `offeredto` lowercase
@@ -451,6 +467,7 @@ module.exports = {
   toArray,
   text,
   num,
+  cleanName,
   attr,
   errorDetail,
   hostFromLeagueUrl,
