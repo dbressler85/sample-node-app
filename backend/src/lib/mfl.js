@@ -306,13 +306,20 @@ function invalidateLeague(cookie, leagueId) {
   }
 }
 
-// Write data via the import command (POST form-encoded).
+// Write data via the import command. MFL reads import parameters from the QUERY STRING (its
+// official sample builds `import?L=…&TYPE=…` and only puts a DATA payload in the POST body).
+// Sending L/PICKS/ROUND/etc. in the body instead made MFL's handler see no params and return a
+// generic 500 ("Internal Server Error") — which is why every non-DATA write failed live. So: all
+// params go in the query; a DATA payload (bulk XML imports) is form-encoded in the body. POST is
+// what MFL recommends for imports.
 function importRequest(type, { host = config.apiHost, cookie = null, ...params } = {}) {
-  const form = new URLSearchParams({ TYPE: type });
-  for (const [k, v] of Object.entries(params)) {
-    if (v !== undefined && v !== null) form.set(k, String(v));
+  const { DATA, ...rest } = params;
+  const query = { TYPE: type };
+  for (const [k, v] of Object.entries(rest)) {
+    if (v !== undefined && v !== null) query[k] = v; // buildUrl serializes these into the query
   }
-  return rawRequest({ host, command: 'import', params: { TYPE: type }, cookie, method: 'POST', body: form.toString() });
+  const body = DATA != null ? new URLSearchParams({ DATA: String(DATA) }).toString() : undefined;
+  return rawRequest({ host, command: 'import', params: query, cookie, method: 'POST', body });
 }
 
 // The most useful human detail from an MFL request error: MFL's own error message, else its
