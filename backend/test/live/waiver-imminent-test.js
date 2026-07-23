@@ -1,7 +1,7 @@
 'use strict';
 // A league's next waiver RUN comes from its calendar's process events (TYPE=WAIVER_BBID etc.),
 // which carry start_time (epoch seconds) + `happens` (a weekly repeat count). A run that lands
-// within config.waiverImminentMs (default 4 days) is an act-now item — surfaced on the Waivers
+// within config.waiverImminentMs (default 3 days) is an act-now item — surfaced on the Waivers
 // overview (waiverImminent + summary.imminent) and as a Home triage item. This pins:
 //   * L1: a run 2 days out            => imminent
 //   * L2: a run 10 days out           => NOT imminent
