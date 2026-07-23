@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Alert, TextInput } from 'react-native';
 import { api } from '../api';
 import tradeMath from '../tradeMath';
 import { colors, positionColors } from '../theme';
@@ -96,6 +96,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
   const [suggesting, setSuggesting] = useState(false);
   const [counterInfo, setCounterInfo] = useState(null); // { offerId, rationale } when countering
   const [sortKey, setSortKey] = useState('position'); // offer lists: position | value | name
+  const [footerH, setFooterH] = useState(0); // measured height of the absolute propose footer
   const seededRef = useRef(false);
 
   useAndroidBack(useCallback(() => { onBack(); return true; }, [onBack]));
@@ -334,7 +335,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
           )}
         </ScrollView>
       ) : (
-        <ScrollView contentContainerStyle={styles.list}>
+        <ScrollView contentContainerStyle={[styles.list, { paddingBottom: footerH + 24 }]}>
           {counterInfo ? (
             <View style={styles.counterBanner}>
               <Text style={styles.counterTitle}>↩ Countering their offer</Text>
@@ -405,7 +406,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
                     <AssetRow key={a.id} asset={a} on={!!send[a.id]} onPress={() => toggle(setSend, send, a)} tint={colors.accent} compact />
                   ))}
                   {/* FAAB is tradeable in most leagues — add blind-bid budget to your side. */}
-                  <FaabStepper amount={faabOf(send)} onChange={(n) => setFaab(setSend, n)} tint={colors.accent} />
+                  <FaabInput amount={faabOf(send)} onChange={(n) => setFaab(setSend, n)} tint={colors.accent} />
                 </View>
                 <View style={styles.buildColDiv} />
                 <View style={styles.buildCol}>
@@ -413,17 +414,16 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
                   {receiveOptions.map((a) => (
                     <AssetRow key={a.id} asset={a} on={!!receive[a.id]} onPress={() => toggle(setReceive, receive, a)} tint={colors.good} compact />
                   ))}
-                  <FaabStepper amount={faabOf(receive)} onChange={(n) => setFaab(setReceive, n)} tint={colors.good} />
+                  <FaabInput amount={faabOf(receive)} onChange={(n) => setFaab(setReceive, n)} tint={colors.good} />
                 </View>
               </View>
             </>
           ) : <Text style={styles.empty}>Pick a team above.</Text>}
-          <View style={{ height: 40 }} />
         </ScrollView>
       )}
 
       {tab === 'propose' ? (
-        <View style={styles.footer}>
+        <View style={styles.footer} onLayout={(e) => setFooterH(e.nativeEvent.layout.height)}>
           {buildFit ? (
             <View style={styles.buildFit}>
               <Text style={[styles.buildFitLine, { color: (CONSTRUCTION[buildFit.me.rating] || CONSTRUCTION.neutral).color }]} numberOfLines={1}>
@@ -566,27 +566,46 @@ function Side({ label, assets, total, tint, onOpenPlayer }) {
   );
 }
 
-// Stepper to add blind-bidding budget (FAAB) to one side of the builder, in $5 steps. Shows
-// "+ FAAB" when zero, "$20 FAAB" (tinted) once set. Compact enough for the narrow build column.
-function FaabStepper({ amount, onChange, tint }) {
+// Open text field to add blind-bidding budget (FAAB) to one side of the builder — type any dollar
+// amount rather than stepping in fixed increments. Digits only; empty clears it to $0.
+function FaabInput({ amount, onChange, tint }) {
+  const [val, setVal] = useState(amount ? String(amount) : '');
+  useEffect(() => { setVal(amount ? String(amount) : ''); }, [amount]);
   return (
     <View style={styles.faabRow}>
-      <Pressable onPress={() => onChange(Math.max(0, amount - 5))} disabled={amount <= 0} style={[styles.faabBtn, amount <= 0 && { opacity: 0.35 }]} hitSlop={8}>
-        <Text style={styles.faabBtnTxt}>−</Text>
-      </Pressable>
-      <Text style={[styles.faabAmt, amount > 0 && { color: tint }]} numberOfLines={1}>{amount > 0 ? `$${amount} FAAB` : '+ FAAB'}</Text>
-      <Pressable onPress={() => onChange(amount + 5)} style={styles.faabBtn} hitSlop={8}>
-        <Text style={styles.faabBtnTxt}>+</Text>
-      </Pressable>
+      <Text style={[styles.faabDollar, amount > 0 && { color: tint }]}>$</Text>
+      <TextInput
+        style={[styles.faabInput, amount > 0 && { color: tint, fontWeight: '800' }]}
+        value={val}
+        onChangeText={(t) => { const c = t.replace(/[^0-9]/g, '').slice(0, 5); setVal(c); onChange(c ? parseInt(c, 10) : 0); }}
+        keyboardType="number-pad"
+        placeholder="FAAB $"
+        placeholderTextColor={colors.textDim}
+        maxLength={5}
+        returnKeyType="done"
+      />
     </View>
   );
+}
+
+// "Mahomes, Patrick" -> "P. Mahomes". Comma-less names (picks, FAAB, single-token) pass through.
+function shortName(full) {
+  const s = String(full || '');
+  const i = s.indexOf(',');
+  if (i === -1) return s;
+  const last = s.slice(0, i).trim();
+  const first = s.slice(i + 1).trim();
+  return first ? `${first[0]}. ${last}` : last;
 }
 
 function AssetRow({ asset, on, onPress, tint, compact }) {
   const posColor = positionColors[asset.position] || colors.textDim;
   if (compact) {
-    // Narrow two-column builder: checkbox + last name, with pos/value on a second line so it
-    // fits ~half the screen. Position color is a left border instead of a dot to save width.
+    // Narrow two-column builder: checkbox + first-initial + last name, with pos · team · value on a
+    // second line. Position color is a left border instead of a dot to save width.
+    const meta = asset.kind === 'pick'
+      ? 'pick'
+      : [asset.position, asset.team].filter(Boolean).join(' · ');
     return (
       <Pressable
         style={({ pressed }) => [styles.cAssetRow, { borderLeftColor: posColor }, on && { borderColor: tint, backgroundColor: colors.cardAlt }, pressed && { opacity: 0.8 }]}
@@ -594,9 +613,9 @@ function AssetRow({ asset, on, onPress, tint, compact }) {
       >
         <View style={[styles.check, on && { backgroundColor: tint, borderColor: tint }]}>{on ? <Text style={styles.checkMark}>✓</Text> : null}</View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.cAssetName} numberOfLines={1}>{String(asset.name).split(',')[0]}</Text>
+          <Text style={styles.cAssetName} numberOfLines={1}>{shortName(asset.name)}</Text>
           <Text style={styles.cAssetMeta} numberOfLines={1}>
-            {asset.kind === 'pick' ? 'pick' : asset.position}{asset.value != null ? ` · ${asset.value}` : ''}{asset.bait ? ' · ⇄' : ''}
+            {meta}{asset.value != null ? ` · ${asset.value}` : ''}{asset.bait ? ' · ⇄' : ''}
           </Text>
         </View>
       </Pressable>
@@ -688,10 +707,9 @@ const styles = StyleSheet.create({
   buildFitLine: { fontSize: 12, fontWeight: '700' },
   cardActions: { flexDirection: 'row', gap: 10, marginTop: 12 },
   noRespond: { color: colors.textDim, fontSize: 12, textAlign: 'center', marginTop: 10, fontStyle: 'italic' },
-  faabRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6, paddingVertical: 4, paddingHorizontal: 5, borderRadius: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, backgroundColor: colors.card },
-  faabBtn: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.cardAlt },
-  faabBtnTxt: { color: colors.text, fontSize: 16, fontWeight: '900', lineHeight: 18 },
-  faabAmt: { flex: 1, textAlign: 'center', color: colors.textDim, fontSize: 11, fontWeight: '800' },
+  faabRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6, paddingVertical: 2, paddingHorizontal: 8, borderRadius: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, backgroundColor: colors.card },
+  faabDollar: { color: colors.textDim, fontSize: 13, fontWeight: '800', marginRight: 2 },
+  faabInput: { flex: 1, color: colors.text, fontSize: 13, fontWeight: '700', paddingVertical: 6, paddingHorizontal: 0 },
   act: { flex: 1, borderRadius: 10, paddingVertical: 11, alignItems: 'center' },
   reject: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
   rejectText: { color: colors.textDim, fontWeight: '800', fontSize: 14 },
