@@ -293,7 +293,42 @@ async function getBoard(cookie, token, leagueId, { position, sort } = {}) {
   const tagRank = (p) => (p.tag === 'target' ? 0 : p.tag === 'avoid' ? 2 : 1);
   freeAgents.sort((a, b) => tagRank(a) - tagRank(b) || (b[key] || 0) - (a[key] || 0));
 
-  const pending = store.list(token, leagueId, config.demoMode ? demo.pendingClaims(leagueId) : []).map((c) => claimView(c, byId));
+  const local = store.list(token, leagueId, config.demoMode ? demo.pendingClaims(leagueId) : []).map((c) => claimView(c, byId));
+  // In live, reconcile with MFL's AUTHORITATIVE pending waivers (what's actually queued there —
+  // including bids placed outside the app). Merge MFL's claims with any local-store entries whose
+  // add isn't already reflected on MFL (dedup by add id, so an app-submitted claim shows once),
+  // keeping recently-processed receipts. Best-effort + fail-soft: any read failure falls back to
+  // the local store, so the board never breaks on this.
+  let pending = local;
+  if (!config.demoMode) {
+    try {
+      const reqs = await mflRepo.pendingWaivers(league, cookie);
+      const mflPending = reqs.flatMap((req) =>
+        req.picks.map((pick, i) => {
+          const add = pick.add ? playersLib.resolve(byId, pick.add) : null;
+          const drop = pick.drop ? playersLib.resolve(byId, pick.drop) : null;
+          return {
+            id: `mfl-${req.system}-${req.round}-${i}`,
+            system: req.system,
+            add: add ? { id: add.id, name: add.name, position: add.position } : null,
+            drop: drop ? { id: drop.id, name: drop.name, position: drop.position } : null,
+            bid: pick.bid,
+            priority: null,
+            round: req.round,
+            status: 'pending',
+            processTime: null,
+            source: 'mfl',
+          };
+        })
+      );
+      if (mflPending.length) {
+        const mflAdds = new Set(mflPending.map((c) => c.add && c.add.id).filter(Boolean));
+        pending = [...mflPending, ...local.filter((c) => !(c.add && mflAdds.has(c.add.id)))];
+      }
+    } catch (e) {
+      /* keep the local-store view */
+    }
+  }
   const results = config.demoMode ? demo.waiverResults(leagueId) : [];
 
   return {
