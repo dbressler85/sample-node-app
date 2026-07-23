@@ -320,7 +320,7 @@ export default function App() {
           />
         );
       case 'draft':
-        return <DraftScreen league={o.league} onBack={popOverlay} onOpenPlayer={openPlayer} onOpenTrades={openTrades} />;
+        return <DraftScreen league={o.league} demoMode={demoMode} onBack={popOverlay} onOpenPlayer={openPlayer} onOpenTrades={openTrades} />;
       case 'draftHub':
         return <DraftHubScreen onBack={popOverlay} onOpenDraft={openDraft} />;
       case 'leagues':

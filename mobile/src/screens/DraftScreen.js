@@ -28,7 +28,7 @@ function fmtDate(iso) {
 // props actually changed, and rendered inside a FlatList so only the visible slice mounts (the
 // pool can be hundreds deep). `isPicking`/`pickingActive` are booleans, not the whole picking id,
 // so drafting one player doesn't invalidate every other row.
-const PoolRow = React.memo(function PoolRow({ p, rank, myTurn, isPicking, pickingActive, onScout, onDraft }) {
+const PoolRow = React.memo(function PoolRow({ p, rank, myTurn, canPick, isPicking, pickingActive, onScout, onDraft }) {
   return (
     <Reveal delay={Math.min(rank - 1, 12) * 30} animate={rank <= 14}>
       <View style={[styles.avRow, myTurn && styles.avRowLive, p.tag === 'target' && styles.avRowTarget, p.tag === 'avoid' && styles.avRowAvoid]}>
@@ -49,7 +49,7 @@ const PoolRow = React.memo(function PoolRow({ p, rank, myTurn, isPicking, pickin
           </View>
           <Text style={styles.avValue}>{p.value != null ? p.value : '—'}</Text>
         </PressableScale>
-        {myTurn ? (
+        {canPick ? (
           isPicking ? (
             <ActivityIndicator color={colors.accent} style={styles.avDraftBtn} />
           ) : (
@@ -67,7 +67,7 @@ const PoolRow = React.memo(function PoolRow({ p, rank, myTurn, isPicking, pickin
   );
 });
 
-export default function DraftScreen({ league, onBack, onOpenPlayer, onOpenTrades }) {
+export default function DraftScreen({ league, demoMode, onBack, onOpenPlayer, onOpenTrades }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -94,6 +94,11 @@ export default function DraftScreen({ league, onBack, onOpenPlayer, onOpenTrades
   usePoll(load, 15000, !!(data && data.status === 'in_progress') && !picking);
 
   const myTurn = !!(data && data.onClock && data.onClock.mine);
+  // Live drafting isn't supported: MyFantasyLeague has no make-a-pick API, so the backend 501s.
+  // In live we keep the board fully readable but hide the in-app Draft affordance and point to
+  // MFL's draft room. In demo, picks work in-app as before.
+  const canPickInApp = !!demoMode;
+  const canPick = myTurn && canPickInApp;
 
   const pool = useMemo(() => {
     if (!data || !data.available) return [];
@@ -104,6 +109,11 @@ export default function DraftScreen({ league, onBack, onOpenPlayer, onOpenTrades
   // a profile on tap, and the explicit Draft button routes through here).
   function confirmDraft(p) {
     if (!myTurn || picking != null) return;
+    if (!canPickInApp) {
+      // Defensive — the Draft button is hidden in live, but never fire a pick MFL will reject.
+      Alert.alert('Draft in MyFantasyLeague', 'In-app drafting isn’t available for live leagues yet — make your pick in the MyFantasyLeague draft room. It’ll show here once MFL processes it.');
+      return;
+    }
     Alert.alert('Draft this player?', `${p.name} — ${p.position}${p.team ? ` · ${p.team}` : ''}${p.value != null ? ` · value ${p.value}` : ''}`, [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Draft', style: 'default', onPress: () => draftPlayer(p) },
@@ -184,6 +194,7 @@ export default function DraftScreen({ league, onBack, onOpenPlayer, onOpenTrades
               p={item}
               rank={index + 1}
               myTurn={myTurn}
+              canPick={canPick}
               isPicking={picking === item.id}
               pickingActive={picking != null}
               onScout={onOpenPlayer}
@@ -206,7 +217,7 @@ export default function DraftScreen({ league, onBack, onOpenPlayer, onOpenTrades
               {myTurn ? (
                 <View style={styles.clock}>
                   <Text style={styles.clockText}>You're on the clock — pick {data.onClock.round}.{String(data.onClock.pick).padStart(2, '0')}</Text>
-                  <Text style={styles.clockSub}>Tap a player below to draft</Text>
+                  <Text style={styles.clockSub}>{canPickInApp ? 'Tap a player below to draft' : 'Make this pick in the MyFantasyLeague draft room — it’ll show here once processed'}</Text>
                 </View>
               ) : data.onClock ? (
                 <Text style={styles.waiting}>On the clock: pick {data.onClock.round}.{String(data.onClock.pick).padStart(2, '0')} (another team)</Text>
@@ -232,7 +243,7 @@ export default function DraftScreen({ league, onBack, onOpenPlayer, onOpenTrades
                 </>
               ) : null}
 
-              <Text style={styles.section}>Available · by ADP{myTurn ? ' · tap a name to scout, Draft to pick' : ''}</Text>
+              <Text style={styles.section}>Available · by ADP{myTurn ? (canPickInApp ? ' · tap a name to scout, Draft to pick' : ' · tap a name to scout') : ''}</Text>
               <View style={styles.posRow}>
                 <Pressable style={[styles.posChip, !position && styles.posChipActive]} onPress={() => setPosition(null)}>
                   <Text style={[styles.posText, !position && { color: colors.text }]}>All</Text>
