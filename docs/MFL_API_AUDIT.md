@@ -81,8 +81,11 @@ separate tab and still needed — the 🔴 write rows in §2 stay open until we 
   loops one `nflSchedule?W=<n>` per week (sequential per-week fan-out). Collapsing to one `W=ALL` fetch
   needs the ALL response shape confirmed (per-week nesting) before changing. Also a dedicated
   **`nflByeWeeks`** endpoint exists (we derive byes by scanning the player pool vs the week's matchups).
-- **`assets`** — "all tradable assets (players, current + future picks)" in one read; could simplify trade
-  construction (today we compose from `rosters` + `futureDraftPicks`). Touches trade logic → careful.
+- ✅ **`assets`** — reader shipped (`mflRepo.assets` + `parsePickToken`), confirmed against a live sample
+  (`assets.franchise[]` with `players.player[]`, `blindBiddingDollars.amount`, `futureYearDraftPicks`).
+  One authoritative read per league gives each franchise's players + FAAB + picks, with **current** pick
+  ownership (an acquired pick is listed under its holder; the `FP_<owner>_…` token still encodes the
+  original owner). Ready to simplify trade construction (vs. composing `rosters`+`futureDraftPicks`+FAAB).
 - ✅ **`playerRosterStatus?P=`** — reader + normalizer shipped (`mflRepo.playerRosterStatus` +
   `addEligibility`), confirmed against a live sample (`playerRosterStatuses.playerStatus[]`;
   `roster_franchise` object-or-array, `is_fa`/`cant_add`/`locked`, per-player `error`). Ready to power

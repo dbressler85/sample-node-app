@@ -169,6 +169,43 @@ async function pendingWaivers(league, cookie, params = {}) {
   ];
 }
 
+const stripHtml = (s) => String(s || '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+
+// Parse a draft-pick token. Future picks are FP_<originalOwner>_<year>_<round> (rounds are the
+// ACTUAL round). Current-year picks are DP_<round-1>_<pick-1> (both one LESS than the real value).
+function parsePickToken(token) {
+  const t = String(token || '');
+  let m = /^FP_(\d+)_(\d+)_(\d+)$/.exec(t);
+  if (m) return { kind: 'future', originalOwner: m[1], year: Number(m[2]), round: Number(m[3]) };
+  m = /^DP_(\d+)_(\d+)$/.exec(t);
+  if (m) return { kind: 'current', round: Number(m[1]) + 1, pick: Number(m[2]) + 1 };
+  return { kind: 'unknown' };
+}
+
+// One franchise's tradable assets -> { id, playerIds[], faab, picks[] }. `picks` carries the raw
+// token plus its parsed round/year/owner (the token encodes the ORIGINAL owner; the pick is listed
+// under whoever CURRENTLY holds it — so this is the authoritative "what can each team trade").
+function normFranchiseAssets(fr) {
+  const playerIds = mfl.toArray(fr && fr.players && fr.players.player).map((p) => String(p.id));
+  const faab = fr && fr.blindBiddingDollars && fr.blindBiddingDollars.amount != null && fr.blindBiddingDollars.amount !== ''
+    ? Number(fr.blindBiddingDollars.amount)
+    : null;
+  const picks = mfl.toArray(fr && fr.futureYearDraftPicks && fr.futureYearDraftPicks.draftPick).map((dp) => ({
+    token: String(dp && dp.pick),
+    description: stripHtml(dp && dp.description),
+    ...parsePickToken(dp && dp.pick),
+  }));
+  return { id: String(fr && fr.id), playerIds, faab, picks };
+}
+
+// `assets` export -> every franchise's tradable assets (players, FAAB $, future/current draft
+// picks) in ONE read, normalized. The single authoritative source for trade construction (vs.
+// composing rosters + futureDraftPicks + FAAB separately).
+async function assets(league, cookie, params = {}) {
+  const res = await read('assets', league, cookie, params);
+  return mfl.toArray(res && res.assets && res.assets.franchise).map(normFranchiseAssets);
+}
+
 // Interpret a normalized status into add eligibility for THIS league. addable=false carries a
 // human reason. (Note: intended for the immediate free-agency path — during a waiver period a
 // claim is a bid, not a direct add, so this is not a gate for FAAB/priority claims.)
@@ -200,4 +237,6 @@ module.exports = {
   playerRosterStatus,
   addEligibility,
   pendingWaivers,
+  assets,
+  parsePickToken,
 };
