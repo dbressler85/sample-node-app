@@ -1,8 +1,14 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, FlatList, RefreshControl, ActivityIndicator, Alert, Modal, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import useAndroidBack from '../useAndroidBack';
+import { peekResource, primeResource } from '../useCachedResource';
+
+// Cache keys for the survive-remount store: seed instantly on reopen (this screen is an overlay,
+// so it unmounts on back) and prime on every load, then revalidate in the background.
+const BLOCK_KEY = 'block:mine';
+const MARKET_KEY = 'block:market';
 
 const NOTE_MAX = 120;
 
@@ -11,9 +17,10 @@ const NOTE_MAX = 120;
 // the offer. Add players to the block from a roster (the ⇄ Block toggle on each player).
 export default function OnTheBlockScreen({ onBack, onShopLeague, onOpenPlayer, onShopPlayer, onOpenInbox }) {
   const [segment, setSegment] = useState('block'); // 'block' (mine) | 'market' (rivals)
-  const [data, setData] = useState(null);
-  const [market, setMarket] = useState(null);
-  const [loading, setLoading] = useState(true);
+  // Seed from the survive-remount cache so reopening paints instantly instead of a cold spinner.
+  const [data, setData] = useState(() => (peekResource(BLOCK_KEY) ? peekResource(BLOCK_KEY).value : null));
+  const [market, setMarket] = useState(() => (peekResource(MARKET_KEY) ? peekResource(MARKET_KEY).value : null));
+  const [loading, setLoading] = useState(() => !peekResource(BLOCK_KEY));
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(null); // `${leagueId}:${playerId}` being removed
@@ -30,7 +37,9 @@ export default function OnTheBlockScreen({ onBack, onShopLeague, onOpenPlayer, o
   const load = useCallback(async () => {
     setError(null);
     try {
-      setData(await api.tradeBait());
+      const d = await api.tradeBait();
+      setData(d);
+      primeResource(BLOCK_KEY, d);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -40,18 +49,22 @@ export default function OnTheBlockScreen({ onBack, onShopLeague, onOpenPlayer, o
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  // The market (rivals' blocks) loads lazily the first time you open that tab.
+  // The market (rivals' blocks) revalidates the first time you open that tab this mount — even if it
+  // painted instantly from the seeded cache — so a stale seed refreshes without a spinner.
   const loadMarket = useCallback(async () => {
     setError(null);
     try {
-      setMarket(await api.tradeMarket());
+      const m = await api.tradeMarket();
+      setMarket(m);
+      primeResource(MARKET_KEY, m);
     } catch (e) {
       setError(e.message);
     } finally {
       setRefreshing(false);
     }
   }, []);
-  useEffect(() => { if (segment === 'market' && !market) loadMarket(); }, [segment, market, loadMarket]);
+  const marketOnce = useRef(false);
+  useEffect(() => { if (segment === 'market' && !marketOnce.current) { marketOnce.current = true; loadMarket(); } }, [segment, loadMarket]);
 
   async function removeOne(leagueId, player) {
     const k = `${leagueId}:${player.id}`;

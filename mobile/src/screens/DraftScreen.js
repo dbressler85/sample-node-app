@@ -6,6 +6,7 @@ import PressableScale from '../components/PressableScale';
 import Reveal from '../components/Reveal';
 import useAndroidBack from '../useAndroidBack';
 import usePoll from '../usePoll';
+import { peekResource, primeResource } from '../useCachedResource';
 
 const STATUS = {
   scheduled: { label: 'Scheduled', color: colors.warn },
@@ -68,9 +69,12 @@ const PoolRow = React.memo(function PoolRow({ p, rank, myTurn, canPick, isPickin
 });
 
 export default function DraftScreen({ league, demoMode, onBack, onOpenPlayer, onOpenTrades }) {
-  const [data, setData] = useState(null);
+  // Seed the board from the survive-remount cache so reopening the draft paints the last board
+  // instantly instead of a cold spinner; the live poll (below) keeps it current.
+  const boardKey = `draft:${league.leagueId}`;
+  const [data, setData] = useState(() => (peekResource(boardKey) ? peekResource(boardKey).value : null));
   const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !peekResource(boardKey));
   const [position, setPosition] = useState(null);
   const [picking, setPicking] = useState(null); // playerId being drafted
 
@@ -79,12 +83,15 @@ export default function DraftScreen({ league, demoMode, onBack, onOpenPlayer, on
   const load = useCallback(async () => {
     setError(null);
     try {
-      setData(await api.leagueDraft(league.leagueId));
+      const d = await api.leagueDraft(league.leagueId);
+      setData(d);
+      primeResource(boardKey, d);
     } catch (e) {
       setError(e.message);
     } finally {
       setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [league.leagueId]);
 
   useEffect(() => { load(); }, [load]);
@@ -126,6 +133,7 @@ export default function DraftScreen({ league, demoMode, onBack, onOpenPlayer, on
     try {
       const res = await api.makeDraftPick(league.leagueId, p.id);
       setData(res);
+      primeResource(boardKey, res);
     } catch (e) {
       Alert.alert('Could not draft', e.message);
     } finally {

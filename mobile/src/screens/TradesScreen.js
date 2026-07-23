@@ -7,6 +7,7 @@ import { celebrate } from '../components/Celebrate';
 import TradeColumns from '../components/TradeColumns';
 import Reveal from '../components/Reveal';
 import useAndroidBack from '../useAndroidBack';
+import { peekResource, primeResource } from '../useCachedResource';
 
 const posList = (arr) => (arr && arr.length ? arr.map((x) => x.pos).join(', ') : '—');
 
@@ -82,9 +83,13 @@ function partnerTendency(partner) {
 }
 
 export default function TradesScreen({ league, onBack, initialTab, seed, onOpenPlayer, onSent }) {
-  const [data, setData] = useState(null);
+  // Seed the desk read (partners, my players/picks, offers) from the survive-remount cache, keyed
+  // per league — reopening a league's desk paints instantly instead of a cold spinner. In-progress
+  // BUILD state (send/receive/faab) is intentionally NOT cached: each open starts a fresh offer.
+  const deskKey = `trades:desk:${league.leagueId}`;
+  const [data, setData] = useState(() => (peekResource(deskKey) ? peekResource(deskKey).value : null));
   const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !peekResource(deskKey));
   const [tab, setTab] = useState(initialTab === 'propose' ? 'propose' : 'offers');
   const [busy, setBusy] = useState(null); // offerId being responded to
 
@@ -106,6 +111,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
     try {
       const d = await api.leagueTrades(league.leagueId);
       setData(d);
+      primeResource(deskKey, d);
       // Default the partner only if none is chosen — prefer the seeded partner (the
       // team that holds the player you came to trade for), else the first.
       if (d.partners && d.partners.length) setPartnerId((cur) => cur || (seed && seed.partnerFranchiseId) || d.partners[0].franchiseId);

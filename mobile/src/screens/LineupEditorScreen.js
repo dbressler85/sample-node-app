@@ -3,13 +3,21 @@ import { View, Text, StyleSheet, Pressable, ActivityIndicator, Alert } from 'rea
 import { api } from '../api';
 import { colors } from '../theme';
 import SlotEditor from '../components/SlotEditor';
+import { peekResource, primeResource } from '../useCachedResource';
+
+const slotsToAssignments = (d) => d.slots.map((s) => (s.current ? s.current.id : null));
 
 export default function LineupEditorScreen({ league, onBack, onOpenWaivers }) {
-  const [detail, setDetail] = useState(null);
+  // Seed the lineup read from the survive-remount cache (this editor is an overlay, so it unmounts
+  // on back) — reopening paints the current lineup instantly, then revalidates. The editor always
+  // starts from the current lineup on open, so seeding the assignments from it is correct.
+  const editKey = `lineup:edit:${league.leagueId}`;
+  const seeded = peekResource(editKey) ? peekResource(editKey).value : null;
+  const [detail, setDetail] = useState(seeded);
   const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!seeded);
   const [saving, setSaving] = useState(false);
-  const [assignments, setAssignments] = useState([]); // slot index -> player id | null
+  const [assignments, setAssignments] = useState(seeded ? slotsToAssignments(seeded) : []); // slot index -> player id | null
 
   useEffect(() => {
     let alive = true;
@@ -18,7 +26,8 @@ export default function LineupEditorScreen({ league, onBack, onOpenWaivers }) {
         const d = await api.lineupDetail(league.leagueId);
         if (!alive) return;
         setDetail(d);
-        setAssignments(d.slots.map((s) => (s.current ? s.current.id : null)));
+        primeResource(editKey, d);
+        setAssignments(slotsToAssignments(d));
       } catch (e) {
         if (alive) setError(e.message);
       } finally {
@@ -28,6 +37,7 @@ export default function LineupEditorScreen({ league, onBack, onOpenWaivers }) {
     return () => {
       alive = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [league.leagueId]);
 
   const byId = useMemo(() => {
