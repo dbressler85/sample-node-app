@@ -40,14 +40,18 @@ export default function useCachedResource(key, fetcher, { staleMs = DEFAULT_STAL
   // Seed synchronously from the in-memory snapshot so a remount paints instantly, no null flash (C1).
   const [data, setData] = useState(() => (store.has(key) ? store.peek(key).value : null));
   const [error, setError] = useState(null);
-  // Start "refreshing" when there's no in-memory value, so a cold mount shows the loading state
-  // immediately instead of one empty frame before the effect's revalidate flips it on.
-  const [refreshing, setRefreshing] = useState(() => !store.has(key));
+  // `fetching` = any fetch in flight (drives the cold-load spinner). Seed true on a cold mount so
+  // the loading state shows immediately instead of one empty frame. `refreshing` = USER-INITIATED
+  // refresh only (a pull-to-refresh or retry) — this is what the pull-to-refresh control binds to,
+  // so a SILENT background revalidate on a warm remount never flashes a spinner over painted content.
+  const [fetching, setFetching] = useState(() => !store.has(key));
+  const [refreshing, setRefreshing] = useState(false);
   const fetcherRef = useRef(fetcher);
   fetcherRef.current = fetcher;
 
-  const revalidate = useCallback(async () => {
-    setRefreshing(true);
+  const revalidate = useCallback(async (userInitiated = false) => {
+    setFetching(true);
+    if (userInitiated) setRefreshing(true);
     setError(null);
     try {
       const fresh = await fetcherRef.current();
@@ -59,25 +63,31 @@ export default function useCachedResource(key, fetcher, { staleMs = DEFAULT_STAL
       setError(e.message); // keep the last-known data — never blank on a failed refresh (C4)
       return null;
     } finally {
+      setFetching(false);
       setRefreshing(false);
     }
   }, [key]);
+
+  // Explicit user refresh (pull-to-refresh / retry): shows the pull control. The mount effect uses
+  // revalidate(false) so its background reload stays silent.
+  const reload = useCallback(() => revalidate(true), [revalidate]);
 
   useEffect(() => {
     let alive = true;
     const hit = store.peek(key);
     if (hit) {
       // Warm remount (or key change to an already-loaded dataset): paint from memory, and only
-      // reload when it's gone stale — a quick return never re-runs the fetch (C2).
+      // reload when it's gone stale — a quick return never re-runs the fetch (C2). SILENT: no
+      // pull spinner over the already-painted content (that background sync is what felt odd).
       setData(hit.value);
-      if (store.isStale(key, staleMs)) revalidate();
+      if (store.isStale(key, staleMs)) revalidate(false);
       return () => { alive = false; };
     }
     // Cold: no in-memory value for this key. Paint disk cache (async), then always revalidate.
     setData(null);
     getValue(key).then((cached) => {
       if (alive && cached != null) { setData(cached); store.prime(key, cached, 0); } // at:0 → stale, will refetch
-      if (alive) revalidate();
+      if (alive) revalidate(false);
     });
     return () => { alive = false; };
   }, [key, revalidate, staleMs]);
@@ -85,10 +95,11 @@ export default function useCachedResource(key, fetcher, { staleMs = DEFAULT_STAL
   return {
     data,
     error,
-    refreshing,
-    // A blank full-screen spinner is only warranted when we have nothing to show.
-    loading: data == null && refreshing,
-    reload: revalidate,
+    fetching, // any fetch in flight (for a subtle, non-blocking hint if a screen wants one)
+    refreshing, // USER-initiated refresh only → safe to bind a pull-to-refresh control to this
+    // A blank full-screen spinner is only warranted when we have nothing to show at all.
+    loading: data == null && fetching,
+    reload,
     setData,
   };
 }
