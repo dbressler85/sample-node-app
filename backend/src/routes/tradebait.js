@@ -27,9 +27,9 @@ router.get('/tradebait/market', async (req, res, next) => {
 });
 
 // GET /api/leagues/:leagueId/tradebait — ids on the block in one league (to mark rosters).
-router.get('/leagues/:leagueId/tradebait', (req, res, next) => {
+router.get('/leagues/:leagueId/tradebait', async (req, res, next) => {
   try {
-    res.json(checkResponse(schemas.LeagueTradeBait, tradebait.leagueIds(req.account, req.params.leagueId), 'GET /leagues/:leagueId/tradebait'));
+    res.json(checkResponse(schemas.LeagueTradeBait, await tradebait.leagueIds(req.mflCookie, req.account, req.params.leagueId), 'GET /leagues/:leagueId/tradebait'));
   } catch (err) {
     next(err);
   }

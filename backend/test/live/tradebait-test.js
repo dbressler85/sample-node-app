@@ -69,7 +69,7 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   const added = await tradebait.add(CK, TOK, '1000', '1', 'Selling high');
   assert(added.ok && added.onBlock, 'add returns onBlock');
   assert(store.has(TOK, '1000', '1'), 'store records the bait');
-  assert(JSON.stringify(tradebait.leagueIds(TOK, '1000').ids) === JSON.stringify(['1']), 'league ids reflect the block');
+  assert(JSON.stringify((await tradebait.leagueIds(CK, TOK, '1000')).ids) === JSON.stringify(['1']), 'league ids reflect the block (MFL bait ∪ local)');
 
   // The add pushed the full block to MFL's native Trade Bait board.
   const push = imports.find((i) => i.type === 'tradeBait');

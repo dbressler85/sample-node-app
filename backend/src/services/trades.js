@@ -46,6 +46,13 @@ async function tradeBaitByFranchise(cookie, token, league) {
         const ids = mfl.text(mfl.attr(b, 'willGiveUp')).split(/[,;|]/).map((s) => s.trim()).filter(Boolean);
         map.set(fid, new Set(ids));
       }
+      // Union any local optimistic adds (just shopped in-app, MFL write may lag a beat) into MY set,
+      // so a just-blocked player is flagged on the desk immediately even before MFL reflects it.
+      if (mineIds.length) {
+        const cur = map.get(String(league.franchiseId)) || new Set();
+        for (const id of mineIds) cur.add(String(id));
+        map.set(String(league.franchiseId), cur);
+      }
     } catch (e) {
       /* no board -> no bait signal */
     }

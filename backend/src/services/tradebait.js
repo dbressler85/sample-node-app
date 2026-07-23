@@ -282,9 +282,22 @@ async function getMarket(cookie, token) {
   };
 }
 
-// Player ids on the block in one league — lets a roster view mark them.
-function leagueIds(token, leagueId) {
-  return { ids: baitStore.listLeague(token, leagueId) };
+// Player ids on the block in one league — lets a roster/players view mark them with the ⇄ badge.
+// Reconciled with MFL's authoritative bait (players only) merged with local optimistic adds, so the
+// badge lights up for bait set on the MFL site too — not just in-app. Fail-soft to the local mirror.
+async function leagueIds(cookie, token, leagueId) {
+  const local = baitStore.listLeague(token, leagueId).map(String);
+  if (config.demoMode) return { ids: local };
+  try {
+    const league = await findLeague(cookie, leagueId);
+    if (!league) return { ids: local };
+    const mine = await mflBaitFor(cookie, league);
+    if (!mine) return { ids: local };
+    const players = mine.ids.filter((t) => /^\d+$/.test(t)); // player ids only (skip pick tokens)
+    return { ids: [...new Set([...players, ...local])] };
+  } catch (e) {
+    return { ids: local };
+  }
 }
 
 // Read-modify-write against MFL's bait so we NEVER clobber the rest of your listing (picks + other
