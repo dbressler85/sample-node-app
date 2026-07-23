@@ -1,5 +1,5 @@
-import React, { useCallback, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, Pressable, ActivityIndicator, RefreshControl, Dimensions } from 'react-native';
+import React, { useCallback, useRef, useState } from 'react';
+import { View, Text, ScrollView, FlatList, StyleSheet, Pressable, ActivityIndicator, RefreshControl, Dimensions } from 'react-native';
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import useAndroidBack from '../useAndroidBack';
@@ -41,15 +41,21 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
   const [baitOverride, setBaitOverride] = useState({}); // id -> bool, optimistic "on the block" state
 
   const resolveBaited = (h) => (h.id in baitOverride ? baitOverride[h.id] : !!h.baited);
+  // Mirror the override map in a ref so toggleShop can read the current state WITHOUT depending on
+  // baitOverride — that keeps its identity stable, so a shop toggle re-renders only the touched
+  // memoized row instead of every holding row.
+  const baitRef = useRef(baitOverride);
+  baitRef.current = baitOverride;
   // Shop / un-shop a holding across every league you roster him in — optimistic, reverts on failure.
-  const toggleShop = (h) => {
-    const next = !resolveBaited(h);
+  const toggleShop = useCallback((h) => {
+    const cur = h.id in baitRef.current ? baitRef.current[h.id] : !!h.baited;
+    const next = !cur;
     setBaitOverride((m) => ({ ...m, [h.id]: next }));
     api.portfolioShop(h.id, next, h.leagueIds).catch(() => {
-      setBaitOverride((m) => ({ ...m, [h.id]: !next }));
+      setBaitOverride((m) => ({ ...m, [h.id]: cur }));
       setShopError('Could not update trade bait');
     });
-  };
+  }, []);
 
   if (error) {
     return (
@@ -79,6 +85,29 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
   const allocPctOf = (a) => (holdView === 'exposure' && a.sharePct != null ? a.sharePct : a.pct);
   const allocView = d.allocation ? [...d.allocation].sort((a, b) => allocPctOf(b) - allocPctOf(a)) : [];
 
+  // The Top-holdings list is the one unbounded part of this screen (a player per league you hold
+  // him in → potentially hundreds of rows once "Show all" is on). Drive it through a FlatList so
+  // only the on-screen rows mount; everything else on the page rides in the header/footer. The rows
+  // are a memoized HoldingRow, and toggleShop has a stable identity, so shopping one player
+  // re-renders just that row instead of the whole book.
+  const hasHoldings = !!(d.holdings && d.holdings.length);
+  const visibleHoldings = !hasHoldings
+    ? []
+    : posFilter
+    ? rankedHoldings.filter((h) => h.position === posFilter)
+    : showAllHoldings
+    ? rankedHoldings
+    : rankedHoldings.slice(0, 12);
+  const renderHolding = useCallback(
+    ({ item: h, index: i }) => (
+      <View style={styles.holdRowFrame}>
+        <HoldingRow h={h} index={i} baited={resolveBaited(h)} onOpen={onOpenPlayer} onToggleShop={toggleShop} />
+      </View>
+    ),
+    // resolveBaited closes over baitOverride; extraData below also keys re-render off it.
+    [baitOverride, onOpenPlayer, toggleShop] // eslint-disable-line react-hooks/exhaustive-deps
+  );
+
   return (
     <View style={styles.container}>
       <View style={styles.topbar}>
@@ -87,10 +116,19 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
         <View style={{ width: 60 }} />
       </View>
 
-      <ScrollView
+      <FlatList
+        data={visibleHoldings}
+        keyExtractor={(h) => h.id}
+        renderItem={renderHolding}
+        extraData={baitOverride}
+        initialNumToRender={12}
+        maxToRenderPerBatch={12}
+        windowSize={11}
+        removeClippedSubviews
         contentContainerStyle={styles.body}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={reload} tintColor={colors.accent} />}
-      >
+        ListHeaderComponent={(
+          <View>
         {/* Hero: total value, movement, and the value-over-time line — the portfolio glance. */}
         <View style={styles.card}>
           <Text style={styles.totalLabel}>Total dynasty value · {d.totals.teams} team{d.totals.teams === 1 ? '' : 's'}</Text>
@@ -235,9 +273,11 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
           </View>
         ) : null}
 
-        {/* Top holdings — your biggest positions across every league (exposure + share). */}
-        {d.holdings && d.holdings.length ? (
-          <View style={styles.card}>
+        {/* Top holdings — your biggest positions across every league (exposure + share). The card
+            box is drawn in three pieces so the rows between can be a virtualized FlatList: this is
+            the TOP (title + lenses + column key); the rows carry the sides; the footer closes it. */}
+        {hasHoldings ? (
+          <View style={styles.holdCardTop}>
             <View style={styles.cardHeadRow}>
               <Text style={styles.cardTitle}>{posFilter ? `Top ${posFilter} holdings` : 'Top holdings'}</Text>
               {posFilter ? (
@@ -291,40 +331,16 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
                 <Text style={styles.holdKeyPct}>vs. biggest</Text>
               </View>
             </View>
-            {(posFilter ? rankedHoldings.filter((h) => h.position === posFilter) : (showAllHoldings ? rankedHoldings : rankedHoldings.slice(0, 12))).map((h, i) => {
-              const baited = resolveBaited(h);
-              return (
-                <Reveal key={h.id} delay={Math.min(i, 10) * 40} animate={i < 12}><View style={styles.holdRow}>
-                  <Pressable
-                    style={({ pressed }) => [styles.holdIdentity, pressed && { opacity: 0.7 }]}
-                    onPress={() => onOpenPlayer && onOpenPlayer(h.id, { id: h.id, name: h.name, position: h.position, team: h.team, value: h.avg })}
-                  >
-                    <View style={[styles.posBadge, { borderColor: positionColors[h.position] || colors.textDim }]}>
-                      <Text style={[styles.pos, { color: positionColors[h.position] || colors.textDim }]}>{h.position}</Text>
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.holdName} numberOfLines={1}>{h.name}</Text>
-                      <Text style={styles.holdSub} numberOfLines={1}>
-                        {h.team ? `${h.team} · ` : ''}{h.leagues === 1 ? '1 league' : `${h.leagues} leagues`}
-                        {h.leagues > 1 ? ` · ${h.avg} avg` : ''}
-                      </Text>
-                    </View>
-                    <View style={styles.holdRight}>
-                      <Text style={styles.holdVal}>{h.value.toLocaleString()}</Text>
-                      <Text style={styles.holdPct}>{h.rel != null ? h.rel : h.pct}%</Text>
-                    </View>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => toggleShop(h)}
-                    hitSlop={6}
-                    style={[styles.shop, baited && styles.shopOn]}
-                    accessibilityLabel={baited ? `Stop shopping ${h.name}` : `Shop ${h.name} in all ${h.leagues} leagues`}
-                  >
-                    <Text style={[styles.shopTxt, baited && styles.shopTxtOn]}>{baited ? '⇄ Shopping' : '⇄ Shop'}</Text>
-                  </Pressable>
-                </View></Reveal>
-              );
-            })}
+          </View>
+        ) : null}
+          </View>
+        )}
+        ListFooterComponent={(
+          <View>
+            {/* Holdings card FOOTER — closes the three-piece card box wrapped around the
+                virtualized rows (top piece is in the header, sides ride on each row). */}
+            {hasHoldings ? (
+              <View style={styles.holdCardBottom}>
             {/* Top 12 by default; expand to the full ranked book (only when unfiltered — a
                 position filter already narrows the list). */}
             {!posFilter && d.holdings.length > 12 ? (
@@ -446,10 +462,52 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
         </View>
 
         <View style={{ height: 30 }} />
-      </ScrollView>
+          </View>
+        )}
+      />
     </View>
   );
 }
+
+// One holding row — memoized so shopping/opening one player doesn't re-render the whole book.
+// `baited` is passed in (not derived here) and toggleShop is stable, so only the row whose bait
+// state changed re-renders. Sides of the holdings card are drawn by the row-frame wrapper in
+// renderHolding; this renders the row content + its bottom hairline.
+const HoldingRow = React.memo(function HoldingRow({ h, index, baited, onOpen, onToggleShop }) {
+  return (
+    <Reveal delay={Math.min(index, 10) * 40} animate={index < 12}>
+      <View style={styles.holdRow}>
+        <Pressable
+          style={({ pressed }) => [styles.holdIdentity, pressed && { opacity: 0.7 }]}
+          onPress={() => onOpen && onOpen(h.id, { id: h.id, name: h.name, position: h.position, team: h.team, value: h.avg })}
+        >
+          <View style={[styles.posBadge, { borderColor: positionColors[h.position] || colors.textDim }]}>
+            <Text style={[styles.pos, { color: positionColors[h.position] || colors.textDim }]}>{h.position}</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.holdName} numberOfLines={1}>{h.name}</Text>
+            <Text style={styles.holdSub} numberOfLines={1}>
+              {h.team ? `${h.team} · ` : ''}{h.leagues === 1 ? '1 league' : `${h.leagues} leagues`}
+              {h.leagues > 1 ? ` · ${h.avg} avg` : ''}
+            </Text>
+          </View>
+          <View style={styles.holdRight}>
+            <Text style={styles.holdVal}>{h.value.toLocaleString()}</Text>
+            <Text style={styles.holdPct}>{h.rel != null ? h.rel : h.pct}%</Text>
+          </View>
+        </Pressable>
+        <Pressable
+          onPress={() => onToggleShop(h)}
+          hitSlop={6}
+          style={[styles.shop, baited && styles.shopOn]}
+          accessibilityLabel={baited ? `Stop shopping ${h.name}` : `Shop ${h.name} in all ${h.leagues} leagues`}
+        >
+          <Text style={[styles.shopTxt, baited && styles.shopTxtOn]}>{baited ? '⇄ Shopping' : '⇄ Shop'}</Text>
+        </Pressable>
+      </View>
+    </Reveal>
+  );
+});
 
 // The movement line under the total: ▲/▼ absolute (+pct%) over the tracked window. Neutral
 // until there are two days to compare.
@@ -492,6 +550,13 @@ const styles = StyleSheet.create({
   title: { color: colors.text, fontSize: 17, fontWeight: '900' },
   body: { padding: 16 },
   card: { backgroundColor: colors.card, borderRadius: 16, borderWidth: 1, borderColor: colors.border, padding: 16, marginBottom: 14 },
+  // The Top-holdings card is drawn in three pieces so the rows between can be a virtualized list:
+  // TOP (rounded top + top/side borders), the row FRAME (side borders + the card's horizontal
+  // padding, carried per row), and BOTTOM (rounded bottom + bottom/side borders). Together they
+  // read as one continuous card around the FlatList rows.
+  holdCardTop: { backgroundColor: colors.card, borderTopLeftRadius: 16, borderTopRightRadius: 16, borderWidth: 1, borderBottomWidth: 0, borderColor: colors.border, paddingHorizontal: 16, paddingTop: 16 },
+  holdRowFrame: { backgroundColor: colors.card, borderLeftWidth: 1, borderRightWidth: 1, borderColor: colors.border, paddingHorizontal: 16 },
+  holdCardBottom: { backgroundColor: colors.card, borderBottomLeftRadius: 16, borderBottomRightRadius: 16, borderWidth: 1, borderTopWidth: 0, borderColor: colors.border, paddingHorizontal: 16, paddingBottom: 16, paddingTop: 4, marginBottom: 14 },
   totalValue: { color: colors.gold, fontSize: 40, fontWeight: '900', letterSpacing: -1, marginTop: 2 },
   totalLabel: { color: colors.textDim, fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
   change: { fontSize: 15, fontWeight: '900', marginTop: 4 },
