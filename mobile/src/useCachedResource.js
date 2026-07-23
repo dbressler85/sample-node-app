@@ -36,7 +36,7 @@ export function primeResource(key, value, at) {
   store.prime(key, value, at);
 }
 
-export default function useCachedResource(key, fetcher, { staleMs = DEFAULT_STALE_MS } = {}) {
+export default function useCachedResource(key, fetcher, { staleMs = DEFAULT_STALE_MS, active = true } = {}) {
   // Seed synchronously from the in-memory snapshot so a remount paints instantly, no null flash (C1).
   const [data, setData] = useState(() => (store.has(key) ? store.peek(key).value : null));
   const [error, setError] = useState(null);
@@ -91,6 +91,21 @@ export default function useCachedResource(key, fetcher, { staleMs = DEFAULT_STAL
     });
     return () => { alive = false; };
   }, [key, revalidate, staleMs]);
+
+  // Under the keep-alive tab model a screen stays MOUNTED when you switch away, so the mount effect
+  // above no longer re-runs when you come back — which is what used to give the post-write refetch
+  // (C3). Re-supply it on the FOCUS edge (active false→true): repaint the latest snapshot and, if a
+  // write marked it stale while we were hidden, revalidate silently. Screens that don't pass `active`
+  // (overlays, non-tab) default to true, so this is a no-op edge that never fires for them.
+  const wasActive = useRef(active);
+  useEffect(() => {
+    if (active && !wasActive.current) {
+      const hit = store.peek(key);
+      if (hit) setData(hit.value);
+      if (store.isStale(key, staleMs)) revalidate(false);
+    }
+    wasActive.current = active;
+  }, [active, key, staleMs, revalidate]);
 
   return {
     data,

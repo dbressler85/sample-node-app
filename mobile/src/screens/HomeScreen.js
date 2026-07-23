@@ -78,7 +78,7 @@ export function resetHomeCache() {
   refreshInFlight = false;
 }
 
-export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpenLeagues, onOpenPortfolio, onOpenWaivers, onOpenTrades, onOpenTradeInbox, onOpenDraft, onOpenDraftHub, onOpenOnDeck, onOpenPlayer, onOpenSettings, onOpenProfile, onLogout }) {
+export default function HomeScreen({ active = true, demoMode, onOpenLineup, onOpenLeague, onOpenLeagues, onOpenPortfolio, onOpenWaivers, onOpenTrades, onOpenTradeInbox, onOpenDraft, onOpenDraftHub, onOpenOnDeck, onOpenPlayer, onOpenSettings, onOpenProfile, onLogout }) {
   const [leagues, setLeagues] = useState(homeCache.leagues || []);
   const [statuses, setStatuses] = useState(homeCache.statuses || {}); // leagueId -> { name, status, items }
   const [drafts, setDrafts] = useState(homeCache.drafts || []); // only ACTIONABLE drafts (on the clock / live / imminent)
@@ -116,6 +116,16 @@ export default function HomeScreen({ demoMode, onOpenLineup, onOpenLeague, onOpe
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Keep-alive tabs: Home stays MOUNTED when you switch away, so the mount effect above no longer
+  // re-runs on return. Re-run the staleness check on the FOCUS edge (active false→true) — a write
+  // in another tab/overlay resets homeCache.at to 0 (onCacheInvalidate), so this gives the same
+  // post-action refresh that a remount used to. A quick switch away and back (still fresh) no-ops.
+  const wasActiveRef = useRef(active);
+  useEffect(() => {
+    if (active && !wasActiveRef.current && Date.now() - homeCache.at > HOME_STALE_MS) refresh();
+    wasActiveRef.current = active;
+  }, [active, refresh]);
 
   // 2) Refresh: fetch the league list, then stream each league's status.
   const refresh = useCallback(async () => {

@@ -36,11 +36,11 @@ const teamCtx = (t) => {
   return [shortOutlook(t.outlook), t.avgAge != null ? `${t.avgAge} yr` : null].filter(Boolean).join(' · ') || null;
 };
 
-export default function TradeInboxScreen({ onBack, onOpenLeague, onProposeInLeague, onOpenBlock, onCounter, onManualCounter, onOpenPlayer }) {
+export default function TradeInboxScreen({ active = true, onBack, onOpenLeague, onProposeInLeague, onOpenBlock, onCounter, onManualCounter, onOpenPlayer }) {
   // Offers via the shared hook: instant paint on remount (survives the tab-switch unmount),
   // throttled reloads, non-destructive on a failed refresh. Same 'trades:overview' key the
   // idle prefetch warms. `reload` refetches after responding to an offer / pull-to-refresh.
-  const { data, error, refreshing, loading, reload } = useCachedResource('trades:overview', () => api.trades());
+  const { data, error, refreshing, loading, reload } = useCachedResource('trades:overview', () => api.trades(), { active });
   const [busy, setBusy] = useState(null); // `${leagueId}:${offerId}` being responded to
   const [baitByLeague, setBaitByLeague] = useState({}); // leagueId -> # players you're shopping
   const [fitByLeague, setFitByLeague] = useState({}); // leagueId -> fit hint (filled in progressively)

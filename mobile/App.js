@@ -72,6 +72,13 @@ export default function App() {
   // Draft opened from a roster returns to that roster, not Home).
   const [overlayStack, setOverlayStack] = useState([]);
   const [waiversTarget, setWaiversTarget] = useState(null); // {leagueId, position}
+  // Keep-alive tabs: each tab is MOUNTED the first time it's visited and kept mounted (hidden)
+  // afterward, so switching tabs preserves scroll + in-progress state (UX_GUARDRAILS C7) — not just
+  // returning from an overlay. Lazy so we never eagerly mount all six (and their fetches) at once.
+  const [visited, setVisited] = useState(() => new Set(['home']));
+  useEffect(() => {
+    setVisited((v) => (v.has(tab) ? v : new Set(v).add(tab)));
+  }, [tab]);
 
   // Login → Home handoff in two beats: the login lockup accelerates up and away, then the
   // app "falls" into place and settles with a spring. `drop` rests at 1 (fully settled), so
@@ -229,14 +236,15 @@ export default function App() {
     setTab('waivers');
   };
 
-  function renderTab() {
-    switch (tab) {
+  function renderTabContent(key, active) {
+    switch (key) {
       case 'scores':
-        return <ScoresScreen onOpenLineup={openLineup} />;
+        return <ScoresScreen active={active} onOpenLineup={openLineup} />;
       case 'waivers':
         return (
           <WaiversScreen
             key={`w-${waiversTarget ? waiversTarget.leagueId : 'all'}`}
+            active={active}
             initialLeagueId={waiversTarget ? waiversTarget.leagueId : null}
             initialPosition={waiversTarget ? waiversTarget.position : null}
             onStartWizard={openWaiverWizard}
@@ -245,10 +253,11 @@ export default function App() {
           />
         );
       case 'players':
-        return <PlayersScreen onOpenPlayer={openPlayer} />;
+        return <PlayersScreen active={active} onOpenPlayer={openPlayer} />;
       case 'trades':
         return (
           <TradeInboxScreen
+            active={active}
             onOpenLeague={openTrades}
             onProposeInLeague={(league) => openTrades(league, 'propose')}
             onOpenBlock={openBlock}
@@ -258,11 +267,12 @@ export default function App() {
           />
         );
       case 'lineups':
-        return <LineupsScreen onOpenLineup={openLineup} onStartWizard={openWizard} />;
+        return <LineupsScreen active={active} onOpenLineup={openLineup} onStartWizard={openWizard} />;
       case 'home':
       default:
         return (
           <HomeScreen
+            active={active}
             demoMode={demoMode}
             onOpenLineup={openLineup}
             onOpenLeague={openRoster}
@@ -401,9 +411,26 @@ export default function App() {
     return (
       <View style={styles.flex}>
         <View style={styles.flex}>
-          <Animated.View style={[styles.flex, { opacity: tabFade, transform: [{ translateX: tabSlide }, { scale: tabScale }] }]}>
-            {renderTab()}
-          </Animated.View>
+          {/* Content region (flex:1 above the bar). Each visited tab is a persistent absolute-fill
+              layer; only the active one is displayed (the rest stay mounted via display:none, so
+              their scroll/state survive a tab switch). The active layer rides the switch animation. */}
+          <View style={styles.flex}>
+            {TABS.filter((t) => visited.has(t.key)).map((t) => {
+              const active = t.key === tab;
+              const content = renderTabContent(t.key, active);
+              return (
+                <View key={t.key} style={[StyleSheet.absoluteFill, !active && styles.hiddenLayer]} pointerEvents={active ? 'auto' : 'none'}>
+                  {active ? (
+                    <Animated.View style={[styles.flex, { opacity: tabFade, transform: [{ translateX: tabSlide }, { scale: tabScale }] }]}>
+                      {content}
+                    </Animated.View>
+                  ) : (
+                    content
+                  )}
+                </View>
+              );
+            })}
+          </View>
           <TabBar tab={tab} onChange={setTab} />
         </View>
         {overlayStack.map((o, i) => (
@@ -501,6 +528,7 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   safe: { flex: 1, backgroundColor: 'transparent', paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0 },
   flex: { flex: 1 },
+  hiddenLayer: { display: 'none' }, // keep-alive: mounted but not laid out / painted
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   tabbar: {
     flexDirection: 'row',

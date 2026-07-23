@@ -32,7 +32,7 @@ const MODES = [
   { key: 'aggressive', label: 'Aggr' },
 ];
 
-export default function LineupsScreen({ onOpenLineup, onStartWizard }) {
+export default function LineupsScreen({ active = true, onOpenLineup, onStartWizard }) {
   const [mode, setMode] = useState('auto');
   const [plan, setPlan] = useState(null); // review sheet
   const [planning, setPlanning] = useState(false);
@@ -40,7 +40,7 @@ export default function LineupsScreen({ onOpenLineup, onStartWizard }) {
 
   // Stale-while-revalidate: paint the last lineups for this mode instantly, refetch
   // in the background. Keyed by mode so switching modes paints that mode's cache.
-  const { data, error, refreshing, loading, reload } = useCachedResource(`lineups:${mode}`, () => api.lineups(mode));
+  const { data, error, refreshing, loading, reload } = useCachedResource(`lineups:${mode}`, () => api.lineups(mode), { active });
 
   // Back closes the review sheet first.
   useAndroidBack(useCallback(() => {

@@ -19,17 +19,19 @@ const STATUS = {
   lost: { label: 'Lost', color: colors.bad },
 };
 
-export default function ScoresScreen({ onOpenLineup }) {
+export default function ScoresScreen({ onOpenLineup, active = true }) {
   // Stale-while-revalidate via the shared hook: paints the last board instantly on remount
   // (survives the tab-switch unmount), throttles redundant reloads, and keeps the board on a
   // failed refresh. `reload` forces a fetch (used by the live poll and pull-to-refresh).
-  const { data, error, refreshing, loading, reload } = useCachedResource('scores:overview', () => api.scoreboard());
+  const { data, error, refreshing, loading, reload } = useCachedResource('scores:overview', () => api.scoreboard(), { active });
 
   // Auto-refresh the board whenever any matchup is still unlocked — so it also starts
   // ticking on its own if the tab was opened before kickoff, not only once a game is
-  // already live. All games final (or none scheduled) → no poll.
+  // already live. All games final (or none scheduled) → no poll. Under the keep-alive tab model
+  // this screen stays mounted when you switch away, so gate the poll on `active` — a hidden
+  // Scores tab must not keep hitting the network in the background.
   const hasUnlocked = !!(data && data.games && data.games.some((g) => !g.locked));
-  usePoll(reload, 45000, hasUnlocked);
+  usePoll(reload, 45000, hasUnlocked && active);
 
   // Celebrate (or commiserate) when matchups go final — a 🏆 for a win, a deadpan
   // 💀 for a loss. First-seen tracking keyed by league+week+result, persisted to

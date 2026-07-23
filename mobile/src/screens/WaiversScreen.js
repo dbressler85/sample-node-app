@@ -29,15 +29,15 @@ const SORTS = [
   { key: 'trend', label: 'Trend' },
 ];
 
-export default function WaiversScreen({ initialLeagueId, initialPosition, onStartWizard, onOpenPlayer, onOpenLineup }) {
+export default function WaiversScreen({ active = true, initialLeagueId, initialPosition, onStartWizard, onOpenPlayer, onOpenLineup }) {
   // Landing overview via the shared hook: instant paint on remount (survives the tab-switch
   // unmount), throttled reloads, and it keeps the list on a failed refresh. `loadOverview`
   // (reload) is also called after a claim to reflect it immediately.
-  const { data: overview, error: overviewError, refreshing: ovRefreshing, reload: loadOverview } = useCachedResource('waivers:overview', () => api.waiversOverview());
+  const { data: overview, error: overviewError, refreshing: ovRefreshing, reload: loadOverview } = useCachedResource('waivers:overview', () => api.waiversOverview(), { active });
   // Pending claims go through the same cached hook so switching to the Pending tab paints the last
   // snapshot INSTANTLY (the screen unmounts on every tab switch, so a bare fetch showed a cold
   // full-screen spinner every single time). It revalidates in the background and after a claim.
-  const { data: pending, reload: loadPending } = useCachedResource('waivers:pending', () => api.waiverPending());
+  const { data: pending, reload: loadPending } = useCachedResource('waivers:pending', () => api.waiverPending(), { active });
   const [wizardLoading, setWizardLoading] = useState(false);
   const [segment, setSegment] = useState('leagues'); // 'leagues' | 'best' | 'pending'
   // A league drill-in: the per-league board. Set from a card tap or a Home
