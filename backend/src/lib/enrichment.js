@@ -173,15 +173,26 @@ async function getMflOwnership(cookie) {
   if (ownershipCache.map.size && Date.now() - ownershipCache.at < TTL_MS) return ownershipCache.map;
   const map = new Map();
   try {
-    const res = await mfl.exportRequest('topOwns', { cookie });
-    const rows = mfl.toArray(res && res.topOwns && res.topOwns.player);
-    for (const r of rows) {
-      const id = r.id != null ? String(r.id) : null;
-      const pct = fieldNum(r, OWN_FIELDS);
-      if (id && pct != null) map.set(id, Math.round(pct * 10) / 10);
+    // topOwns without STATUS returns the most-OWNED (rostered) players; with STATUS=FA it returns
+    // FREE-AGENT ownership. The waiver board shows free agents, which are NOT in the default set —
+    // so fetch both and merge, or every waiver card would show no ownership %. (STATUS=FA isn't
+    // available on deluxe leagues; that call fails soft and we still have the owned set.)
+    const [res, resFa] = await Promise.all([
+      mfl.exportRequest('topOwns', { cookie }),
+      mfl.exportRequest('topOwns', { cookie, STATUS: 'FA' }).catch(() => null),
+    ]);
+    let rowsTotal = 0;
+    for (const src of [res, resFa]) {
+      const rows = mfl.toArray(src && src.topOwns && src.topOwns.player);
+      rowsTotal += rows.length;
+      for (const r of rows) {
+        const id = r.id != null ? String(r.id) : null;
+        const pct = fieldNum(r, OWN_FIELDS);
+        if (id && pct != null && !map.has(id)) map.set(id, Math.round(pct * 10) / 10);
+      }
     }
-    warnIfUnparsed('topOwns', rows, map.size);
-    console.log(`[enrichment] mfl topOwns owned=${map.size}`);
+    warnIfUnparsed('topOwns', mfl.toArray(res && res.topOwns && res.topOwns.player), map.size);
+    console.log(`[enrichment] mfl topOwns owned=${map.size} (of ${rowsTotal} rows, incl. FA)`);
   } catch (e) {
     console.log(`[enrichment] topOwns error=${e.message}`);
     if (ownershipCache.map.size) return ownershipCache.map; // keep last-good
