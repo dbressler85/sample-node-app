@@ -236,22 +236,31 @@ function OfferCard({ offer, busy, onRespond, onOpenLeague, onCounter, onManualCo
         </View>
       </View>
 
-      {/* League format + both teams' dynasty context (outlook + average age). */}
+      {/* League format on its own line, then both teams' dynasty context (outlook + average age)
+          below it — so the format pill never offsets/crowds the "You · …" line. */}
       {(offer.format || offer.me || offer.partner) ? (
-        <View style={styles.ctxRow}>
-          {offer.format ? <Text style={styles.fmtPill}>{offer.format}</Text> : null}
-          {teamCtx(offer.me) ? (
-            <Text style={styles.ctxText} numberOfLines={1}>
-              You · <Text style={{ color: OUTLOOK_COLOR[offer.me.outlook] || colors.textDim, fontWeight: '800' }}>{teamCtx(offer.me)}</Text>
-            </Text>
+        <View style={styles.ctxBlock}>
+          {offer.format ? (
+            <View style={styles.fmtRow}>
+              <Text style={styles.fmtPill}>{offer.format}</Text>
+            </View>
           ) : null}
-          {teamCtx(offer.partner) ? (
-            <Text style={styles.ctxText} numberOfLines={1}>
-              {offer.withName ? `${offer.withName.split(' ')[0]} · ` : 'Them · '}
-              <Text style={{ color: OUTLOOK_COLOR[offer.partner.outlook] || colors.textDim, fontWeight: '800' }}>{teamCtx(offer.partner)}</Text>
-            </Text>
+          {(offer.me || offer.partner) ? (
+            <View style={styles.ctxRow}>
+              {teamCtx(offer.me) ? (
+                <Text style={styles.ctxText} numberOfLines={1}>
+                  You · <Text style={{ color: OUTLOOK_COLOR[offer.me.outlook] || colors.textDim, fontWeight: '800' }}>{teamCtx(offer.me)}</Text>
+                </Text>
+              ) : null}
+              {teamCtx(offer.partner) ? (
+                <Text style={styles.ctxText} numberOfLines={1}>
+                  {offer.withName ? `${offer.withName.split(' ')[0]} · ` : 'Them · '}
+                  <Text style={{ color: OUTLOOK_COLOR[offer.partner.outlook] || colors.textDim, fontWeight: '800' }}>{teamCtx(offer.partner)}</Text>
+                </Text>
+              ) : null}
+              <InfoDot id="outlook" />
+            </View>
           ) : null}
-          {offer.me || offer.partner ? <InfoDot id="outlook" /> : null}
         </View>
       ) : null}
 
@@ -348,8 +357,10 @@ const styles = StyleSheet.create({
   from: { color: colors.textDim, fontSize: 14, fontWeight: '600', flex: 1, marginRight: 10 },
   badge: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3 },
   badgeText: { fontSize: 11, fontWeight: '800' },
-  ctxRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 12 },
-  fmtPill: { color: colors.accent, backgroundColor: colors.accent + '1A', borderWidth: 1, borderColor: colors.accent + '55', borderRadius: 6, fontSize: 11, fontWeight: '800', paddingHorizontal: 7, paddingVertical: 2, overflow: 'hidden' },
+  ctxBlock: { marginBottom: 12, gap: 6 },
+  fmtRow: { flexDirection: 'row' }, // keeps the pill hugging its text instead of stretching full-width
+  ctxRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
+  fmtPill: { alignSelf: 'flex-start', color: colors.accent, backgroundColor: colors.accent + '1A', borderWidth: 1, borderColor: colors.accent + '55', borderRadius: 6, fontSize: 11, fontWeight: '800', paddingHorizontal: 7, paddingVertical: 2, overflow: 'hidden' },
   ctxText: { color: colors.textDim, fontSize: 12, fontWeight: '600' },
   side: { marginBottom: 10 },
   sideLabel: { color: colors.textDim, fontSize: 12, fontWeight: '800', marginBottom: 4 },
