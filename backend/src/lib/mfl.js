@@ -92,6 +92,31 @@ function toArray(value) {
   return Array.isArray(value) ? value : [value];
 }
 
+// Unwrap MFL's {$t:"…"} text wrapper to a plain string. MFL's XML→JSON serialization returns a
+// text node as a bare string ONLY when its element has no attributes; the moment the element also
+// carries an attribute or child, the SAME text comes back wrapped as {"$t":"…"}. A caller that
+// String()s the wrapped form silently gets "[object Object]" — that mismatch (an unwrapped field
+// that turned out wrapped) is exactly what mislabeled a real PPR league "Standard" and hid an "OK"
+// write behind a rejection. text() collapses both forms (and a number) to a plain string, so a
+// scalar read is correct whichever shape MFL sends. It is a no-op for the plain-string fields our
+// live samples already showed, so applying it defensively at a scalar read site can't regress them.
+// (Only for LEAF text/number fields — never call it on a value you mean to treat as an object/array;
+// a wrapped-less object yields '' by design.)
+function text(value) {
+  if (value === undefined || value === null) return '';
+  if (typeof value === 'object') return value.$t != null ? String(value.$t) : '';
+  return String(value);
+}
+
+// Numeric read of an MFL leaf field, $t-tolerant. Returns `fallback` (default null) when the field
+// is absent/blank/non-numeric — so a wrapped "{$t:'12'}" reads 12 instead of NaN.
+function num(value, fallback = null) {
+  const s = text(value).trim();
+  if (s === '') return fallback;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : fallback;
+}
+
 // Read an MFL attribute by any of several candidate names, matching
 // case- AND underscore-insensitively. MFL's attribute naming is inconsistent
 // across (and within) export types — pendingTrades returns `offeredto` lowercase
@@ -424,6 +449,8 @@ module.exports = {
   importRequest,
   invalidateLeague,
   toArray,
+  text,
+  num,
   attr,
   errorDetail,
   hostFromLeagueUrl,

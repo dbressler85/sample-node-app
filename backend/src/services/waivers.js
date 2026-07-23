@@ -711,13 +711,14 @@ async function getBestAvailable(cookie, token) {
 // Best plausible timestamp (ms) on an MFL calendar event, tolerant of format:
 // epoch seconds (number or "1725000000") or an ISO/parseable date string.
 function eventTimeMs(ev) {
-  for (const v of Object.values(ev)) {
-    if (typeof v === 'number' && v > 1e9 && v < 2e10) return v * 1000;
-    if (typeof v === 'string') {
-      if (/^\d{9,10}$/.test(v)) return Number(v) * 1000;
-      const t = Date.parse(v);
-      if (!Number.isNaN(t)) return t;
-    }
+  // Unwrap each field through mfl.text so a $t-wrapped calendar value (epoch or date string) is
+  // still seen — the old `typeof v === 'string'` filter silently skipped the wrapped form.
+  for (const raw of Object.values(ev || {})) {
+    const v = mfl.text(raw).trim();
+    if (!v) continue;
+    if (/^\d{9,10}$/.test(v)) return Number(v) * 1000;
+    const t = Date.parse(v);
+    if (!Number.isNaN(t)) return t;
   }
   return null;
 }
@@ -735,7 +736,8 @@ async function calendarLock(cookie, league) {
     const now = Date.now();
     let latest = null;
     for (const ev of events) {
-      const text = Object.values(ev).filter((v) => typeof v === 'string').join(' ').toLowerCase();
+      // $t-unwrap every field before scanning, else a wrapped title/type wouldn't be seen as text.
+      const text = Object.values(ev || {}).map((v) => mfl.text(v)).join(' ').toLowerCase();
       if (!/free agent|add\s*\/?\s*drop|waiver|transaction/.test(text)) continue;
       const unlocks = /unlock|allow|enable|open/.test(text);
       const locks = !unlocks && /lock|no add|freeze|disable|close/.test(text);
@@ -768,11 +770,11 @@ async function nextWaiverRun(cookie, league) {
     const now = Date.now();
     let soonest = null;
     for (const ev of events) {
-      if (!WAIVER_PROCESS_TYPES.has(String(ev.type || '').toUpperCase())) continue;
-      const startSec = Number(ev.start_time);
+      if (!WAIVER_PROCESS_TYPES.has(mfl.text(ev.type).toUpperCase())) continue;
+      const startSec = mfl.num(ev.start_time);
       if (!Number.isFinite(startSec) || startSec <= 0) continue;
       const start = startSec * 1000;
-      const repeats = Math.max(1, Math.min(52, Number(ev.happens) || 1));
+      const repeats = Math.max(1, Math.min(52, mfl.num(ev.happens) || 1));
       for (let k = 0; k < repeats; k += 1) {
         const t = start + k * WEEK_MS;
         if (t >= now && (soonest == null || t < soonest)) soonest = t;

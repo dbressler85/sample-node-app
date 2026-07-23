@@ -64,12 +64,12 @@ async function pendingTrades(cookie, league) {
       // FP_/DP_ pick tokens → a readable slot ("2027 1st", "2026 1.11").
       return picksLib.labelForToken(t);
     };
-    const toks = (v) => String(v || '').split(/[,;|]/).map(label).filter(Boolean);
+    const toks = (v) => mfl.text(v).split(/[,;|]/).map(label).filter(Boolean);
     return list
-      .filter((tr) => String(mfl.attr(tr, 'offeredto')) === league.franchiseId)
+      .filter((tr) => mfl.text(mfl.attr(tr, 'offeredto')) === league.franchiseId)
       .map((tr, i) => ({
-        id: String(mfl.attr(tr, 'trade_id', 'id') || i),
-        from: names.get(String(mfl.attr(tr, 'offeringteam') || '')) || 'Another team',
+        id: mfl.text(mfl.attr(tr, 'trade_id', 'id')) || String(i),
+        from: names.get(mfl.text(mfl.attr(tr, 'offeringteam'))) || 'Another team',
         gives: toks(mfl.attr(tr, 'willgiveup')),
         gets: toks(mfl.attr(tr, 'willreceive', 'willreceiveinreturn')),
       }));

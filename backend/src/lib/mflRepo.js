@@ -103,7 +103,7 @@ async function transactions(league, cookie, params = {}) {
   return mfl.toArray(res && res.transactions && res.transactions.transaction);
 }
 
-const truthy = (v) => v === '1' || v === 1 || v === true || String(v).toLowerCase() === 'true';
+const truthy = (v) => { const s = mfl.text(v).toLowerCase(); return s === '1' || s === 'true'; };
 
 // Normalize one `playerRosterStatuses.playerStatus` element. Shape (from a live sample):
 //   rostered  -> { id, roster_franchise: { franchise_id, status } }  (status ∈ R/S/NS/IR/TS;
@@ -113,10 +113,10 @@ const truthy = (v) => v === '1' || v === 1 || v === true || String(v).toLowerCas
 function normPlayerStatus(ps) {
   const franchises = mfl.toArray(ps && ps.roster_franchise)
     .filter(Boolean)
-    .map((rf) => ({ franchiseId: String(rf.franchise_id), status: String(rf.status || '') }));
+    .map((rf) => ({ franchiseId: mfl.text(rf.franchise_id), status: mfl.text(rf.status) }));
   return {
-    id: String(ps && ps.id),
-    error: (ps && ps.error) || null,
+    id: mfl.text(ps && ps.id),
+    error: (ps && ps.error != null ? mfl.text(ps.error) : '') || null,
     isFreeAgent: ps && 'is_fa' in ps ? truthy(ps.is_fa) : false,
     cantAdd: truthy(ps && ps.cant_add),
     locked: truthy(ps && ps.locked),
@@ -137,7 +137,7 @@ async function playerRosterStatus(league, cookie, players, params = {}) {
 // CSV of the same underscore tokens the import uses: FAAB = "add_bid_drop", FCFS = "add_drop"
 // ("0000" = no drop). Confirmed against a live sample: addsDrops "14080_0_14849,13133_0_14849".
 function normPendingRequest(req, system) {
-  const picks = String((req && req.addsDrops) || '')
+  const picks = mfl.text(req && req.addsDrops)
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean)
@@ -150,9 +150,9 @@ function normPendingRequest(req, system) {
     });
   return {
     system,
-    round: req && req.round != null && req.round !== '' ? Number(req.round) : null,
-    timestamp: req && req.timestamp ? Number(req.timestamp) : null,
-    comments: (req && req.comments) || '',
+    round: mfl.num(req && req.round),
+    timestamp: mfl.num(req && req.timestamp),
+    comments: mfl.text(req && req.comments),
     picks,
   };
 }
@@ -186,16 +186,13 @@ function parsePickToken(token) {
 // token plus its parsed round/year/owner (the token encodes the ORIGINAL owner; the pick is listed
 // under whoever CURRENTLY holds it — so this is the authoritative "what can each team trade").
 function normFranchiseAssets(fr) {
-  const playerIds = mfl.toArray(fr && fr.players && fr.players.player).map((p) => String(p.id));
-  const faab = fr && fr.blindBiddingDollars && fr.blindBiddingDollars.amount != null && fr.blindBiddingDollars.amount !== ''
-    ? Number(fr.blindBiddingDollars.amount)
-    : null;
-  const picks = mfl.toArray(fr && fr.futureYearDraftPicks && fr.futureYearDraftPicks.draftPick).map((dp) => ({
-    token: String(dp && dp.pick),
-    description: stripHtml(dp && dp.description),
-    ...parsePickToken(dp && dp.pick),
-  }));
-  return { id: String(fr && fr.id), playerIds, faab, picks };
+  const playerIds = mfl.toArray(fr && fr.players && fr.players.player).map((p) => mfl.text(p.id));
+  const faab = fr && fr.blindBiddingDollars ? mfl.num(fr.blindBiddingDollars.amount) : null;
+  const picks = mfl.toArray(fr && fr.futureYearDraftPicks && fr.futureYearDraftPicks.draftPick).map((dp) => {
+    const token = mfl.text(dp && dp.pick);
+    return { token, description: stripHtml(mfl.text(dp && dp.description)), ...parsePickToken(token) };
+  });
+  return { id: mfl.text(fr && fr.id), playerIds, faab, picks };
 }
 
 // `assets` export -> every franchise's tradable assets (players, FAAB $, future/current draft
@@ -210,14 +207,14 @@ async function assets(league, cookie, params = {}) {
 // MFL reports "N/A" (e.g. offseason / undrafted).
 function normPlayerProfile(pp) {
   const p = (pp && pp.player) || {};
-  const adp = p.adp != null && p.adp !== '' && !/^n\/?a$/i.test(String(p.adp)) ? Number(p.adp) : null;
+  const adp = /^n\/?a$/i.test(mfl.text(p.adp).trim()) ? null : mfl.num(p.adp);
   return {
-    id: String((pp && pp.id) || p.id || ''),
-    name: (pp && pp.name) || null,
-    dob: p.dob || null,
-    age: p.age != null && p.age !== '' ? Number(p.age) : null,
-    height: p.height || null,
-    weight: p.weight || null,
+    id: mfl.text(pp && pp.id) || mfl.text(p.id) || '',
+    name: mfl.text(pp && pp.name) || null,
+    dob: mfl.text(p.dob) || null,
+    age: mfl.num(p.age),
+    height: mfl.text(p.height) || null,
+    weight: mfl.text(p.weight) || null,
     adp: Number.isFinite(adp) ? adp : null,
   };
 }

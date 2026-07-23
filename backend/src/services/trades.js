@@ -41,9 +41,9 @@ async function tradeBaitByFranchise(cookie, token, league) {
   } else {
     try {
       for (const b of await mflRepo.tradeBaits(league, cookie)) {
-        const fid = String(b.franchise_id != null ? b.franchise_id : (b.franchiseId || ''));
+        const fid = mfl.text(mfl.attr(b, 'franchise_id')) || '';
         if (!fid) continue;
-        const ids = String(b.willGiveUp || b.will_give_up || '').split(/[,;|]/).map((s) => s.trim()).filter(Boolean);
+        const ids = mfl.text(mfl.attr(b, 'willGiveUp')).split(/[,;|]/).map((s) => s.trim()).filter(Boolean);
         map.set(fid, new Set(ids));
       }
     } catch (e) {
@@ -210,25 +210,25 @@ async function livePendingOffers(cookie, league) {
     const list = await mflRepo.pendingTrades(league, cookie, { FRANCHISE_ID: league.franchiseId });
     if (!list.length) return [];
     const names = await leaguesService.franchiseNames(cookie, league);
-    const toks = (v) => String(v || '').split(/[,;|]/).map((s) => s.trim()).filter(Boolean);
+    const toks = (v) => mfl.text(v).split(/[,;|]/).map((s) => s.trim()).filter(Boolean);
     return list
-      .filter((tr) => String(mfl.attr(tr, 'offeredto')) === league.franchiseId)
+      .filter((tr) => mfl.text(mfl.attr(tr, 'offeredto')) === league.franchiseId)
       .map((tr, i) => {
-        const from = String(mfl.attr(tr, 'offeringteam') || '');
+        const from = mfl.text(mfl.attr(tr, 'offeringteam'));
         // The trade id is what tradeResponse targets — accepting/rejecting the WRONG id (or a
         // made-up one) is the worst failure mode here, so extract it explicitly and never fall
         // back to an array index. If MFL doesn't give one, log the raw keys (so we can see the
         // real field name) and leave id null — the UI keeps the offer visible but read-only.
-        const tradeId = mfl.attr(tr, 'trade_id', 'id', 'tradeid');
-        if (tradeId == null) console.warn(`[trades] pendingTrade with no trade_id (L=${league.leagueId}); attrs: ${Object.keys(tr || {}).join(',')}`);
+        const tradeIdRaw = mfl.attr(tr, 'trade_id', 'id', 'tradeid');
+        if (tradeIdRaw == null) console.warn(`[trades] pendingTrade with no trade_id (L=${league.leagueId}); attrs: ${Object.keys(tr || {}).join(',')}`);
         return {
-          id: tradeId != null ? String(tradeId) : null,
+          id: mfl.text(tradeIdRaw) || null,
           direction: 'incoming',
           status: 'pending',
           withFranchiseId: from,
           withName: names.get(from) || 'Another team',
-          expires: mfl.attr(tr, 'expires') || null,
-          comments: mfl.attr(tr, 'comments', 'message') || null,
+          expires: mfl.text(mfl.attr(tr, 'expires')) || null,
+          comments: mfl.text(mfl.attr(tr, 'comments', 'message')) || null,
           // MFL names these `will_give_up` / `will_receive` (snake_case) here — the
           // receive side previously only checked camelCase, so what you'd give up
           // came back empty ("You give · 0"). attr() matches any casing.
