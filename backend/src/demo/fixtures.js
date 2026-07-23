@@ -559,7 +559,7 @@ const PENDING_CLAIMS = {
 // Recently processed claims, for the activity view.
 const WAIVER_RESULTS = {
   '64097': [
-    { add: 'Flowers, Zay', bid: 8, result: 'won' },
+    { add: 'Flowers, Zay', drop: 'Mooney, Darnell', bid: 8, result: 'won' },
     { add: 'Dowdle, Rico', bid: 4, result: 'lost' },
   ],
 };

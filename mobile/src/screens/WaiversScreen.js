@@ -213,7 +213,7 @@ export default function WaiversScreen({ initialLeagueId, initialPosition, onStar
           ) : segment === 'best' ? (
             <BestView best={best} onClaimAll={setAddPlayer} />
           ) : (
-            <PendingView pending={pending} onCancel={cancelClaim} />
+            <PendingView pending={pending} onCancel={cancelClaim} onOpenPlayer={onOpenPlayer} />
           )}
         </>
       )}
@@ -471,7 +471,17 @@ function BestView({ best, onClaimAll }) {
   );
 }
 
-function PendingView({ pending, onCancel }) {
+// A player name in a result line — tappable through to the profile when we have an id.
+function ResultName({ player, onOpenPlayer }) {
+  if (!player) return <Text style={styles.resultDim}>—</Text>;
+  const short = String(player.name || '').split(',')[0];
+  if (player.id && onOpenPlayer) {
+    return <Text style={styles.resultLink} onPress={() => onOpenPlayer(player.id)}>{short}</Text>;
+  }
+  return <Text>{short}</Text>;
+}
+
+function PendingView({ pending, onCancel, onOpenPlayer }) {
   if (!pending) return <Center><ActivityIndicator color={colors.accent} size="large" /></Center>;
   return (
     <ScrollView contentContainerStyle={styles.list}>
@@ -500,10 +510,20 @@ function PendingView({ pending, onCancel }) {
           <Text style={[styles.resultTag, { color: r.result === 'won' ? colors.good : colors.bad }]}>
             {r.result === 'won' ? 'WON' : 'LOST'}
           </Text>
-          <Text style={styles.resultText} numberOfLines={1}>
-            {r.add}
-            {r.bid != null ? ` · $${r.bid}` : ''} · {r.leagueName}
-          </Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.resultText} numberOfLines={1}>
+              <Text style={styles.resultAddSign}>+ </Text>
+              <ResultName player={{ name: r.add, id: r.addId }} onOpenPlayer={onOpenPlayer} />
+              {r.drop ? (
+                <Text style={styles.resultDim}>
+                  {'  ·  − '}
+                  <ResultName player={{ name: r.drop, id: r.dropId }} onOpenPlayer={onOpenPlayer} />
+                </Text>
+              ) : null}
+              {r.bid != null ? <Text style={styles.resultDim}>{`  ·  $${r.bid}`}</Text> : null}
+            </Text>
+            <Text style={styles.resultLeague} numberOfLines={1}>{r.leagueName}</Text>
+          </View>
         </View>
       ))}
     </ScrollView>
@@ -743,7 +763,11 @@ const styles = StyleSheet.create({
   cancel: { color: colors.bad, fontSize: 13, fontWeight: '700' },
   resultRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   resultTag: { fontSize: 11, fontWeight: '900', width: 46 },
-  resultText: { color: colors.textDim, fontSize: 13, flex: 1 },
+  resultText: { color: colors.text, fontSize: 14, fontWeight: '600' },
+  resultAddSign: { color: colors.good, fontWeight: '900' },
+  resultLink: { color: colors.accent, fontWeight: '800' },
+  resultDim: { color: colors.textDim, fontWeight: '600' },
+  resultLeague: { color: colors.textDim, fontSize: 12, marginTop: 2 },
   empty: { color: colors.textDim, textAlign: 'center', marginTop: 24 },
   emptyWrap: { paddingHorizontal: 20, paddingTop: 50, alignItems: 'center' },
   emptyTitle: { color: colors.text, fontSize: 16, fontWeight: '800', marginBottom: 8 },

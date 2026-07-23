@@ -19,11 +19,11 @@ const PLAYERS = [
 const t = (s) => ({ $t: String(s) }); // MFL wraps element text when the element has attributes
 
 const TXNS = [
-  // Mine, FAAB win with a named bid — newest.
+  // Mine, FAAB win with a named bid + a DROP — newest.
   { type: t('BBID_WAIVER'), franchise: t('0001'), transaction: t('14080,|14849,'), timestamp: t('1725000300'), bbid: t('12') },
   // Another franchise — excluded.
   { type: 'BBID_WAIVER', franchise: '0002', transaction: '13133,|', timestamp: '1725000200' },
-  // Mine, plain WAIVER (priority) with no bid.
+  // Mine, plain WAIVER (priority) with no bid and no drop.
   { type: 'WAIVER', franchise: '0001', transaction: '15000,|', timestamp: '1725000100' },
   // Mine, but a TRADE — not a waiver result.
   { type: 'TRADE', franchise: '0001', transaction: '14080,|13133,|0002', timestamp: '1725000050' },
@@ -54,14 +54,15 @@ const waivers = require('../../src/services/waivers');
   assert(results.every((r) => r.result === 'won'), 'a processed waiver transaction is a WON result');
   assert(results.every((r) => r.leagueName === 'Results League'), 'results carry the league name');
 
-  // Newest first: the FAAB win (ts 300) before the priority win (ts 100).
-  assert(results[0].add === 'Star, Waiver' && results[0].bid === 12, `FAAB win first with named bid, got ${JSON.stringify(results[0])}`);
-  assert(results[1].add === 'Pickup, Late' && results[1].bid == null, 'priority win has no bid');
+  // Newest first: the FAAB win (ts 300) before the priority win (ts 100). Flat name + id fields.
+  assert(results[0].add === 'Star, Waiver' && results[0].addId === '14080' && results[0].bid === 12, `FAAB win first: add name + id + named bid, got ${JSON.stringify(results[0])}`);
+  assert(results[0].drop === 'Cut, Guy' && results[0].dropId === '14849', `the DROPPED player is resolved (name + id), got ${JSON.stringify(results[0])}`);
+  assert(results[1].add === 'Pickup, Late' && results[1].bid == null && results[1].drop == null && results[1].dropId == null, 'priority win: no bid, no drop');
 
   // The rival franchise's add and my TRADE are both excluded.
   assert(!results.some((r) => r.add === 'Rival, Add'), "another franchise's add is excluded");
   assert(summary.results === 2, 'summary counts the results');
-  console.log('✓ live waiver results: my won adds only, $t-parsed, named bid surfaced, trades/others excluded');
+  console.log('✓ live waiver results: won adds + drops (name + id), $t-parsed, named bid, trades/others excluded');
 
   console.log('\nWAIVER RESULTS HARNESS PASSED');
 })().catch((e) => { console.error(e.message); process.exit(1); });

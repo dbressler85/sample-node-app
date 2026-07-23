@@ -329,7 +329,7 @@ async function getBoard(cookie, token, leagueId, { position, sort } = {}) {
       /* keep the local-store view */
     }
   }
-  const results = config.demoMode ? demo.waiverResults(leagueId) : await liveWaiverResults(cookie, league, byId);
+  const results = (config.demoMode ? demo.waiverResults(leagueId) : await liveWaiverResults(cookie, league, byId)).map(normResult);
 
   return {
     leagueId: league.leagueId,
@@ -526,26 +526,53 @@ async function liveWaiverResults(cookie, league, byId, limit = 8) {
   try {
     const txns = await mflRepo.transactions(league, cookie, { TRANS_TYPE: 'BBID_WAIVER,WAIVER', COUNT: 40 });
     const mine = String(league.franchiseId);
+    // Resolve an id to a { id, name } ref, or null when it doesn't resolve to a real player.
+    const ref = (id) => {
+      if (!id) return null;
+      const p = playersLib.resolve(byId, id);
+      if (!config.demoMode && (!p.name || /^Player \d+$/.test(p.name))) return null;
+      return { id: p.id, name: p.name };
+    };
     const out = [];
     for (const t of txns) {
       const type = mfl.text(t.type).toUpperCase();
       if (type !== 'BBID_WAIVER' && type !== 'WAIVER') continue;
       if (mfl.text(t.franchise) !== mine) continue;
-      const addedCsv = mfl.text(t.transaction).split('|')[0];
-      const addId = addedCsv.split(',').map((s) => s.trim()).filter(Boolean)[0];
-      if (!addId) continue;
-      const p = playersLib.resolve(byId, addId);
-      if (!config.demoMode && (!p.name || /^Player \d+$/.test(p.name))) continue; // unresolved id — skip
+      // The transaction payload is "added,|dropped," — the same shape league.js parses.
+      const parts = mfl.text(t.transaction).split('|');
+      const first = (csv) => (csv || '').split(',').map((s) => s.trim()).filter(Boolean)[0];
+      const add = ref(first(parts[0]));
+      if (!add) continue; // no resolvable player added → not a result we can show
+      const drop = ref(first(parts[1])); // the player dropped to make room (null if none / unresolved)
       // Only trust a NAMED bid field (positional payload parsing is unconfirmed) — else null.
       let bid = mfl.num(t.bbid);
       if (bid == null) bid = mfl.num(t.bid);
-      out.push({ add: p.name, bid, result: 'won', at: mfl.num(t.timestamp) });
+      // Flat shape (name + separate id): keeps the field `add` a plain string for older app builds,
+      // while addId/dropId make both names tappable through to the player card in newer builds.
+      out.push({ add: add.name, addId: add.id, drop: drop ? drop.name : null, dropId: drop ? drop.id : null, bid, result: 'won', at: mfl.num(t.timestamp) });
     }
     out.sort((a, b) => (b.at || 0) - (a.at || 0));
     return out.slice(0, limit);
   } catch (e) {
     return [];
   }
+}
+
+// Normalize a result to the flat { add, addId, drop, dropId, bid, result, at } shape the app renders.
+// `add`/`drop` stay plain-name strings (older builds render them directly); addId/dropId drive the
+// tap-through. Handles live rows (already flat with ids) and demo rows (name strings, no ids).
+function normResult(r) {
+  const name = (v) => (v == null ? null : typeof v === 'object' ? v.name : String(v));
+  const idOf = (v, id) => (id != null ? id : v && typeof v === 'object' ? v.id : null);
+  return {
+    add: name(r.add),
+    addId: idOf(r.add, r.addId),
+    drop: name(r.drop),
+    dropId: idOf(r.drop, r.dropId),
+    bid: r.bid != null ? r.bid : null,
+    result: r.result || 'won',
+    at: r.at != null ? r.at : null,
+  };
 }
 
 // Submit ONE claim to MFL with the correct import for the current waiver WINDOW + system.
@@ -1022,7 +1049,7 @@ async function getPending(cookie, token) {
   const perLeague = await Promise.all(
     leagues.map(async (league) => {
       const rs = config.demoMode ? demo.waiverResults(league.leagueId) : await liveWaiverResults(cookie, league, byId);
-      return rs.map((r) => ({ ...r, leagueId: league.leagueId, leagueName: league.name }));
+      return rs.map(normResult).map((r) => ({ ...r, leagueId: league.leagueId, leagueName: league.name }));
     })
   );
   const results = perLeague.flat();
