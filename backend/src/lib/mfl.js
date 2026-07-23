@@ -217,9 +217,12 @@ async function rawRequest({ host, command, params, cookie, method = 'GET', body 
     throw err;
   }
 
-  // MFL reports API-level problems inside a 200 body, e.g. {"error":"Invalid Password"}.
+  // MFL reports API-level problems inside a 200 body. The error is sometimes a plain string
+  // ({"error":"Invalid Password"}) and sometimes an object ({"error":{"$t":"..."}}) — unwrap the
+  // object form so the message is readable (not "[object Object]") in logs and to callers.
   if (json && json.error) {
-    const err = new Error(`MFL API error: ${json.error}`);
+    const detail = json.error && typeof json.error === 'object' ? (json.error.$t || JSON.stringify(json.error)) : json.error;
+    const err = new Error(`MFL API error: ${detail}`);
     err.mflError = json.error;
     throw err;
   }

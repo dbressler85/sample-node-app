@@ -91,6 +91,15 @@ function buildDemoMap() {
   return byId;
 }
 
+// True when an MFL error means "the player DB hasn't changed since your SINCE timestamp" —
+// which for a delta refresh is success, not failure. The error is `{"error":{"$t":"No Player
+// Database Changes Since ..."}}` (mflError is the object) or occasionally a plain string.
+function isNoChangesSince(e) {
+  const raw = e && e.mflError;
+  const msg = raw && typeof raw === 'object' ? String(raw.$t || '') : String(raw || (e && e.message) || '');
+  return /no player database changes/i.test(msg);
+}
+
 function commit(byId) {
   cache = { at: Date.now(), byId };
   toDisk(cache.at, byId); // no-op in demo/test; persists in production
@@ -118,8 +127,19 @@ async function refresh(cookie) {
   const base = baseSnapshot();
   if (base && base.byId.size) {
     const since = Math.floor(base.at / 1000);
-    const res = await mfl.exportRequest('players', { cookie, DETAILS: 1, SINCE: since });
-    const changed = mfl.toArray(res && res.players && res.players.player);
+    let changed;
+    try {
+      const res = await mfl.exportRequest('players', { cookie, DETAILS: 1, SINCE: since });
+      changed = mfl.toArray(res && res.players && res.players.player);
+    } catch (e) {
+      // MFL returns an ERROR (not an empty list) when nothing changed since SINCE, e.g.
+      // {"error":{"$t":"No Player Database Changes Since ..."}}. For a delta that's the happy
+      // path — the base map is already current — so keep it (with a fresh timestamp). This must
+      // be handled or the daily refresh throws and, unhandled, crashes the process. Anything else
+      // rethrows.
+      if (isNoChangesSince(e)) return commit(new Map(base.byId));
+      throw e;
+    }
     const merged = new Map(base.byId);
     for (const p of changed) merged.set(String(p.id), mapLivePlayer(p));
     return commit(merged);

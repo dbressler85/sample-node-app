@@ -56,5 +56,20 @@ mfl.exportRequest = async (type, opts = {}) => {
   assert(second.get('99') && second.get('99').position === 'QB', 'brand-new player 99 added from the delta');
   console.log('✓ refresh: SINCE delta merged onto the base (update + add, no re-download)');
 
+  // A SINCE refresh with NO changes: MFL returns an ERROR, not an empty list. rawRequest throws
+  // that; players.js must treat it as "already current" (keep the base) rather than let it crash.
+  players._ageCacheForTest(baseAtMs); // stale again → next load refreshes
+  mfl.exportRequest = async (type, opts = {}) => {
+    if (type !== 'players') return {};
+    calls.push(opts);
+    // Exactly MFL's live shape for a no-change SINCE (as seen in the Render crash logs).
+    const err = new Error('MFL API error: No Player Database Changes Since Tue Jul 21 4:18:58 p.m. ET 2026');
+    err.mflError = { $t: 'No Player Database Changes Since Tue Jul 21 4:18:58 p.m. ET 2026' };
+    throw err;
+  };
+  const third = await players.load('ck'); // must NOT throw
+  assert(third.size === 4 && third.get('30').team === 'ZZZ', 'no-change SINCE keeps the current map intact');
+  console.log('✓ refresh: "No Player Database Changes" SINCE error → keep base map, no throw/crash');
+
   console.log('\nPLAYERS SINCE HARNESS PASSED');
 })().catch((e) => { console.error(e.message); process.exit(1); });

@@ -13,6 +13,18 @@ if (config.demoMode && process.env.NODE_ENV === 'production') {
   process.exit(1);
 }
 
+// Resilience net: on Node ≥15 an unhandled promise rejection (e.g. a detached MFL read that
+// rejects) crashes the process with exit 1 — which is exactly how a single bad code path took the
+// whole API down. Log it with a full stack and KEEP SERVING; request handlers still catch their
+// own errors, this only stops one stray rejection from being a full outage. Same for a truly
+// uncaught exception — log it rather than crash-loop (an operator can spot it in the logs).
+process.on('unhandledRejection', (reason) => {
+  console.error('[unhandledRejection]', (reason && reason.stack) || reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('[uncaughtException]', (err && err.stack) || err);
+});
+
 const server = app.listen(config.port, () => {
   const mode = config.demoMode ? 'DEMO (fixture data)' : 'LIVE (MyFantasyLeague)';
   if (config.demoMode) console.warn('⚠️  DEMO MODE: any username/password is accepted and returns fixture data. Do not expose publicly.');
