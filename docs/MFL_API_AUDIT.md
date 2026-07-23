@@ -83,9 +83,11 @@ separate tab and still needed — the 🔴 write rows in §2 stay open until we 
   **`nflByeWeeks`** endpoint exists (we derive byes by scanning the player pool vs the week's matchups).
 - **`assets`** — "all tradable assets (players, current + future picks)" in one read; could simplify trade
   construction (today we compose from `rosters` + `futureDraftPicks`). Touches trade logic → careful.
-- **`playerRosterStatus?P=`** — authoritative per-player status (`R/S/NS/IR/TS`, `is_fa`, `cant_add`,
-  `locked`) for add/drop eligibility, instead of inferring availability. Relevant to the player-centric
-  add/drop path.
+- ✅ **`playerRosterStatus?P=`** — reader + normalizer shipped (`mflRepo.playerRosterStatus` +
+  `addEligibility`), confirmed against a live sample (`playerRosterStatuses.playerStatus[]`;
+  `roster_franchise` object-or-array, `is_fa`/`cant_add`/`locked`, per-player `error`). Ready to power
+  authoritative add eligibility on the immediate-add path (**#71**) — deliberately NOT gating FAAB/priority
+  claims (a claim is a bid, not a direct add).
 - **`pendingWaivers`** — dedicated pending-waiver read (vs inferring from `transactions`).
 - **`leagueStandings?COLUMN_NAMES=1`** — returns the column key→name mapping (and canonical order), so we
   wouldn't guess `h2hw`/`pf`/`pa` field names.

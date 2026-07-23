@@ -103,6 +103,49 @@ async function transactions(league, cookie, params = {}) {
   return mfl.toArray(res && res.transactions && res.transactions.transaction);
 }
 
+const truthy = (v) => v === '1' || v === 1 || v === true || String(v).toLowerCase() === 'true';
+
+// Normalize one `playerRosterStatuses.playerStatus` element. Shape (from a live sample):
+//   rostered  -> { id, roster_franchise: { franchise_id, status } }  (status ∈ R/S/NS/IR/TS;
+//                 roster_franchise can be an ARRAY in multi-copy leagues)
+//   free agent-> { id, is_fa, cant_add?, locked? }
+//   bad id    -> { id, error: "..." }
+function normPlayerStatus(ps) {
+  const franchises = mfl.toArray(ps && ps.roster_franchise)
+    .filter(Boolean)
+    .map((rf) => ({ franchiseId: String(rf.franchise_id), status: String(rf.status || '') }));
+  return {
+    id: String(ps && ps.id),
+    error: (ps && ps.error) || null,
+    isFreeAgent: ps && 'is_fa' in ps ? truthy(ps.is_fa) : false,
+    cantAdd: truthy(ps && ps.cant_add),
+    locked: truthy(ps && ps.locked),
+    franchises, // [] when a free agent or errored
+  };
+}
+
+// `playerRosterStatus` export -> authoritative per-player status in ONE league: who rosters the
+// player (and in what slot), or whether he's a free agent that can/can't be added (locked, etc.).
+// `players` is a single id or an array/CSV of ids. Returns a normalized array (see normPlayerStatus).
+async function playerRosterStatus(league, cookie, players, params = {}) {
+  const P = Array.isArray(players) ? players.join(',') : String(players);
+  const res = await read('playerRosterStatus', league, cookie, { P, ...params });
+  return mfl.toArray(res && res.playerRosterStatuses && res.playerRosterStatuses.playerStatus).map(normPlayerStatus);
+}
+
+// Interpret a normalized status into add eligibility for THIS league. addable=false carries a
+// human reason. (Note: intended for the immediate free-agency path — during a waiver period a
+// claim is a bid, not a direct add, so this is not a gate for FAAB/priority claims.)
+function addEligibility(status) {
+  if (!status) return { addable: false, reason: 'No roster status returned.' };
+  if (status.error) return { addable: false, reason: status.error };
+  if (status.franchises.length) return { addable: false, reason: `Already rostered (franchise ${status.franchises[0].franchiseId}).` };
+  if (status.cantAdd) return { addable: false, reason: 'MyFantasyLeague won’t allow adding this player right now.' };
+  if (status.locked) return { addable: false, reason: 'This player is locked (his game has started).' };
+  if (status.isFreeAgent) return { addable: true, reason: null };
+  return { addable: false, reason: 'Not an available free agent.' };
+}
+
 module.exports = {
   read,
   rosters,
@@ -118,4 +161,6 @@ module.exports = {
   calendar,
   tradeBaits,
   transactions,
+  playerRosterStatus,
+  addEligibility,
 };
