@@ -558,7 +558,7 @@ async function submitMulti(cookie, token, leagueId, claims) {
       });
       results.push({ add: c.add, ok: true, claim });
     } catch (e) {
-      results.push({ add: c.add, ok: false, error: e.message });
+      results.push({ add: c.add, ok: false, error: mfl.errorDetail(e) });
     }
   }
   if (pv.immediate) invalidate(cookie, leagueId);

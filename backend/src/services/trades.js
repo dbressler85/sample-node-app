@@ -820,7 +820,7 @@ async function crossLeaguePropose(cookie, token, targetId, selections) {
         const res = await propose(cookie, token, s.leagueId, { toFranchiseId: s.partnerFranchiseId, give: s.giveIds, receive: [tid] });
         return { leagueId: s.leagueId, ok: true, offer: res.offer };
       } catch (e) {
-        return { leagueId: s.leagueId, ok: false, error: e.message };
+        return { leagueId: s.leagueId, ok: false, error: mfl.errorDetail(e) };
       }
     })
   );

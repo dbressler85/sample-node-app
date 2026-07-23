@@ -312,6 +312,20 @@ function importRequest(type, { host = config.apiHost, cookie = null, ...params }
   return rawRequest({ host, command: 'import', params: { TYPE: type }, cookie, method: 'POST', body: form.toString() });
 }
 
+// The most useful human detail from an MFL request error: MFL's own error message, else its
+// (HTML/XML-stripped) response body, else the generic message. Keeps a bare "(500)" from being
+// all the user or the logs see. (Hard-won rule: always surface MFL's error detail, never just
+// the status code.)
+function errorDetail(e) {
+  if (!e) return 'Unknown error.';
+  if (e.mflError) return String(e.mflError);
+  if (e.body) {
+    const cleaned = String(e.body).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    if (cleaned) return cleaned.slice(0, 300);
+  }
+  return e.message || 'Unknown error.';
+}
+
 // Pull the MFL_USER_ID token out of a Set-Cookie header or a JSON/XML body.
 // Handles: "MFL_USER_ID=abc; ...", '"MFL_USER_ID":"abc"', 'MFL_USER_ID="abc"'.
 function extractMflUserId(str) {
@@ -383,6 +397,7 @@ module.exports = {
   invalidateLeague,
   toArray,
   attr,
+  errorDetail,
   hostFromLeagueUrl,
   // Test-only window into the adaptive throttle (see throttle-test / throttle-backoff-test).
   __throttle: { inPenalty, effConcurrent, effInterval },

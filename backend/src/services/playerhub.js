@@ -497,7 +497,7 @@ async function submitAdd(cookie, token, playerId, selections) {
         const res = await waiversService.submit(cookie, token, s.leagueId, { addId: playerId, dropId: s.dropId, bid: s.bid });
         return { leagueId: s.leagueId, ok: true, claim: res.submitted };
       } catch (e) {
-        return { leagueId: s.leagueId, ok: false, error: e.message };
+        return { leagueId: s.leagueId, ok: false, error: mfl.errorDetail(e) };
       }
     })
   );
@@ -526,7 +526,7 @@ async function submitDrop(cookie, token, playerId, leagueIds) {
         dropStore.set(token, leagueId, playerId);
         return { leagueId, ok: true };
       } catch (e) {
-        return { leagueId, ok: false, error: e.message };
+        return { leagueId, ok: false, error: mfl.errorDetail(e) };
       }
     })
   );
