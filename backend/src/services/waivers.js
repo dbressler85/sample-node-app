@@ -334,7 +334,13 @@ async function loadClaimCtx(cookie, leagueId) {
   // you can't submit a claim for a player who's on another roster.
   const available = new Set(faIds);
   const rosterIds = new Set([...roster.starters, ...roster.bench, ...roster.ir, ...roster.taxi].map((p) => p.id));
-  return { league, settings, byId, roster, enr, available, rosterIds };
+  // Are transactions LOCKED (a waiver claim window) or OPEN (immediate free agency)? Live signal
+  // is the league calendar; demo mirrors the old system-based flag so fixtures are unchanged. This
+  // decides whether a submit is an immediate fcfsWaiver add or a queued blind-bid/priority claim.
+  const locked = config.demoMode
+    ? settings.system !== 'free'
+    : !!(await calendarLock(cookie, league).catch(() => null));
+  return { league, settings, byId, roster, enr, available, rosterIds, locked };
 }
 
 // Validate ONE claim {addId, dropId?, bid?, priority?} against the shared context. Returns
@@ -395,7 +401,8 @@ async function preview(cookie, token, leagueId, payload) {
     leagueId: ctx.league.leagueId,
     name: ctx.league.name,
     system: ctx.settings.system,
-    immediate: ctx.settings.system === 'free',
+    immediate: !ctx.locked, // open window → executes now; locked → queued claim
+    locked: ctx.locked,
     clearTime: ctx.settings.clearTime || null,
     ...c,
   };
@@ -441,41 +448,61 @@ async function previewMulti(cookie, token, leagueId, claims) {
     leagueId: ctx.league.leagueId,
     name: ctx.league.name,
     system: ctx.settings.system,
-    immediate: ctx.settings.system === 'free',
+    immediate: !ctx.locked,
+    locked: ctx.locked,
     clearTime: ctx.settings.clearTime || null,
     claims: previews,
     summary: { count: previews.length, adds: addIds.length, drops: uniqueDrops, rosterAfter, rosterSize, totalBid, budgetRemaining, budgetAfter, valid, errors },
   };
 }
 
-// Submit ONE claim to MFL with the correct import per the league's pickup system.
+// The current waiver ROUND for a locked league, read from any pending request (pendingWaivers
+// carries it). Null when nothing is pending yet or the read fails. Read-only, best-effort.
+async function currentWaiverRound(cookie, league) {
+  try {
+    const pending = await mflRepo.pendingWaivers(league, cookie);
+    const withRound = pending.find((p) => p.round != null);
+    return withRound ? withRound.round : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+// Submit ONE claim to MFL with the correct import for the current waiver WINDOW + system.
 // (See docs/MFL_API_AUDIT.md §2 — the Import reference.)
-//   faab  -> blindBidWaiverRequest, PICKS="add_bid_drop" ($ bid; 0000 = no drop). ROUND is
-//            only required for *conditional* blind bidding, so it's omitted for standard
-//            bidding (MFL files it in the current round). One pick per call appends to the
-//            round (REPLACE unset), so a queue builds up in submission/priority order.
-//   free  -> fcfsWaiver, ADD + optional DROP, executed immediately (open free agency).
-//   fcfs  -> waiverRequest needs a ROUND we can't source reliably yet; rather than misfile a
-//            claim into the wrong round, surface an honest 501 (FAAB + free work in-app).
+//   OPEN window (not locked) -> fcfsWaiver, ADD + optional DROP, executed immediately. This is
+//     free agency; the league's faab/fcfs system is irrelevant until a claim window opens.
+//   LOCKED + faab -> blindBidWaiverRequest, PICKS="add_bid_drop" ($ bid; 0000 = no drop). ROUND is
+//     sent when known (required for conditional bidding; matching the active round is always safe),
+//     else omitted (standard bidding uses the current round). One pick/call appends to the round.
+//   LOCKED + fcfs -> waiverRequest, ROUND + PICKS="add_drop". Needs the round; without it we
+//     surface an honest 501 rather than misfile the claim.
 // No-op in demo (callers already guard, but this is double-safe).
-async function submitClaimToMfl({ cookie, league, system, addId, dropId, bid }) {
+async function submitClaimToMfl({ cookie, league, system, addId, dropId, bid, locked, round }) {
   if (config.demoMode) return;
   const add = String(addId);
   const drop = dropId ? String(dropId) : null;
   const base = { host: league.host, cookie, L: league.leagueId };
-  if (system === 'faab') {
-    await mfl.importRequest('blindBidWaiverRequest', {
-      ...base,
-      PICKS: `${add}_${Math.round(Number(bid) || 0)}_${drop || '0000'}`,
-    });
-    return;
-  }
-  if (system === 'free') {
+
+  if (!locked) {
+    // Open free agency → immediate add/drop, whatever the league's waiver system is.
     await mfl.importRequest('fcfsWaiver', { ...base, ADD: add, DROP: drop || undefined });
     return;
   }
+
+  if (system === 'faab') {
+    const params = { ...base, PICKS: `${add}_${Math.round(Number(bid) || 0)}_${drop || '0000'}` };
+    if (round != null) params.ROUND = round;
+    await mfl.importRequest('blindBidWaiverRequest', params);
+    return;
+  }
+
+  if (round != null) {
+    await mfl.importRequest('waiverRequest', { ...base, ROUND: round, PICKS: `${add}_${drop || '0000'}` });
+    return;
+  }
   const err = new Error(
-    'This league uses first-come waiver priority, which the app can’t submit yet — place this claim in MyFantasyLeague. FAAB and free-agent pickups work here.'
+    'This league’s waivers are locked and the app can’t determine the current waiver round — place this claim in MyFantasyLeague. (Add/drops work here once waivers are open.)'
   );
   err.status = 501;
   throw err;
@@ -493,11 +520,13 @@ async function submitMulti(cookie, token, leagueId, claims) {
     throw err;
   }
   const league = await findLeague(cookie, leagueId);
+  // Source the active round once for the queue (only needed for locked claims).
+  const round = !config.demoMode && pv.locked ? await currentWaiverRound(cookie, league) : null;
   const results = [];
   for (const c of pv.claims) {
     try {
       if (!config.demoMode) {
-        await submitClaimToMfl({ cookie, league, system: pv.system, addId: c.add.id, dropId: c.drop ? c.drop.id : null, bid: c.bid });
+        await submitClaimToMfl({ cookie, league, system: pv.system, addId: c.add.id, dropId: c.drop ? c.drop.id : null, bid: c.bid, locked: pv.locked, round });
       }
       const claim = store.add(token, leagueId, config.demoMode ? demo.pendingClaims(leagueId) : [], {
         system: pv.system,
@@ -532,7 +561,8 @@ async function submit(cookie, token, leagueId, payload) {
   const league = await findLeague(cookie, leagueId);
 
   if (!config.demoMode) {
-    await submitClaimToMfl({ cookie, league, system: p.system, addId: p.add.id, dropId: p.drop ? p.drop.id : null, bid: p.bid });
+    const round = p.locked ? await currentWaiverRound(cookie, league) : null;
+    await submitClaimToMfl({ cookie, league, system: p.system, addId: p.add.id, dropId: p.drop ? p.drop.id : null, bid: p.bid, locked: p.locked, round });
   }
 
   const claim = store.add(token, leagueId, config.demoMode ? demo.pendingClaims(leagueId) : [], {

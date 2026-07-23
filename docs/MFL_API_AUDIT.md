@@ -168,7 +168,8 @@ Audited against the **Import request reference**. Verdicts:
 | immediate add/drop → `fcfsWaiver` (`waivers.js`) | `ADD`,`DROP` | ✅ **Correct** for the immediate/continuous case (`ADD` single, `DROP` csv). |
 | drop a player (`playerhub.js`) | **`fcfsWaiver`** `DROP` *(FIXED)* | ✅ **FIXED** — was TYPE `drop` (doesn't exist). Now `fcfsWaiver` with only `DROP` (immediate drop to FA). |
 | FAAB claim (`waivers.js`) | **`blindBidWaiverRequest`** `PICKS="add_bid_drop"` *(FIXED)* | ✅ **FIXED** — was `blindBidWaiver` (bogus TYPE) with ADD/DROP/BID. Now `blindBidWaiverRequest`, `PICKS=<add>_<bid>_<drop|0000>`; `ROUND` omitted (only needed for *conditional* blind bidding). |
-| priority claim (`waivers.js`) | **honest 501** *(guarded)* | ⚠️ `waiverRequest` needs a `ROUND` we can't source reliably yet, so we surface a 501 instead of misfiling. Open item: read the current waiver round, then submit `ROUND` + `PICKS="add_drop"`. |
+| priority claim (`waivers.js`) | **`waiverRequest`** `ROUND`+`PICKS="add_drop"` *(FIXED, #71)* | ✅ **FIXED** — `ROUND` sourced from `pendingWaivers`. If the round can't be determined (locked FCFS with nothing pending yet) we still surface an honest 501 rather than misfile. |
+| open free agency (any system) | **`fcfsWaiver`** immediate *(NEW, #71)* | ✅ When the calendar shows the window is OPEN, an add routes to an immediate `fcfsWaiver` add/drop regardless of faab/fcfs — fixes claims outside a waiver period (incl. the offseason). |
 | make a pick → `draftPick` (`draft.js`) | **honest 501** *(guarded)* | ✅ **Handled** — no documented live make-a-pick import exists, so live drafting fails fast with a 501 pointing to MFL's draft room (mobile hide staged, task #70). |
 
 **`FRANCHISE` vs `FRANCHISE_ID` (applies to most writes above).** The doc's commissioner-impersonation
