@@ -54,21 +54,42 @@ function numQbs(reqs) {
 }
 
 // --- live scoring-rule parsing (PPR detection) ------------------------------
-// MFL's `rules` export returns per-position scoring rules whose points are given
-// as formulas over stat event codes. A reception is the event `CC`, so a PPR
-// rule reads like "1*CC" (full), ".5*CC" (half) or is absent (standard). We read
-// the per-reception coefficient for the skill positions — that, with superflex,
-// is what changes FantasyCalc dynasty value. League rules change rarely, so we
-// cache per league (MFL's own guidance is to cache rules/scoring).
+// MFL's `rules` export returns per-position scoring rules. Each rule is a triple:
+// an `event` stat code, a `range`, and a `points` multiplier — and MFL JSON wraps
+// every value in {$t:"…"}. A reception is the event `CC`, and its points read like
+// "*1" (full PPR), "*.5" (half) or the rule is absent (standard). So the real shape
+// (verified against a live league) is e.g.:
+//   {"event":{"$t":"CC"},"range":{"$t":"0-99"},"points":{"$t":"*1"}}
+// NOT the combined "1*CC" string an earlier version assumed. We read the per-reception
+// coefficient for the skill positions — that, with superflex, is what changes FantasyCalc
+// dynasty value. League rules change rarely, so we cache per league (MFL's own guidance
+// is to cache rules/scoring).
 const RECEPTION_EVENT = 'CC'; // MFL abbreviation for a reception
 const rulesCache = new Map(); // leagueId -> { at, data }
 const RULES_TTL_MS = 6 * 60 * 60 * 1000;
 
-// Per-reception points from one rule's points formula ("<coef>*CC" / "CC*<coef>").
+// Unwrap MFL's {$t:"…"} JSON text wrapper to a plain string (tolerant of a bare string too).
+function txt(v) {
+  if (v == null) return '';
+  if (typeof v === 'object') return v.$t != null ? String(v.$t) : '';
+  return String(v);
+}
+
+// Per-reception points for one rule. MFL keeps the event code in `event` and the scoring as a
+// multiplier in `points` (e.g. "*1", "*.5"), so a reception rule is event==="CC" and its points
+// magnitude IS the PPR coefficient. Tolerates the older combined "coef*CC"/"CC*coef" string form
+// too, so a differently-packed league still parses.
 function receptionPoints(rule) {
-  const formula = String((rule && (rule.points != null ? rule.points : rule)) || '');
-  let m = formula.match(new RegExp(`(\\d*\\.?\\d+)\\s*\\*\\s*${RECEPTION_EVENT}\\b`));
-  if (!m) m = formula.match(new RegExp(`\\b${RECEPTION_EVENT}\\s*\\*\\s*(\\d*\\.?\\d+)`));
+  if (!rule) return 0;
+  const event = txt(rule.event).trim().toUpperCase();
+  const points = txt(rule.points).trim();
+  if (event === RECEPTION_EVENT) {
+    const m = points.match(/-?\d*\.?\d+/); // "*1" -> 1, "*.5" -> .5, "3" -> 3
+    return m ? Number(m[0]) || 0 : 0;
+  }
+  // Fallback: a combined formula packed into points ("1*CC" / "CC*.5").
+  let m = points.match(new RegExp(`(\\d*\\.?\\d+)\\s*\\*\\s*${RECEPTION_EVENT}\\b`));
+  if (!m) m = points.match(new RegExp(`\\b${RECEPTION_EVENT}\\s*\\*\\s*(\\d*\\.?\\d+)`));
   return m ? Number(m[1]) || 0 : 0;
 }
 
@@ -85,7 +106,7 @@ async function scoringRules(cookie, league) {
     const groups = mfl.toArray(res && res.rules && res.rules.positionRules);
     const pprByPos = {}; // position -> per-reception points (max across that group's rules)
     for (const g of groups) {
-      const positions = String(g.positions || '').split('|').map((s) => s.trim()).filter(Boolean);
+      const positions = txt(g.positions).split('|').map((s) => s.trim()).filter(Boolean);
       let recPts = 0;
       for (const r of mfl.toArray(g.rule)) recPts = Math.max(recPts, receptionPoints(r));
       for (const pos of positions) pprByPos[pos] = Math.max(pprByPos[pos] || 0, recPts);
