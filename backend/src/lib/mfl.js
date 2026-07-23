@@ -312,14 +312,32 @@ function invalidateLeague(cookie, leagueId) {
 // generic 500 ("Internal Server Error") — which is why every non-DATA write failed live. So: all
 // params go in the query; a DATA payload (bulk XML imports) is form-encoded in the body. POST is
 // what MFL recommends for imports.
-function importRequest(type, { host = config.apiHost, cookie = null, ...params } = {}) {
+async function importRequest(type, { host = config.apiHost, cookie = null, ...params } = {}) {
   const { DATA, ...rest } = params;
   const query = { TYPE: type };
   for (const [k, v] of Object.entries(rest)) {
     if (v !== undefined && v !== null) query[k] = v; // buildUrl serializes these into the query
   }
   const body = DATA != null ? new URLSearchParams({ DATA: String(DATA) }).toString() : undefined;
-  return rawRequest({ host, command: 'import', params: query, cookie, method: 'POST', body });
+  try {
+    return await rawRequest({ host, command: 'import', params: query, cookie, method: 'POST', body });
+  } catch (e) {
+    // MFL's import/transaction endpoints report their RESULT in the same field whether it
+    // succeeded or failed: a *successful* write comes back as the literal message "OK" (e.g.
+    // {"error":"OK"} with JSON=1, or <status>OK</status> when the endpoint ignores JSON=1).
+    // rawRequest can't tell that apart from a real failure — any `error` field (or non-JSON body)
+    // throws — so a successful waiver claim was surfacing to the user as "rejected the claim: OK".
+    // Recognize the success marker and return it as a normal result; anything else is a real error.
+    if (isImportOk(e)) return { status: 'OK' };
+    throw e;
+  }
+}
+
+// True when an MFL import error actually carries the success marker "OK" (tolerant of the
+// {"error":"OK"} form, the <status>OK</status> form, and trailing punctuation/whitespace).
+function isImportOk(e) {
+  const detail = errorDetail(e);
+  return /^ok\b[\s.!]*$/i.test(String(detail).trim());
 }
 
 // The most useful human detail from an MFL request error: MFL's own error message, else its
