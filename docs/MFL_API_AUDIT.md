@@ -88,7 +88,12 @@ separate tab and still needed — the 🔴 write rows in §2 stay open until we 
   `roster_franchise` object-or-array, `is_fa`/`cant_add`/`locked`, per-player `error`). Ready to power
   authoritative add eligibility on the immediate-add path (**#71**) — deliberately NOT gating FAAB/priority
   claims (a claim is a bid, not a direct add).
-- **`pendingWaivers`** — dedicated pending-waiver read (vs inferring from `transactions`).
+- ✅ **`pendingWaivers`** — reader shipped (`mflRepo.pendingWaivers`), confirmed against a live sample
+  (`pendingWaivers.blindBidWaiverRequest` with `round`/`timestamp`/`comments`/`addsDrops`). Two payoffs:
+  (a) it **validates the FAAB write fix** — the stored `addsDrops="14080_0_14849,…"` is exactly the
+  `add_bid_drop` PICKS format we now send; (b) it carries the waiver **`round`**, the value we needed to
+  unblock FCFS submission and conditional-FAAB (**#71**). Truthful pending view (vs the local store) is a
+  follow-up (needs mobile).
 - **`leagueStandings?COLUMN_NAMES=1`** — returns the column key→name mapping (and canonical order), so we
   wouldn't guess `h2hw`/`pf`/`pa` field names.
 - **`adp`** dynasty tuning — `IS_KEEPER` (`K`/`R`/`N` combos), `FCOUNT`, `IS_PPR`, `CUTOFF`. Our value

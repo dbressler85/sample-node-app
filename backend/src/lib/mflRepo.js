@@ -133,6 +133,42 @@ async function playerRosterStatus(league, cookie, players, params = {}) {
   return mfl.toArray(res && res.playerRosterStatuses && res.playerRosterStatuses.playerStatus).map(normPlayerStatus);
 }
 
+// One pending waiver request -> { system, round, timestamp, comments, picks[] }. `addsDrops` is a
+// CSV of the same underscore tokens the import uses: FAAB = "add_bid_drop", FCFS = "add_drop"
+// ("0000" = no drop). Confirmed against a live sample: addsDrops "14080_0_14849,13133_0_14849".
+function normPendingRequest(req, system) {
+  const picks = String((req && req.addsDrops) || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((tok) => {
+      const p = tok.split('_');
+      const dropAt = system === 'faab' ? 2 : 1;
+      const bid = system === 'faab' ? Number(p[1]) || 0 : null;
+      const drop = p[dropAt] && p[dropAt] !== '0000' ? p[dropAt] : null;
+      return { add: p[0] || null, bid, drop };
+    });
+  return {
+    system,
+    round: req && req.round != null && req.round !== '' ? Number(req.round) : null,
+    timestamp: req && req.timestamp ? Number(req.timestamp) : null,
+    comments: (req && req.comments) || '',
+    picks,
+  };
+}
+
+// `pendingWaivers` export -> this franchise's queued (unprocessed) waiver requests. FAAB requests
+// live under `blindBidWaiverRequest`, FCFS priority under `waiverRequest`. Returns a normalized
+// array (usually 0 or 1). Each item carries the waiver `round`, which is otherwise hard to source.
+async function pendingWaivers(league, cookie, params = {}) {
+  const res = await read('pendingWaivers', league, cookie, params);
+  const pw = (res && res.pendingWaivers) || {};
+  return [
+    ...mfl.toArray(pw.blindBidWaiverRequest).map((r) => normPendingRequest(r, 'faab')),
+    ...mfl.toArray(pw.waiverRequest).map((r) => normPendingRequest(r, 'fcfs')),
+  ];
+}
+
 // Interpret a normalized status into add eligibility for THIS league. addable=false carries a
 // human reason. (Note: intended for the immediate free-agency path — during a waiver period a
 // claim is a bid, not a direct add, so this is not a gate for FAAB/priority claims.)
@@ -163,4 +199,5 @@ module.exports = {
   transactions,
   playerRosterStatus,
   addEligibility,
+  pendingWaivers,
 };
