@@ -648,8 +648,14 @@ async function respond(cookie, token, leagueId, tradeId, action) {
     try {
       await mfl.importRequest('tradeResponse', { host: league.host, cookie, L: league.leagueId, FRANCHISE: league.franchiseId, TRADE_ID: tradeId, RESPONSE: act });
     } catch (e) {
-      const err = new Error(`MFL rejected the trade response: ${e.message}`);
-      err.status = 502;
+      // Surface MFL's ACTUAL reason (hard-won rule — never a bare status), and log it so a rejected
+      // accept/reject is diagnosable. A successful response returns "OK", which importRequest already
+      // treats as success, so reaching here means a real rejection (stale trade, no longer valid, …).
+      const detail = mfl.errorDetail(e);
+      console.warn(`[trades] tradeResponse rejected — L=${league.leagueId} trade=${tradeId} response=${act} — ${detail}`);
+      const err = new Error(`MyFantasyLeague couldn’t ${act} the trade: ${detail}`);
+      err.status = e.status || 502;
+      err.detail = detail;
       throw err;
     }
   }
@@ -694,16 +700,18 @@ async function propose(cookie, token, leagueId, payload) {
         COMMENTS: payload.comments || '',
       });
     } catch (e) {
-      // Surface MFL's actual complaint (it's on e.mflError / e.body) instead of a bare
-      // status code, and log the exact asset lists so a rejected proposal is diagnosable.
-      const detail = e.mflError || (e.body && String(e.body).replace(/<[^>]+>/g, ' ').trim().slice(0, 300)) || e.message;
+      // Surface MFL's actual complaint (via the shared errorDetail: mflError > body > message)
+      // instead of a bare status code, and log the exact asset lists so a rejected proposal is
+      // diagnosable. A successful proposal returns "OK", which importRequest treats as success.
+      const detail = mfl.errorDetail(e);
       // eslint-disable-next-line no-console
       console.warn('[trades] tradeProposal rejected', JSON.stringify({
         L: league.leagueId, FRANCHISE: league.franchiseId, OFFEREDTO: toFranchiseId,
         WILL_GIVE_UP: willGiveUp, WILL_RECEIVE: willReceive, status: e.status, detail,
       }));
-      const err = new Error(`MFL rejected the proposal: ${detail}`);
-      err.status = 502;
+      const err = new Error(`MyFantasyLeague rejected the proposal: ${detail}`);
+      err.status = e.status || 502;
+      err.detail = detail;
       throw err;
     }
   }
