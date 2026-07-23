@@ -337,7 +337,7 @@ async function profile(cookie, token, playerId) {
   // their SUM. They don't depend on each other, so run them concurrently: latency is now
   // the slowest single section. (Each underlying MFL type is still cached, so repeat opens
   // and neighbouring screens stay warm.)
-  const [logSeason, upcoming, news, crossLeague] = await Promise.all([
+  const [logSeason, upcoming, news, crossLeague, bio] = await Promise.all([
     // A) Game log + season. Demo has a fixture; live pulls actual points from MFL
     // playerScores, scored under the owner's first league.
     (async () => {
@@ -405,6 +405,18 @@ async function profile(cookie, token, playerId) {
         })
       );
     })(),
+    // E) Authoritative bio (DOB, age, height/weight, ADP) from MFL's GLOBAL playerProfile.
+    // Best-effort — null on any failure (never blocks the profile); improves the displayed
+    // age and rides along as a bio block for the app to show.
+    (async () => {
+      if (config.demoMode) return null;
+      try {
+        const [b] = await mflRepo.playerProfiles(cookie, playerId);
+        return b || null;
+      } catch (e) {
+        return null;
+      }
+    })(),
   ]);
   const { log, season } = logSeason;
   const rated = upcoming.filter((g) => g.difficulty != null);
@@ -433,7 +445,11 @@ async function profile(cookie, token, playerId) {
     name: base.name,
     position: base.position,
     team: base.team,
-    age: enr.age(playerId),
+    // Prefer MFL's authoritative age; fall back to the enrichment's approximate one.
+    age: (bio && bio.age) || enr.age(playerId),
+    // Authoritative bio for the profile header (DOB / height / weight / ADP). Null in demo or
+    // when the profile read failed — the app falls back to what it already shows.
+    bio: bio ? { dob: bio.dob, age: bio.age, height: bio.height, weight: bio.weight, adp: bio.adp } : null,
     byeWeek: byeMap[base.team] || null,
     // Headshot from the Sleeper CDN (via the FantasyCalc mfl→sleeper crosswalk); null falls
     // back to the position badge in the app.

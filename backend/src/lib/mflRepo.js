@@ -206,6 +206,31 @@ async function assets(league, cookie, params = {}) {
   return mfl.toArray(res && res.assets && res.assets.franchise).map(normFranchiseAssets);
 }
 
+// One player's profile bio -> { id, name, dob, age, height, weight, adp }. `adp` is null when
+// MFL reports "N/A" (e.g. offseason / undrafted).
+function normPlayerProfile(pp) {
+  const p = (pp && pp.player) || {};
+  const adp = p.adp != null && p.adp !== '' && !/^n\/?a$/i.test(String(p.adp)) ? Number(p.adp) : null;
+  return {
+    id: String((pp && pp.id) || p.id || ''),
+    name: (pp && pp.name) || null,
+    dob: p.dob || null,
+    age: p.age != null && p.age !== '' ? Number(p.age) : null,
+    height: p.height || null,
+    weight: p.weight || null,
+    adp: Number.isFinite(adp) ? adp : null,
+  };
+}
+
+// `playerProfile` export -> bio (DOB, age, height/weight, ADP) for one or more players. GLOBAL
+// (no league) — it must go to the api host, so this passes no host/L (exportRequest defaults to
+// config.apiHost). `players` is a single id or an array/CSV.
+async function playerProfiles(cookie, players) {
+  const P = Array.isArray(players) ? players.join(',') : String(players);
+  const res = await mfl.exportRequest('playerProfile', { cookie, P });
+  return mfl.toArray(res && res.playerProfile).map(normPlayerProfile);
+}
+
 // Interpret a normalized status into add eligibility for THIS league. addable=false carries a
 // human reason. (Note: intended for the immediate free-agency path — during a waiver period a
 // claim is a bid, not a direct add, so this is not a gate for FAAB/priority claims.)
@@ -239,4 +264,5 @@ module.exports = {
   pendingWaivers,
   assets,
   parsePickToken,
+  playerProfiles,
 };

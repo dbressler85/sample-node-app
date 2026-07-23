@@ -102,8 +102,9 @@ separate tab and still needed — the 🔴 write rows in §2 stay open until we 
 - **`adp`** dynasty tuning — `IS_KEEPER` (`K`/`R`/`N` combos), `FCOUNT`, `IS_PPR`, `CUTOFF`. Our value
   model sends only `PERIOD=RECENT`; dynasty relevance might warrant `IS_KEEPER`. **Value-model change —
   owner's call.**
-- **`playerProfile`** (DOB, ADP rank, height/weight) and **`playerRanks?POS=&SOURCE=`** — could enrich the
-  player hub.
+- ✅ **`playerProfile`** — reader shipped (`mflRepo.playerProfiles`) + wired into the player hub as an
+  authoritative `bio` (DOB / age / height / weight / ADP), improving the displayed age. Confirmed global
+  (api-host) per a live sample; best-effort (null → falls back). **`playerRanks?POS=&SOURCE=`** still open.
 
 **Noted, no action:** MFL has a native **`myWatchList`** — we built our own richer cross-league watchlist,
 so we keep ours. Endpoints we don't use but exist if ever needed: `weeklyResults`, `auctionResults`,
