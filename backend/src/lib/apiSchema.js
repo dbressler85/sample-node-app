@@ -366,6 +366,11 @@ const TradeBait = z.object({
   leagues: z.array(z.object({ leagueId: z.string(), name: z.string() })),
 });
 
+// GET /api/tradebait/market — every OTHER franchise's block across your leagues.
+const TradeMarket = z.object({
+  leagues: z.array(z.object({ leagueId: z.string(), name: z.string() })),
+});
+
 // GET /api/leagues/:leagueId/tradebait — the player ids you have on the block in one league.
 const LeagueTradeBait = z.object({
   ids: z.array(z.any()),
@@ -414,6 +419,7 @@ const schemas = {
   WaiverBoard,
   WaiverSuggestions,
   TradeBait,
+  TradeMarket,
   LeagueTradeBait,
   Trades,
   LeagueTrades,

@@ -17,6 +17,15 @@ router.get('/tradebait', async (req, res, next) => {
   }
 });
 
+// GET /api/tradebait/market — what every OTHER franchise is shopping across your leagues.
+router.get('/tradebait/market', async (req, res, next) => {
+  try {
+    res.json(checkResponse(schemas.TradeMarket, await tradebait.getMarket(req.mflCookie, req.account), 'GET /tradebait/market'));
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/leagues/:leagueId/tradebait — ids on the block in one league (to mark rosters).
 router.get('/leagues/:leagueId/tradebait', (req, res, next) => {
   try {
