@@ -77,6 +77,16 @@ const unlockEvent = { title: 'Allow Add/Drops', start: past };
   assert(!imports.some((i) => i.type === 'fcfsWaiver'), 'no immediate add when locked');
   console.log('✓ locked FAAB: blindBidWaiverRequest PICKS=50_5_2 ROUND=2');
 
+  // 1b) LOCKED FAAB with NOTHING pending → ROUND defaults to 1 (the active round). Omitting ROUND
+  // for round-based blind bidding makes MFL 500 — the exact prod bug. Must always send a ROUND.
+  state.calendar = { event: [lockEvent] };
+  state.pending = {};
+  imports = [];
+  await waivers.submit(CK, TK, 'LFAAB', { addId: '50', dropId: '2', bid: 5 });
+  const bb1 = imports.find((i) => i.type === 'blindBidWaiverRequest');
+  assert(bb1 && bb1.params.ROUND === 1 && bb1.params.PICKS === '50_5_2', `no-pending FAAB → ROUND defaults to 1, got ${JSON.stringify(bb1 && bb1.params)}`);
+  console.log('✓ locked FAAB, nothing pending: ROUND defaults to 1 (fixes the MFL 500)');
+
   // 2) OPEN FAAB (unlock is the latest event) → immediate fcfsWaiver, no bid.
   state.calendar = { event: [unlockEvent] };
   state.pending = {};
@@ -111,15 +121,14 @@ const unlockEvent = { title: 'Allow Add/Drops', start: past };
   assert(wr && wr.params.ROUND === 4 && wr.params.PICKS === '50_2', `locked FCFS → waiverRequest ROUND 4 PICKS 50_2, got ${JSON.stringify(wr && wr.params)}`);
   console.log('✓ locked FCFS: waiverRequest ROUND=4 PICKS=50_2');
 
-  // 4) LOCKED FCFS + NO round available → honest 501, no write.
+  // 4) LOCKED FCFS + nothing pending → ROUND defaults to 1 (waiverRequest), not a 501.
   state.calendar = { event: [lockEvent] };
   state.pending = {};
   imports = [];
-  let threw = false;
-  try { await waivers.submit(CK, TK, 'LFCFS', { addId: '50', dropId: '2' }); }
-  catch (e) { threw = true; assert(e.status === 501, `locked FCFS w/o round → 501, got ${e.status}`); }
-  assert(threw && imports.length === 0, 'no MFL write when the FCFS round is unknown');
-  console.log('✓ locked FCFS, no round: 501, no write');
+  await waivers.submit(CK, TK, 'LFCFS', { addId: '50', dropId: '2' });
+  const wr1 = imports.find((i) => i.type === 'waiverRequest');
+  assert(wr1 && wr1.params.ROUND === 1 && wr1.params.PICKS === '50_2', `no-pending FCFS → waiverRequest ROUND 1, got ${JSON.stringify(wr1 && wr1.params)}`);
+  console.log('✓ locked FCFS, nothing pending: ROUND defaults to 1');
 
   // 4b) OPEN add of a LOCKED free agent → pre-flight blocks with 409, no write fired.
   state.calendar = { event: [unlockEvent] };

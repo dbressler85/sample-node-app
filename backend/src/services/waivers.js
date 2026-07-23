@@ -500,15 +500,17 @@ async function previewMulti(cookie, token, leagueId, claims) {
   };
 }
 
-// The current waiver ROUND for a locked league, read from any pending request (pendingWaivers
-// carries it). Null when nothing is pending yet or the read fails. Read-only, best-effort.
+// The current waiver ROUND for a locked league. Read from any pending request (pendingWaivers
+// carries it); when nothing is pending yet, default to round 1 — the active/first round. MFL's
+// round-based (conditional) blind bidding REQUIRES a ROUND, and omitting it makes MFL's server
+// 500 (a generic Internal Server Error, not a clean validation message). Read-only, best-effort.
 async function currentWaiverRound(cookie, league) {
   try {
     const pending = await mflRepo.pendingWaivers(league, cookie);
     const withRound = pending.find((p) => p.round != null);
-    return withRound ? withRound.round : null;
+    return withRound ? withRound.round : 1;
   } catch (e) {
-    return null;
+    return 1;
   }
 }
 
