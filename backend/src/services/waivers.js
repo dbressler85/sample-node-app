@@ -964,15 +964,22 @@ async function getSuggestions(cookie, token) {
   return { leagues: out, summary };
 }
 
-// All pending claims + recent results across leagues, for one activity view.
+// All pending claims + recent results across leagues, for one activity view. This reads only the
+// local claim store (no MFL fan-out), so it's cheap — the one heavy dependency was loading the
+// whole player DATABASE to resolve names. App-submitted claims already store add/drop as resolved
+// objects, so that map is only needed for the rare claim that stored a bare id; load it lazily
+// (and once) instead of always downloading the player universe on the Pending tab.
 async function getPending(cookie, token) {
   const leagues = await leaguesService.listLeagues(cookie);
-  const byId = await playersLib.load(cookie);
   const pending = [];
   const results = [];
+  let byId = null; // lazily loaded, at most once, only if a claim needs id→name resolution
+  const needsResolve = (c) => (c.add && typeof c.add !== 'object') || (c.drop && typeof c.drop !== 'object');
   for (const league of leagues) {
     for (const c of store.list(token, league.leagueId, config.demoMode ? demo.pendingClaims(league.leagueId) : [])) {
-      if ((c.status || 'pending') === 'pending') pending.push({ ...claimView(c, byId), leagueId: league.leagueId, leagueName: league.name });
+      if ((c.status || 'pending') !== 'pending') continue;
+      if (needsResolve(c) && byId == null) byId = await playersLib.load(cookie);
+      pending.push({ ...claimView(c, byId), leagueId: league.leagueId, leagueName: league.name });
     }
     for (const r of config.demoMode ? demo.waiverResults(league.leagueId) : []) {
       results.push({ ...r, leagueId: league.leagueId, leagueName: league.name });

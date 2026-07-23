@@ -34,6 +34,10 @@ export default function WaiversScreen({ initialLeagueId, initialPosition, onStar
   // unmount), throttled reloads, and it keeps the list on a failed refresh. `loadOverview`
   // (reload) is also called after a claim to reflect it immediately.
   const { data: overview, error: overviewError, refreshing: ovRefreshing, reload: loadOverview } = useCachedResource('waivers:overview', () => api.waiversOverview());
+  // Pending claims go through the same cached hook so switching to the Pending tab paints the last
+  // snapshot INSTANTLY (the screen unmounts on every tab switch, so a bare fetch showed a cold
+  // full-screen spinner every single time). It revalidates in the background and after a claim.
+  const { data: pending, reload: loadPending } = useCachedResource('waivers:pending', () => api.waiverPending());
   const [wizardLoading, setWizardLoading] = useState(false);
   const [segment, setSegment] = useState('leagues'); // 'leagues' | 'best' | 'pending'
   // A league drill-in: the per-league board. Set from a card tap or a Home
@@ -46,7 +50,6 @@ export default function WaiversScreen({ initialLeagueId, initialPosition, onStar
   const [sort, setSort] = useState('value');
   const [board, setBoard] = useState(null);
   const [best, setBest] = useState(null);
-  const [pending, setPending] = useState(null);
   const [loading, setLoading] = useState(false); // board (drill-in) loading
   const [error, setError] = useState(null);
   const [claim, setClaim] = useState(null); // {leagueId, addId}
@@ -93,18 +96,18 @@ export default function WaiversScreen({ initialLeagueId, initialPosition, onStar
     if (openLeagueId) loadBoard();
   }, [openLeagueId, loadBoard]);
 
-  // Cross-league segments load lazily when shown (and not while drilled in).
+  // Best-available loads lazily when shown (and not while drilled in). Pending rides the cached
+  // hook above, so it's already painted — no lazy fetch needed here.
   useEffect(() => {
     if (openLeagueId) return;
     if (segment === 'best' && !best) api.bestAvailable().then(setBest).catch((e) => setError(e.message));
-    if (segment === 'pending') api.waiverPending().then(setPending).catch((e) => setError(e.message));
   }, [segment, best, openLeagueId]);
 
   function refreshAll() {
     setBest(null);
     if (openLeagueId) loadBoard();
     loadOverview();
-    api.waiverPending().then(setPending).catch(() => {});
+    loadPending();
   }
 
   // Fetch per-league pickup suggestions, then hand the wizard a queue of the
@@ -132,7 +135,7 @@ export default function WaiversScreen({ initialLeagueId, initialPosition, onStar
   async function cancelClaim(cid, lid) {
     try {
       await api.cancelClaim(lid, cid);
-      api.waiverPending().then(setPending);
+      loadPending();
       loadOverview();
     } catch (e) {
       Alert.alert('Could not cancel', e.message);
