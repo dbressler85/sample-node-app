@@ -356,7 +356,7 @@ async function getBoard(cookie, token, leagueId, { position, sort } = {}) {
 // Shared per-league context for validating one or more claims: settings, my roster,
 // values, and the available free-agent set. Loaded once so a multi-claim queue validates
 // against a single snapshot.
-async function loadClaimCtx(cookie, leagueId) {
+async function loadClaimCtx(cookie, token, leagueId) {
   const league = await findLeague(cookie, leagueId);
   const settings = await loadSettings(league, cookie);
   const [byId, roster, enr, faIds] = await Promise.all([
@@ -369,12 +369,21 @@ async function loadClaimCtx(cookie, leagueId) {
   // you can't submit a claim for a player who's on another roster.
   const available = new Set(faIds);
   const rosterIds = new Set([...roster.starters, ...roster.bench, ...roster.ir, ...roster.taxi].map((p) => p.id));
-  // Are transactions LOCKED (a waiver claim window) or OPEN (immediate free agency)? Live signal
-  // is the league calendar; demo mirrors the old system-based flag so fixtures are unchanged. This
-  // decides whether a submit is an immediate fcfsWaiver add or a queued blind-bid/priority claim.
-  const locked = config.demoMode
-    ? settings.system !== 'free'
-    : !!(await calendarLock(cookie, league).catch(() => null));
+  // Are transactions LOCKED (a waiver claim window) or OPEN (immediate free agency)? Locked when
+  // the calendar locks free agency OR the league's draft hasn't completed yet (a startup / mid
+  // rookie-draft league — FA isn't open). This mirrors the board's waiverLocks signal so a submit
+  // routes the same way the board displays. Demo keeps the old system-based flag (fixtures stay).
+  let locked;
+  if (config.demoMode) {
+    locked = settings.system !== 'free';
+  } else {
+    const draftService = require('./draft'); // lazy require avoids a waivers↔draft cycle
+    const [calLock, faOpen] = await Promise.all([
+      calendarLock(cookie, league).catch(() => null),
+      draftService.freeAgencyOpen(cookie, token, league).catch(() => true),
+    ]);
+    locked = !!calLock || !faOpen;
+  }
   return { league, settings, byId, roster, enr, available, rosterIds, locked };
 }
 
@@ -430,7 +439,7 @@ function validateClaim(payload, ctx) {
 
 // Build a validated claim preview (also fills in suggested drop/bid).
 async function preview(cookie, token, leagueId, payload) {
-  const ctx = await loadClaimCtx(cookie, leagueId);
+  const ctx = await loadClaimCtx(cookie, token, leagueId);
   const c = validateClaim(payload, ctx);
   return {
     leagueId: ctx.league.leagueId,
@@ -447,7 +456,7 @@ async function preview(cookie, token, leagueId, payload) {
 // fit alone yet the total bust the budget, and N adds on a full roster need N drops. Also
 // catches duplicate adds/drops and add-and-drop-the-same-player.
 async function previewMulti(cookie, token, leagueId, claims) {
-  const ctx = await loadClaimCtx(cookie, leagueId);
+  const ctx = await loadClaimCtx(cookie, token, leagueId);
   const list = (Array.isArray(claims) ? claims : []).filter((c) => c && c.addId);
   const previews = list.map((c) => validateClaim(c, ctx));
 

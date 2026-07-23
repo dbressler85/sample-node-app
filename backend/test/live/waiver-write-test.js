@@ -22,10 +22,11 @@ const state = {
   calendar: { event: [] },                 // [] → open; a past "lock" event → locked
   pending: {},                             // pendingWaivers payload (carries the round)
   rosterStatus: [{ id: '50', is_fa: '1' }], // playerRosterStatus for the add pre-flight (addable FA)
+  draft: null,                             // draftResults payload (an incomplete draft → locked)
 };
 
 function leagueExport(L) {
-  const faab = L === 'LFAAB';
+  const faab = L === 'LFAAB' || L === 'LDRAFT';
   return { league: {
     rosterSize: '3', minBid: '1',
     ...(faab ? { bbidWaivers: '1' } : {}),
@@ -39,6 +40,7 @@ mfl.exportRequest = async (type, opts = {}) => {
       return { leagues: { league: [
         { league_id: 'LFAAB', name: 'FAAB League', url: 'https://www10.myfantasyleague.com/2026/home/LFAAB', franchise_id: '0001', franchise_name: 'Me' },
         { league_id: 'LFCFS', name: 'FCFS League', url: 'https://www11.myfantasyleague.com/2026/home/LFCFS', franchise_id: '0001', franchise_name: 'Me' },
+        { league_id: 'LDRAFT', name: 'Startup', url: 'https://www12.myfantasyleague.com/2026/home/LDRAFT', franchise_id: '0001', franchise_name: 'Me' },
       ] } };
     case 'league': return leagueExport(String(opts.L));
     case 'rosters': return { rosters: { franchise: [{ id: opts.FRANCHISE || '0001', player: [{ id: '1', status: 'starter' }, { id: '2', status: 'nonstarter' }] }] } };
@@ -49,6 +51,7 @@ mfl.exportRequest = async (type, opts = {}) => {
     case 'calendar': return { calendar: state.calendar };
     case 'pendingWaivers': return { pendingWaivers: state.pending };
     case 'playerRosterStatus': return { playerRosterStatuses: { playerStatus: state.rosterStatus } };
+    case 'draftResults': return state.draft ? { draftResults: state.draft } : {};
     default: return {};
   }
 };
@@ -83,6 +86,21 @@ const unlockEvent = { title: 'Allow Add/Drops', start: past };
   assert(fc && String(fc.params.ADD) === '50' && String(fc.params.DROP) === '2', `open FAAB → fcfsWaiver ADD 50 DROP 2, got ${JSON.stringify(fc && fc.params)}`);
   assert(!imports.some((i) => i.type === 'blindBidWaiverRequest'), 'no bid when the window is open');
   console.log('✓ open FAAB: immediate fcfsWaiver ADD=50 DROP=2 (no bid)');
+
+  // 2c) Draft NOT complete (startup) + OPEN calendar → still LOCKED via the draft signal, so a
+  // FAAB add is a bid, not an immediate fcfsWaiver. (Mirrors the board's waiverLocks display.)
+  state.calendar = { event: [unlockEvent] };
+  state.pending = {};
+  state.draft = { draftUnit: [{ unit: 'LEAGUE', startTime: '1754000000', draftPick: [
+    { round: '1', pick: '1', franchise: '0002', player: '99' },
+    { round: '1', pick: '2', franchise: '0001', player: '' }, // unfilled → draft not complete
+  ] }] };
+  imports = [];
+  await waivers.submit(CK, TK, 'LDRAFT', { addId: '50', dropId: '2', bid: 5 });
+  assert(imports.some((i) => i.type === 'blindBidWaiverRequest') && !imports.some((i) => i.type === 'fcfsWaiver'),
+    `pre-draft league locked via draft state → bid, got ${JSON.stringify(imports.map((i) => i.type))}`);
+  state.draft = null;
+  console.log('✓ pre-draft (draft incomplete): locked via draft state → blindBidWaiverRequest');
 
   // 3) LOCKED FCFS + known round → waiverRequest, ROUND + PICKS add_drop.
   state.calendar = { event: [lockEvent] };
