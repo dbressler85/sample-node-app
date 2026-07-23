@@ -14,11 +14,12 @@ const GROUPS = {
   lineup_risk: { label: 'Unavailable player in lineup', color: colors.bad, open: true },
   lineup_incomplete: { label: 'Empty slot — needs a pickup', color: colors.bad, open: true },
   trade_offer: { label: 'Trade offers', color: colors.bad, open: true },
+  waiver_imminent: { label: 'Waivers processing soon', color: colors.warn, open: true },
   lineup_unset: { label: 'Lineups not set', color: colors.warn, open: false },
   lineup_suboptimal: { label: 'Better lineup available', color: colors.warn, open: false },
   waiver_pending: { label: 'Pending waivers', color: colors.textDim, open: false },
 };
-const GROUP_ORDER = ['lineup_risk', 'lineup_incomplete', 'trade_offer', 'lineup_unset', 'lineup_suboptimal', 'waiver_pending'];
+const GROUP_ORDER = ['lineup_risk', 'lineup_incomplete', 'trade_offer', 'waiver_imminent', 'lineup_unset', 'lineup_suboptimal', 'waiver_pending'];
 const ACTION_LABEL = { lineup: 'Set ›', waiver: 'Waivers ›', trade: 'View ›' };
 const CONCURRENCY = 4;
 

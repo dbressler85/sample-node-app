@@ -120,6 +120,10 @@ const config = {
   // feed the numbers. Set MFL_ADP_IS_KEEPER=NKR to restore MFL's mixed default.
   mflAdpIsKeeper: process.env.MFL_ADP_IS_KEEPER || 'KR',
 
+  // A league's next waiver run counts as an imminent, act-now item within this window — it
+  // surfaces as a Home action and a highlight on the Waivers screen. Default 4 days.
+  waiverImminentMs: int(process.env.MFL_WAIVER_IMMINENT_MS, 4 * 24 * 60 * 60 * 1000),
+
   // Host used for account-level, non-league requests (login, myleagues, players).
   apiHost: process.env.MFL_API_HOST || 'api.myfantasyleague.com',
 

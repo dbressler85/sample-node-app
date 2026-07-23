@@ -264,6 +264,16 @@ function OverviewView({ overview, loading, refreshing, error, onOpen, onRefresh 
   );
 }
 
+// "in 2 days" / "in 6 hours" / "within the hour" for a future run timestamp (ms).
+function runLabel(ms) {
+  const diff = ms - Date.now();
+  if (diff <= 0) return 'now';
+  const hours = Math.round(diff / (60 * 60 * 1000));
+  if (hours < 24) return hours <= 1 ? 'within the hour' : `in ${hours} hours`;
+  const days = Math.round(diff / (24 * 60 * 60 * 1000));
+  return days <= 1 ? 'tomorrow' : `in ${days} days`;
+}
+
 function LeagueCard({ item, onPress }) {
   if (item.error) {
     return (
@@ -279,12 +289,21 @@ function LeagueCard({ item, onPress }) {
       : item.system === 'fcfs' && item.waiverPriority
       ? `Priority #${item.waiverPriority}`
       : null;
+  // Waivers about to process — highlight the card so it's obvious which leagues are in an active
+  // waiver cycle vs. quiet. Shown even when the league is locked: a claim-window lock IS the
+  // cycle (blind bids are still open), and those are exactly the leagues the owner wants to spot.
+  const imminent = item.waiverImminent && item.nextWaiverRun != null;
   return (
-    <Pressable style={({ pressed }) => [styles.ovCard, pressed && { opacity: 0.7 }]} onPress={onPress}>
+    <Pressable style={({ pressed }) => [styles.ovCard, imminent && styles.ovCardImminent, pressed && { opacity: 0.7 }]} onPress={onPress}>
       <View style={styles.ovTop}>
         <Text style={styles.ovName} numberOfLines={1}>{item.name}</Text>
         {item.locked ? <Text style={styles.lockBadge}>🔒 LOCKED</Text> : <SystemBadge system={item.system} />}
       </View>
+      {imminent ? (
+        <View style={styles.imminentBadge}>
+          <Text style={styles.imminentText}>⏳ Waivers process {runLabel(item.nextWaiverRun)}</Text>
+        </View>
+      ) : null}
       <Text style={styles.ovMeta}>
         {[
           budget,
@@ -663,6 +682,10 @@ const styles = StyleSheet.create({
   wizardBtnText: { color: '#fff', fontSize: 15, fontWeight: '800' },
   // Landing list — league cards (mirrors Lineups).
   ovCard: { backgroundColor: colors.card, borderRadius: 14, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: colors.border },
+  // A league whose waivers clear within the act-now window — warm border so it's obvious at a glance.
+  ovCardImminent: { borderColor: colors.warn, borderWidth: 1.5, backgroundColor: 'rgba(255,162,58,0.06)' },
+  imminentBadge: { alignSelf: 'flex-start', marginTop: 8, backgroundColor: 'rgba(255,162,58,0.15)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
+  imminentText: { color: colors.warn, fontSize: 12, fontWeight: '800' },
   ovTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   ovName: { color: colors.text, fontSize: 16, fontWeight: '700', flex: 1, marginRight: 10 },
   ovMeta: { color: colors.textDim, fontSize: 12, fontWeight: '700', marginTop: 8 },

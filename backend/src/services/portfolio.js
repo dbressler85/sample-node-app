@@ -111,6 +111,16 @@ function lineupItem(l) {
   return null;
 }
 
+// A human "in 3 days" / "in 6 hours" for a future timestamp (ms).
+function untilLabel(ms) {
+  const diff = ms - Date.now();
+  if (diff <= 0) return 'now';
+  const hours = Math.round(diff / (60 * 60 * 1000));
+  if (hours < 24) return hours <= 1 ? 'within the hour' : `in ${hours} hours`;
+  const days = Math.round(diff / (24 * 60 * 60 * 1000));
+  return days <= 1 ? 'tomorrow' : `in ${days} days`;
+}
+
 // Trade + waiver items for one league.
 async function extraItems(cookie, token, league) {
   const items = [];
@@ -120,6 +130,26 @@ async function extraItems(cookie, token, league) {
   }
   for (const w of pendingWaivers(token, league)) {
     items.push({ id: `waiver-${league.leagueId}-${w.player}`, type: 'waiver_pending', severity: 'low', action: 'waiver', leagueId: league.leagueId, leagueName: league.name, title: `Waiver claim pending: ${w.player.split(',')[0]}`, subtitle: `${w.bid != null ? `$${w.bid} · ` : ''}runs ${w.runsAt}` });
+  }
+  // Waivers about to process: if this league's calendar shows a run within the act-now window,
+  // surface it as a triage item so the owner gets one last chance to place/adjust claims. Live
+  // only (demo has no calendar) and best-effort — a null next-run just omits the item.
+  if (!config.demoMode) {
+    const waiversService = require('./waivers'); // lazy require avoids a portfolio↔waivers cycle
+    const run = await waiversService.nextWaiverRun(cookie, league).catch(() => null);
+    if (run != null && run > Date.now() && run - Date.now() <= config.waiverImminentMs) {
+      items.push({
+        id: `waiver-imminent-${league.leagueId}`,
+        type: 'waiver_imminent',
+        severity: 'medium',
+        action: 'waiver',
+        leagueId: league.leagueId,
+        leagueName: league.name,
+        title: `Waivers process ${untilLabel(run)}`,
+        subtitle: 'Last call to place or adjust claims before they clear',
+        runsAt: run,
+      });
+    }
   }
   return items;
 }

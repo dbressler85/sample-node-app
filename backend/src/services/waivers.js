@@ -750,6 +750,40 @@ async function calendarLock(cookie, league) {
   }
 }
 
+// The league CALENDAR also carries the actual PROCESS events — when blind-bid (FAAB) or
+// FCFS waivers next clear. These MFL event types mark a run (as opposed to the lock/unlock
+// windows calendarLock scans for). We surface the soonest upcoming one so a league whose
+// waivers clear within config.waiverImminentMs reads as an act-now item.
+const WAIVER_PROCESS_TYPES = new Set(['WAIVER_BBID', 'WAIVER_REVERSE', 'WAIVER_CONT', 'WAIVER']);
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+// Soonest FUTURE waiver-process time (ms) from the calendar, or null. MFL calendar events
+// carry `start_time` (epoch seconds) and `happens` — a weekly repeat count ("added at the
+// same time each week for the following this many weeks"). We expand each process event into
+// its weekly occurrences and return the earliest one still ahead of now. Best-effort + fully
+// guarded: any read/parse trouble yields null (the feature simply doesn't highlight).
+async function nextWaiverRun(cookie, league) {
+  try {
+    const events = await mflRepo.calendar(league, cookie);
+    const now = Date.now();
+    let soonest = null;
+    for (const ev of events) {
+      if (!WAIVER_PROCESS_TYPES.has(String(ev.type || '').toUpperCase())) continue;
+      const startSec = Number(ev.start_time);
+      if (!Number.isFinite(startSec) || startSec <= 0) continue;
+      const start = startSec * 1000;
+      const repeats = Math.max(1, Math.min(52, Number(ev.happens) || 1));
+      for (let k = 0; k < repeats; k += 1) {
+        const t = start + k * WEEK_MS;
+        if (t >= now && (soonest == null || t < soonest)) soonest = t;
+      }
+    }
+    return soonest;
+  } catch (e) {
+    return null;
+  }
+}
+
 // Waivers/free-agency don't run in every league at every moment. The authoritative
 // source is the league CALENDAR (lock/unlock free-agent events); when a league
 // doesn't set those, we fall back to inferring from DRAFT state (a scheduled or
@@ -792,15 +826,19 @@ async function getOverview(cookie, token) {
         // The landing only needs roster SIZE + a free-agent count/top-3, so use the light
         // roster read (no all-franchise valuation / strength) and the light FA summary
         // (no projections / per-player build) instead of the full getRoster + board build.
-        // Settings, roster, and FA summary are independent reads — fetch all three together so
-        // the league costs one throttle round-trip instead of settings-then-the-rest.
-        const [settings, roster, fa] = await Promise.all([
+        // Settings, roster, FA summary, and the next waiver-process time are independent reads —
+        // fetch them all together so the league costs one throttle round-trip, not four in sequence.
+        const [settings, roster, fa, waiverRun] = await Promise.all([
           loadSettings(league, cookie),
           rosterService.myRosterLight(cookie, league.leagueId),
           freeAgentSummary(cookie, league),
+          config.demoMode ? Promise.resolve(null) : nextWaiverRun(cookie, league),
         ]);
         const pending = store.list(token, league.leagueId, config.demoMode ? demo.pendingClaims(league.leagueId) : []);
         const pendingCount = pending.filter((c) => (c.status || 'pending') === 'pending').length;
+        // "Imminent" = the next run is ahead of us but within the act-now window. A run already
+        // in the past (stale calendar occurrence) doesn't count.
+        const waiverImminent = waiverRun != null && waiverRun > Date.now() && waiverRun - Date.now() <= config.waiverImminentMs;
         return {
           leagueId: league.leagueId,
           name: league.name,
@@ -813,6 +851,8 @@ async function getOverview(cookie, token) {
           faCount: fa.faCount,
           pendingCount,
           topAvailable: fa.topAvailable,
+          nextWaiverRun: waiverRun,
+          waiverImminent,
         };
       } catch (e) {
         return { leagueId: league.leagueId, name: league.name, error: e.message };
@@ -829,6 +869,8 @@ async function getOverview(cookie, token) {
     pending: out.reduce((s, l) => s + (l.pendingCount || 0), 0),
     rostersFull: out.filter((l) => l.rosterFull).length,
     locked: out.filter((l) => l.locked).length,
+    // Leagues whose waivers clear within the act-now window — the Home triage count.
+    imminent: out.filter((l) => l.waiverImminent).length,
   };
   return { leagues: out, summary };
 }
@@ -939,4 +981,4 @@ async function getPending(cookie, token) {
   return { pending, results, summary: { pending: pending.length, results: results.length } };
 }
 
-module.exports = { getBoard, getOverview, getSuggestions, preview, submit, previewMulti, submitMulti, cancel, getBestAvailable, getPending, freeAgentIds, invalidate };
+module.exports = { getBoard, getOverview, getSuggestions, preview, submit, previewMulti, submitMulti, cancel, getBestAvailable, getPending, freeAgentIds, invalidate, nextWaiverRun };
