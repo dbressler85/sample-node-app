@@ -329,7 +329,7 @@ async function getBoard(cookie, token, leagueId, { position, sort } = {}) {
       /* keep the local-store view */
     }
   }
-  const results = config.demoMode ? demo.waiverResults(leagueId) : [];
+  const results = config.demoMode ? demo.waiverResults(leagueId) : await liveWaiverResults(cookie, league, byId);
 
   return {
     leagueId: league.leagueId,
@@ -511,6 +511,40 @@ async function currentWaiverRound(cookie, league) {
     return withRound ? withRound.round : 1;
   } catch (e) {
     return 1;
+  }
+}
+
+// Recent WON waiver claims for MY franchise, from MFL's transactions log. A BBID_WAIVER / WAIVER
+// transaction is a claim that PROCESSED — the player was actually added — so these are the "won"
+// results the Pending tab shows. MFL records what HAPPENED, not failed bids, so lost claims don't
+// appear here (they'd have to be inferred from a submitted claim that yielded no add — a later
+// enhancement). The transaction shape (type / franchise / `transaction` = "added|dropped") is the
+// same one league.js already parses; the FAAB bid amount is surfaced only when MFL names it on the
+// row (its position in the payload isn't confirmed yet — pending a live sample). Best-effort +
+// fail-soft: any read/parse trouble yields [] and the section simply stays empty.
+async function liveWaiverResults(cookie, league, byId, limit = 8) {
+  try {
+    const txns = await mflRepo.transactions(league, cookie, { TRANS_TYPE: 'BBID_WAIVER,WAIVER', COUNT: 40 });
+    const mine = String(league.franchiseId);
+    const out = [];
+    for (const t of txns) {
+      const type = mfl.text(t.type).toUpperCase();
+      if (type !== 'BBID_WAIVER' && type !== 'WAIVER') continue;
+      if (mfl.text(t.franchise) !== mine) continue;
+      const addedCsv = mfl.text(t.transaction).split('|')[0];
+      const addId = addedCsv.split(',').map((s) => s.trim()).filter(Boolean)[0];
+      if (!addId) continue;
+      const p = playersLib.resolve(byId, addId);
+      if (!config.demoMode && (!p.name || /^Player \d+$/.test(p.name))) continue; // unresolved id — skip
+      // Only trust a NAMED bid field (positional payload parsing is unconfirmed) — else null.
+      let bid = mfl.num(t.bbid);
+      if (bid == null) bid = mfl.num(t.bid);
+      out.push({ add: p.name, bid, result: 'won', at: mfl.num(t.timestamp) });
+    }
+    out.sort((a, b) => (b.at || 0) - (a.at || 0));
+    return out.slice(0, limit);
+  } catch (e) {
+    return [];
   }
 }
 
@@ -973,20 +1007,25 @@ async function getSuggestions(cookie, token) {
 // (and once) instead of always downloading the player universe on the Pending tab.
 async function getPending(cookie, token) {
   const leagues = await leaguesService.listLeagues(cookie);
+  // Both the pending claims and the won-results names resolve through the player DB. It's cached
+  // (Home/overview already warmed it), so this is a fast hit in practice.
+  const byId = await playersLib.load(cookie);
   const pending = [];
-  const results = [];
-  let byId = null; // lazily loaded, at most once, only if a claim needs id→name resolution
-  const needsResolve = (c) => (c.add && typeof c.add !== 'object') || (c.drop && typeof c.drop !== 'object');
   for (const league of leagues) {
     for (const c of store.list(token, league.leagueId, config.demoMode ? demo.pendingClaims(league.leagueId) : [])) {
       if ((c.status || 'pending') !== 'pending') continue;
-      if (needsResolve(c) && byId == null) byId = await playersLib.load(cookie);
       pending.push({ ...claimView(c, byId), leagueId: league.leagueId, leagueName: league.name });
     }
-    for (const r of config.demoMode ? demo.waiverResults(league.leagueId) : []) {
-      results.push({ ...r, leagueId: league.leagueId, leagueName: league.name });
-    }
   }
+  // Recent WON results per league — a transactions read each, so fan them out in PARALLEL (like the
+  // other cross-league views) rather than in sequence. Demo uses fixtures; each is fail-soft.
+  const perLeague = await Promise.all(
+    leagues.map(async (league) => {
+      const rs = config.demoMode ? demo.waiverResults(league.leagueId) : await liveWaiverResults(cookie, league, byId);
+      return rs.map((r) => ({ ...r, leagueId: league.leagueId, leagueName: league.name }));
+    })
+  );
+  const results = perLeague.flat();
   return { pending, results, summary: { pending: pending.length, results: results.length } };
 }
 
