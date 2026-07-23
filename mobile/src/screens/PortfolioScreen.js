@@ -57,6 +57,19 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
     });
   }, []);
 
+  // renderItem for the holdings FlatList — a memoized HoldingRow. MUST stay above the early returns
+  // below so the hook count is stable across renders (data-null render vs loaded render); it reads
+  // only resolveBaited/onOpenPlayer/toggleShop, none of which need `d`.
+  const renderHolding = useCallback(
+    ({ item: h, index: i }) => (
+      <View style={styles.holdRowFrame}>
+        <HoldingRow h={h} index={i} baited={resolveBaited(h)} onOpen={onOpenPlayer} onToggleShop={toggleShop} />
+      </View>
+    ),
+    // resolveBaited closes over baitOverride; extraData on the list also keys re-render off it.
+    [baitOverride, onOpenPlayer, toggleShop] // eslint-disable-line react-hooks/exhaustive-deps
+  );
+
   if (error) {
     return (
       <View style={[styles.container, styles.center]}>
@@ -98,15 +111,6 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
     : showAllHoldings
     ? rankedHoldings
     : rankedHoldings.slice(0, 12);
-  const renderHolding = useCallback(
-    ({ item: h, index: i }) => (
-      <View style={styles.holdRowFrame}>
-        <HoldingRow h={h} index={i} baited={resolveBaited(h)} onOpen={onOpenPlayer} onToggleShop={toggleShop} />
-      </View>
-    ),
-    // resolveBaited closes over baitOverride; extraData below also keys re-render off it.
-    [baitOverride, onOpenPlayer, toggleShop] // eslint-disable-line react-hooks/exhaustive-deps
-  );
 
   return (
     <View style={styles.container}>

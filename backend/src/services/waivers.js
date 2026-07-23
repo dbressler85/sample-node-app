@@ -293,42 +293,8 @@ async function getBoard(cookie, token, leagueId, { position, sort } = {}) {
   const tagRank = (p) => (p.tag === 'target' ? 0 : p.tag === 'avoid' ? 2 : 1);
   freeAgents.sort((a, b) => tagRank(a) - tagRank(b) || (b[key] || 0) - (a[key] || 0));
 
-  const local = store.list(token, leagueId, config.demoMode ? demo.pendingClaims(leagueId) : []).map((c) => claimView(c, byId));
-  // In live, reconcile with MFL's AUTHORITATIVE pending waivers (what's actually queued there —
-  // including bids placed outside the app). Merge MFL's claims with any local-store entries whose
-  // add isn't already reflected on MFL (dedup by add id, so an app-submitted claim shows once),
-  // keeping recently-processed receipts. Best-effort + fail-soft: any read failure falls back to
-  // the local store, so the board never breaks on this.
-  let pending = local;
-  if (!config.demoMode) {
-    try {
-      const reqs = await mflRepo.pendingWaivers(league, cookie);
-      const mflPending = reqs.flatMap((req) =>
-        req.picks.map((pick, i) => {
-          const add = pick.add ? playersLib.resolve(byId, pick.add) : null;
-          const drop = pick.drop ? playersLib.resolve(byId, pick.drop) : null;
-          return {
-            id: `mfl-${req.system}-${req.round}-${i}`,
-            system: req.system,
-            add: add ? { id: add.id, name: add.name, position: add.position } : null,
-            drop: drop ? { id: drop.id, name: drop.name, position: drop.position } : null,
-            bid: pick.bid,
-            priority: null,
-            round: req.round,
-            status: 'pending',
-            processTime: null,
-            source: 'mfl',
-          };
-        })
-      );
-      if (mflPending.length) {
-        const mflAdds = new Set(mflPending.map((c) => c.add && c.add.id).filter(Boolean));
-        pending = [...mflPending, ...local.filter((c) => !(c.add && mflAdds.has(c.add.id)))];
-      }
-    } catch (e) {
-      /* keep the local-store view */
-    }
-  }
+  // Reconcile the local claim store with MFL's authoritative pending waivers (see reconciledPending).
+  const pending = await reconciledPending(cookie, token, league, byId);
   const results = (config.demoMode ? demo.waiverResults(leagueId) : await liveWaiverResults(cookie, league, byId)).map(normResult);
 
   return {
@@ -555,6 +521,42 @@ async function liveWaiverResults(cookie, league, byId, limit = 8) {
     return out.slice(0, limit);
   } catch (e) {
     return [];
+  }
+}
+
+// Merge the local claim store with MFL's AUTHORITATIVE pending waivers for ONE league — so claims
+// queued on MFL (including bids placed on the MFL site, not through the app) actually show up.
+// Deduped by add id so an app-submitted claim isn't listed twice. Best-effort + fail-soft: any read
+// failure yields just the local view. Returns claimView-shaped rows.
+async function reconciledPending(cookie, token, league, byId) {
+  const leagueId = league.leagueId;
+  const local = store.list(token, leagueId, config.demoMode ? demo.pendingClaims(leagueId) : []).map((c) => claimView(c, byId));
+  if (config.demoMode) return local;
+  try {
+    const reqs = await mflRepo.pendingWaivers(league, cookie);
+    const mflPending = reqs.flatMap((req) =>
+      req.picks.map((pick, i) => {
+        const add = pick.add ? playersLib.resolve(byId, pick.add) : null;
+        const drop = pick.drop ? playersLib.resolve(byId, pick.drop) : null;
+        return {
+          id: `mfl-${req.system}-${req.round}-${i}`,
+          system: req.system,
+          add: add ? { id: add.id, name: add.name, position: add.position } : null,
+          drop: drop ? { id: drop.id, name: drop.name, position: drop.position } : null,
+          bid: pick.bid,
+          priority: null,
+          round: req.round,
+          status: 'pending',
+          processTime: null,
+          source: 'mfl',
+        };
+      })
+    );
+    if (!mflPending.length) return local;
+    const mflAdds = new Set(mflPending.map((c) => c.add && c.add.id).filter(Boolean));
+    return [...mflPending, ...local.filter((c) => !(c.add && mflAdds.has(c.add.id)))];
+  } catch (e) {
+    return local;
   }
 }
 
@@ -1027,32 +1029,28 @@ async function getSuggestions(cookie, token) {
   return { leagues: out, summary };
 }
 
-// All pending claims + recent results across leagues, for one activity view. This reads only the
-// local claim store (no MFL fan-out), so it's cheap — the one heavy dependency was loading the
-// whole player DATABASE to resolve names. App-submitted claims already store add/drop as resolved
-// objects, so that map is only needed for the rare claim that stored a bare id; load it lazily
-// (and once) instead of always downloading the player universe on the Pending tab.
+// All pending claims + recent results across leagues, for one activity view. Pending is reconciled
+// with MFL's authoritative queue per league (reconciledPending) so claims placed on the MFL site —
+// not just through the app — show up. Results come from the transactions log. Both are per-league
+// MFL reads, so fan them out in PARALLEL (cached, like the other cross-league views).
 async function getPending(cookie, token) {
   const leagues = await leaguesService.listLeagues(cookie);
-  // Both the pending claims and the won-results names resolve through the player DB. It's cached
-  // (Home/overview already warmed it), so this is a fast hit in practice.
-  const byId = await playersLib.load(cookie);
-  const pending = [];
-  for (const league of leagues) {
-    for (const c of store.list(token, league.leagueId, config.demoMode ? demo.pendingClaims(league.leagueId) : [])) {
-      if ((c.status || 'pending') !== 'pending') continue;
-      pending.push({ ...claimView(c, byId), leagueId: league.leagueId, leagueName: league.name });
-    }
-  }
-  // Recent WON results per league — a transactions read each, so fan them out in PARALLEL (like the
-  // other cross-league views) rather than in sequence. Demo uses fixtures; each is fail-soft.
+  const byId = await playersLib.load(cookie); // cached (Home/overview warmed it); used to resolve names
   const perLeague = await Promise.all(
     leagues.map(async (league) => {
-      const rs = config.demoMode ? demo.waiverResults(league.leagueId) : await liveWaiverResults(cookie, league, byId);
-      return rs.map(normResult).map((r) => ({ ...r, leagueId: league.leagueId, leagueName: league.name }));
+      const [pend, rs] = await Promise.all([
+        reconciledPending(cookie, token, league, byId),
+        config.demoMode ? Promise.resolve(demo.waiverResults(league.leagueId)) : liveWaiverResults(cookie, league, byId),
+      ]);
+      const pending = pend
+        .filter((c) => (c.status || 'pending') === 'pending')
+        .map((c) => ({ ...c, leagueId: league.leagueId, leagueName: league.name }));
+      const results = rs.map(normResult).map((r) => ({ ...r, leagueId: league.leagueId, leagueName: league.name }));
+      return { pending, results };
     })
   );
-  const results = perLeague.flat();
+  const pending = perLeague.flatMap((x) => x.pending);
+  const results = perLeague.flatMap((x) => x.results);
   return { pending, results, summary: { pending: pending.length, results: results.length } };
 }
 

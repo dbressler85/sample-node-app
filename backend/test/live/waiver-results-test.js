@@ -39,6 +39,9 @@ mfl.exportRequest = async (type, opts = {}) => {
       // The service should filter to waiver types via TRANS_TYPE; return the mixed set to prove
       // our own type/franchise filtering holds even if MFL returns extra rows.
       return { transactions: { transaction: TXNS } };
+    case 'pendingWaivers':
+      // A FAAB claim queued on MFL directly (NOT through the app): add 15000, bid 5, drop 14849.
+      return { pendingWaivers: { blindBidWaiverRequest: { round: '1', timestamp: '1725000000', addsDrops: '15000_5_14849' } } };
     default:
       return {};
   }
@@ -63,6 +66,14 @@ const waivers = require('../../src/services/waivers');
   assert(!results.some((r) => r.add === 'Rival, Add'), "another franchise's add is excluded");
   assert(summary.results === 2, 'summary counts the results');
   console.log('✓ live waiver results: won adds + drops (name + id), $t-parsed, named bid, trades/others excluded');
+
+  // Pending must include claims queued on MFL directly (not just app-submitted) — the reported bug.
+  const { pending } = await waivers.getPending('ck', 'tk');
+  console.log('pending:', JSON.stringify(pending.map((p) => ({ add: p.add && p.add.name, bid: p.bid, drop: p.drop && p.drop.name, src: p.source }))));
+  const mflClaim = pending.find((p) => p.add && p.add.name === 'Pickup, Late');
+  assert(mflClaim, 'a claim queued on MFL (not via the app) shows in Pending');
+  assert(mflClaim.bid === 5 && mflClaim.drop && mflClaim.drop.name === 'Cut, Guy', `MFL claim carries bid + drop, got ${JSON.stringify(mflClaim)}`);
+  console.log('✓ pending reconciles with MFL: an MFL-queued claim appears in the Pending tab');
 
   console.log('\nWAIVER RESULTS HARNESS PASSED');
 })().catch((e) => { console.error(e.message); process.exit(1); });
