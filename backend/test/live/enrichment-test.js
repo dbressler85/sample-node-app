@@ -16,16 +16,32 @@ global.fetch = async (url) => {
 };
 
 const enrichment = require('../../src/lib/enrichment');
+const players = require('../../src/lib/players');
 const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
 
+// Player DB carries a team defense and a kicker — positions FantasyCalc (the value source) omits.
+// The snapshot resolves their position from here so the streamer baseline value applies.
+players.load = async () => new Map([
+  ['30000', { id: '30000', name: 'Test D/ST', position: 'DEF', team: 'KC' }],
+  ['30001', { id: '30001', name: 'Test Kicker', position: 'PK', team: 'KC' }],
+]);
+
 (async () => {
-  const snap = await enrichment.snapshot();
+  const snap = await enrichment.snapshot(undefined, 'ck');
 
   // Values normalized to 0-100 by the max (9500 -> 100, 4750 -> 50, 950 -> 10).
   assert(snap.value('13593') === 100, `Jefferson value 100, got ${snap.value('13593')}`);
   assert(snap.value('15267') === 50, `Bijan value 50, got ${snap.value('15267')}`);
   assert(snap.value('99999') === 10, `fringe value 10, got ${snap.value('99999')}`);
   assert(snap.value('00000') === null, 'unknown player -> null value');
+
+  // Team defense + kicker aren't in FantasyCalc, so they'd be value-null and invisible everywhere.
+  // A small positional baseline (DEF 2, kicker 0) makes them present + ranked at the very bottom,
+  // resolved via the player-DB position (FantasyCalc has no DEF/PK rows). A value-less id with NO
+  // known position stays null (only DEF/PK get the baseline).
+  assert(snap.value('30000') === 2, `team defense gets the DEF baseline (2), got ${snap.value('30000')}`);
+  assert(snap.value('30001') === 0, `kicker gets the PK baseline (0), got ${snap.value('30001')}`);
+  console.log('✓ DEF/PK streamer baseline: def=' + snap.value('30000') + ' pk=' + snap.value('30001') + ' (visible, bottom-ranked)');
 
   // Age + rank straight from FantasyCalc.
   assert(snap.age('13593') === 25 && snap.age('15267') === 23, 'ages mapped');

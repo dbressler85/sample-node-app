@@ -5,7 +5,7 @@
 // "need" (your starter is fine), but sending him leaves you with none — that has to read
 // as a caution. And it must NOT fire when you're backfilled or when you shed a scrub.
 
-const { constructionVerdict } = require('../../src/lib/tradefit');
+const { constructionVerdict, needsSurplus, suggestGive } = require('../../src/lib/tradefit');
 const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
 
 // You start 1 RB and hold exactly one startable RB (value 60, above the 40 bar).
@@ -41,5 +41,31 @@ const anotherRB = { position: 'RB', value: 55 };
   assert(v4.holes.includes('RB') && /their/i.test(v4.reason), 'partner-side hole reads as their loss');
 
   console.log('✓ hole detection: opens-a-hole caution, backfill clears it, scrubs are safe');
+
+  // 5) Kicker/defense are streamers, NOT trade pieces: excluded from needs/surplus (even in a
+  // DEF-start league) and never proposed in a suggested package.
+  const reqs = [
+    { name: 'QB', eligible: ['QB'], count: 1 },
+    { name: 'DEF', eligible: ['DEF'], count: 1 },
+  ];
+  const ns = needsSurplus(
+    [
+      { franchiseId: '1', players: [{ id: 'a', position: 'QB', value: 60 }, { id: 'b', position: 'DEF', value: 2 }] },
+      { franchiseId: '2', players: [{ id: 'c', position: 'QB', value: 60 }] }, // no DEF, but DEF isn't a trade need
+    ],
+    reqs
+  );
+  assert(!ns['2'].needs.some((n) => n.pos === 'DEF'), `DEF is never a trade need (streamer), got ${JSON.stringify(ns['2'].needs)}`);
+  // The suggester must never put a kicker or defense in the give package.
+  const give = suggestGive(
+    [{ id: 'd', name: 'A Defense', position: 'DEF', value: 2 }, { id: 'w', name: 'A WR', position: 'WR', value: 50 }],
+    50,
+    [],
+    new Set()
+  );
+  assert(give.every((p) => !['PK', 'DEF'].includes(p.position)), `suggested give never includes K/DEF, got ${JSON.stringify(give.map((g) => g.position))}`);
+  assert(give.length === 1 && give[0].id === 'w', 'the fair WR is suggested, not the defense');
+  console.log('✓ K/DEF are streamers: never a trade need, never in a suggested package');
+
   console.log('\nTRADE HOLE HARNESS PASSED');
 })().catch((e) => { console.error(e.message); process.exit(1); });

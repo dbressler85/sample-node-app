@@ -50,6 +50,10 @@ function median(nums) {
 // badly they're needed (gap below the league) / how much surplus depth they hold.
 function needsSurplus(franchises, requirements) {
   const slots = positionSlots(requirements);
+  // Kicker and team defense are streamed off waivers, never traded, so they're excluded from the
+  // trade brain entirely — no K/DEF needs/surplus, and (below, in suggestGive) never proposed in a
+  // suggested package. They stay fully visible/rosterable/startable elsewhere; they're just not
+  // trade pieces the app pushes.
   const started = Object.keys(slots).filter((p) => slots[p] >= 0.5 && !['PK', 'DEF'].includes(p));
   const bds = franchises.map((f) => ({ franchiseId: String(f.franchiseId), bd: breakdown(f.players, slots) }));
 
@@ -92,8 +96,11 @@ function needsSurplus(franchises, requirements) {
 function suggestGive(mine, targetValue, partnerNeeds, myBait) {
   const needSet = new Set((partnerNeeds || []).map((n) => n.pos));
   const bait = myBait instanceof Set ? myBait : new Set(myBait || []);
+  // Never propose a kicker or team defense in a suggested package — they're waiver streamers, not
+  // trade chips (kickers are value 0 and already excluded by the >0 gate; defenses are explicitly
+  // dropped here too).
   const pool = mine
-    .filter((p) => (p.value || 0) > 0)
+    .filter((p) => (p.value || 0) > 0 && !['PK', 'DEF'].includes(p.position))
     .map((p) => ({ ...p, fit: needSet.has(p.position), bait: bait.has(String(p.id)) }));
   if (!pool.length) return [];
   // Priority: a player who fits their need and/or is on your block outranks a plain

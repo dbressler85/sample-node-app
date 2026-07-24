@@ -33,13 +33,20 @@ const DEFAULT_FORMAT = { numQbs: 1, ppr: 1, tePpr: 1 };
 // premium (fetched per numQbs), so we only add TE premium there; demo values are flat,
 // so we apply both.
 const SUPERFLEX_QB_MULT = 1.7;
+// Team defense and kicker aren't in the dynasty-value source (FantasyCalc covers skill positions
+// only), so they'd be value-null and effectively INVISIBLE across the app — sinking below every
+// valued player, never surfacing in "best available"/rankings/suggestions, and reading blank on
+// rosters. Give them a small positional baseline so they're present and ranked low (as befits
+// streamed positions) in leagues that use them, without meaningfully distorting skill-position
+// trade math. Other value-less ids (deep IDP, unknowns) stay null.
+const STREAMER_BASELINE = { DEF: 2, PK: 0 };
 function teMult(fmt) {
   const premium = Math.max(0, (fmt.tePpr != null ? fmt.tePpr : fmt.ppr) - fmt.ppr);
   return 1 + Math.min(premium, 1) * 0.5; // up to +50% at a full +1.0 per-reception TE premium
 }
 // applyQb: apply the superflex QB premium here (true for demo; false for live FantasyCalc).
 function adjustValue(base, position, fmt, applyQb) {
-  if (base == null) return null;
+  if (base == null) return STREAMER_BASELINE[position] != null ? STREAMER_BASELINE[position] : null;
   let m = 1;
   if (position === 'QB' && applyQb && fmt.numQbs === 2) m *= SUPERFLEX_QB_MULT;
   if (position === 'TE') m *= teMult(fmt);
@@ -224,14 +231,16 @@ async function getMflAdds(cookie) {
 
 async function buildLive(format, cookie) {
   // Fetch all providers in parallel to halve cold-start latency.
-  const [fc, sleeperRaw, owned, mflAdds] = await Promise.all([
+  const [fc, sleeperRaw, owned, mflAdds, byId] = await Promise.all([
     getFantasyCalc(format),
     getSleeperTrending(),
     getMflOwnership(cookie),
     getMflAdds(cookie),
+    players.load(cookie).catch(() => new Map()),
   ]);
-  // Position for the value multiplier comes from FantasyCalc's own rows — no extra fetch.
-  const posOf = (id) => fc.pos.get(String(id)) || '';
+  // Position for the value multiplier + streamer baseline: FantasyCalc's rows first, then the player
+  // DB — which carries DEF/PK, the positions FantasyCalc omits (so their baseline value resolves).
+  const posOf = (id) => fc.pos.get(String(id)) || (byId.get(String(id)) ? byId.get(String(id)).position : '') || '';
   // Combined add "heat": Sleeper trending adds (via crosswalk) + MFL topAdds.
   const trend = new Map();
   for (const [sleeperId, count] of sleeperRaw) {
