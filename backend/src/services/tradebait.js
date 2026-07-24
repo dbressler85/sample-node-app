@@ -17,7 +17,21 @@ const nflLib = require('../lib/nfl');
 const demo = require('../demo/fixtures');
 const leaguesService = require('./leagues');
 const rosterService = require('./roster');
+const leagueContext = require('../lib/leagueContext');
 const baitStore = require('../store/tradebait');
+const playerTags = require('../store/playerTags');
+const watchlist = require('../store/watchlist');
+
+// Stamp a player asset with MY personal signals — Target/Avoid tag and whether he's on my watchlist —
+// so every trade-bait row (mine AND rivals') shows my read at a glance. Picks carry nothing. `token`
+// is the signed-in owner; conviction/watch are player-level and global across leagues.
+function stampSignals(asset, token) {
+  if (asset && asset.kind === 'player') {
+    asset.tag = playerTags.get(token, asset.id) || null;
+    asset.watched = watchlist.has(token, asset.id);
+  }
+  return asset;
+}
 
 // Split a bait row's `willGiveUp` (a CSV mixing player ids and pick tokens) into tokens.
 // Confirmed against a live tradeBait sample: e.g. "16593,15721,DP_0_2,FP_0011_2027_1".
@@ -164,9 +178,10 @@ async function getBlock(cookie, token) {
   // Phase 2 (parallel): only leagues with bait pay for a roster + franchise read.
   const leagues = await Promise.all(
     active.map(async ({ league, tokens, note, localEntries }) => {
-      const [roster, franchises] = await Promise.all([
+      const [roster, franchises, context] = await Promise.all([
         rosterService.getRoster(cookie, league.leagueId).catch(() => null),
         rosterService.leagueFranchises(cookie, league.leagueId).catch(() => []),
+        leagueContext.build(cookie, league).catch(() => null),
       ]);
       const noteById = new Map(localEntries.map((e) => [String(e.playerId), e.note]));
       const players = tokens
@@ -181,9 +196,12 @@ async function getBlock(cookie, token) {
           } else {
             Object.assign(asset, { bucket: null, availability: null, stale: false, note: null, suggestions: [] });
           }
-          return asset;
+          return stampSignals(asset, token);
         })
         .sort((a, b) => (b.value || 0) - (a.value || 0));
+      // League scoring + starting lineup + my team's dynasty read — the context an owner needs when
+      // deciding what to shop (a superflex league values a QB you'd never move in 1QB, etc.).
+      const teamSummary = roster && roster.summary ? roster.summary : null;
       return {
         leagueId: String(league.leagueId),
         name: league.name,
@@ -191,6 +209,9 @@ async function getBlock(cookie, token) {
         players,
         count: players.length,
         value: Math.round(players.reduce((s, p) => s + (p.value || 0), 0)),
+        context: context
+          ? { ...context, team: teamSummary ? { outlook: teamSummary.outlook || null, coreAge: teamSummary.coreAge != null ? teamSummary.coreAge : null, avgAge: teamSummary.avgAge != null ? teamSummary.avgAge : null, strengthLabel: teamSummary.strengthLabel || null } : null }
+          : null,
       };
     })
   );
@@ -221,9 +242,10 @@ async function getBlockDemo(cookie, token) {
   const leagues = await Promise.all(
     [...byLeague.entries()].map(async ([leagueId, es]) => {
       const league = leagueById.get(String(leagueId));
-      const [roster, franchises] = await Promise.all([
+      const [roster, franchises, context] = await Promise.all([
         league ? rosterService.getRoster(cookie, leagueId).catch(() => null) : null,
         league ? rosterService.leagueFranchises(cookie, leagueId).catch(() => []) : [],
+        league ? leagueContext.build(cookie, league).catch(() => null) : null,
       ]);
       const players = es
         .map((e) => {
@@ -236,10 +258,15 @@ async function getBlockDemo(cookie, token) {
             note: e.note || null, bucket, stale: roster ? bucket === null : false,
           };
           player.suggestions = suggestPartners(franchises, player);
-          return player;
+          return stampSignals(player, token);
         })
         .sort((a, b) => (b.value || 0) - (a.value || 0));
-      return { leagueId: String(leagueId), name: league ? league.name : `League ${leagueId}`, note: null, players, count: players.length, value: Math.round(players.reduce((s, p) => s + (p.value || 0), 0)) };
+      const teamSummary = roster && roster.summary ? roster.summary : null;
+      return {
+        leagueId: String(leagueId), name: league ? league.name : `League ${leagueId}`, note: null, players, count: players.length,
+        value: Math.round(players.reduce((s, p) => s + (p.value || 0), 0)),
+        context: context ? { ...context, team: teamSummary ? { outlook: teamSummary.outlook || null, coreAge: teamSummary.coreAge != null ? teamSummary.coreAge : null, avgAge: teamSummary.avgAge != null ? teamSummary.avgAge : null, strengthLabel: teamSummary.strengthLabel || null } : null } : null,
+      };
     })
   );
   leagues.sort((a, b) => b.value - a.value);
@@ -256,9 +283,10 @@ async function getMarket(cookie, token) {
 
   const out = await Promise.all(
     leagues.map(async (league) => {
-      const [baits, names] = await Promise.all([
+      const [baits, names, context] = await Promise.all([
         mflRepo.tradeBaits(league, cookie, { INCLUDE_DRAFT_PICKS: 1 }).catch(() => []),
         leaguesService.franchiseNames(cookie, league).catch(() => new Map()),
+        leagueContext.build(cookie, league).catch(() => null),
       ]);
       const teams = baits
         .filter((b) => mfl.text(mfl.attr(b, 'franchise_id', 'franchiseId')) !== String(league.franchiseId))
@@ -271,7 +299,9 @@ async function getMarket(cookie, token) {
                 // Injury/bye status for players (rivals' AND — via getBlock — yours), so a scan of a
                 // rival's block shows who's actually deployable.
                 if (a.kind === 'player') a.availability = availabilityLib.resolve(playersLib.resolve(byId, a.id), ctx.statusMap, ctx.byeMap, ctx.week);
-                return a;
+                // My personal read on a rival's shopped player — is he a Target of mine? An Avoid? On
+                // my watchlist? — so I can spot a rival dangling someone I want.
+                return stampSignals(a, token);
               })
               .filter((a) => config.demoMode || a.kind === 'pick' || (a.name && !/^Player \d+$/.test(a.name)))
           );
@@ -286,7 +316,7 @@ async function getMarket(cookie, token) {
         })
         .filter((t) => t.count)
         .sort((a, b) => b.value - a.value);
-      return { leagueId: String(league.leagueId), name: league.name, teams, teamCount: teams.length };
+      return { leagueId: String(league.leagueId), name: league.name, teams, teamCount: teams.length, context };
     })
   );
 
@@ -320,12 +350,22 @@ async function getBlockEditor(cookie, token) {
         blockTokens = mine ? mine.ids : [];
         note = (mine && mine.note) || '';
       }
-      return { leagueId: String(league.leagueId), name: league.name, note: note || '', blockTokens, count: blockTokens.length };
+      // League scoring + starting lineup + my team read, so the primary bait-setting surface shows
+      // what kind of league I'm shopping in (a QB is untouchable in superflex, a WR3 is depth in a
+      // 4-WR league, etc.). Fail-soft.
+      const context = await leagueContext.build(cookie, league).catch(() => null);
+      return { leagueId: String(league.leagueId), name: league.name, note: note || '', blockTokens, count: blockTokens.length, context };
     })
   );
   // Leagues with bait first (most first), then the rest alphabetically.
   leagues.sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
-  return { leagues, totals: { onBlock: leagues.reduce((s, l) => s + l.count, 0), leagues: leagues.length } };
+  // My global player signals (Target/Avoid tags + watchlist), returned once so the client can mark
+  // any roster row it renders — since tags/watch are player-level and league-independent.
+  return {
+    leagues,
+    totals: { onBlock: leagues.reduce((s, l) => s + l.count, 0), leagues: leagues.length },
+    signals: { tags: playerTags.all(token) || {}, watched: watchlist.list(token) || [] },
+  };
 }
 
 // Save the WHOLE block for one league in one shot: `tokens` is the complete checked set (players +

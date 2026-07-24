@@ -82,7 +82,7 @@ function partnerTendency(partner) {
   return null;
 }
 
-export default function TradesScreen({ league, onBack, initialTab, seed, onOpenPlayer, onSent }) {
+export default function TradesScreen({ league, onBack, initialTab, seed, onOpenPlayer, onSent, onOpenRoster }) {
   // Seed the desk read (partners, my players/picks, offers) from the survive-remount cache, keyed
   // per league — reopening a league's desk paints instantly instead of a cold spinner. In-progress
   // BUILD state (send/receive/faab) is intentionally NOT cached: each open starts a fresh offer.
@@ -476,7 +476,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
           ) : (
             activeOffers.map((o, i) => (
               <Reveal key={o.id} delay={Math.min(i, 6) * 55}>
-                <OfferCard offer={o} busy={busy === o.id} onAccept={(off) => respond(off, 'accept')} onReject={openReject} onWithdraw={withdraw} onCounter={startCounter} onOpenPlayer={onOpenPlayer} />
+                <OfferCard offer={o} busy={busy === o.id} onAccept={(off) => respond(off, 'accept')} onReject={openReject} onWithdraw={withdraw} onCounter={startCounter} onOpenPlayer={onOpenPlayer} onReviewRoster={onOpenRoster ? () => onOpenRoster(league) : null} />
               </Reveal>
             ))
           )}
@@ -686,7 +686,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
   );
 }
 
-function OfferCard({ offer, busy, onAccept, onReject, onWithdraw, onCounter, onOpenPlayer }) {
+function OfferCard({ offer, busy, onAccept, onReject, onWithdraw, onCounter, onOpenPlayer, onReviewRoster }) {
   const v = VERDICT[offer.analysis.verdict] || VERDICT.fair;
   const outgoing = offer.direction === 'outgoing';
   // A colored left stripe + a direction pill so received-vs-sent reads instantly, even at a glance:
@@ -746,15 +746,23 @@ function OfferCard({ offer, busy, onAccept, onReject, onWithdraw, onCounter, onO
         </View>
       ) : null}
       {offer.canRespond ? (
-        // Incoming offer we're the target of → accept / reject (reject can carry a note).
-        <View style={styles.cardActions}>
-          <Pressable style={[styles.act, styles.reject]} onPress={() => onReject(offer)} disabled={busy}>
-            <Text style={styles.rejectText}>Reject</Text>
-          </Pressable>
-          <Pressable style={[styles.act, styles.accept]} onPress={() => onAccept(offer)} disabled={busy}>
-            {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.acceptText}>Accept</Text>}
-          </Pressable>
-        </View>
+        // Incoming offer we're the target of → accept / reject (reject can carry a note), plus a
+        // "Review roster" jump so you can see the rest of your team in context before deciding.
+        <>
+          {onReviewRoster ? (
+            <Pressable style={({ pressed }) => [styles.reviewBtn, pressed && { opacity: 0.7 }]} onPress={onReviewRoster} disabled={busy}>
+              <Text style={styles.reviewBtnText}>⌂ Review my roster in context</Text>
+            </Pressable>
+          ) : null}
+          <View style={styles.cardActions}>
+            <Pressable style={[styles.act, styles.reject]} onPress={() => onReject(offer)} disabled={busy}>
+              <Text style={styles.rejectText}>Reject</Text>
+            </Pressable>
+            <Pressable style={[styles.act, styles.accept]} onPress={() => onAccept(offer)} disabled={busy}>
+              {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.acceptText}>Accept</Text>}
+            </Pressable>
+          </View>
+        </>
       ) : offer.canRevoke ? (
         // Our own outgoing offer → withdraw it (revoke).
         <View style={styles.cardActions}>
@@ -940,6 +948,8 @@ const styles = StyleSheet.create({
   counterText: { color: colors.text, fontSize: 13, lineHeight: 18 },
   counterBtn: { marginTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, paddingTop: 10, alignItems: 'center' },
   counterBtnText: { color: colors.accent, fontSize: 14, fontWeight: '800' },
+  reviewBtn: { marginTop: 10, borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
+  reviewBtnText: { color: colors.textDim, fontSize: 13, fontWeight: '800' },
   sendHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   suggestBtn: { borderWidth: 1, borderColor: colors.accent, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, marginTop: 8 },
   suggestOff: { opacity: 0.4 },

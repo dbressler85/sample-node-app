@@ -317,7 +317,7 @@ export default function App() {
       case 'waiverWizard':
         return <WaiverWizardScreen leagues={o.leagues} onBack={popOverlay} onOpenPlayer={openPlayer} />;
       case 'trades':
-        return <TradesScreen league={o.league} initialTab={o.initialTab} seed={o.seed} onBack={popOverlay} onOpenPlayer={openPlayer} />;
+        return <TradesScreen league={o.league} initialTab={o.initialTab} seed={o.seed} onBack={popOverlay} onOpenPlayer={openPlayer} onOpenRoster={openRoster} />;
       case 'tradeInbox':
         return (
           <TradeInboxScreen

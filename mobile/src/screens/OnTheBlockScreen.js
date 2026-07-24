@@ -4,7 +4,21 @@ import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import useAndroidBack from '../useAndroidBack';
 import AvailabilityBadge from '../components/AvailabilityBadge';
+import LeagueContext from '../components/LeagueContext';
 import { peekResource, primeResource } from '../useCachedResource';
+
+// My personal signals on a player, inline next to his name — Target (◎), Avoid (⊘), and watchlist (★).
+// Shown on my bait AND rivals' bait so I always see my read on anyone being shopped.
+function TagMarks({ tag, watched }) {
+  if (!tag && !watched) return null;
+  return (
+    <View style={styles.tagMarks}>
+      {tag === 'target' ? <Text style={[styles.tagMark, { color: colors.good }]}>◎</Text> : null}
+      {tag === 'avoid' ? <Text style={[styles.tagMark, { color: colors.bad }]}>⊘</Text> : null}
+      {watched ? <Text style={[styles.tagMark, { color: colors.gold }]}>★</Text> : null}
+    </View>
+  );
+}
 
 const EDITOR_KEY = 'block:editor';
 const MARKET_KEY = 'block:market';
@@ -186,6 +200,7 @@ export default function OnTheBlockScreen({ onBack, onOpenPlayer, onOpenInbox, on
               {(editor && editor.leagues || []).map((lg) => {
                 const open = expanded.has(lg.leagueId);
                 const roster = rosters[lg.leagueId];
+                const sig = editor && editor.signals; // my global Target/Avoid/watch signals
                 const checkSet = checks[lg.leagueId] || new Set((lg.blockTokens || []).map(String));
                 return (
                   <View key={lg.leagueId} style={styles.card}>
@@ -195,6 +210,7 @@ export default function OnTheBlockScreen({ onBack, onOpenPlayer, onOpenInbox, on
                       <Text style={styles.caret}>{open ? '⌄' : '›'}</Text>
                     </Pressable>
 
+                    {open && lg.context ? <LeagueContext context={lg.context} /> : null}
                     {open ? (
                       roster === 'loading' || !roster ? (
                         <View style={styles.center}><ActivityIndicator color={colors.accent} /></View>
@@ -211,6 +227,7 @@ export default function OnTheBlockScreen({ onBack, onOpenPlayer, onOpenInbox, on
                                 <View style={{ flex: 1, minWidth: 0 }}>
                                   <View style={styles.nameLine}>
                                     <Text style={styles.assetName} numberOfLines={1}>{a.name}</Text>
+                                    <TagMarks tag={sig && sig.tags ? sig.tags[a.token] : null} watched={!!(sig && sig.watched && sig.watched.includes(a.token))} />
                                     {a.availability ? <AvailabilityBadge availability={a.availability} style={{ marginLeft: 6 }} /> : null}
                                   </View>
                                   <Text style={styles.assetMeta} numberOfLines={1}>
@@ -267,6 +284,7 @@ export default function OnTheBlockScreen({ onBack, onOpenPlayer, onOpenInbox, on
                   <Text style={styles.leagueCount}>{lg.teamCount} team{lg.teamCount === 1 ? '' : 's'}</Text>
                   <Text style={styles.caret}>{open ? '⌄' : '›'}</Text>
                 </Pressable>
+                {open && lg.context ? <LeagueContext context={lg.context} /> : null}
                 {open ? lg.teams.map((team) => {
                   const key = `${lg.leagueId}:${team.franchiseId}`;
                   const sel = mChecks[key] || new Set();
@@ -289,6 +307,7 @@ export default function OnTheBlockScreen({ onBack, onOpenPlayer, onOpenInbox, on
                             >
                               <View style={styles.nameLine}>
                                 <Text style={styles.assetName} numberOfLines={1}>{a.name}</Text>
+                                <TagMarks tag={a.tag} watched={a.watched} />
                                 {a.availability ? <AvailabilityBadge availability={a.availability} style={{ marginLeft: 6 }} /> : null}
                               </View>
                               <Text style={styles.assetMeta} numberOfLines={1}>
@@ -350,6 +369,8 @@ const styles = StyleSheet.create({
   dot: { width: 8, height: 8, borderRadius: 4, marginRight: 10 },
   nameLine: { flexDirection: 'row', alignItems: 'center' },
   assetName: { color: colors.text, fontSize: 15, fontWeight: '600', flexShrink: 1 },
+  tagMarks: { flexDirection: 'row', alignItems: 'center', marginLeft: 6, gap: 3 },
+  tagMark: { fontSize: 13, fontWeight: '900' },
   assetMeta: { color: colors.textDim, fontSize: 12, marginTop: 2 },
   assetVal: { color: colors.gold, fontSize: 15, fontWeight: '900', marginLeft: 10, minWidth: 30, textAlign: 'right' },
   askLabel: { color: colors.textDim, fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4, marginTop: 12, marginBottom: 6 },
