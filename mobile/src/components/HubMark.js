@@ -1,16 +1,15 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import Svg, { Defs, LinearGradient, Stop, Path, Rect, Circle, Line, G } from 'react-native-svg';
-import { colors } from '../theme';
+import { View } from 'react-native';
+import Svg, { Defs, LinearGradient, Stop, Path, Rect, Circle, Line, G, Text as SvgText } from 'react-native-svg';
 
-// The Dynasty Central mark — "The Regent Crest." A championship shield charged with the
-// DC monogram as its centerpiece, crowned by a five-point coronet that sits squarely on
-// the letters like a crown on a head, over gridiron hash-marks at the base. Dynasty
-// (heraldry + crown) + command (many leagues, one crest) + the brand's initials.
+// The Dynasty Central mark — "The Regent Crest." A championship shield charged with the DC monogram,
+// crowned by a five-point coronet that sits DIRECTLY ON the letters like a crown on a head, over
+// gridiron hash-marks at the base. Dynasty (heraldry + crown) + command (many leagues, one crest) +
+// the brand's initials.
 //
-// The crest is vector (crisp at any size, matches the app icon); the DC is a real text
-// glyph overlaid and centered on the shield, so the letterforms are always sharp and
-// correctly kerned rather than hand-traced paths.
+// The DC is a real glyph (react-native-svg <Text>) drawn INSIDE the SVG *before* the coronet, so the
+// crown's band rests on the letters' cap-tops (the crown is painted on top). Everything is vector, so
+// it's crisp at any size and matches the app icon, which is rendered from the same geometry.
 export default function HubMark({ size = 88 }) {
   const w = size;
   const h = Math.round((size * 220) / 200); // crest is 200×220
@@ -48,32 +47,44 @@ export default function HubMark({ size = 88 }) {
           strokeWidth={1.4}
         />
 
-        {/* coronet — a five-point crown sitting squarely (no tilt) atop the monogram like a
-            crown on a head. Center point tallest and jewelled = your title team; the flanking
-            points = your leagues. Pearl-tipped spikes rise from a decorated band with alternating
-            gem settings for a fancier, more regal read. */}
+        {/* DC monogram — real glyph, drawn BEFORE the coronet so the crown sits on its cap-tops */}
+        <SvgText
+          x={100}
+          y={172}
+          textAnchor="middle"
+          fontSize={82}
+          fontWeight="900"
+          letterSpacing={-2}
+          fill="#FCE38F"
+        >
+          DC
+        </SvgText>
+
+        {/* coronet — a five-point crown resting squarely ON the monogram like a crown on a head.
+            Center point tallest and jewelled = your title team; the flanking points = your leagues.
+            Pearl-tipped spikes rise from a decorated band with alternating gem settings. */}
         <G>
           {/* points (the jagged silhouette rising from the band) */}
           <Path
-            d="M58 96 L64 68 L74 84 L82 56 L91 78 L100 44 L109 78 L118 56 L126 84 L136 68 L142 96 Z"
+            d="M58 107 L64 79 L74 95 L82 67 L91 89 L100 55 L109 89 L118 67 L126 95 L136 79 L142 107 Z"
             fill="url(#dcGold)"
             stroke="#9C6E1C"
             strokeWidth={1}
             strokeLinejoin="round"
           />
           {/* band */}
-          <Rect x={56} y={92} width={88} height={13} rx={4} fill="url(#dcGoldBand)" stroke="#9C6E1C" strokeWidth={1} />
+          <Rect x={56} y={103} width={88} height={13} rx={4} fill="url(#dcGoldBand)" stroke="#9C6E1C" strokeWidth={1} />
           {/* band gem settings */}
-          <Circle cx={76} cy={98.5} r={3.2} fill="#5C9BFF" stroke="#2C4E86" strokeWidth={0.8} />
-          <Circle cx={100} cy={98.5} r={3.6} fill="#E5544E" stroke="#7A241F" strokeWidth={0.8} />
-          <Circle cx={124} cy={98.5} r={3.2} fill="#5C9BFF" stroke="#2C4E86" strokeWidth={0.8} />
+          <Circle cx={76} cy={109.5} r={3.2} fill="#5C9BFF" stroke="#2C4E86" strokeWidth={0.8} />
+          <Circle cx={100} cy={109.5} r={3.6} fill="#E5544E" stroke="#7A241F" strokeWidth={0.8} />
+          <Circle cx={124} cy={109.5} r={3.2} fill="#5C9BFF" stroke="#2C4E86" strokeWidth={0.8} />
           {/* pearl finials on each point tip */}
-          <Circle cx={64} cy={68} r={4} fill="#FFF6DA" stroke="#9C6E1C" strokeWidth={0.8} />
-          <Circle cx={82} cy={56} r={4.5} fill="#FFF6DA" stroke="#9C6E1C" strokeWidth={0.8} />
-          <Circle cx={100} cy={44} r={6} fill="#FCE38F" stroke="#9C6E1C" strokeWidth={1} />
-          <Circle cx={100} cy={44} r={2.4} fill="#E5544E" />
-          <Circle cx={118} cy={56} r={4.5} fill="#FFF6DA" stroke="#9C6E1C" strokeWidth={0.8} />
-          <Circle cx={136} cy={68} r={4} fill="#FFF6DA" stroke="#9C6E1C" strokeWidth={0.8} />
+          <Circle cx={64} cy={79} r={4} fill="#FFF6DA" stroke="#9C6E1C" strokeWidth={0.8} />
+          <Circle cx={82} cy={67} r={4.5} fill="#FFF6DA" stroke="#9C6E1C" strokeWidth={0.8} />
+          <Circle cx={100} cy={55} r={6} fill="#FCE38F" stroke="#9C6E1C" strokeWidth={1} />
+          <Circle cx={100} cy={55} r={2.4} fill="#E5544E" />
+          <Circle cx={118} cy={67} r={4.5} fill="#FFF6DA" stroke="#9C6E1C" strokeWidth={0.8} />
+          <Circle cx={136} cy={79} r={4} fill="#FFF6DA" stroke="#9C6E1C" strokeWidth={0.8} />
         </G>
 
         {/* gridiron hash-marks */}
@@ -83,31 +94,6 @@ export default function HubMark({ size = 88 }) {
           <Line x1={114} y1={186} x2={114} y2={195} />
         </G>
       </Svg>
-
-      {/* DC monogram — real glyphs, enlarged to fill the shield field, centered below the
-          crown. No roundel behind it; the letters are the charge. */}
-      <View pointerEvents="none" style={styles.overlay}>
-        <Text
-          allowFontScaling={false}
-          style={[styles.dc, { fontSize: Math.round(w * 0.42), transform: [{ translateY: (140 / 220 - 0.5) * h }] }]}
-        >
-          DC
-        </Text>
-      </View>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  overlay: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
-  dc: {
-    color: colors.goldLite,
-    fontWeight: '900',
-    // No trailing letter-spacing — it padded the right of "C" and shoved the pair
-    // left of the shield's true center. The glyphs sit dead-center now.
-    letterSpacing: 0,
-    textShadowColor: 'rgba(0,0,0,0.45)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
-  },
-});
