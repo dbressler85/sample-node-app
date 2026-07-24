@@ -13,6 +13,7 @@ const playersLib = require('../lib/players');
 const picksLib = require('../lib/picks');
 const enrichmentLib = require('../lib/enrichment');
 const leagueFormat = require('../lib/leagueformat');
+const rosterStatus = require('../lib/rosterStatus');
 
 const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
 const round1 = (v) => Math.round((v || 0) * 10) / 10;
@@ -104,13 +105,12 @@ async function getStandings(cookie, leagueId) {
   };
 }
 
-// MFL roster status → a coarse slot for scouting (starter/bench isn't in the roster
-// export — that's the separate lineup — so live only distinguishes IR / taxi / active).
+// MFL roster status → a coarse slot for scouting. Slot detection (both status vocabularies) lives in
+// lib/rosterStatus; scouting only distinguishes IR / taxi / active, so a set-lineup `starter` folds
+// into active here.
 function slotOf(status) {
-  const s = String(status || '').toUpperCase();
-  if (s === 'INJURED_RESERVE') return 'ir';
-  if (s === 'TAXI_SQUAD') return 'taxi';
-  return 'active';
+  const slot = rosterStatus.rosterSlot(status);
+  return slot === 'ir' || slot === 'taxi' ? slot : 'active';
 }
 
 // Every franchise's roster in a league — opponent scouting. Players carry format-aware

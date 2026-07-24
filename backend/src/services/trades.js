@@ -24,6 +24,7 @@ const tradeDeadlines = require('../store/tradeDeadlines');
 const tradefit = require('../lib/tradefit');
 const tradeMath = require('../lib/tradeMath');
 const season = require('../lib/season');
+const rosterStatus = require('../lib/rosterStatus');
 
 // Trade bait for every franchise in a league: my own from our store (or the demo seed),
 // everyone else's from MFL's native Trade Bait board (or a demo fixture). Returns
@@ -262,10 +263,7 @@ async function liveRosters(cookie, league) {
         franchiseId: String(f.id),
         name: names.get(String(f.id)) || `Team ${f.id}`,
         roster: mfl.toArray(f.player)
-          .filter((p) => {
-            const s = p.status || p.roster_status;
-            return s !== 'INJURED_RESERVE' && s !== 'TAXI_SQUAD';
-          })
+          .filter((p) => !rosterStatus.isReserve(p)) // exclude IR/taxi from tradeable candidates
           .map((p) => String(p.id)),
       }));
   } catch (e) {

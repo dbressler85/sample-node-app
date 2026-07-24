@@ -21,6 +21,7 @@ const playersLib = require('../lib/players');
 const nflLib = require('../lib/nfl');
 const leagueFormat = require('../lib/leagueformat');
 const lineupStore = require('../store/lineups');
+const rosterStatus = require('../lib/rosterStatus');
 
 const MODES = new Set(['auto', 'safe', 'balanced', 'aggressive']);
 const WINPROB_SIGMA = 12; // points; controls how projected margin maps to win %
@@ -80,11 +81,11 @@ async function opponentRoster(cookie, league, oppId) {
   const all = [];
   const starters = [];
   for (const p of mfl.toArray(opp.player)) {
-    const s = p.status || p.roster_status;
-    if (s === 'INJURED_RESERVE' || s === 'TAXI_SQUAD') continue;
+    const slot = rosterStatus.rosterSlot(p);
+    if (slot === 'ir' || slot === 'taxi') continue; // reserves aren't part of the matchup pool
     const id = String(p.id);
     all.push(id);
-    if (p.status === 'starter') starters.push(id);
+    if (slot === 'starter') starters.push(id);
   }
   return { all, starters };
 }

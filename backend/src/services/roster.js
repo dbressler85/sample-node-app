@@ -12,6 +12,7 @@ const nflLib = require('../lib/nfl');
 const enrichmentLib = require('../lib/enrichment');
 const leagueFormat = require('../lib/leagueformat');
 const picksLib = require('../lib/picks');
+const rosterStatus = require('../lib/rosterStatus');
 const rosterMoves = require('../store/rosterMoves');
 const { createMemo } = require('../lib/memo');
 const leaguesService = require('./leagues');
@@ -85,26 +86,13 @@ function leagueStrengthPct(franchises, myId, enr) {
   return atOrBelow / totals.length;
 }
 
-// MFL's roster-slot tokens aren't consistent across exports: the `rosters` export uses the long
-// forms INJURED_RESERVE / TAXI_SQUAD (and lowercase `starter` for a set weekly lineup), while the
-// sibling `playerRosterStatus` export uses short codes IR / TS. We can't confirm which the rosters
-// export returns for an owner with no current IR/taxi player (offseason), so accept BOTH — a
-// misread would silently dump IR/taxi players into `bench` AND suppress the illegal-IR alert. Match
-// exact tokens case-insensitively (no substring test) so a normal roster status can't false-positive.
-const IR_STATUS = new Set(['INJURED_RESERVE', 'IR']);
-const TAXI_STATUS = new Set(['TAXI_SQUAD', 'TAXI', 'TS']);
-function slotOf(p) {
-  const raw = String((p && (p.status || p.roster_status)) || '').trim().toUpperCase();
-  if (IR_STATUS.has(raw)) return 'ir';
-  if (TAXI_STATUS.has(raw)) return 'taxi';
-  if (raw === 'STARTER') return 'starters';
-  return 'bench';
-}
-
-// Bucket one franchise's player id-list into starters/bench/ir/taxi.
+// Bucket one franchise's player id-list into starters/bench/ir/taxi. Slot detection (which accepts
+// both MFL status vocabularies) lives in lib/rosterStatus so every consumer agrees; `starter` → the
+// starters bucket, a plain active player → bench.
+const SLOT_BUCKET = { ir: 'ir', taxi: 'taxi', starter: 'starters', active: 'bench' };
 function bucketPlayers(franchisePlayers) {
   const buckets = { starters: [], bench: [], ir: [], taxi: [] };
-  for (const p of mfl.toArray(franchisePlayers)) buckets[slotOf(p)].push(String(p.id));
+  for (const p of mfl.toArray(franchisePlayers)) buckets[SLOT_BUCKET[rosterStatus.rosterSlot(p)]].push(String(p.id));
   return buckets;
 }
 
