@@ -487,12 +487,14 @@ async function plan(cookie, token, mode) {
 async function submitLineup(cookie, token, league, starterIds, week) {
   if (!config.demoMode) {
     try {
+      // Owner acting on their own franchise: the session cookie identifies them, so no franchise
+      // param is needed. (MFL's lineup import only reads FRANCHISE_ID, and only for a commissioner
+      // impersonating an owner — the FRANCHISE we used to send was simply ignored.)
       await mfl.importRequest('lineup', {
         host: league.host,
         cookie,
         L: league.leagueId,
         W: week,
-        FRANCHISE: league.franchiseId,
         STARTERS: starterIds.join(','),
       });
     } catch (e) {
