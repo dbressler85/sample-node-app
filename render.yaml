@@ -69,9 +69,9 @@ services:
       # raise throughput by setting these in the dashboard (roughly halves cold cross-league
       # loads; the 429/503 backoff is the safety net). Leave unset for the polite defaults.
       - key: MFL_MAX_CONCURRENT
-        sync: false # e.g. 8 once your MFL client is validated
+        sync: false # in use: 10 (validated client). Interval, below, is the real rate knob.
       - key: MFL_MIN_REQUEST_INTERVAL_MS
-        sync: false # e.g. 75 once your MFL client is validated
+        sync: false # in use: 75 (from default 150) — the ~2.5x validated-client bandwidth lives here
       # OPTIONAL and separate: MFL also lets you generate a per-account API key. It is NOT
       # required for the throughput above; set only if you specifically use it.
       - key: MFL_API_KEY
