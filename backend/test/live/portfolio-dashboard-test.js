@@ -53,6 +53,9 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   assert(d.totals.rosterValue === 175, `total value 175, got ${d.totals.rosterValue}`);
   assert(d.totals.playerCount === 3, `3 valued players, got ${d.totals.playerCount}`);
   assert(d.totals.valueWeightedAge === 25.9, `value-weighted age 25.9, got ${d.totals.valueWeightedAge}`);
+  // All leagues loaded → not partial, nothing failed (the resilience flags default clean).
+  assert(d.totals.partial === false && d.totals.failedCount === 0, `happy path is not partial, got ${JSON.stringify({ p: d.totals.partial, f: d.totals.failedCount })}`);
+  assert(!d.byLeague.some((l) => l.loadFailed), 'no league marked loadFailed on the happy path');
 
   // Risk: hurt starter (#3, OUT, value 25) + aging RB (#2, age 30, value 50). #1 is
   // young & healthy -> not at risk. Distinct total = 75 (43%).

@@ -100,6 +100,9 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   const inOffer = lg.offers.find((of) => of.direction === 'incoming');
   const sentOffer = lg.offers.find((of) => of.direction === 'outgoing');
   assert(inOffer && inOffer.id === 'TR9' && inOffer.canRespond === true && inOffer.canRevoke === false, `incoming offer respondable, got ${JSON.stringify(inOffer && { d: inOffer.direction, r: inOffer.canRespond })}`);
+  // An INCOMING offer now carries BOTH sides' construction read (mine + the offering team's), so the
+  // inbox shows whether the deal also helps THEM — same two-sided read the live builder shows.
+  assert(inOffer.construction && inOffer.partnerConstruction, `incoming offer carries both sides' construction, got ${JSON.stringify({ mine: !!inOffer.construction, theirs: !!inOffer.partnerConstruction })}`);
   assert(sentOffer, 'my SENT offer is visible on the desk (the other side of the coin)');
   assert(sentOffer.id === 'TR10' && sentOffer.withName === 'Third Team', `sent offer targets the right team, got ${JSON.stringify({ id: sentOffer.id, with: sentOffer.withName })}`);
   assert(sentOffer.canRevoke === true && sentOffer.canRespond === false, 'a sent offer is WITHDRAWABLE (revoke), not accept/rejectable');

@@ -271,12 +271,14 @@ Grouped into four "synergy systems", highest-leverage first:
   card under the drop selector, net colored good/bad, so the dynasty trade-off is obvious.
   *(`FaRow` vs `PlayerLine` rendering the same entity two ways remains a dedup item under
   "Consolidate duplicated UX".)*
-- [~] **Trades: value vs. construction verdicts** — done: a deterministic **bottom line**
-  (`trades.bottomLine`, value verdict × construction rating → one take + tone) now renders as a
+- [x] **Trades: value vs. construction verdicts** — a deterministic **bottom line**
+  (`trades.bottomLine`, value verdict × construction rating → one take + tone) renders as a
   colored callout above Accept/Reject on both the inbox and the desk, so "You gain value" next
-  to "⚠ hurts your roster" no longer leaves the decision ambiguous. *(Remaining: de-emphasize
-  the raw "dynasty value estimate" caption; the inbox still shows one-sided construction where
-  the desk shows two.)*
+  to "⚠ hurts your roster" no longer leaves the decision ambiguous. **Now finished:** the raw
+  market-value caption is de-emphasized (italic/uppercase footnote labeled "est. market value")
+  so the bottom line reads as the answer; and the inbox shows **two-sided construction** — an
+  incoming offer surfaces both my read and the offering team's (the backend already computed
+  `partnerConstruction` for any known partner), matching the live builder.
 - [x] **Home label collision:** fixed — the "Needs attention" tile now shows the count of
   action **items** (matching the feed it opens on tap) instead of a separate "leagues affected"
   number; the tile is tappable (opens the triage feed) and its player rows use `onOpenPlayer`.
@@ -286,9 +288,14 @@ Grouped into four "synergy systems", highest-leverage first:
   **Matchup done:** LineupsScreen + LineupEditorScreen each carried their own `winColor`
   (identical 0.6/0.4) and re-formatted the "vs <opp> · N% win" line; both now use the shared
   `components/MatchupLine.js` (exports `winColor`; compact vs detail variants). Scores was left
-  as-is (its win-prob bands are server-computed, not a client threshold). *(Remaining: the
-  bulk-lineup path, the claim builder, and the shared `PlayerRow` for the Players-screen local
-  rows.)*
+  as-is (its win-prob bands are server-computed, not a client threshold). **Claim value-delta
+  shared:** the add-vs-drop dynasty delta is now one `components/ValueDelta.js` used by BOTH claim
+  builders — the WaiverWizard and the FA-board ClaimSheet (which previously got `valueDelta` from
+  the backend but never rendered it), so a quick FA claim shows the same trade-off as the wizard.
+  *(Remaining, and larger — better paired with an on-device build: fully merging the two claim
+  builders and the two bulk-lineup entry points into single flows, and folding the Players-screen
+  local `PlayerRow`/`WatchRow` + Waivers `FaRow` onto the shared `PlayerRow`, which needs new
+  optional props for quick-add + Target/Avoid markers.)*
 - [x] **Portfolio `strengthLabel` thresholds are re-hardcoded client-side** (drift risk
   from the backend model) — source them from the backend. Done: `roster.strengthLabel`
   (shares `computeOutlook`'s 0.55/0.45 cut points) is folded into `teamSummary` and threaded

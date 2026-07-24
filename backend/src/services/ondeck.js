@@ -106,19 +106,11 @@ async function getOnDeck(cookie, token) {
     });
   });
 
-  if (config.demoMode) {
-    // Demo has no machine-readable run time — surface the claim leagues. Claims already IN aren't an
-    // action you owe; they're upcoming status ("your claims process at X").
-    for (const [leagueId, g] of byLeague) {
-      items.push({
-        type: 'waiver_run', kind: 'upcoming', leagueId, leagueName: g.leagueName, at: null, atLabel: g.when || null,
-        action: 'waiver', label: 'Your claims process', hasClaims: true, claimCount: g.count,
-        detail: `${g.count} claim${g.count === 1 ? '' : 's'} submitted`,
-      });
-    }
-  } else {
-    // Live: resolve each league's next run time so waiver items sort by time (not dumped last),
-    // and so a claim-free league with an imminent run still shows up.
+  // Waiver runs: this view is ACTION-ONLY (things that still need you), so a league where you've
+  // ALREADY submitted claims is intentionally NOT shown here — there's nothing left to do, and the
+  // submitted claims live on the Waivers → Pending tab. The only waiver item that belongs here is a
+  // claim-free league whose run is imminent: your window to get a claim in before it closes.
+  if (!config.demoMode) {
     const leagues = leagueList;
     const runs = await Promise.all(
       leagues.map((l) => waiversService.nextWaiverRun(cookie, l).catch(() => null))
@@ -128,21 +120,19 @@ async function getOnDeck(cookie, token) {
       const g = byLeague.get(l.leagueId);
       const claimCount = g ? g.count : 0;
       const imminent = runMs && runMs > Date.now() && runMs - Date.now() <= WAIVER_IMMINENT_MS;
-      if (claimCount === 0 && !imminent) return; // no claim + not soon → not on deck
+      if (claimCount > 0) return; // already acted — not on deck (see Waivers → Pending)
+      if (!imminent) return; // not soon → nothing to do yet
       items.push({
         type: 'waiver_run',
-        // Claims already in = upcoming status (nothing owed); a run coming with NO claim yet is a
-        // real action (get one in before the window closes).
-        kind: claimCount > 0 ? 'upcoming' : 'action',
+        kind: 'action',
         leagueId: l.leagueId,
         leagueName: l.name,
         at: runMs ? new Date(runMs).toISOString() : null,
-        atLabel: runMs ? null : g && g.when ? g.when : null,
         action: 'waiver',
-        label: claimCount > 0 ? 'Your claims process' : 'Waivers run',
-        hasClaims: claimCount > 0,
-        claimCount,
-        detail: claimCount > 0 ? `${claimCount} claim${claimCount === 1 ? '' : 's'} submitted` : 'no claims yet — window open',
+        label: 'Waivers run',
+        hasClaims: false,
+        claimCount: 0,
+        detail: 'no claims yet — window open',
       });
     });
   }

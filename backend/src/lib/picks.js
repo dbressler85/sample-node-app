@@ -10,23 +10,39 @@ const demo = require('../demo/fixtures');
 const mfl = require('./mfl');
 const mflRepo = require('./mflRepo');
 
-// Estimated dynasty value (0-100 scale) for a draft pick from its label. This is a
-// model, not a market price: a round-based baseline plus a dynasty time-value discount
-// for picks further out (a 1st two years away is worth less than this year's). Pick slot
-// isn't known for future picks, so round is the best signal. Single source of truth so the
-// roster's pick chips and the trade desk always show the same number.
-const PICK_VALUE_BY_ROUND = { 1: 55, 2: 28, 3: 14, 4: 7 };
+// Estimated dynasty value (0-100 scale) for a draft pick from its label. This is a model, not a
+// market price, but it now follows a real dynasty PICK CURVE instead of a flat per-round number:
+// value decays by the pick's OVERALL slot with a constant ratio, so the steps shrink as you go
+// (1.01 ≫ 1.02 ≫ … ≫ 1.12, and 1.12 only a touch above 2.01) — matching how the market actually
+// prices rookie picks (the 1.01 is worth far more than the 1.12, not the same "1st-round" number).
+//   value(overall) = BASE · DECAY^(overall-1), floored — a convex curve, steep at the top.
+// When the exact slot is known (a "2026 1.05" once the order is set) we use it; for a future pick
+// whose slot isn't set yet ("2027 1st") we price the round's MIDPOINT and apply the time-value
+// discount for picks further out. Assumes a 12-team round for the slot→overall math (the common
+// case; the error for 10-/14-team leagues is small and this is an estimate). Single source of truth
+// so the roster's pick chips and the trade desk always show the same number.
+//
+// Alternative external sources worth wiring later if we want market-anchored numbers instead of a
+// model: KeepTradeCut and DynastyProcess both publish per-pick (not per-round) dynasty values.
+const PICK_BASE = 70; // the 1.01, on the 0-100 player scale
+const PICK_DECAY = 0.93; // ~7% drop per overall slot — early 1sts stay premium, late picks fade fast
+const TEAMS_ASSUMED = 12;
+const curveValue = (overall) => Math.max(2, Math.round(PICK_BASE * Math.pow(PICK_DECAY, Math.max(0, overall - 1))));
+
 function value(label) {
   const s = String(label);
   // Known-slot picks read "2026 1.11" (round.pick); future picks read "2027 1st".
   const slot = /\b(\d+)\.(\d{1,2})\b/.exec(s);
   const rm = /(\d+)\s*(?:st|nd|rd|th)/i.exec(s);
   const round = slot ? parseInt(slot[1], 10) : rm ? parseInt(rm[1], 10) : 4;
-  let base = PICK_VALUE_BY_ROUND[round] != null ? PICK_VALUE_BY_ROUND[round] : Math.max(3, 8 - round);
+  // Overall pick number: exact when the slot is known; the round's midpoint (~pick 6) otherwise.
+  const pickInRound = slot ? parseInt(slot[2], 10) : Math.ceil(TEAMS_ASSUMED / 2);
+  const overall = (round - 1) * TEAMS_ASSUMED + pickInRound;
+  let base = curveValue(overall);
   const ym = /(20\d{2})/.exec(s);
   if (ym) {
     const yearsOut = parseInt(ym[1], 10) - (config.season || parseInt(ym[1], 10));
-    if (yearsOut > 0) base = Math.round(base * Math.pow(0.88, Math.min(yearsOut, 4))); // ~12%/yr
+    if (yearsOut > 0) base = Math.round(base * Math.pow(0.88, Math.min(yearsOut, 4))); // ~12%/yr time-value
   }
   return Math.max(2, base);
 }

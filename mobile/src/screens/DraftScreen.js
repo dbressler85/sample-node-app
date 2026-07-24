@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Pressable, FlatList, ActivityIndicator, Alert, 
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import PressableScale from '../components/PressableScale';
+import LeagueContext from '../components/LeagueContext';
 import Reveal from '../components/Reveal';
 import useAndroidBack from '../useAndroidBack';
 import usePoll from '../usePoll';
@@ -219,6 +220,8 @@ export default function DraftScreen({ league, demoMode, onBack, onOpenPlayer, on
               {data.status === 'scheduled' && data.startTime ? (
                 <Text style={styles.sched}>Starts {fmtDate(data.startTime)}</Text>
               ) : null}
+
+              {data.context ? <LeagueContext context={data.context} /> : null}
 
               {onOpenDraftList ? (
                 <Pressable style={({ pressed }) => [styles.listBtn, pressed && { opacity: 0.85 }]} onPress={() => onOpenDraftList(league)}>

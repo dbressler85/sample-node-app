@@ -82,10 +82,9 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   assert(iLock > 0 && iDraft > iLock, 'lineup lock (sooner) sorts before scheduled draft (later)');
   // Optimal league produced no lineup item.
   assert(!types.includes('lineup_lock:D'), 'optimal lineup is not surfaced');
-  // League E: 2 claims in, run time unknown → label-only (sorts after every timed item), hasClaims.
-  const wrE = r.items.find((i) => i.type === 'waiver_run' && i.leagueId === 'E');
-  assert(types.indexOf('waiver_run:E') > types.indexOf('draft_start:B'), 'label-only (claims-in) waiver run sorts after timed items');
-  assert(wrE.at === null && wrE.atLabel === 'Wed 3:00 AM' && wrE.hasClaims === true && wrE.claimCount === 2 && /2 claims submitted/.test(wrE.detail), 'E waiver run: label-only, deduped, claims counted');
+  // League E: 2 claims already IN → NOT on deck. On Deck is action-only; a submitted claim needs
+  // nothing further from you (its status lives on the Waivers → Pending tab), so it's excluded.
+  assert(!types.includes('waiver_run:E'), 'claims-already-in league is not surfaced on On Deck (action-only)');
   // League F: no claims but an imminent run (+2d) → shown, timestamped, hasClaims=false.
   const wrF = r.items.find((i) => i.type === 'waiver_run' && i.leagueId === 'F');
   assert(wrF && wrF.hasClaims === false && wrF.claimCount === 0 && wrF.at !== null, 'F waiver run: imminent, no claims, timestamped');
@@ -95,10 +94,9 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   const to = r.items.find((i) => i.type === 'trade_offer');
   assert(to && to.leagueId === 'H' && /Team Rocket/.test(to.label) && to.action === 'trade', 'trade offer folded into On Deck');
   assert(to.at === null && /favorable/.test(to.detail), 'trade offer is untimed with a verdict detail');
-  // Action vs upcoming classification: submitted claims (E) are UPCOMING (already acted); a claim-free
-  // imminent run (F), trade offers, lineups, drafts-on-clock are ACTIONS. summary.actions counts them.
+  // Classification: On Deck is action-only. A claim-free imminent run (F), trade offers, lineups, and
+  // drafts-on-clock are ACTIONS; submitted-claim leagues are excluded entirely (see the E assertion).
   assert(to.kind === 'action', 'trade offer is an action');
-  assert(wrE.kind === 'upcoming' && /process/i.test(wrE.label), `submitted-claim waiver is upcoming ("Your claims process"), got ${wrE.kind}/${wrE.label}`);
   assert(wrF.kind === 'action', 'a claim-free imminent waiver run is an action');
   assert(r.items.find((i) => i.type === 'draft_clock').kind === 'action', 'draft clock is an action');
   const expectActions = r.items.filter((i) => i.kind === 'action').length;

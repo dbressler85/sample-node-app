@@ -709,7 +709,7 @@ function OfferCard({ offer, busy, onAccept, onReject, onWithdraw, onCounter, onO
       <Side label="You get" assets={offer.acquire} total={offer.analysis.acquireValue} tint={colors.good} onOpenPlayer={onOpenPlayer} />
       <Side label="You give" assets={offer.send} total={offer.analysis.sendValue} tint={colors.textDim} onOpenPlayer={onOpenPlayer} />
       <Text style={styles.estCaption}>
-        Market value · net {offer.analysis.net > 0 ? '+' : ''}{offer.analysis.net}
+        est. market value · net {offer.analysis.net > 0 ? '+' : ''}{offer.analysis.net}
       </Text>
       {offer.personal ? (
         <Text style={[styles.personalLine, { color: (VERDICT[offer.personal.verdict] || VERDICT.fair).color }]}>
@@ -726,11 +726,14 @@ function OfferCard({ offer, busy, onAccept, onReject, onWithdraw, onCounter, onO
         </View>
       ) : null}
       {offer.construction ? (
+        // Both sides' roster-construction read — my side always, and the partner's when known, so
+        // an INCOMING offer also shows whether it helps THEM (context on how motivated they are),
+        // matching the two-sided read the live builder shows.
         <View style={[styles.construction, { borderColor: (CONSTRUCTION[offer.construction.rating] || CONSTRUCTION.neutral).color }]}>
           <Text style={[styles.constructionText, { color: (CONSTRUCTION[offer.construction.rating] || CONSTRUCTION.neutral).color }]}>
-            {(CONSTRUCTION[offer.construction.rating] || CONSTRUCTION.neutral).icon} {offer.direction === 'outgoing' ? 'You — ' : ''}{offer.construction.reason}
+            {(CONSTRUCTION[offer.construction.rating] || CONSTRUCTION.neutral).icon} You — {offer.construction.reason}
           </Text>
-          {offer.direction === 'outgoing' && offer.partnerConstruction ? (
+          {offer.partnerConstruction ? (
             <Text style={[styles.constructionText, { color: (CONSTRUCTION[offer.partnerConstruction.rating] || CONSTRUCTION.neutral).color, marginTop: 4 }]}>
               {(CONSTRUCTION[offer.partnerConstruction.rating] || CONSTRUCTION.neutral).icon} {offer.withName} — {offer.partnerConstruction.reason}
             </Text>
@@ -972,7 +975,7 @@ const styles = StyleSheet.create({
   dot: { width: 8, height: 8, borderRadius: 4, marginRight: 8 },
   sideName: { color: colors.text, fontSize: 14, fontWeight: '600', flex: 1 },
   sideMeta: { color: colors.textDim, fontSize: 12 },
-  estCaption: { color: colors.textDim, fontSize: 11, marginTop: 8 },
+  estCaption: { color: colors.textDim, fontSize: 10, marginTop: 8, fontStyle: 'italic', opacity: 0.75, textTransform: 'uppercase', letterSpacing: 0.3 },
   personalLine: { fontSize: 12, fontWeight: '800', marginTop: 3 },
   tagNotes: { marginTop: 6, gap: 3 },
   tagNote: { fontSize: 12, fontWeight: '700' },

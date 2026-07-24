@@ -15,6 +15,7 @@ import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import { celebrate } from '../components/Celebrate';
 import AvailabilityBadge from '../components/AvailabilityBadge';
+import ValueDelta from '../components/ValueDelta';
 import ErrorView from '../components/ErrorView';
 import Reveal from '../components/Reveal';
 import useAndroidBack from '../useAndroidBack';
@@ -621,6 +622,10 @@ function ClaimSheet({ leagueId, addId, onClose, onOpenLineup, onDone }) {
                 ))}
               </ScrollView>
             ) : null}
+
+            {/* Add-vs-drop dynasty value delta (shared with the WaiverWizard) — the backend already
+                returns valueDelta on the preview, so the quick FA claim shows the same trade-off. */}
+            <ValueDelta addValue={preview.add ? preview.add.value : null} dropValue={preview.drop ? preview.drop.value : null} net={preview.valueDelta} />
 
             {/* Bid (faab) */}
             {preview.system === 'faab' ? (

@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, ActivityIndic
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import ErrorView from '../components/ErrorView';
+import LeagueContext from '../components/LeagueContext';
 import useAndroidBack from '../useAndroidBack';
 import { Value } from '../components/Brand';
 
@@ -162,6 +163,12 @@ export default function DraftListScreen({ league, onBack, onOpenPlayer }) {
           <Text style={styles.nextUp}>Your list is empty — add players below.</Text>
         )}
       </View>
+
+      {data && data.context ? (
+        <View style={{ marginHorizontal: 16, marginTop: 8 }}>
+          <LeagueContext context={data.context} />
+        </View>
+      ) : null}
 
       <View style={styles.segment}>
         {[['list', `My List · ${list.length}`], ['add', 'Add players']].map(([k, label]) => (

@@ -152,6 +152,11 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
           <Text style={styles.totalLabel}>Total dynasty value · {d.totals.teams} team{d.totals.teams === 1 ? '' : 's'}</Text>
           <AnimatedNumber value={d.totals.rosterValue} style={styles.totalValue} />
           <ChangeLine change={d.change} />
+          {d.totals.partial ? (
+            <Text style={styles.partialNote}>
+              ⚠ {d.totals.failedCount} of {d.totals.leagues} league{d.totals.leagues === 1 ? '' : 's'} couldn’t load — this total is partial. Pull to refresh.
+            </Text>
+          ) : null}
           {d.history && d.history.length >= 2 ? (
             <View style={styles.chartWrap}>
               <Sparkline
@@ -453,6 +458,7 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
               </Text>
               {/* Filter by tag type + position; sort by value / position / name / tag / shares. */}
               <View style={styles.tagFilterRow}>
+                <Text style={styles.tagSortLabel}>Tags</Text>
                 {[['all', 'All'], ['target', '◎ Targets'], ['avoid', '⊘ Avoids']].map(([k, lbl]) => (
                   <Pressable key={k} onPress={() => setTagKind(k)} style={[styles.tChip, tagKind === k && styles.tChipOn]}>
                     <Text style={[styles.tChipTxt, tagKind === k && styles.tChipTxtOn]}>{lbl}</Text>
@@ -461,8 +467,9 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
               </View>
               {positions.length > 1 ? (
                 <View style={styles.tagFilterRow}>
+                  <Text style={styles.tagSortLabel}>Position</Text>
                   <Pressable onPress={() => setTagPos(null)} style={[styles.tChip, !tagPos && styles.tChipOn]}>
-                    <Text style={[styles.tChipTxt, !tagPos && styles.tChipTxtOn]}>All pos</Text>
+                    <Text style={[styles.tChipTxt, !tagPos && styles.tChipTxtOn]}>All</Text>
                   </Pressable>
                   {positions.map((pos) => (
                     <Pressable key={pos} onPress={() => setTagPos(tagPos === pos ? null : pos)} style={[styles.tChip, tagPos === pos && styles.tChipOn]}>
@@ -517,8 +524,10 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
               <>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.leagueName} numberOfLines={1}>{l.name}</Text>
-                  <Text style={styles.leagueSub} numberOfLines={1}>
-                    {[l.outlook, l.coreAge != null ? `core ${l.coreAge}y` : null, l.strengthLabel].filter(Boolean).join(' · ')}
+                  <Text style={[styles.leagueSub, l.loadFailed && { color: colors.warn }]} numberOfLines={1}>
+                    {l.loadFailed
+                      ? "couldn't load — pull to refresh"
+                      : [l.outlook, l.coreAge != null ? `core ${l.coreAge}y` : null, l.strengthLabel].filter(Boolean).join(' · ')}
                   </Text>
                 </View>
                 {l.atRiskPct > 0 ? <Text style={[styles.leagueRisk, l.atRiskPct >= 20 && { color: colors.bad }]}>{l.atRiskPct}% risk</Text> : null}
@@ -653,6 +662,7 @@ const styles = StyleSheet.create({
   holdCardBottom: { backgroundColor: colors.card, borderBottomLeftRadius: 16, borderBottomRightRadius: 16, borderWidth: 1, borderTopWidth: 0, borderColor: colors.border, paddingHorizontal: 16, paddingBottom: 16, paddingTop: 4, marginBottom: 14 },
   totalValue: { color: colors.gold, fontSize: 40, fontWeight: '900', letterSpacing: -1, marginTop: 2 },
   totalLabel: { color: colors.textDim, fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+  partialNote: { color: colors.warn, fontSize: 12, fontWeight: '600', marginTop: 8, lineHeight: 17 },
   change: { fontSize: 15, fontWeight: '900', marginTop: 4 },
   changePct: { fontSize: 14, fontWeight: '800' },
   changeWindow: { color: colors.textDim, fontSize: 13, fontWeight: '700' },

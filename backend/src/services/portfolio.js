@@ -30,6 +30,23 @@ const tradebaitService = require('./tradebait');
 
 const SEV = { high: 3, medium: 2, low: 1 };
 
+// Load one league's roster with a couple of retries — the portfolio fans out every league at once,
+// and MFL's rate limiter occasionally rejects one under that burst. The roster memo drops rejected
+// entries, so each retry genuinely re-runs; a short backoff lets the rate window clear. Throws only
+// if every attempt fails (the caller then keeps the league as a marked placeholder).
+async function loadRosterResilient(cookie, leagueId, attempts = 3) {
+  let lastErr;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await rosterService.getRoster(cookie, leagueId);
+    } catch (e) {
+      lastErr = e;
+      if (i < attempts - 1) await new Promise((r) => setTimeout(r, 250 * (i + 1)));
+    }
+  }
+  throw lastErr;
+}
+
 // In the NFL offseason there are no games, so lineup triage is noise and the
 // dashboard should pivot to dynasty concerns (value, outlook) + trades/waivers,
 // which run all year. Phase is derived from whether there's an active week.
@@ -308,11 +325,21 @@ async function getDashboard(cookie, token) {
   // Resolve NFL byes (team → week) alongside the rosters, best-effort, for bye-week concentration.
   const [loaded, byeMap] = await Promise.all([
     Promise.all(
-      leagues.map((l) => rosterService.getRoster(cookie, l.leagueId).then((roster) => ({ league: l, roster })).catch(() => null))
+      // Resilient per-league roster load: fanning out ~15 leagues at once occasionally trips MFL's
+      // rate limiter, and a single dropped league used to VANISH from both the league count and the
+      // value total (a 15-league owner would silently see "9 leagues" and ~35% less value). Retry a
+      // failed roster a couple times (the memo drops rejected entries, so each retry re-runs), then
+      // if it STILL fails keep the league as a marked placeholder rather than dropping it.
+      leagues.map((l) => loadRosterResilient(cookie, l.leagueId)
+        .then((roster) => ({ league: l, roster }))
+        .catch(() => ({ league: l, roster: null, loadFailed: true }))),
     ),
     (config.demoMode ? Promise.resolve(demo.byes()) : currentWeek(cookie).then((w) => nflLib.byeMap(cookie, w))).catch(() => ({})),
   ]);
-  const valid = loaded.filter(Boolean);
+  // Leagues whose roster loaded (drive the value aggregate) vs. those that couldn't (surfaced so the
+  // total is honestly flagged partial instead of quietly understated).
+  const valid = loaded.filter((x) => x && x.roster);
+  const failedLeagues = loaded.filter((x) => x && x.loadFailed).map((x) => x.league);
 
   // Trade deadlines per league (manual → demo/calendar), resolved in parallel so the per-league
   // breakdown — and the Leagues switcher that reads it — can show a countdown chip.
@@ -428,6 +455,23 @@ async function getDashboard(cookie, token) {
       baited: ar.leagueIds.some((lid) => tradebaitStore.has(token, lid, ar.id)),
     }))
     .sort((a, b) => b.value - a.value || b.leagues - a.leagues);
+  // Keep leagues whose roster couldn't be read in the breakdown — marked, value unknown — so a
+  // 15-league owner still sees all 15 (with a clear "couldn't load" note) instead of a silent 9.
+  for (const league of failedLeagues) {
+    byLeague.push({
+      leagueId: league.leagueId,
+      name: league.name,
+      value: null,
+      coreAge: null,
+      strengthPct: null,
+      strengthLabel: null,
+      outlook: null,
+      atRiskValue: 0,
+      atRiskPct: 0,
+      tradeDeadline: deadlineByLeague[String(league.leagueId)] || null,
+      loadFailed: true,
+    });
+  }
   byLeague.sort((a, b) => (b.value || 0) - (a.value || 0));
 
   // Top holdings: your positions by aggregate value across all leagues, with exposure
@@ -530,6 +574,10 @@ async function getDashboard(cookie, token) {
       rosterValue: Math.round(totalValue),
       playerCount,
       valueWeightedAge: ageValueWeight > 0 ? round1(ageValueSum / ageValueWeight) : null,
+      // Honest partial-load signal: the value total covers `teams` of `leagues`. When a roster read
+      // failed even after retries, the app should flag the total as incomplete, not treat it as real.
+      partial: failedLeagues.length > 0,
+      failedCount: failedLeagues.length,
     },
     ageCurve: AGE_BANDS.map(([, , label]) => {
       const c = curve.get(label);

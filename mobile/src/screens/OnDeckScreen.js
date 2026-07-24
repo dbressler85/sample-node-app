@@ -92,7 +92,7 @@ export default function OnDeckScreen({ onBack, onOpenLineup, onOpenDraft, onOpen
     <View style={styles.container}>
       <View style={styles.topbar}>
         <Pressable onPress={onBack} hitSlop={10}><Text style={styles.back}>‹ Hub</Text></Pressable>
-        <Text style={styles.title}>On Deck</Text>
+        <Text style={styles.title}>Under Center</Text>
         <View style={{ width: 54 }} />
       </View>
       {data ? (

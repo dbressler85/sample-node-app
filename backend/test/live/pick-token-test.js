@@ -77,10 +77,19 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   assert(offer.acquire.every((a) => a.kind === 'pick' && a.value > 0), 'received picks are valued');
   assert(offer.send.every((a) => a.kind === 'pick' && a.value > 0), 'given picks are valued');
 
-  // A round-1 + round-3 haul should out-value two round-2s, so the deal reads favorable to me.
-  assert(offer.analysis.sendValue > 0, 'You give is no longer 0');
-  assert(offer.analysis.acquireValue > offer.analysis.sendValue, '1st+3rd out-values two 2nds');
+  // Both sides carry real (non-zero) pick value — the fix for the "give was empty" bug.
+  assert(offer.analysis.sendValue > 0 && offer.analysis.acquireValue > 0, 'both sides valued');
   console.log(`✓ end to end: net ${offer.analysis.net > 0 ? '+' : ''}${offer.analysis.net} (get ${offer.analysis.acquireValue} / give ${offer.analysis.sendValue})`);
+
+  // --- unit: the pick VALUE CURVE (the 1.01 is worth far more than the 1.12, not a flat round #) ---
+  const v = (label) => picks.value(label);
+  assert(v('2026 1.01') > v('2026 1.12'), '1.01 out-values 1.12 (within-round decay)');
+  assert(v('2026 1.01') >= v('2026 1.12') * 2, `1.01 is dramatically higher than 1.12 (${v('2026 1.01')} vs ${v('2026 1.12')})`);
+  assert(v('2026 1.12') > v('2026 2.01') && v('2026 2.01') > v('2026 3.01'), 'value decreases monotonically across the curve');
+  assert(v('2026 1.06') > v('2026 1.07'), 'each later slot is worth less (convex, ever-smaller steps)');
+  // Steps shrink as you go: the drop from 1.01→1.02 is bigger than 1.11→1.12.
+  assert((v('2026 1.01') - v('2026 1.02')) > (v('2026 1.11') - v('2026 1.12')), 'steps get smaller further down the curve');
+  console.log(`✓ pick curve: 1.01=${v('2026 1.01')} ≫ 1.12=${v('2026 1.12')} > 2.01=${v('2026 2.01')} > 3.01=${v('2026 3.01')}`);
 
   console.log('\nPICK TOKEN HARNESS PASSED');
 })().catch((e) => { console.error(e.message); process.exit(1); });

@@ -420,7 +420,7 @@ function Portfolio({ p, phase, loading, onLeagues, onPortfolio, onOpenOnDeck, on
       <View style={styles.tileRow}>
         <Tile label="Leagues ›" value={String(p.leagues)} loading={loading && !p.leagues} onPress={onLeagues} />
         <Tile
-          label="On Deck ›"
+          label="Under Center ›"
           value={actions != null ? String(actions) : '—'}
           accent={actions > 0}
           gold={onClock}

@@ -15,6 +15,7 @@ const mfl = require('../lib/mfl');
 const mflRepo = require('../lib/mflRepo');
 const enrichmentLib = require('../lib/enrichment');
 const leagueFormat = require('../lib/leagueformat');
+const leagueContext = require('../lib/leagueContext');
 const playersLib = require('../lib/players');
 const picksLib = require('../lib/picks');
 const adpLib = require('../lib/adp');
@@ -68,6 +69,14 @@ function buildSlots(draft) {
 
 // --- data loaders (demo vs live) --------------------------------------------
 
+// A draftPick row counts as MADE only with a real player id. MFL leaves unmade slots empty, but
+// some exports use "0"/"0000" placeholders — treat those as empty so a pre-laid-out (but unstarted)
+// grid isn't mistaken for a draft in progress.
+const hasPlayer = (p) => {
+  const v = p && p.player != null ? String(p.player).trim() : '';
+  return v !== '' && v !== '0' && v !== '0000';
+};
+
 async function loadDraft(cookie, token, league) {
   if (config.demoMode) {
     const seed = demo.draft(league.leagueId);
@@ -81,7 +90,7 @@ async function loadDraft(cookie, token, league) {
     if (!unit) return null;
     const raw = mfl.toArray(unit.draftPick);
     const picks = raw
-      .filter((p) => p.player && p.player !== '')
+      .filter(hasPlayer)
       .map((p) => ({ round: Number(p.round), pick: Number(p.pick), franchiseId: String(p.franchise), playerId: String(p.player) }));
     // If the grid includes future (empty-player) picks, we can derive order/rounds.
     const withOrder = raw.filter((p) => p.round && p.franchise);
@@ -96,9 +105,18 @@ async function loadDraft(cookie, token, league) {
     }
 
     const startTime = unit.startTime ? new Date(Number(unit.startTime) * 1000).toISOString() : null;
-    const nowStarted = raw.some((p) => p.player && p.player !== '') || picks.length > 0;
-    const allMade = withOrder.length ? withOrder.every((p) => p.player && p.player !== '') : false;
-    const status = allMade ? 'complete' : nowStarted ? 'in_progress' : startTime ? 'scheduled' : 'scheduled';
+    // A start time in the FUTURE is authoritative: the draft literally hasn't begun, even though MFL
+    // pre-populates the whole pick GRID (order + traded-pick slots) before it starts. Without this,
+    // an unstarted draft with its order laid out read as "in progress → you're on the clock" (MFL was
+    // still counting down ~18h). A future start beats the grid heuristic.
+    const startMs = startTime != null ? Date.parse(startTime) : null;
+    const notStarted = startMs != null && startMs > Date.now();
+    const startedByTime = startMs != null && startMs <= Date.now();
+    // Started = the clock is running: a past start time (even before pick 1), or any pick already in.
+    // A future start beats everything (grid laid out ≠ begun). No start time → fall back to the grid.
+    const nowStarted = !notStarted && (startedByTime || raw.some(hasPlayer) || picks.length > 0);
+    const allMade = !notStarted && withOrder.length > 0 && withOrder.every(hasPlayer);
+    const status = allMade ? 'complete' : nowStarted ? 'in_progress' : 'scheduled';
 
     // Snake vs linear is no longer assumed: use MFL's own type if it says so,
     // otherwise infer from the grid (round 2 reversed => snake, same => linear).
@@ -112,7 +130,13 @@ async function loadDraft(cookie, token, league) {
 
     return { status, type, startTime, rounds, snake, order, picks, rawSlots: withOrder };
   } catch (e) {
-    return null;
+    // A READ FAILURE (e.g. MFL rate-limited us with a 403) is NOT the same as "this league has no
+    // draft". Returning null here made a transient throttle look like a draftless league, so the
+    // board flickered to "No draft in this league" on a poll and back. Re-throw so the single-league
+    // board propagates the error (the app keeps its last-good board); only a successful read with no
+    // draft unit returns null above. The hub's per-league catch still tolerates this for its summary.
+    e.transient = true;
+    throw e;
   }
 }
 
@@ -196,6 +220,9 @@ async function findLeague(cookie, leagueId) {
 function statusOf(draft, slots) {
   const anyMade = slots.some((s) => s.playerId);
   const anyOpen = slots.some((s) => !s.playerId);
+  // A future start time means the draft hasn't begun — never on the clock yet (defense in depth
+  // alongside loadDraft, which already forces 'scheduled' for a future start).
+  if (draft.startTime && Date.parse(draft.startTime) > Date.now() && !anyMade) return 'scheduled';
   // Respect an explicit "scheduled" until the first pick is made...
   if (draft.status === 'scheduled' && !anyMade) return 'scheduled';
   // ...otherwise derive from the board so it flips to complete when full.
@@ -270,7 +297,15 @@ async function getLeague(cookie, token, leagueId, { position } = {}) {
   const draft = await loadDraft(cookie, token, league);
   if (!draft) return { leagueId: league.leagueId, name: league.name, status: 'none' };
 
-  const [byId, enr] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(await leagueFormat.format(cookie, league), cookie)]);
+  // Scoring + starting-lineup context (superflex/PPR/TE-premium + how many of each you start) and my
+  // team's dynasty read (win-now/ascending, core age, strength) — the situational info that changes a
+  // draft decision. Both fail-soft so a hiccup never blanks the board.
+  const [byId, enr, context, teamSummary] = await Promise.all([
+    playersLib.load(cookie),
+    enrichmentLib.snapshot(await leagueFormat.format(cookie, league), cookie),
+    leagueContext.build(cookie, league).catch(() => null),
+    rosterService.getRoster(cookie, leagueId).then((r) => r.summary).catch(() => null),
+  ]);
   const slots = slotsFor(draft).map((s) => ({ ...s, player: s.playerId ? resolvePlayer(byId, s.playerId, enr) : null }));
   const status = statusOf(draft, slots);
   const clock = onClockSlot(status, slots);
@@ -291,6 +326,14 @@ async function getLeague(cookie, token, leagueId, { position } = {}) {
     board: slots,
     myPicks: slots.filter((s) => s.franchiseId === league.franchiseId),
     available,
+    context: context
+      ? {
+          ...context,
+          team: teamSummary
+            ? { outlook: teamSummary.outlook || null, coreAge: teamSummary.coreAge != null ? teamSummary.coreAge : null, avgAge: teamSummary.avgAge != null ? teamSummary.avgAge : null, strengthLabel: teamSummary.strengthLabel || null }
+            : null,
+        }
+      : null,
   };
 }
 
@@ -480,7 +523,12 @@ async function liveDraftListIds(cookie, league) {
 // drafted, rostered, or already on the list). `position` filters the add-pool.
 async function getDraftList(cookie, token, leagueId, { position } = {}) {
   const league = await findLeague(cookie, leagueId);
-  const [byId, enr] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(await leagueFormat.format(cookie, league), cookie)]);
+  const [byId, enr, context, teamSummary] = await Promise.all([
+    playersLib.load(cookie),
+    enrichmentLib.snapshot(await leagueFormat.format(cookie, league), cookie),
+    leagueContext.build(cookie, league).catch(() => null),
+    rosterService.getRoster(cookie, leagueId).then((r) => r.summary).catch(() => null),
+  ]);
   const draft = await loadDraft(cookie, token, league).catch(() => null);
   const slots = draft ? slotsFor(draft).map((s) => ({ ...s, player: s.playerId ? resolvePlayer(byId, s.playerId, enr) : null })) : [];
   const status = draft ? statusOf(draft, slots) : 'none';
@@ -519,6 +567,14 @@ async function getDraftList(cookie, token, leagueId, { position } = {}) {
     nextUp,
     list,
     available,
+    context: context
+      ? {
+          ...context,
+          team: teamSummary
+            ? { outlook: teamSummary.outlook || null, coreAge: teamSummary.coreAge != null ? teamSummary.coreAge : null, avgAge: teamSummary.avgAge != null ? teamSummary.avgAge : null, strengthLabel: teamSummary.strengthLabel || null }
+            : null,
+        }
+      : null,
   };
 }
 
