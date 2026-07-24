@@ -16,6 +16,7 @@ import { colors, positionColors } from '../theme';
 import { celebrate } from '../components/Celebrate';
 import AvailabilityBadge from '../components/AvailabilityBadge';
 import ValueDelta from '../components/ValueDelta';
+import { toast } from '../components/Toast';
 import ErrorView from '../components/ErrorView';
 import Reveal from '../components/Reveal';
 import useAndroidBack from '../useAndroidBack';
@@ -573,7 +574,7 @@ function ClaimSheet({ leagueId, addId, onClose, onOpenLineup, onDone }) {
           { text: 'Set lineup', onPress: () => { onDone(); onOpenLineup({ leagueId }); } },
         ]);
       } else {
-        Alert.alert('Claim submitted', `${addName}${res.submitted.bid != null ? ` for $${res.submitted.bid}` : ''}.`);
+        toast(`Claim submitted · ${addName}${res.submitted.bid != null ? ` for $${res.submitted.bid}` : ''}`);
         onDone();
       }
     } catch (e) {

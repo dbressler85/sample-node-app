@@ -4,6 +4,7 @@ import { api } from '../api';
 import { colors } from '../theme';
 import SlotEditor from '../components/SlotEditor';
 import MatchupLine from '../components/MatchupLine';
+import { toast } from '../components/Toast';
 import { peekResource, primeResource } from '../useCachedResource';
 
 const slotsToAssignments = (d) => d.slots.map((s) => (s.current ? s.current.id : null));
@@ -76,7 +77,7 @@ export default function LineupEditorScreen({ league, onBack, onOpenWaivers }) {
       const updated = await api.applyLineup(league.leagueId, assignments.filter(Boolean));
       setDetail(updated);
       setAssignments(updated.slots.map((s) => (s.current ? s.current.id : null)));
-      Alert.alert('Lineup saved', `${updated.name} · ${updated.current.total} projected points.`);
+      toast(`Lineup saved · ${updated.name} · ${updated.current.total} projected pts`);
     } catch (e) {
       Alert.alert('Could not save', e.message);
     } finally {

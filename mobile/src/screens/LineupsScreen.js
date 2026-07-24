@@ -13,6 +13,7 @@ import { api } from '../api';
 import { colors } from '../theme';
 import AvailabilityBadge from '../components/AvailabilityBadge';
 import MatchupLine from '../components/MatchupLine';
+import { toast } from '../components/Toast';
 import ErrorView from '../components/ErrorView';
 import useAndroidBack from '../useAndroidBack';
 import useCachedResource from '../useCachedResource';
@@ -88,7 +89,7 @@ export default function LineupsScreen({ active = true, onOpenLineup, onStartWiza
       );
       setPlan(null);
       await reload();
-      Alert.alert('Lineups set', `${res.summary.leaguesUpdated} updated · +${res.summary.pointsGained} projected pts.`);
+      toast(`Lineups set · ${res.summary.leaguesUpdated} updated · +${res.summary.pointsGained} projected pts`);
     } catch (e) {
       Alert.alert('Could not set lineups', e.message);
     } finally {

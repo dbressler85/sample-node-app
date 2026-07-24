@@ -5,6 +5,7 @@ import { colors, positionColors } from '../theme';
 import useAndroidBack from '../useAndroidBack';
 import AvailabilityBadge from '../components/AvailabilityBadge';
 import LeagueContext from '../components/LeagueContext';
+import { toast } from '../components/Toast';
 import { peekResource, primeResource } from '../useCachedResource';
 
 // My personal signals on a player, inline next to his name — Target (◎), Avoid (⊘), and watchlist (★).
@@ -145,7 +146,7 @@ export default function OnTheBlockScreen({ onBack, onOpenPlayer, onOpenInbox, on
       const tokens = [...(checks[id] || new Set())];
       await api.saveBlock(id, tokens, (notes[id] || '').trim());
       await loadEditor();
-      Alert.alert('Block saved', `${tokens.length} asset${tokens.length === 1 ? '' : 's'} shopped in ${lg.name}.`);
+      toast(`Block saved · ${tokens.length} asset${tokens.length === 1 ? '' : 's'} shopped in ${lg.name}`);
     } catch (e) {
       Alert.alert('Could not save', e.message);
     } finally {

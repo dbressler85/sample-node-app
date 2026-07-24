@@ -4,6 +4,7 @@ import { api } from '../api';
 import tradeMath from '../tradeMath';
 import { colors, positionColors } from '../theme';
 import { celebrate } from '../components/Celebrate';
+import { toast } from '../components/Toast';
 import TradeColumns from '../components/TradeColumns';
 import Reveal from '../components/Reveal';
 import useAndroidBack from '../useAndroidBack';
@@ -96,8 +97,17 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
   const [rejectNote, setRejectNote] = useState('');
   const [showCompleted, setShowCompleted] = useState(false); // Sent tab: reveal completed-trade history
 
-  // Propose builder state.
-  const [partnerId, setPartnerId] = useState(null);
+  // Propose builder state. Select the partner from any desk data we ALREADY have (survive-remount
+  // cache) at first render, preferring the seeded partner — so re-entering from a trade-bait target
+  // paints the partner + fit panel immediately instead of showing "Pick a team above" for the
+  // seconds the background refetch takes.
+  const [partnerId, setPartnerId] = useState(() => {
+    const cached = peekResource(deskKey) ? peekResource(deskKey).value : null;
+    if (cached && cached.partners && cached.partners.length) {
+      return (seed && seed.partnerFranchiseId) || cached.partners[0].franchiseId;
+    }
+    return null;
+  });
   const [send, setSend] = useState({}); // token -> asset
   const [receive, setReceive] = useState({});
   const [sending, setSending] = useState(false);
@@ -150,6 +160,15 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
   }, [league.leagueId]);
 
   useEffect(() => { load(); }, [load]);
+
+  // As soon as desk data is available (cached or freshly loaded), make sure a partner is selected —
+  // defensive complement to the lazy init + load()'s default, so the fit panel + "you get" list never
+  // sit on "Pick a team above" while data is present.
+  useEffect(() => {
+    if (data && data.partners && data.partners.length) {
+      setPartnerId((cur) => cur || (seed && seed.partnerFranchiseId) || data.partners[0].franchiseId);
+    }
+  }, [data, seed]);
 
   async function respond(offer, action, comments) {
     setBusy(offer.id);
@@ -358,7 +377,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
         Alert.alert('Trade proposed', `Sent to ${res.offer.withName}.`, [{ text: 'Next league ›', onPress: onSent }]);
         return;
       }
-      Alert.alert(counterInfo ? 'Counter sent' : 'Trade proposed', `Sent to ${res.offer.withName}.${counterInfo ? ' Their original offer was declined.' : ''}`);
+      toast(`${counterInfo ? 'Counter sent' : 'Trade proposed'} · sent to ${res.offer.withName}${counterInfo ? ' (their offer declined)' : ''}`);
       setSend({});
       setReceive({});
       setCounterInfo(null);

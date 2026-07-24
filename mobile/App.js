@@ -42,6 +42,7 @@ import PressableScale from './src/components/PressableScale';
 import FieldBackdrop from './src/components/FieldBackdrop';
 import { NavHubIcon, NavPersonIcon, NavTradesIcon, NavWaiversIcon, NavLineupsIcon, NavGoalPostIcon } from './src/components/NavIcons';
 import { CelebrationHost } from './src/components/Celebrate';
+import { ToastHost } from './src/components/Toast';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import { colors } from './src/theme';
 
@@ -507,6 +508,11 @@ export default function App() {
           can never take the app down. */}
       <ErrorBoundary silent>
         <CelebrationHost />
+      </ErrorBoundary>
+      {/* On-theme, non-blocking toast for success/info — replaces white Alert popups and, unlike
+          them, lets the confetti behind it show. */}
+      <ErrorBoundary silent>
+        <ToastHost />
       </ErrorBoundary>
     </View>
   );
