@@ -34,7 +34,7 @@ const POSITIONS = [
   ['RB', 'RB'],
   ['WR', 'WR'],
   ['TE', 'TE'],
-  ['K', 'K'],
+  ['PK', 'K'], // value is the canonical position (kickers are stored as PK); label stays "K"
   ['DEF', 'DEF'],
 ];
 

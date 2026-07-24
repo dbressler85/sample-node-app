@@ -176,9 +176,12 @@ async function search(cookie, token, { q, position, status, format } = {}) {
   const watchSet = new Set(watchStore.list(token).map(String));
 
   const term = (q || '').trim().toLowerCase();
+  // Normalize the position filter so a client sending "K" (or "Def", "DST", …) matches the canonical
+  // stored position ("PK" / "DEF") — otherwise a kicker filter (K) matched nothing (kickers are PK).
+  const posFilter = position ? playersLib.normalizePosition(position) : null;
   let players = [...byId.values()];
   if (term) players = players.filter((p) => p.name.toLowerCase().includes(term));
-  if (position) players = players.filter((p) => p.position === position);
+  if (posFilter) players = players.filter((p) => p.position === posFilter);
 
   // Filter + sort on cheap lookups first; run the expensive annotate (availability
   // resolution) only on the page we actually return, not the whole universe.
@@ -204,8 +207,9 @@ async function rankings(cookie, token, { type = 'value', position, format, offse
   const watchSet = new Set(watchStore.list(token).map(String));
   let cand = [...byId.values()];
   // Position is an independent filter — it narrows any ranking type (value, trending, …),
-  // not just the legacy 'position' type.
-  if (position) cand = cand.filter((p) => p.position === position);
+  // not just the legacy 'position' type. Normalized so "K" matches kickers (stored as "PK"), etc.
+  const posFilter = position ? playersLib.normalizePosition(position) : null;
+  if (posFilter) cand = cand.filter((p) => p.position === posFilter);
   let light = cand.map((p) => ({ p, value: enr.value(p.id), age: enr.age(p.id), trend: enr.trend(p.id), owned: (mineBy.get(p.id) || []).length }));
 
   // Only rank by data we actually have, so players with no signal don't float up.
