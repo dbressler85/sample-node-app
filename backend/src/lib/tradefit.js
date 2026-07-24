@@ -102,23 +102,32 @@ function suggestGive(mine, targetValue, partnerNeeds, myBait) {
   const prio = (p) => (p.fit ? 1 : 0) + (p.bait ? 1 : 0) + (p.tag === 'avoid' ? 1 : 0) - (p.tag === 'target' ? 2 : 0);
   if (!targetValue) return [pool.sort((a, b) => prio(b) - prio(a) || (b.value || 0) - (a.value || 0))[0]];
 
-  // A fair single (85–125% of target): highest priority, then closest by value.
+  // A fair single, in a TIGHT band (90–110% of target) so the suggestion is genuinely close on
+  // value — not a ~20% overpay. Sort by CLOSENESS first; priority (fits their need / your block /
+  // tag) only breaks a near-tie (values within ~5% of each other). This stops the engine from
+  // shipping a costlier need-fitting player when a fairer one exists (the "send 79 for 66" bug).
+  const closeness = (p) => Math.abs(p.value - targetValue);
   const singles = pool
-    .filter((p) => p.value >= targetValue * 0.85 && p.value <= targetValue * 1.25)
-    .sort((a, b) => prio(b) - prio(a) || Math.abs(a.value - targetValue) - Math.abs(b.value - targetValue));
+    .filter((p) => p.value >= targetValue * 0.9 && p.value <= targetValue * 1.1)
+    .sort((a, b) => {
+      const da = closeness(a);
+      const db = closeness(b);
+      if (Math.abs(da - db) > targetValue * 0.05) return da - db; // clearly closer wins outright
+      return prio(b) - prio(a) || da - db; // near-equal on value → prefer fit/bait/avoid
+    });
   if (singles.length) return [singles[0]];
 
-  // Otherwise assemble: priority first (value desc), stopping when fair. Don't lead with
-  // a whale worth more than the target, and never overpay past ~125%.
+  // Otherwise assemble: closeness-aware, priority as a tiebreak, stopping when fair. Don't lead with
+  // a whale worth more than the target, and never overpay past ~112%.
   const ordered = pool.slice().sort((a, b) => prio(b) - prio(a) || b.value - a.value);
   const pkg = [];
   let sum = 0;
   for (const p of ordered) {
     if (!pkg.length && p.value > targetValue * 1.1) continue;
-    if (sum + p.value > targetValue * 1.25) continue;
+    if (sum + p.value > targetValue * 1.12) continue;
     pkg.push(p);
     sum += p.value;
-    if (pkg.length >= 3 || sum >= targetValue * 0.9) break;
+    if (pkg.length >= 3 || sum >= targetValue * 0.92) break;
   }
   if (pkg.length) return pkg;
   // Everyone's too big (a stacked roster) — offer the smallest single.

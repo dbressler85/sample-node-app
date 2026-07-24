@@ -93,5 +93,27 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   assert(sug.partnerNeeds.some((n) => n.pos === 'RB'), 'suggestion carries the partner needs it fit to');
   console.log('✓ suggestFor: fair by value AND fit to the partner’s RB need —', sug.give.map((g) => g.name).join(' + '));
 
+  // --- unit: value-closeness beats a need-fitting OVERPAY (the "send 79 for 66" bug) ------------
+  // Partner needs RB. My roster has a 79-value RB (fits their need) and a 66-value QB (exact fair).
+  // The engine must pick the fair 66, not overpay 79 just because it fits — closeness dominates,
+  // fit only breaks a near-tie.
+  const tradefit = require('../../src/lib/tradefit');
+  const give = tradefit.suggestGive(
+    [{ id: 'rb', name: 'Fit RB', position: 'RB', value: 79 }, { id: 'qb', name: 'Fair QB', position: 'QB', value: 66 }],
+    66,
+    [{ pos: 'RB' }],
+    new Set()
+  );
+  assert(give.length === 1 && give[0].id === 'qb', `picks the fair 66 over the fitting 79 overpay, got ${JSON.stringify(give.map((g) => `${g.name} ${g.value}`))}`);
+  // And when a need-fitter is ALSO fairly priced, fit still wins the tie: two ~66 players, one at RB.
+  const give2 = tradefit.suggestGive(
+    [{ id: 'rb', name: 'Fit RB', position: 'RB', value: 65 }, { id: 'qb', name: 'Fair QB', position: 'QB', value: 66 }],
+    66,
+    [{ pos: 'RB' }],
+    new Set()
+  );
+  assert(give2.length === 1 && give2[0].id === 'rb', `near-equal value → fit (RB) breaks the tie, got ${JSON.stringify(give2.map((g) => g.name))}`);
+  console.log('✓ suggestGive: closeness beats need-fitting overpay; fit still wins a near-tie');
+
   console.log('\nTRADE FIT HARNESS PASSED');
 })().catch((e) => { console.error(e.message); process.exit(1); });
