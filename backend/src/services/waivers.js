@@ -99,19 +99,44 @@ async function loadSettings(league, cookie) {
   const franchises = mfl.toArray(lg.franchises && lg.franchises.franchise);
   const mine = franchises.find((f) => String(f.id) === league.franchiseId);
   const faabRemaining = firstNum(mine, 'bbidAvailableBalance');
-  const usesFaab = faabRemaining != null || lg.bbidSeasonWaivers === '1' || lg.bbidWaivers === '1';
+
+  // Waiver SYSTEM from the authoritative `currentWaiverType` (per the league export dictionary:
+  // WAIVERS, WAIVERS_FCFS, BBID, BBID_FCFS, FCFS, None). Map BBID* → blind bid (faab), the priority/
+  // first-come types → fcfs, and None → free (immediate add/drop, no queued claims). Fall back to the
+  // old heuristic (a FAAB balance or a legacy bbid flag ⇒ blind bid) only when the field is absent —
+  // so a league that used to be mis-typed as fcfs/faab still resolves, and a `None` league is no
+  // longer forced into a phantom waiver system.
+  const waiverType = mfl.text(lg.currentWaiverType).toUpperCase();
+  let system;
+  if (waiverType === 'NONE') system = 'free';
+  else if (waiverType === 'BBID' || waiverType === 'BBID_FCFS') system = 'faab';
+  else if (waiverType === 'WAIVERS' || waiverType === 'WAIVERS_FCFS' || waiverType === 'FCFS') system = 'fcfs';
+  else system = faabRemaining != null || lg.bbidSeasonWaivers === '1' || lg.bbidWaivers === '1' ? 'faab' : 'fcfs';
+
+  // Blind-bid FLOOR is `bbidMinimum` — NOT `minBid`, which the dictionary defines as the AUCTION
+  // minimum (a different setting most FAAB leagues don't even have, so we were silently defaulting to
+  // $1). Blind bids must also come in `bbidIncrement` steps. A non-FAAB league keeps `minBid` (auction/
+  // priority), else 1. `bbidMinimum` may legitimately be 0 (leagues allowing $0 bids), so read it with
+  // firstNum and preserve the 0 rather than coalescing it away.
+  const bbidMin = firstNum(lg, 'bbidMinimum');
+  const minBid = system === 'faab' ? (bbidMin != null ? bbidMin : 1) : parseInt(lg.minBid, 10) || 1;
+  const bidIncrement = firstNum(lg, 'bbidIncrement') || 1;
+
   const settings = {
-    system: usesFaab ? 'faab' : 'fcfs',
+    system,
     rosterSize: parseInt(lg.rosterSize, 10) || 99,
     faabRemaining,
-    // Total season FAAB budget, if MFL exposes it (field name varies by config).
-    faabBudget: firstNum(lg, 'bbidTotalBalance', 'bbidBudget', 'faabBudget'),
-    minBid: parseInt(lg.minBid, 10) || 1,
+    // The season FAAB *budget* (starting amount) isn't in this export — only the per-franchise
+    // remaining balance (bbidAvailableBalance, read above). The old `bbidTotalBalance/bbidBudget/
+    // faabBudget` guesses aren't real league fields (always null in live), so don't pretend.
+    faabBudget: null,
+    minBid,
+    bidIncrement,
     // Waiver order for priority (fcfs) leagues, when present on the franchise.
     waiverPriority: firstNum(mine, 'waiverSortOrder', 'waiverOrder', 'waiver_order'),
     clearTime: null,
   };
-  console.log(`[waiverSettings] league=${league.leagueId} system=${settings.system} rosterSize=${settings.rosterSize} faab=${faabRemaining} budget=${settings.faabBudget} priority=${settings.waiverPriority}`);
+  console.log(`[waiverSettings] league=${league.leagueId} type=${waiverType || '—'} system=${settings.system} rosterSize=${settings.rosterSize} faab=${faabRemaining} minBid=${settings.minBid} inc=${settings.bidIncrement} priority=${settings.waiverPriority}`);
   return settings;
 }
 
@@ -250,8 +275,13 @@ function suggestBid(settings, add) {
   const remaining = settings.faabRemaining || 0;
   const value = (add.value || 0) / 100;
   const heat = 1 + Math.min(add.trend || 0, 6000) / 20000; // up to ~1.3x
-  const bid = Math.round(remaining * value * 0.45 * heat);
-  return Math.max(settings.minBid || 1, Math.min(bid, remaining));
+  let bid = Math.round(remaining * value * 0.45 * heat);
+  const floor = Number.isFinite(settings.minBid) ? settings.minBid : 1;
+  bid = Math.max(floor, Math.min(bid, remaining));
+  // Snap the suggestion up to a legal `bbidIncrement` step so a one-tap accept isn't rejected.
+  const inc = settings.bidIncrement || 1;
+  if (inc > 1) bid = Math.min(remaining, floor + Math.ceil((bid - floor) / inc) * inc);
+  return bid;
 }
 
 function claimView(claim, byId) {
@@ -304,7 +334,8 @@ async function getBoard(cookie, token, leagueId, { position, sort } = {}) {
     settings: {
       faabBudget: settings.faabBudget || null,
       faabRemaining: settings.faabRemaining != null ? settings.faabRemaining : null,
-      minBid: settings.minBid || null,
+      minBid: settings.minBid != null ? settings.minBid : null,
+      bidIncrement: settings.bidIncrement || null,
       waiverPriority: settings.waiverPriority || null,
       waiverTeams: settings.waiverTeams || null,
       rosterSize: settings.rosterSize || null,
@@ -380,9 +411,15 @@ function validateClaim(payload, ctx) {
   if (settings.system === 'faab') {
     bid = payload.bid != null ? Math.round(Number(payload.bid)) : suggestedBid;
     const remaining = settings.faabRemaining || 0;
+    // `bbidMinimum` can legitimately be 0 (leagues allowing $0 bids), so don't coalesce it to 1.
+    const floor = Number.isFinite(settings.minBid) ? settings.minBid : 1;
+    const inc = settings.bidIncrement || 1;
     if (bid == null || Number.isNaN(bid)) errors.push('A bid is required.');
-    else if (bid < (settings.minBid || 1)) errors.push(`Bid is below the minimum ($${settings.minBid || 1}).`);
+    else if (bid < floor) errors.push(`Bid is below the minimum ($${floor}).`);
     else if (bid > remaining) errors.push(`Bid exceeds your remaining budget ($${remaining}).`);
+    // Blind bids must land on a `bbidIncrement` step (measured from the minimum); MFL rejects an
+    // off-increment bid, so catch it here with a clear message instead of a raw MFL error.
+    else if (inc > 1 && (bid - floor) % inc !== 0) errors.push(`Bid must be in $${inc} increments (e.g. $${floor}, $${floor + inc}, $${floor + 2 * inc}).`);
     else budgetAfter = remaining - bid;
   } else if (settings.system === 'fcfs') {
     priority = payload.priority != null ? Number(payload.priority) : settings.waiverPriority || null;

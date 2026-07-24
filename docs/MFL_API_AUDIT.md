@@ -196,12 +196,17 @@ FAAB/priority-round paths (wrong TYPE/shape) and the standalone `drop`.
 4. ⚠️ **FCFS priority → 501** (guarded). Remaining work: source the current waiver `ROUND`, then submit
    `waiverRequest` with `ROUND` + `PICKS="add_drop"`. Likely not the owner's system (dynasty ≈ FAAB).
 
-**Known limitation (pre-existing, not introduced here):** in live, `loadSettings` classifies every league
-as `faab` or `fcfs` (never `free`), so an add during an OPEN free-agency window is still submitted as a
-waiver claim rather than an immediate `fcfsWaiver` add. In an active waiver period this is correct; outside
-one (e.g. deep offseason) MFL may reject with "no active round" — which we surface. Detecting the
-open-FA state (calendar `WAIVER_LOCK`/`UNLOCK`) to route immediate adds through `fcfsWaiver` is a
-follow-up.
+**~~Known limitation~~ RESOLVED (waiver-settings pass, 2026-07-24):** `loadSettings` used to classify
+every live league as `faab` or `fcfs` (never `free`) by sniffing undocumented `bbidWaivers`/
+`bbidSeasonWaivers` flags. It now reads the authoritative **`currentWaiverType`** field from the `league`
+export dictionary — `BBID`/`BBID_FCFS` → faab, `WAIVERS`/`WAIVERS_FCFS`/`FCFS` → fcfs, **`None` → free** —
+falling back to the old heuristic only when the field is absent. A `None` league is correctly `free` now.
+Two field-mapping bugs fixed in the same pass: (a) the FAAB floor was read from **`minBid`**, which the
+dictionary defines as the *auction* minimum — corrected to **`bbidMinimum`** (0-safe), and off-step bids are
+now caught against **`bbidIncrement`** with a clear message; (b) the `faabBudget` guesses
+(`bbidTotalBalance`/`bbidBudget`/`faabBudget`) aren't real league fields (always null in live) and were
+dropped — the season total simply isn't in this export, only the per-franchise `bbidAvailableBalance`.
+Pinned by `waiver-settings-test`.
 
 ---
 
