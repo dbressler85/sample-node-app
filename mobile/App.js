@@ -32,6 +32,7 @@ import DraftScreen from './src/screens/DraftScreen';
 import DraftHubScreen from './src/screens/DraftHubScreen';
 import PickInventoryScreen from './src/screens/PickInventoryScreen';
 import CompareScreen from './src/screens/CompareScreen';
+import PlayoffBracketScreen from './src/screens/PlayoffBracketScreen';
 import DraftListScreen from './src/screens/DraftListScreen';
 import OnDeckScreen from './src/screens/OnDeckScreen';
 import { loadSession, clearSession } from './src/auth';
@@ -227,6 +228,7 @@ export default function App() {
   const openDraftList = (league) => pushOverlay({ type: 'draftList', league });
   const openLeagues = () => pushOverlay({ type: 'leagues' });
   const openLeagueHub = (league) => pushOverlay({ type: 'league', league });
+  const openPlayoffs = (league) => pushOverlay({ type: 'playoffs', league });
   const openPortfolio = () => pushOverlay({ type: 'portfolio' });
   const openProfile = () => pushOverlay({ type: 'profile' });
   const openSettings = () => pushOverlay({ type: 'settings' });
@@ -345,7 +347,9 @@ export default function App() {
       case 'leagues':
         return <LeaguesScreen onBack={popOverlay} onOpenLeague={openLeagueHub} onOpenDraftHub={openDraftHub} />;
       case 'league':
-        return <LeagueScreen league={o.league} onBack={popOverlay} onOpenPlayer={openPlayer} />;
+        return <LeagueScreen league={o.league} onBack={popOverlay} onOpenPlayer={openPlayer} onOpenPlayoffs={openPlayoffs} />;
+      case 'playoffs':
+        return <PlayoffBracketScreen league={o.league} onBack={popOverlay} />;
       case 'portfolio':
         return <PortfolioScreen onBack={popOverlay} onOpenPlayer={openPlayer} onOpenLeague={openRoster} />;
       case 'profile':

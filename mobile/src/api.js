@@ -80,6 +80,7 @@ export const api = {
   leagueStandings: (leagueId) => request(`/api/leagues/${leagueId}/standings`),
   leagueTeams: (leagueId) => request(`/api/leagues/${leagueId}/teams`),
   leagueTransactions: (leagueId) => request(`/api/leagues/${leagueId}/transactions`),
+  leaguePlayoffs: (leagueId) => request(`/api/leagues/${leagueId}/playoffs`),
   // Pin a league to the top of every cross-league view. `on` toggles: POST sets, DELETE clears.
   setPin: (leagueId, on) => request(`/api/leagues/${leagueId}/pin`, { method: on ? 'POST' : 'DELETE' }),
 

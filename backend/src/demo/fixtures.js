@@ -141,6 +141,64 @@ function demoStandings(leagueId) {
   });
 }
 
+// A demo playoff bracket for a league, in the NORMALIZED shape the /playoffs endpoint returns
+// (the live service maps MFL's playoffBrackets export into the same shape). A 6-team single-
+// elimination Championship bracket built off the standings seeds; my franchise is seeded 4th and
+// runs the table to the title, so the UI shows a winner path, upsets, and my-team highlighting.
+function demoPlayoffBrackets(leagueId) {
+  const st = demoStandings(leagueId);
+  const lg = LEAGUES.find((l) => l.leagueId === leagueId);
+  if (!st.length || !lg) return null;
+  // Six seeds from the standings, then place MY franchise at seed 4 — the champion path in this
+  // fixture's scores — so the demo always tells the same "4-seed runs the table" story regardless of
+  // where I actually sit in the standings.
+  const top = st.slice(0, 6).map((t, i) => ({ franchiseId: String(t.id), name: t.name, seed: i + 1, mine: !!t.mine }));
+  const meIdx = top.findIndex((s) => s.mine);
+  if (meIdx === -1) {
+    top[3] = { franchiseId: lg.franchiseId, name: lg.franchiseName, seed: 4, mine: true };
+  } else if (meIdx !== 3) {
+    const displaced = { ...top[3], seed: meIdx + 1 };
+    top[3] = { ...top[meIdx], seed: 4 };
+    top[meIdx] = displaced;
+  }
+  const bySeed = Object.fromEntries(top.map((s) => [s.seed, s]));
+  const side = (seed, points) => {
+    const s = bySeed[seed];
+    return s ? { franchiseId: s.franchiseId, name: s.name, seed: s.seed, points, mine: s.mine } : null;
+  };
+  const game = (id, hSeed, hPts, aSeed, aPts, winSeed) => {
+    const home = side(hSeed, hPts);
+    const away = side(aSeed, aPts);
+    const w = bySeed[winSeed];
+    return {
+      id,
+      home,
+      away,
+      winnerFranchiseId: w ? w.franchiseId : null,
+      status: 'final',
+      mine: !!((home && home.mine) || (away && away.mine)),
+    };
+  };
+  return {
+    leagueId,
+    name: lg.name,
+    myFranchiseId: lg.franchiseId,
+    available: true,
+    brackets: [
+      {
+        id: 'championship',
+        name: 'Championship',
+        rounds: [
+          // Top 2 seeds get a bye; seeds 3–6 play the Wild Card round.
+          { week: 15, title: 'Wild Card', games: [game('wc1', 3, 108.4, 6, 96.2, 3), game('wc2', 4, 121.0, 5, 118.7, 4)] },
+          { week: 16, title: 'Semifinals', games: [game('sf1', 1, 101.3, 4, 116.9, 4), game('sf2', 2, 124.5, 3, 110.0, 2)] },
+          { week: 17, title: 'Championship', games: [game('final', 4, 131.2, 2, 122.8, 4)] },
+        ],
+      },
+    ],
+  };
+}
+
 // Recent league transactions (newest first), in the service's raw shape: a type, a
 // timestamp, the acting franchise, added/dropped player ids, and (for trades) the other
 // franchise. Fixed timestamps so the demo is deterministic.
@@ -630,6 +688,7 @@ module.exports = {
   leagues: () => LEAGUES.map((l) => ({ ...l })),
   dashboard: (leagueId) => DASHBOARD[leagueId] || null,
   standings: (leagueId) => demoStandings(leagueId),
+  playoffBrackets: (leagueId) => demoPlayoffBrackets(leagueId),
   transactions: (leagueId) => JSON.parse(JSON.stringify(TRANSACTIONS[leagueId] || [])),
   roster: (leagueId) => ROSTERS[leagueId] || null,
   teamStrength: (leagueId) => (TEAM_STRENGTH[leagueId] != null ? TEAM_STRENGTH[leagueId] : null),

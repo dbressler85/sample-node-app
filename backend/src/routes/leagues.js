@@ -6,6 +6,7 @@ const leaguesService = require('../services/leagues');
 const dashboardService = require('../services/dashboard');
 const rosterService = require('../services/roster');
 const leagueService = require('../services/league');
+const playoffsService = require('../services/playoffs');
 const leaguePrefs = require('../store/leaguePrefs');
 const { schemas, checkResponse } = require('../lib/apiSchema');
 
@@ -92,6 +93,16 @@ router.get('/leagues/:leagueId/teams', async (req, res, next) => {
 router.get('/leagues/:leagueId/transactions', async (req, res, next) => {
   try {
     res.json(checkResponse(schemas.Transactions, await leagueService.getTransactions(req.mflCookie, req.params.leagueId), 'GET /leagues/:leagueId/transactions'));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/leagues/:leagueId/playoffs — the league's playoff bracket(s), normalized into
+// rounds→games with my franchise flagged. Fail-soft (returns available:false when no bracket).
+router.get('/leagues/:leagueId/playoffs', async (req, res, next) => {
+  try {
+    res.json(await playoffsService.getBrackets(req.mflCookie, req.params.leagueId));
   } catch (err) {
     next(err);
   }

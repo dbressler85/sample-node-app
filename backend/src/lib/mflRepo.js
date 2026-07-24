@@ -35,6 +35,14 @@ async function standings(league, cookie, params = {}) {
   return mfl.toArray(res && res.leagueStandings && res.leagueStandings.franchise);
 }
 
+// `playoffBrackets` export -> the league's playoff bracket(s) (thin: returns the raw bracket array;
+// the playoffs service normalizes into rounds/games). The service is defensive about the exact
+// per-game field names, which aren't yet confirmed against a live sample.
+async function playoffBrackets(league, cookie, params = {}) {
+  const res = await read('playoffBrackets', league, cookie, params);
+  return mfl.toArray(res && res.playoffBrackets && res.playoffBrackets.playoffBracket);
+}
+
 // `league` export -> the franchise directory (note the extra nesting: league.franchises.franchise).
 // NOTE: when a caller also needs other league-level attributes (waiver flags, roster size, …),
 // it must read the raw `league` export itself — this reader only surfaces the franchise array.
@@ -253,6 +261,7 @@ module.exports = {
   read,
   rosters,
   standings,
+  playoffBrackets,
   leagueFranchises,
   pendingTrades,
   liveScoring,

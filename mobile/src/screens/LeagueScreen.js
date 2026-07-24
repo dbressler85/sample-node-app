@@ -15,7 +15,7 @@ const TABS = [
   ['txns', 'Transactions'],
 ];
 
-export default function LeagueScreen({ league, onBack, onOpenPlayer }) {
+export default function LeagueScreen({ league, onBack, onOpenPlayer, onOpenPlayoffs }) {
   const [tab, setTab] = useState('standings');
   useAndroidBack(useCallback(() => { onBack(); return true; }, [onBack]));
 
@@ -24,7 +24,13 @@ export default function LeagueScreen({ league, onBack, onOpenPlayer }) {
       <View style={styles.topbar}>
         <Pressable onPress={onBack} hitSlop={10}><Text style={styles.back}>‹ Leagues</Text></Pressable>
         <Text style={styles.title} numberOfLines={1}>{league.name}</Text>
-        <View style={{ width: 66 }} />
+        {onOpenPlayoffs ? (
+          <Pressable onPress={() => onOpenPlayoffs(league)} hitSlop={10} style={styles.bracketBtn}>
+            <Text style={styles.bracketBtnText}>🏆 Bracket</Text>
+          </Pressable>
+        ) : (
+          <View style={{ width: 66 }} />
+        )}
       </View>
 
       <View style={styles.segment}>
@@ -185,6 +191,8 @@ const styles = StyleSheet.create({
   topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 },
   back: { color: colors.accent, fontSize: 16, fontWeight: '600', width: 66 },
   title: { color: colors.text, fontSize: 17, fontWeight: '900', flex: 1, textAlign: 'center' },
+  bracketBtn: { width: 66, alignItems: 'flex-end' },
+  bracketBtnText: { color: colors.gold, fontSize: 13, fontWeight: '800' },
   segment: { flexDirection: 'row', marginHorizontal: 16, backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 3, marginTop: 6, marginBottom: 4 },
   seg: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
   segActive: { backgroundColor: colors.cardAlt },
