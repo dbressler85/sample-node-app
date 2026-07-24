@@ -215,6 +215,8 @@ const TRANSACTIONS = {
   '40750': [
     { id: 'tx-5', type: 'BBID_WAIVER', at: 1725250000, franchiseId: '0007', franchiseName: 'Gridiron Ghosts', addedIds: ['15266'], droppedIds: ['13138'] },
     { id: 'tx-6', type: 'TRADE', at: 1725150000, franchiseId: '0002', franchiseName: 'Superflex Savants', withFranchiseId: '0009', withFranchiseName: 'Dynasty Sharks', addedIds: ['13116'], droppedIds: ['14106'] },
+    // A completed trade of MINE (0007) — seeds the Sent tab's "Completed trades" history.
+    { id: 'tx-7', type: 'TRADE', at: 1725050000, franchiseId: '0007', franchiseName: 'Gridiron Ghosts', withFranchiseId: '0002', withFranchiseName: 'Superflex Savants', addedIds: ['12171'], droppedIds: ['15870'] },
   ],
   '19622': [
     { id: 'tx-7', type: 'FREE_AGENT', at: 1725260000, franchiseId: '0011', franchiseName: 'Gridiron Ghosts', addedIds: ['13138'], droppedIds: ['11686'] },

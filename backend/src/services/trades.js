@@ -266,6 +266,53 @@ async function livePendingOffers(cookie, league) {
   }
 }
 
+// My ACCEPTED (completed) trades from the transactions log — the history behind the Sent tab's
+// toggle. MFL logs a TRADE as `<side0>|<side1>|<otherFranchise>` from the ROW franchise's give/
+// receive perspective; re-cast to MINE (acquire = what I got, send = what I gave) whether I'm the row
+// franchise or the counterparty. Read-only history; no distinction of who initiated (MFL doesn't
+// record it) — these are simply my completed deals. Fail-soft. Returns raw token lists; the caller
+// resolves them to assets with the same `asset()` used for offers.
+async function myCompletedTrades(cookie, league) {
+  const me = String(league.franchiseId);
+  const csv = (s) => mfl.text(s).split(',').map((x) => x.trim()).filter(Boolean);
+  if (config.demoMode) {
+    return (demo.transactions(league.leagueId) || [])
+      .filter((t) => String(t.type).toUpperCase() === 'TRADE')
+      .map((t) => {
+        const f = String(t.franchiseId);
+        const w = String(t.withFranchiseId || '');
+        if (f === me) return { withFranchiseId: w, withName: t.withFranchiseName || null, sendToks: t.droppedIds || [], acquireToks: t.addedIds || [], at: t.at || null };
+        if (w === me) return { withFranchiseId: f, withName: t.franchiseName || null, sendToks: t.addedIds || [], acquireToks: t.droppedIds || [], at: t.at || null };
+        return null;
+      })
+      .filter(Boolean);
+  }
+  try {
+    const [txns, names] = await Promise.all([
+      mflRepo.transactions(league, cookie, { TRANS_TYPE: 'TRADE', COUNT: 25 }),
+      leaguesService.franchiseNames(cookie, league).catch(() => new Map()),
+    ]);
+    const out = [];
+    for (const t of txns) {
+      if (mfl.text(t.type).toUpperCase() !== 'TRADE') continue;
+      const p = mfl.text(t.transaction).split('|');
+      const rowFr = mfl.text(t.franchise);
+      const other = p[2] ? String(mfl.text(p[2])).padStart(4, '0') : null;
+      const side0 = csv(p[0]); // what the row franchise GAVE
+      const side1 = csv(p[1]); // what the row franchise RECEIVED
+      let withId; let sendToks; let acquireToks;
+      if (rowFr === me) { withId = other; sendToks = side0; acquireToks = side1; }
+      else if (other === me) { withId = rowFr; sendToks = side1; acquireToks = side0; }
+      else continue; // not my trade
+      out.push({ withFranchiseId: withId, withName: names.get(String(withId)) || 'Another team', sendToks, acquireToks, at: mfl.num(t.timestamp) });
+    }
+    out.sort((a, b) => (b.at || 0) - (a.at || 0));
+    return out;
+  } catch (e) {
+    return [];
+  }
+}
+
 async function liveRosters(cookie, league) {
   try {
     const franchises = await mflRepo.rosters(league, cookie);
@@ -453,7 +500,7 @@ async function getLeague(cookie, token, leagueId) {
   //   • in demo the live picks map is empty, so my own picks come from the demo fixture.
   // Every read is caught to a safe default: the offers you came to review must render even if
   // the bait board or a picks read is momentarily flaky — a partial desk beats a 500.
-  const [rawLeagueOffers, baitMap, assetsMap, picksMap, upcoming, demoMyPicks, autoDeadlineMs] = await Promise.all([
+  const [rawLeagueOffers, baitMap, assetsMap, picksMap, upcoming, demoMyPicks, autoDeadlineMs, rawCompleted] = await Promise.all([
     offersForLeague(cookie, token, league, byId, enr).catch((e) => { console.warn(`[trades] offersForLeague failed for L=${leagueId}: ${e.message}`); return []; }),
     tradeBaitByFranchise(cookie, token, league).catch(() => new Map()),
     // Authoritative tradable picks per franchise (post-trade ownership, one read). Null → fall back
@@ -464,10 +511,26 @@ async function getLeague(cookie, token, leagueId) {
     (config.demoMode ? picksLib.franchisePicks(cookie, league) : Promise.resolve(null)).catch(() => null),
     // MFL's own trade deadline from the league calendar (live only). Manual entry overrides it.
     config.demoMode ? Promise.resolve(null) : nextTradeDeadline(cookie, league).catch(() => null),
+    // My accepted (completed) trades — the Sent tab's "show completed" history.
+    myCompletedTrades(cookie, league).catch(() => []),
   ]);
   const tradeDeadlineAuto = autoDeadlineMs ? new Date(autoDeadlineMs).toISOString().slice(0, 10) : null;
 
   const offers = annotateConstruction(rawLeagueOffers, ns, league.franchiseId);
+  // My completed-trade history (read-only), sides resolved to assets from MY perspective + analyzed.
+  const completedTrades = (rawCompleted || []).map((t, i) => {
+    const acquire = (t.acquireToks || []).map((tk) => asset(tk, byId, enr));
+    const send = (t.sendToks || []).map((tk) => asset(tk, byId, enr));
+    return {
+      id: `ct-${t.at || 'x'}-${i}`,
+      withFranchiseId: t.withFranchiseId || null,
+      withName: t.withName || (t.withFranchiseId ? `Team ${t.withFranchiseId}` : 'Another team'),
+      acquire,
+      send,
+      analysis: analyze(acquire, send),
+      at: t.at || null,
+    };
+  });
   const myBait = baitMap.get(String(league.franchiseId)) || new Set();
   const picksFor = (fid) => (picksMap[String(fid)] || []).map((p) => asset(p.token, byId, enr));
   const upcomingFor = (fid) => (upcoming[String(fid)] || []).map((p) => asset(p.token, byId, enr));
@@ -514,6 +577,7 @@ async function getLeague(cookie, token, leagueId) {
     leagueId: league.leagueId,
     name: league.name,
     offers,
+    completedTrades,
     myPlayers,
     myPicks,
     partners,

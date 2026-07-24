@@ -37,6 +37,10 @@ mfl.exportRequest = async (type, opts = {}) => {
         { trade_id: 'TR9', offeringteam: '0002', offeredto: '0001', willGiveUp: '20,BB_15', willReceiveInReturn: '1' },
         { trade_id: 'TR10', offeringteam: '0001', offeredto: '0003', willGiveUp: '1', willReceiveInReturn: '30' },
       ] } };
+    case 'transactions':
+      // One COMPLETED trade of mine: I (0001) gave player 1, received player 20, with 0002.
+      // MFL logs it from the row franchise's give|receive|other perspective.
+      return { transactions: { transaction: [{ type: 'TRADE', franchise: '0001', transaction: '1|20|0002', timestamp: '1725000000' }] } };
     case 'injuries':
       return { injuries: { injury: [] } };
     case 'nflSchedule':
@@ -103,6 +107,13 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   assert(sentOffer.send.some((a) => a.name === 'Mine WR'), `sent offer: I give my player, got ${JSON.stringify(sentOffer.send.map((a) => a.name))}`);
   assert(sentOffer.acquire.some((a) => a.name === 'Other RB'), `sent offer: I receive their player, got ${JSON.stringify(sentOffer.acquire.map((a) => a.name))}`);
   console.log('✓ live desk: SENT offer visible (direction outgoing, withdrawable, my-perspective sides)');
+
+  // Completed (accepted) trades from the transaction log — the Sent tab's history — my perspective.
+  assert(lg.completedTrades && lg.completedTrades.length === 1, `one completed trade, got ${lg.completedTrades && lg.completedTrades.length}`);
+  const ct = lg.completedTrades[0];
+  assert(ct.withName === 'Rival Squad', `completed trade counterparty resolved, got ${ct.withName}`);
+  assert(ct.acquire.some((a) => a.name === 'Rival WR') && ct.send.some((a) => a.name === 'Mine WR'), `completed trade sides (got Rival WR / gave Mine WR), got ${JSON.stringify({ got: ct.acquire.map((a) => a.name), gave: ct.send.map((a) => a.name) })}`);
+  console.log('✓ live desk: completed trade history parsed from transactions (my perspective)');
 
   // The cross-league OVERVIEW stays an inbox — incoming only (a "what needs my response" view).
   assert(ov.offers.every((of) => of.direction === 'incoming'), 'cross-league overview is incoming-only (inbox)');

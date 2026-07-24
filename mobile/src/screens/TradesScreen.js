@@ -94,6 +94,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
   const [busy, setBusy] = useState(null); // offerId being responded to
   const [rejectTarget, setRejectTarget] = useState(null); // offer being rejected (optional note modal)
   const [rejectNote, setRejectNote] = useState('');
+  const [showCompleted, setShowCompleted] = useState(false); // Sent tab: reveal completed-trade history
 
   // Propose builder state.
   const [partnerId, setPartnerId] = useState(null);
@@ -191,6 +192,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
   const incomingOffers = allOffers.filter((o) => o.direction !== 'outgoing');
   const outgoingOffers = allOffers.filter((o) => o.direction === 'outgoing');
   const activeOffers = tab === 'sent' ? outgoingOffers : incomingOffers;
+  const completedTrades = (data && data.completedTrades) || [];
   const preview = useMemo(() => tradeMath.analyze(receiveList, sendList), [receiveList, sendList]);
   const personalPreview = useMemo(() => tradeMath.personalAnalyze(receiveList, sendList), [receiveList, sendList]);
   // Live construction for BOTH sides of the offer being built.
@@ -468,7 +470,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
           {activeOffers.length === 0 ? (
             <Text style={styles.empty}>
               {tab === 'sent'
-                ? 'You haven’t sent any trade offers in this league. Build one on the Propose tab.'
+                ? 'No open offers you’ve sent in this league. Build one on the Propose tab.'
                 : 'No incoming trade offers in this league.'}
             </Text>
           ) : (
@@ -478,6 +480,18 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
               </Reveal>
             ))
           )}
+
+          {/* Sent tab only: a toggle to reveal my completed (accepted) trades from league history. */}
+          {tab === 'sent' && completedTrades.length ? (
+            <>
+              <Pressable onPress={() => setShowCompleted((v) => !v)} style={({ pressed }) => [styles.completedToggle, pressed && { opacity: 0.7 }]}>
+                <Text style={styles.completedToggleText}>{showCompleted ? '▾ ' : '▸ '}Completed trades · {completedTrades.length}</Text>
+              </Pressable>
+              {showCompleted
+                ? completedTrades.map((ct) => <CompletedTradeCard key={ct.id} trade={ct} onOpenPlayer={onOpenPlayer} />)
+                : null}
+            </>
+          ) : null}
         </ScrollView>
       ) : (
         <ScrollView contentContainerStyle={[styles.list, { paddingBottom: footerH + 24 }]}>
@@ -757,6 +771,27 @@ function OfferCard({ offer, busy, onAccept, onReject, onWithdraw, onCounter, onO
   );
 }
 
+// A COMPLETED (accepted) trade — read-only history for the Sent tab. Same side-by-side treatment as
+// an offer, minus the action buttons, with a green "COMPLETED" tag and the date it processed.
+function CompletedTradeCard({ trade, onOpenPlayer }) {
+  const when = trade.at ? new Date(trade.at * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : null;
+  return (
+    <View style={[styles.card, { borderLeftWidth: 3, borderLeftColor: colors.good }]}>
+      <View style={styles.cardTop}>
+        <View style={[styles.dirPill, { borderColor: colors.good }]}>
+          <Text style={[styles.dirPillText, { color: colors.good }]}>COMPLETED</Text>
+        </View>
+        <Text style={styles.cardFrom} numberOfLines={1}>
+          <Text style={styles.cardDir}>with </Text>{trade.withName}
+        </Text>
+        {when ? <Text style={styles.completedWhen}>{when}</Text> : null}
+      </View>
+      <Side label="You got" assets={trade.acquire} total={trade.analysis && trade.analysis.acquireValue} tint={colors.good} onOpenPlayer={onOpenPlayer} />
+      <Side label="You gave" assets={trade.send} total={trade.analysis && trade.analysis.sendValue} tint={colors.textDim} onOpenPlayer={onOpenPlayer} />
+    </View>
+  );
+}
+
 function Side({ label, assets, total, tint, onOpenPlayer }) {
   return (
     <View style={styles.side}>
@@ -926,6 +961,9 @@ const styles = StyleSheet.create({
   cardDir: { color: colors.textDim, fontSize: 13, fontWeight: '700' },
   dirPill: { borderWidth: 1, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, marginRight: 8 },
   dirPillText: { fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
+  completedToggle: { paddingVertical: 12, paddingHorizontal: 4, marginTop: 4 },
+  completedToggleText: { color: colors.accent, fontSize: 14, fontWeight: '800' },
+  completedWhen: { color: colors.textDim, fontSize: 12, fontWeight: '700', marginLeft: 8 },
   badge: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3 },
   badgeText: { fontSize: 11, fontWeight: '800' },
   side: { marginTop: 8 },
