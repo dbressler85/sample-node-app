@@ -9,7 +9,7 @@ import Sparkline from '../components/Sparkline';
 // your leagues (outlook mix), your personal activity (tags / watchlist), and the account
 // actions. Identity loads instantly from /api/me; the value + outlook + activity fill in from
 // the (client-cached) portfolio and watchlist reads, so the card is never blank while loading.
-export default function ProfileScreen({ onBack, onOpenPortfolio, onOpenSettings, onOpenHelp, onOpenPlayer, onLogout }) {
+export default function ProfileScreen({ onBack, onOpenPortfolio, onOpenSettings, onOpenHelp, onOpenPlayer, onOpenTrophies, onLogout }) {
   const [me, setMe] = useState(null);
   const [port, setPort] = useState(null);
   const [watchCount, setWatchCount] = useState(null);
@@ -125,6 +125,7 @@ export default function ProfileScreen({ onBack, onOpenPortfolio, onOpenSettings,
 
         {/* Account actions */}
         <View style={styles.card}>
+          {onOpenTrophies ? <ActionRow label="🏆 Trophy Case" onPress={onOpenTrophies} /> : null}
           <ActionRow label="Settings" onPress={onOpenSettings} />
           <ActionRow label="Help & how it works" onPress={onOpenHelp} />
           <ActionRow label="Log out" onPress={onLogout} destructive last />

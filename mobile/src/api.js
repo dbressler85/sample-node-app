@@ -131,6 +131,11 @@ export const api = {
   playerTrade: (id, leagues) => request(`/api/players/${id}/trade`, { method: 'POST', body: { leagues } }),
   playerDrop: (id, leagues) => request(`/api/players/${id}/drop`, { method: 'POST', body: { leagues } }),
 
+  // Trophy case — championships won across leagues/seasons.
+  trophies: () => request('/api/trophies'),
+  addTrophy: (body) => request('/api/trophies', { method: 'POST', body }),
+  removeTrophy: (id) => request(`/api/trophies/${id}`, { method: 'DELETE' }),
+
   // Cross-league watchlist
   watchlist: () => request('/api/watchlist'),
   watchlistAlerts: () => request('/api/watchlist/alerts'),

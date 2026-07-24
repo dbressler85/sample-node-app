@@ -689,6 +689,12 @@ module.exports = {
   dashboard: (leagueId) => DASHBOARD[leagueId] || null,
   standings: (leagueId) => demoStandings(leagueId),
   playoffBrackets: (leagueId) => demoPlayoffBrackets(leagueId),
+  // Championships the demo owner has won — seeds the trophy case (team, league, year).
+  trophies: () => [
+    { leagueName: 'Dynasty Warlords', team: 'Gridiron Ghosts', year: 2024, leagueId: '64097' },
+    { leagueName: 'Superflex Sickos', team: 'Gridiron Ghosts', year: 2022, leagueId: '40750' },
+    { leagueName: 'The Gridiron Empire', team: 'Ghosts of Gridiron', year: 2019, leagueId: null },
+  ],
   transactions: (leagueId) => JSON.parse(JSON.stringify(TRANSACTIONS[leagueId] || [])),
   roster: (leagueId) => ROSTERS[leagueId] || null,
   teamStrength: (leagueId) => (TEAM_STRENGTH[leagueId] != null ? TEAM_STRENGTH[leagueId] : null),
