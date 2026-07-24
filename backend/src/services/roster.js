@@ -85,16 +85,26 @@ function leagueStrengthPct(franchises, myId, enr) {
   return atOrBelow / totals.length;
 }
 
+// MFL's roster-slot tokens aren't consistent across exports: the `rosters` export uses the long
+// forms INJURED_RESERVE / TAXI_SQUAD (and lowercase `starter` for a set weekly lineup), while the
+// sibling `playerRosterStatus` export uses short codes IR / TS. We can't confirm which the rosters
+// export returns for an owner with no current IR/taxi player (offseason), so accept BOTH — a
+// misread would silently dump IR/taxi players into `bench` AND suppress the illegal-IR alert. Match
+// exact tokens case-insensitively (no substring test) so a normal roster status can't false-positive.
+const IR_STATUS = new Set(['INJURED_RESERVE', 'IR']);
+const TAXI_STATUS = new Set(['TAXI_SQUAD', 'TAXI', 'TS']);
+function slotOf(p) {
+  const raw = String((p && (p.status || p.roster_status)) || '').trim().toUpperCase();
+  if (IR_STATUS.has(raw)) return 'ir';
+  if (TAXI_STATUS.has(raw)) return 'taxi';
+  if (raw === 'STARTER') return 'starters';
+  return 'bench';
+}
+
 // Bucket one franchise's player id-list into starters/bench/ir/taxi.
 function bucketPlayers(franchisePlayers) {
   const buckets = { starters: [], bench: [], ir: [], taxi: [] };
-  for (const p of mfl.toArray(franchisePlayers)) {
-    const id = String(p.id);
-    if (p.status === 'INJURED_RESERVE' || p.roster_status === 'INJURED_RESERVE') buckets.ir.push(id);
-    else if (p.status === 'TAXI_SQUAD' || p.roster_status === 'TAXI_SQUAD') buckets.taxi.push(id);
-    else if (p.status === 'starter') buckets.starters.push(id);
-    else buckets.bench.push(id);
-  }
+  for (const p of mfl.toArray(franchisePlayers)) buckets[slotOf(p)].push(String(p.id));
   return buckets;
 }
 
