@@ -132,6 +132,9 @@ function buildOffer(raw, league, byId, enr) {
     // Accept/reject only make sense on an incoming offer we can actually target on MFL (has a
     // trade id). The UI hides the buttons when this is false rather than firing a doomed call.
     canRespond: (raw.direction || 'incoming') === 'incoming' && raw.id != null,
+    // Revoke (withdraw) is the mirror — only the originator of an OUTGOING offer can do it, and
+    // only when we have the MFL trade id to target.
+    canRevoke: (raw.direction || 'incoming') === 'outgoing' && raw.id != null,
     acquire,
     send,
     analysis: analyze(acquire, send),
@@ -842,21 +845,29 @@ async function counterFor(cookie, token, leagueId, offerId) {
   };
 }
 
-// Accept or reject a pending incoming offer.
-async function respond(cookie, token, leagueId, tradeId, action) {
-  const act = action === 'accept' ? 'accept' : 'reject';
+// Respond to a pending trade offer. MFL's tradeResponse RESPONSE has three values:
+//   accept / reject — allowed only for the TARGET of an incoming offer,
+//   revoke          — allowed only for the ORIGINATOR of an outgoing offer (withdraw it).
+// `comments` is an optional note MFL delivers to the originator when the offer is REJECTED.
+const RESPONSE_STATUS = { accept: 'accepted', reject: 'rejected', revoke: 'revoked' };
+async function respond(cookie, token, leagueId, tradeId, action, comments) {
+  const act = action === 'accept' ? 'accept' : action === 'revoke' ? 'revoke' : 'reject';
   // Never send MFL a blank/placeholder trade id — that could hit the wrong pending trade.
   if (tradeId == null || tradeId === '' || tradeId === 'null' || tradeId === 'undefined') {
-    throwBad('This offer is missing its trade id, so it can’t be accepted or rejected here — open it in MyFantasyLeague.');
+    throwBad('This offer is missing its trade id, so it can’t be responded to here — open it in MyFantasyLeague.');
   }
   const league = await findLeague(cookie, leagueId);
   if (!config.demoMode) {
     try {
-      await mfl.importRequest('tradeResponse', { host: league.host, cookie, L: league.leagueId, FRANCHISE: league.franchiseId, TRADE_ID: tradeId, RESPONSE: act });
+      const params = { host: league.host, cookie, L: league.leagueId, FRANCHISE: league.franchiseId, TRADE_ID: tradeId, RESPONSE: act };
+      // MFL only delivers COMMENTS on a rejection (the note goes to the originator); ignore it otherwise.
+      if (act === 'reject' && comments) params.COMMENTS = String(comments);
+      await mfl.importRequest('tradeResponse', params);
     } catch (e) {
       // Surface MFL's ACTUAL reason (hard-won rule — never a bare status), and log it so a rejected
-      // accept/reject is diagnosable. A successful response returns "OK", which importRequest already
-      // treats as success, so reaching here means a real rejection (stale trade, no longer valid, …).
+      // accept/reject/revoke is diagnosable. A successful response returns "OK", which importRequest
+      // already treats as success, so reaching here means a real rejection (stale trade, not the
+      // originator/target for this RESPONSE, no longer valid, …).
       const detail = mfl.errorDetail(e);
       console.warn(`[trades] tradeResponse rejected — L=${league.leagueId} trade=${tradeId} response=${act} — ${detail}`);
       const err = new Error(`MyFantasyLeague couldn’t ${act} the trade: ${detail}`);
@@ -864,16 +875,16 @@ async function respond(cookie, token, leagueId, tradeId, action) {
       err.detail = detail;
       throw err;
     }
-    // Whether accepted OR rejected, the trade is no longer PENDING on MFL. The inbox is built from
+    // Accepted, rejected, OR revoked, the trade is no longer PENDING on MFL. The inbox is built from
     // MFL's pendingTrades, which we cache (~12s), so without this the app's immediate refetch would
     // re-serve the pre-response snapshot and the resolved offer would linger on the Trades screen.
     // Drop this league's cached reads so the reload reflects the removal right away.
     mfl.invalidateLeague(cookie, league.leagueId);
   }
   const seed = config.demoMode ? demo.tradeOffers(leagueId) : [];
-  tradeStore.resolve(token, leagueId, seed, tradeId, act === 'accept' ? 'accepted' : 'rejected');
+  tradeStore.resolve(token, leagueId, seed, tradeId, RESPONSE_STATUS[act]);
   // Accepting a trade also changes my roster on MFL — drop the cached roster so the next read
-  // reflects it, and the Players tab's cross-league map with it. (Rejecting doesn't touch rosters.)
+  // reflects it, and the Players tab's cross-league map with it. (Reject/revoke don't touch rosters.)
   // Lazy require avoids a playerhub↔trades cycle.
   if (act === 'accept') {
     rosterService.invalidate(cookie, leagueId);

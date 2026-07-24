@@ -167,7 +167,7 @@ Audited against the **Import request reference**. Verdicts:
 |---|---|---|
 | `lineup` (`lineups.js`) | `L`,`W`,`STARTERS`(csv),`FRANCHISE` | ✅ **Correct.** Doc: `L`,`W`,`STARTERS`(csv),optional `COMMENTS`/`TIEBREAKERS`. (`FRANCHISE` → see note below.) |
 | `tradeProposal` (`trades.js`) | `OFFEREDTO`,`WILL_GIVE_UP`,`WILL_RECEIVE`,`COMMENTS`,`FRANCHISE` | ✅ **Correct.** Optional `EXPIRES` (Unix; defaults to +1 week) available if we want to set it. |
-| `tradeResponse` (`trades.js`) | `TRADE_ID`,`RESPONSE`(accept/reject),`FRANCHISE` | ✅ **Correct.** `RESPONSE` also allows **`revoke`** (originator-only) — we don't expose it (missing feature, not a bug). |
+| `tradeResponse` (`trades.js`) | `TRADE_ID`,`RESPONSE`(accept/reject/**revoke**),`FRANCHISE`,`COMMENTS` *(revoke+note added, #94)* | ✅ **Correct + extended.** All three `RESPONSE` values wired: accept/reject (target of an incoming offer) and **`revoke`** (originator withdraws an outgoing offer — surfaced as "Withdraw offer" on outgoing cards). `COMMENTS` (a note MFL delivers to the originator, **reject-only**) is now passed through from an optional reject-note modal; omitted on accept/revoke. |
 | `tradeBait` (`tradebait.js`) | `WILL_GIVE_UP`,`IN_EXCHANGE_FOR`,`FRANCHISE` | ✅ **Correct** (overwrites prior bait, as intended). `tradeBait` has **no** `FRANCHISE_ID` param — the `FRANCHISE` we send is simply ignored. |
 | immediate add/drop → `fcfsWaiver` (`waivers.js`) | `ADD`,`DROP` | ✅ **Correct** for the immediate/continuous case (`ADD` single, `DROP` csv). |
 | drop a player (`playerhub.js`) | **`fcfsWaiver`** `DROP` *(FIXED)* | ✅ **FIXED** — was TYPE `drop` (doesn't exist). Now `fcfsWaiver` with only `DROP` (immediate drop to FA). |

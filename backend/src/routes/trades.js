@@ -120,10 +120,12 @@ router.post('/leagues/:leagueId/trades', async (req, res, next) => {
   }
 });
 
-// POST /api/leagues/:leagueId/trades/:tradeId/respond — accept or reject.
+// POST /api/leagues/:leagueId/trades/:tradeId/respond — accept, reject, or revoke (withdraw your own
+// outgoing offer). `comments` is an optional note delivered to the originator on a reject.
 router.post('/leagues/:leagueId/trades/:tradeId/respond', async (req, res, next) => {
   try {
-    res.json(await trades.respond(req.mflCookie, req.account, req.params.leagueId, req.params.tradeId, (req.body || {}).action));
+    const body = req.body || {};
+    res.json(await trades.respond(req.mflCookie, req.account, req.params.leagueId, req.params.tradeId, body.action, body.comments));
   } catch (err) {
     next(err);
   }

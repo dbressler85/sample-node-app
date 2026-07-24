@@ -22,6 +22,7 @@ const EVENTS = {
   claimPlaced:   { mood: 'happy', emoji: '📝', lines: ['Claim’s in!', 'Bid placed. Fingers crossed.'] },
   matchupWon:    { mood: 'happy', emoji: '🏆', lines: ['A W. As expected.', 'Victory. Screenshot it.'] },
   offerRejected: { mood: 'sad',   emoji: '🙅', lines: ['Rejected. Bold of them.', 'A no. Their loss, truly.', 'Denied. We’ll allow it.'] },
+  offerWithdrawn:{ mood: 'sad',   emoji: '↩️', lines: ['Pulled it back.', 'Offer withdrawn.', 'Never mind, then.'] },
   claimFailed:   { mood: 'sad',   emoji: '📉', lines: ['Outbid. Someone wanted him more. Rude.', 'Denied by the waiver gods.'] },
   matchupLost:   { mood: 'sad',   emoji: '💀', lines: ['An L. Character-building.', 'You lost. Statistically, someone had to.'] },
 };

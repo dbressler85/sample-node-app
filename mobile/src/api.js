@@ -165,8 +165,10 @@ export const api = {
   setTradeDeadline: (leagueId, deadline) => request(`/api/leagues/${leagueId}/trade-deadline`, { method: 'POST', body: { deadline } }),
   counterTrade: (leagueId, offerId) => request(`/api/leagues/${leagueId}/trades/counter?offer=${offerId}`),
   proposeTrade: (leagueId, body) => request(`/api/leagues/${leagueId}/trades`, { method: 'POST', body }),
-  respondTrade: (leagueId, tradeId, action) =>
-    request(`/api/leagues/${leagueId}/trades/${tradeId}/respond`, { method: 'POST', body: { action } }),
+  // action: 'accept' | 'reject' | 'revoke' (withdraw your own outgoing offer). `comments` is an
+  // optional note MFL delivers to the originator on a reject.
+  respondTrade: (leagueId, tradeId, action, comments) =>
+    request(`/api/leagues/${leagueId}/trades/${tradeId}/respond`, { method: 'POST', body: { action, comments: comments || undefined } }),
 
   // Trade bait ("on the block") — centralized across leagues.
   tradeBait: () => request('/api/tradebait'),

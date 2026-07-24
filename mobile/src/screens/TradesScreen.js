@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Alert, TextInput } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Alert, TextInput, Modal } from 'react-native';
 import { api } from '../api';
 import tradeMath from '../tradeMath';
 import { colors, positionColors } from '../theme';
@@ -92,6 +92,8 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
   const [loading, setLoading] = useState(() => !peekResource(deskKey));
   const [tab, setTab] = useState(initialTab === 'propose' ? 'propose' : 'offers');
   const [busy, setBusy] = useState(null); // offerId being responded to
+  const [rejectTarget, setRejectTarget] = useState(null); // offer being rejected (optional note modal)
+  const [rejectNote, setRejectNote] = useState('');
 
   // Propose builder state.
   const [partnerId, setPartnerId] = useState(null);
@@ -148,17 +150,34 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
 
   useEffect(() => { load(); }, [load]);
 
-  async function respond(offer, action) {
+  async function respond(offer, action, comments) {
     setBusy(offer.id);
     try {
-      await api.respondTrade(league.leagueId, offer.id, action);
-      celebrate(action === 'accept' ? 'tradeAccepted' : 'offerRejected');
+      await api.respondTrade(league.leagueId, offer.id, action, comments);
+      celebrate(action === 'accept' ? 'tradeAccepted' : action === 'revoke' ? 'offerWithdrawn' : 'offerRejected');
       await load();
     } catch (e) {
       Alert.alert('Could not respond', e.message);
     } finally {
       setBusy(null);
     }
+  }
+
+  // Reject opens a small modal so you can (optionally) attach a note MFL sends to the originator.
+  function openReject(offer) { setRejectNote(''); setRejectTarget(offer); }
+  async function confirmReject() {
+    const offer = rejectTarget;
+    const note = rejectNote.trim();
+    setRejectTarget(null);
+    if (offer) await respond(offer, 'reject', note || undefined);
+  }
+
+  // Withdraw (revoke) pulls back your own outgoing offer — a plain confirm; MFL takes no note here.
+  function withdraw(offer) {
+    Alert.alert('Withdraw offer?', `Pull back your offer to ${offer.withName || 'this team'}.`, [
+      { text: 'Keep it', style: 'cancel' },
+      { text: 'Withdraw', style: 'destructive', onPress: () => respond(offer, 'revoke') },
+    ]);
   }
 
   const partner = useMemo(() => (data && data.partners || []).find((p) => p.franchiseId === partnerId) || null, [data, partnerId]);
@@ -441,7 +460,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
           ) : (
             data.offers.map((o, i) => (
               <Reveal key={o.id} delay={Math.min(i, 6) * 55}>
-                <OfferCard offer={o} busy={busy === o.id} onRespond={respond} onCounter={startCounter} onOpenPlayer={onOpenPlayer} />
+                <OfferCard offer={o} busy={busy === o.id} onAccept={(off) => respond(off, 'accept')} onReject={openReject} onWithdraw={withdraw} onCounter={startCounter} onOpenPlayer={onOpenPlayer} />
               </Reveal>
             ))
           )}
@@ -608,11 +627,38 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
           </Pressable>
         </View>
       ) : null}
+
+      {/* Reject an incoming offer, optionally with a note MFL delivers to the originator. */}
+      <Modal visible={!!rejectTarget} transparent animationType="fade" onRequestClose={() => setRejectTarget(null)}>
+        <Pressable style={styles.modalScrim} onPress={() => setRejectTarget(null)}>
+          <Pressable style={styles.rejectSheet} onPress={() => {}}>
+            <Text style={styles.rejectTitle}>Reject offer{rejectTarget && rejectTarget.withName ? ` from ${rejectTarget.withName}` : ''}?</Text>
+            <Text style={styles.rejectHint}>Add an optional note for them (they’ll see it with the rejection).</Text>
+            <TextInput
+              style={styles.rejectInput}
+              value={rejectNote}
+              onChangeText={setRejectNote}
+              placeholder="Optional message…"
+              placeholderTextColor={colors.textDim}
+              multiline
+              maxLength={200}
+            />
+            <View style={styles.rejectActions}>
+              <Pressable style={[styles.act, styles.rejectCancel]} onPress={() => setRejectTarget(null)}>
+                <Text style={styles.rejectCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable style={[styles.act, styles.reject]} onPress={confirmReject}>
+                <Text style={styles.rejectText}>{rejectNote.trim() ? 'Reject + send note' : 'Reject'}</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
 
-function OfferCard({ offer, busy, onRespond, onCounter, onOpenPlayer }) {
+function OfferCard({ offer, busy, onAccept, onReject, onWithdraw, onCounter, onOpenPlayer }) {
   const v = VERDICT[offer.analysis.verdict] || VERDICT.fair;
   return (
     <View style={styles.card}>
@@ -658,17 +704,25 @@ function OfferCard({ offer, busy, onRespond, onCounter, onOpenPlayer }) {
           <Text style={[styles.bottomLineText, { color: TONE[offer.bottomLine.tone] || colors.text }]}>{offer.bottomLine.text}</Text>
         </View>
       ) : null}
-      {offer.canRespond === false ? (
-        <Text style={styles.noRespond}>This offer can’t be actioned here — open it in MyFantasyLeague.</Text>
-      ) : (
+      {offer.canRespond ? (
+        // Incoming offer we're the target of → accept / reject (reject can carry a note).
         <View style={styles.cardActions}>
-          <Pressable style={[styles.act, styles.reject]} onPress={() => onRespond(offer, 'reject')} disabled={busy}>
+          <Pressable style={[styles.act, styles.reject]} onPress={() => onReject(offer)} disabled={busy}>
             <Text style={styles.rejectText}>Reject</Text>
           </Pressable>
-          <Pressable style={[styles.act, styles.accept]} onPress={() => onRespond(offer, 'accept')} disabled={busy}>
+          <Pressable style={[styles.act, styles.accept]} onPress={() => onAccept(offer)} disabled={busy}>
             {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.acceptText}>Accept</Text>}
           </Pressable>
         </View>
+      ) : offer.canRevoke ? (
+        // Our own outgoing offer → withdraw it (revoke).
+        <View style={styles.cardActions}>
+          <Pressable style={[styles.act, styles.reject]} onPress={() => onWithdraw(offer)} disabled={busy}>
+            {busy ? <ActivityIndicator color={colors.bad} /> : <Text style={styles.rejectText}>Withdraw offer</Text>}
+          </Pressable>
+        </View>
+      ) : (
+        <Text style={styles.noRespond}>This offer can’t be actioned here — open it in MyFantasyLeague.</Text>
       )}
       {onCounter ? (
         <Pressable style={({ pressed }) => [styles.counterBtn, pressed && { opacity: 0.7 }]} onPress={() => onCounter(offer)} disabled={busy}>
@@ -873,6 +927,15 @@ const styles = StyleSheet.create({
   rejectText: { color: colors.textDim, fontWeight: '800', fontSize: 14 },
   accept: { backgroundColor: colors.good },
   acceptText: { color: '#fff', fontWeight: '800', fontSize: 14 },
+  // Reject-with-note modal.
+  modalScrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', paddingHorizontal: 24 },
+  rejectSheet: { backgroundColor: colors.bg, borderRadius: 16, borderWidth: 1, borderColor: colors.border, padding: 18 },
+  rejectTitle: { color: colors.text, fontSize: 16, fontWeight: '800', marginBottom: 6 },
+  rejectHint: { color: colors.textDim, fontSize: 12, marginBottom: 12 },
+  rejectInput: { minHeight: 64, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, color: colors.text, fontSize: 14, padding: 10, textAlignVertical: 'top' },
+  rejectActions: { flexDirection: 'row', gap: 10, marginTop: 14 },
+  rejectCancel: { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.border },
+  rejectCancelText: { color: colors.text, fontWeight: '800', fontSize: 14 },
   partnerRow: { gap: 8, paddingBottom: 4 },
   partnerChip: { backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 8, maxWidth: 190 },
   partnerChipActive: { backgroundColor: colors.cardAlt, borderColor: colors.accent },
