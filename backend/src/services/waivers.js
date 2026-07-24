@@ -490,7 +490,10 @@ async function currentWaiverRound(cookie, league) {
 // fail-soft: any read/parse trouble yields [] and the section simply stays empty.
 async function liveWaiverResults(cookie, league, byId, limit = 8) {
   try {
-    const txns = await mflRepo.transactions(league, cookie, { TRANS_TYPE: 'BBID_WAIVER,WAIVER', COUNT: 40 });
+    // Filter server-side (MFL recommends it — the log "can be a very large set"): the confirmed
+    // processed-waiver types + MY franchise, so my recent results aren't crowded out of the window
+    // by other teams' claims in a busy league. The client-side franchise check below stays as a net.
+    const txns = await mflRepo.transactions(league, cookie, { TRANS_TYPE: 'BBID_WAIVER,WAIVER', FRANCHISE: league.franchiseId, COUNT: 40 });
     const mine = String(league.franchiseId);
     // Resolve an id to a { id, name } ref, or null when it doesn't resolve to a real player.
     const ref = (id) => {
