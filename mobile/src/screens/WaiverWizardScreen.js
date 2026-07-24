@@ -73,6 +73,12 @@ export default function WaiverWizardScreen({ leagues, onBack, onOpenPlayer }) {
   const dropRequired = !!(current && current.rosterFull);
   const bidNum = bid != null && bid !== '' ? Number(bid) : null;
   const budgetAfter = isFaab && current.faabRemaining != null && bidNum != null ? current.faabRemaining - bidNum : null;
+  // Net dynasty value the claim adds to the roster: what you gain minus what you give up. The core
+  // dynasty question on a waiver claim — shown side-by-side so the trade-off is obvious. Only when
+  // the add carries a known value; a drop-less add is a straight gain.
+  const addValue = add && add.value != null ? add.value : null;
+  const dropValue = drop && drop.value != null ? drop.value : null;
+  const valueDelta = addValue != null ? Math.round(addValue - (dropValue || 0)) : null;
 
   // Client-side gate (the backend re-validates on submit).
   const errors = [];
@@ -245,6 +251,28 @@ export default function WaiverWizardScreen({ leagues, onBack, onOpenPlayer }) {
               </Pressable>
             ))}
             {current.bench.length === 0 ? <Text style={styles.benchName}>No bench players to drop.</Text> : null}
+          </View>
+        ) : null}
+
+        {/* VALUE DELTA — add vs. drop dynasty value, side by side */}
+        {add && valueDelta != null ? (
+          <View style={styles.deltaBox}>
+            <View style={styles.deltaCol}>
+              <Text style={styles.deltaLabel}>ADD</Text>
+              <Text style={styles.deltaAdd}>+{addValue}</Text>
+            </View>
+            <Text style={styles.deltaOp}>−</Text>
+            <View style={styles.deltaCol}>
+              <Text style={styles.deltaLabel}>DROP</Text>
+              <Text style={styles.deltaDrop}>{dropValue != null ? dropValue : 0}</Text>
+            </View>
+            <Text style={styles.deltaOp}>=</Text>
+            <View style={styles.deltaCol}>
+              <Text style={styles.deltaLabel}>NET</Text>
+              <Text style={[styles.deltaNet, valueDelta >= 0 ? styles.deltaUp : styles.deltaDown]}>
+                {valueDelta >= 0 ? '+' : ''}{valueDelta}
+              </Text>
+            </View>
           </View>
         ) : null}
 
@@ -464,6 +492,15 @@ const styles = StyleSheet.create({
   stepperText: { color: colors.text, fontSize: 20, fontWeight: '900' },
   bidInput: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14, color: colors.text, fontSize: 18, fontWeight: '800', minWidth: 70, textAlign: 'center' },
   budgetAfter: { color: colors.textDim, fontSize: 12, fontWeight: '600' },
+  deltaBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginTop: 12, backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, paddingVertical: 12, paddingHorizontal: 14 },
+  deltaCol: { alignItems: 'center', minWidth: 48 },
+  deltaLabel: { color: colors.textDim, fontSize: 10, fontWeight: '800', letterSpacing: 1, marginBottom: 3 },
+  deltaAdd: { color: colors.text, fontSize: 18, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  deltaDrop: { color: colors.textDim, fontSize: 18, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  deltaOp: { color: colors.textDim, fontSize: 16, fontWeight: '700' },
+  deltaNet: { fontSize: 18, fontWeight: '900', fontVariant: ['tabular-nums'] },
+  deltaUp: { color: colors.good },
+  deltaDown: { color: colors.bad },
   errorText: { color: colors.bad, fontSize: 13, marginTop: 16, fontWeight: '600' },
   queueBtn: { marginTop: 20, borderWidth: 1, borderColor: colors.accent, borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
   queueBtnOff: { borderColor: colors.border },

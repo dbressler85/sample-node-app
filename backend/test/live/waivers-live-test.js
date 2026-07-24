@@ -66,6 +66,12 @@ const CK = 'ck', TK = 'tk';
   const okFa = await waivers.preview(CK, TK, 'L1', { addId: '50', dropId: '2' });
   assert(!okFa.errors.some((e) => /not available/i.test(e)), 'free agent 50 accepted');
   assert(okFa.valid, `claim valid with a drop, errors: ${okFa.errors.join('; ')}`);
+  // Net dynasty value delta (add value − drop value) is surfaced for the side-by-side UI. Null when
+  // the add has no known value (no enrichment in this harness); otherwise add − (drop || 0).
+  assert(okFa.add && okFa.drop, 'preview carries both add and drop for the value comparison');
+  assert('valueDelta' in okFa, 'preview exposes valueDelta');
+  const expectedDelta = okFa.add.value != null ? Math.round((okFa.add.value || 0) - (okFa.drop.value || 0)) : null;
+  assert(okFa.valueDelta === expectedDelta, `valueDelta = add − drop (or null): got ${okFa.valueDelta}, expected ${expectedDelta}`);
   const badFa = await waivers.preview(CK, TK, 'L1', { addId: '99', dropId: '2' });
   assert(badFa.errors.some((e) => /not available/i.test(e)), 'player rostered elsewhere rejected in live');
   console.log('✓ #8 live free-agent validation: FA accepted, non-FA rejected');

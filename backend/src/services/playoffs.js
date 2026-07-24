@@ -88,18 +88,19 @@ function roundTitle(index, total) {
   return `Round ${index + 1}`;
 }
 
-function side(fid, score, names, myFranchiseId) {
+function side(fid, score, names, myFranchiseId, seeds) {
   if (!fid) return null;
+  const seed = seeds && seeds.get(String(fid));
   return {
     franchiseId: String(fid),
     name: names.get(String(fid)) || `Team ${fid}`,
-    seed: null, // seeds are optional polish (would come from final standings) — omitted for now
+    seed: seed != null ? seed : null, // playoff seed = final-standings rank (null when standings unread)
     points: Number.isFinite(score) ? score : null,
     mine: String(fid) === String(myFranchiseId),
   };
 }
 
-function buildBracket(id, name, winnerTitle, rounds, names, myFranchiseId) {
+function buildBracket(id, name, winnerTitle, rounds, names, myFranchiseId, seeds) {
   return {
     id: String(id),
     name,
@@ -109,8 +110,8 @@ function buildBracket(id, name, winnerTitle, rounds, names, myFranchiseId) {
       title: roundTitle(i, rounds.length),
       games: r.games.map((g, gi) => ({
         id: `w${r.week}g${gi}`,
-        home: side(g.aId, g.aScore, names, myFranchiseId),
-        away: side(g.bId, g.bScore, names, myFranchiseId),
+        home: side(g.aId, g.aScore, names, myFranchiseId, seeds),
+        away: side(g.bId, g.bScore, names, myFranchiseId, seeds),
         winnerFranchiseId: g.winnerId || null,
         status: g.played ? 'final' : 'scheduled',
         mine: g.aId === myFranchiseId || g.bId === myFranchiseId,
@@ -121,7 +122,7 @@ function buildBracket(id, name, winnerTitle, rounds, names, myFranchiseId) {
 
 // Reconstruct the championship bracket (and a 3rd-place bracket if present) from the definitions +
 // the schedule's playoff-week games. Returns { available, brackets[], champion }.
-function reconstruct(defs, weeklySchedule, names, myFranchiseId) {
+function reconstruct(defs, weeklySchedule, names, myFranchiseId, seeds) {
   const champMeta = pickChampionshipBracket(defs);
   if (!champMeta) return { available: false, brackets: [] };
   const startWeek = mfl.num(champMeta.startWeek);
@@ -160,12 +161,12 @@ function reconstruct(defs, weeklySchedule, names, myFranchiseId) {
   }
   if (!champRounds.length) return { available: false, brackets: [] };
 
-  const brackets = [buildBracket(champMeta.id || 'championship', champMeta.name || 'Playoff Bracket', champMeta.bracketWinnerTitle, champRounds, names, myFranchiseId)];
+  const brackets = [buildBracket(champMeta.id || 'championship', champMeta.name || 'Playoff Bracket', champMeta.bracketWinnerTitle, champRounds, names, myFranchiseId, seeds)];
 
   // A 3rd-place / consolation bracket, if the definitions name one and we split games into it.
   const thirdMeta = defs.find((b) => b !== champMeta && /3rd|third|consol|place/i.test(mfl.text(b.bracketWinnerTitle) + ' ' + mfl.text(b.name)));
   if (thirdGames.length) {
-    brackets.push(buildBracket((thirdMeta && thirdMeta.id) || 'consolation', (thirdMeta && thirdMeta.name) || 'Consolation', (thirdMeta && thirdMeta.bracketWinnerTitle) || '3rd Place', [{ week: finalWeek, games: thirdGames }], names, myFranchiseId));
+    brackets.push(buildBracket((thirdMeta && thirdMeta.id) || 'consolation', (thirdMeta && thirdMeta.name) || 'Consolation', (thirdMeta && thirdMeta.bracketWinnerTitle) || '3rd Place', [{ week: finalWeek, games: thirdGames }], names, myFranchiseId, seeds));
   }
 
   // Champion = winner of the championship bracket's final game.
@@ -187,13 +188,18 @@ async function getBrackets(cookie, leagueId) {
   const league = await findLeague(cookie, leagueId);
   const empty = { leagueId: league.leagueId, name: league.name, myFranchiseId: league.franchiseId, available: false, brackets: [], champion: null };
   try {
-    const [defs, sched, names] = await Promise.all([
+    const [defs, sched, names, standings] = await Promise.all([
       mflRepo.playoffBrackets(league, cookie),
       mflRepo.schedule(league, cookie),
       leaguesService.franchiseNames(cookie, league),
+      // Playoff seeds = final-standings rank. leagueStandings is returned in standings order, so a
+      // franchise's seed is its 1-based position. Fail-soft: no standings → seeds stay null.
+      mflRepo.standings(league, cookie).catch(() => []),
     ]);
     if (!defs.length) return empty;
-    const built = reconstruct(defs, sched, names, league.franchiseId);
+    const seeds = new Map();
+    standings.forEach((f, i) => { const id = mfl.text(f && f.id); if (id) seeds.set(id, i + 1); });
+    const built = reconstruct(defs, sched, names, league.franchiseId, seeds);
     if (!built.available) return empty;
     return { leagueId: league.leagueId, name: league.name, myFranchiseId: league.franchiseId, ...built };
   } catch (e) {

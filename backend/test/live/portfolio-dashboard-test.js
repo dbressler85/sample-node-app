@@ -74,9 +74,11 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   assert(band30.value === 50 && band30.count === 1, `30+ band 50/1, got ${JSON.stringify(band30)}`);
   console.log('✓ age curve: value distributed by age band');
 
-  // Per-league breakdown carries value + risk.
+  // Per-league breakdown carries value + risk, plus the server-computed strength label the
+  // client renders (so the 0.55/0.45 thresholds aren't re-hardcoded on the client).
   assert(d.byLeague.length === 1 && d.byLeague[0].atRiskValue === 75, `per-league risk carried, got ${JSON.stringify(d.byLeague[0])}`);
-  console.log('✓ per-league breakdown present');
+  assert('strengthLabel' in d.byLeague[0], `byLeague row exposes strengthLabel, got ${JSON.stringify(d.byLeague[0])}`);
+  console.log('✓ per-league breakdown present (with strengthLabel)');
 
   // Top holdings: each player aggregated across leagues, biggest first, with exposure + share.
   assert(d.holdings.length === 3, `3 holdings, got ${d.holdings.length}`);

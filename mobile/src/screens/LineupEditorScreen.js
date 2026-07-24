@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Pressable, ActivityIndicator, Alert } from 'rea
 import { api } from '../api';
 import { colors } from '../theme';
 import SlotEditor from '../components/SlotEditor';
+import MatchupLine from '../components/MatchupLine';
 import { peekResource, primeResource } from '../useCachedResource';
 
 const slotsToAssignments = (d) => d.slots.map((s) => (s.current ? s.current.id : null));
@@ -124,21 +125,7 @@ export default function LineupEditorScreen({ league, onBack, onOpenWaivers }) {
         </Text>
         {detail.format ? <Text style={styles.format}>{detail.format}</Text> : null}
         {detail.matchup ? (
-          <>
-            <Text style={styles.matchup}>
-              vs {detail.matchup.opponent} ·{' '}
-              <Text style={{ color: winColor(detail.matchup.winProb), fontWeight: '800' }}>
-                {Math.round(detail.matchup.winProb * 100)}% win
-              </Text>
-              <Text style={styles.estTag}> est.</Text>
-              {detail.mode ? <Text style={styles.modeTag}>  ·  {detail.mode.toUpperCase()}</Text> : null}
-            </Text>
-            <Text style={styles.basisTag}>
-              {detail.matchup.basis === 'submitted'
-                ? 'vs their set lineup'
-                : 'assumes their best lineup (not set yet)'}
-            </Text>
-          </>
+          <MatchupLine matchup={detail.matchup} mode={detail.mode} variant="detail" style={styles.matchup} basisStyle={styles.basisTag} />
         ) : null}
       </View>
 
@@ -174,12 +161,6 @@ export default function LineupEditorScreen({ league, onBack, onOpenWaivers }) {
   );
 }
 
-function winColor(p) {
-  if (p >= 0.6) return colors.good;
-  if (p <= 0.4) return colors.bad;
-  return colors.warn;
-}
-
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
@@ -192,8 +173,6 @@ const styles = StyleSheet.create({
   format: { color: colors.textDim, fontSize: 11, fontWeight: '700', marginTop: 4, letterSpacing: 0.3 },
   matchup: { color: colors.textDim, fontSize: 13, marginTop: 4 },
   basisTag: { color: colors.textDim, fontSize: 11, marginTop: 2, fontStyle: 'italic', opacity: 0.8 },
-  estTag: { color: colors.textDim, fontSize: 11, fontWeight: '700' },
-  modeTag: { color: colors.accent, fontSize: 11, fontWeight: '800' },
   totalStrong: { color: colors.text, fontWeight: '800' },
   optHint: { color: colors.warn, fontWeight: '700' },
   holeBanner: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.bad, marginHorizontal: 16, marginTop: 4, marginBottom: 4, paddingHorizontal: 14, paddingVertical: 12 },

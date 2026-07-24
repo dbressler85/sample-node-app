@@ -426,9 +426,16 @@ function validateClaim(payload, ctx) {
     priority = payload.priority != null ? Number(payload.priority) : settings.waiverPriority || null;
   }
 
+  // Net dynasty value the claim adds to (or removes from) the roster: what you gain minus what you
+  // give up. The core dynasty question on any waiver claim — surfaced side-by-side in the UI. Null
+  // when there's no add to value; a drop-less add is a straight gain (delta = add value).
+  const dropValue = drop ? enr.value(drop.id) : null;
+  const valueDelta = add && add.value != null ? Math.round((add.value || 0) - (dropValue || 0)) : null;
+
   return {
     add: add ? { id: add.id, name: add.name, position: add.position, team: add.team, value: add.value } : null,
-    drop: drop ? { id: drop.id, name: drop.name, position: drop.position, value: enr.value(drop.id) } : null,
+    drop: drop ? { id: drop.id, name: drop.name, position: drop.position, value: dropValue } : null,
+    valueDelta,
     dropId,
     dropRequired: full,
     suggestedDrop: suggestedDrop ? { id: suggestedDrop.id, name: suggestedDrop.name, position: suggestedDrop.position, value: suggestedDrop.value } : null,

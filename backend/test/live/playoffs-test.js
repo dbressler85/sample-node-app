@@ -7,6 +7,14 @@
 
 const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
 
+// Find a franchise's seed anywhere in the reconstructed brackets (each side carries its seed).
+const finalSeedOf = (L, fid) => {
+  for (const b of L.brackets) for (const r of b.rounds) for (const g of r.games) {
+    for (const s of [g.home, g.away]) if (s && s.franchiseId === fid && s.seed != null) return s.seed;
+  }
+  return null;
+};
+
 (async () => {
   // --- DEMO ---------------------------------------------------------------------------------------
   process.env.MFL_DEMO_MODE = 'true';
@@ -46,8 +54,17 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
     { week: '17', matchup: [g('0011', '207.1', 'W', '0008', '84.28', 'L'), g('0009', '154.74', 'W', '0005', '118.06', 'L')] },
   ];
 
+  // leagueStandings is returned in standings order → a franchise's seed is its 1-based position.
+  // Seed the top of the table so the bracket carries the real seeds (0011 = 1 seed, 0008 = 6 seed).
+  mflRepo.standings = async () => [
+    { id: '0011' }, { id: '0005' }, { id: '0003' }, { id: '0009' }, { id: '0010' }, { id: '0008' },
+  ];
+
   const L = await playoffs.getBrackets('ck', '69597');
   assert(L.available, 'live bracket available');
+  // Seeds threaded from standings order onto each side.
+  assert(finalSeedOf(L, '0011') === 1 && finalSeedOf(L, '0008') === 6, `seeds threaded from standings: ${JSON.stringify(L.brackets[0].rounds[2].games[0])}`);
+  console.log('✓ live: playoff seeds threaded from final standings');
   // Champion = the undefeated team (0011), surfaced with its name + title.
   assert(L.champion && L.champion.franchiseId === '0011' && L.champion.name === 'My Team', `champion is 0011: ${JSON.stringify(L.champion)}`);
   assert(/champion/i.test(L.champion.title), `champion title names it: ${L.champion.title}`);

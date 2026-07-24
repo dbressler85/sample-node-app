@@ -59,6 +59,17 @@ function computeOutlook(coreAge, strengthPct) {
   return 'Balanced';
 }
 
+// Roster strength as a plain qualitative tag from where its value ranks in the league — the
+// human-readable companion to `strengthPct` and the SAME 0.55/0.45 thresholds `computeOutlook`
+// uses, so the label and the outlook can never disagree. Exported so the client renders this
+// string instead of re-deriving the thresholds (they used to be hardcoded in two places).
+function strengthLabel(strengthPct) {
+  if (strengthPct == null) return null;
+  if (strengthPct >= 0.55) return 'strong roster';
+  if (strengthPct <= 0.45) return 'thin roster';
+  return 'middle of the pack';
+}
+
 // Team-level dynasty snapshot: total asset value, average age, core age, this
 // roster's strength percentile in its league, and the blended outlook.
 function teamSummary(all, strengthPct) {
@@ -68,7 +79,7 @@ function teamSummary(all, strengthPct) {
   const core = valued.slice().sort((a, b) => b.value - a.value).slice(0, 5);
   const coreAge = core.length ? Math.round((core.reduce((s, p) => s + (p.age || 0), 0) / core.length) * 10) / 10 : null;
   const strength = strengthPct != null ? Math.round(strengthPct * 100) / 100 : null;
-  return { rosterValue, avgAge, coreAge, strengthPct: strength, outlook: computeOutlook(coreAge, strengthPct) };
+  return { rosterValue, avgAge, coreAge, strengthPct: strength, strengthLabel: strengthLabel(strengthPct), outlook: computeOutlook(coreAge, strengthPct) };
 }
 
 // My roster's value rank among all franchises in the league (0..1; 1.0 = strongest).
@@ -316,4 +327,4 @@ async function moveTaxi(cookie, token, leagueId, { promote = [], demote = [], dr
   return getRoster(cookie, leagueId);
 }
 
-module.exports = { getRoster, invalidate, computeOutlook, leagueFranchises, myRosterLight, myRosterEnriched, moveIr, moveTaxi };
+module.exports = { getRoster, invalidate, computeOutlook, strengthLabel, leagueFranchises, myRosterLight, myRosterEnriched, moveIr, moveTaxi };

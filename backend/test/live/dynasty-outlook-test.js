@@ -26,6 +26,16 @@ assert(c(23, null) === 'Ascending', 'no strength known -> age lean (young)');
 assert(c(29, null) === 'Balanced', 'no strength known -> age lean (not young) stays balanced');
 console.log('✓ unit: computeOutlook blends strength × age across the grid');
 
+// --- unit: strengthLabel shares computeOutlook's 0.55/0.45 thresholds (client sources this) ---
+const sl = roster.strengthLabel;
+assert(sl(0.9) === 'strong roster', 'high pct -> strong roster');
+assert(sl(0.55) === 'strong roster', 'threshold 0.55 -> strong roster');
+assert(sl(0.5) === 'middle of the pack', 'mid pct -> middle of the pack');
+assert(sl(0.45) === 'thin roster', 'threshold 0.45 -> thin roster');
+assert(sl(0.1) === 'thin roster', 'low pct -> thin roster');
+assert(sl(null) === null, 'unknown strength -> no label');
+console.log('✓ unit: strengthLabel matches the outlook thresholds (single source of truth)');
+
 // --- live path: strength splits identical-age teams -------------------------
 const PLAYERS = [
   { id: '1', name: 'My Star, A', position: 'WR', team: 'AAA' },

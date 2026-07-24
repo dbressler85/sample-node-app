@@ -265,8 +265,12 @@ Grouped into four "synergy systems", highest-leverage first:
   **personal**: "rostered N/M" = how many of *your* leagues roster him (total minus where he's
   a free agent), replacing MFL's site-wide ownership. Backend `annotate` carries
   `leagueCount`/`leagueOwned`/`leagueOwnedPct`.
-- [ ] **Waiver claim: add-vs-drop value delta** side by side (the core dynasty claim
-  decision); `FaRow` vs `PlayerLine` render the same entity two different ways.
+- [x] **Waiver claim: add-vs-drop value delta** side by side (the core dynasty claim
+  decision). Shipped: `validateClaim` returns `valueDelta` (add value − drop value, rounded;
+  null when the add has no known value) and the Waiver Wizard renders an **ADD / DROP / NET**
+  card under the drop selector, net colored good/bad, so the dynasty trade-off is obvious.
+  *(`FaRow` vs `PlayerLine` rendering the same entity two ways remains a dedup item under
+  "Consolidate duplicated UX".)*
 - [~] **Trades: value vs. construction verdicts** — done: a deterministic **bottom line**
   (`trades.bottomLine`, value verdict × construction rating → one take + tone) now renders as a
   colored callout above Accept/Reject on both the inbox and the desk, so "You gain value" next
@@ -276,11 +280,20 @@ Grouped into four "synergy systems", highest-leverage first:
 - [x] **Home label collision:** fixed — the "Needs attention" tile now shows the count of
   action **items** (matching the feed it opens on tap) instead of a separate "leagues affected"
   number; the tile is tappable (opens the triage feed) and its player rows use `onOpenPlayer`.
-- [ ] **Consolidate duplicated UX:** one primary bulk-lineup path (wizard vs auto-set
+- [~] **Consolidate duplicated UX:** one primary bulk-lineup path (wizard vs auto-set
   sheet), one shared claim builder (WaiverWizard vs ClaimSheet), one matchup component
   (recomputed in Scores/Lineups/Editor/Wizard with wording drift), shared `PlayerRow`.
-- [ ] **Portfolio `strengthLabel` thresholds are re-hardcoded client-side** (drift risk
-  from the backend model) — source them from the backend.
+  **Matchup done:** LineupsScreen + LineupEditorScreen each carried their own `winColor`
+  (identical 0.6/0.4) and re-formatted the "vs <opp> · N% win" line; both now use the shared
+  `components/MatchupLine.js` (exports `winColor`; compact vs detail variants). Scores was left
+  as-is (its win-prob bands are server-computed, not a client threshold). *(Remaining: the
+  bulk-lineup path, the claim builder, and the shared `PlayerRow` for the Players-screen local
+  rows.)*
+- [x] **Portfolio `strengthLabel` thresholds are re-hardcoded client-side** (drift risk
+  from the backend model) — source them from the backend. Done: `roster.strengthLabel`
+  (shares `computeOutlook`'s 0.55/0.45 cut points) is folded into `teamSummary` and threaded
+  onto the portfolio `byLeague` row; PortfolioScreen renders `l.strengthLabel` (local helper
+  removed), LeaguesScreen carries it for parity.
 - [~] **Roster: rookie picks are inert text** — done: draft picks on the roster are now
   first-class assets (dynasty value each + combined total, sorted soonest-first) and each is
   **tappable to shop it** — opens that league's trade desk on Propose with the pick pre-loaded

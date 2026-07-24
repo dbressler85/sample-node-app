@@ -12,6 +12,7 @@ import {
 import { api } from '../api';
 import { colors } from '../theme';
 import AvailabilityBadge from '../components/AvailabilityBadge';
+import MatchupLine from '../components/MatchupLine';
 import ErrorView from '../components/ErrorView';
 import useAndroidBack from '../useAndroidBack';
 import useCachedResource from '../useCachedResource';
@@ -213,11 +214,7 @@ function Row({ item, onPress }) {
       </View>
       {item.format ? <Text style={styles.format}>{item.format}</Text> : null}
 
-      {item.matchup ? (
-        <Text style={styles.matchup}>
-          vs {item.matchup.opponent} · <Text style={{ color: winColor(item.matchup.winProb) }}>{Math.round(item.matchup.winProb * 100)}% win</Text>
-        </Text>
-      ) : null}
+      {item.matchup ? <MatchupLine matchup={item.matchup} style={styles.matchup} /> : null}
 
       {warnings.length ? (
         <Text style={styles.warn} numberOfLines={2}>
@@ -307,12 +304,6 @@ function ReviewSheet({ plan, applying, onToggle, onCancel, onConfirm }) {
       </Pressable>
     </Pressable>
   );
-}
-
-function winColor(p) {
-  if (p >= 0.6) return colors.good;
-  if (p <= 0.4) return colors.bad;
-  return colors.warn;
 }
 
 const styles = StyleSheet.create({

@@ -33,7 +33,7 @@ export default function LeaguesScreen({ onBack, onOpenLeague, onOpenDraftHub }) 
       .then((d) => {
         const map = {};
         for (const l of (d && d.byLeague) || []) {
-          map[String(l.leagueId)] = { value: l.value, outlook: l.outlook, strengthPct: l.strengthPct, atRiskPct: l.atRiskPct, tradeDeadline: l.tradeDeadline };
+          map[String(l.leagueId)] = { value: l.value, outlook: l.outlook, strengthPct: l.strengthPct, strengthLabel: l.strengthLabel, atRiskPct: l.atRiskPct, tradeDeadline: l.tradeDeadline };
         }
         setEnrich(map);
       })

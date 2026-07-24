@@ -404,6 +404,7 @@ async function getDashboard(cookie, token) {
       value: s.rosterValue != null ? Math.round(s.rosterValue) : null,
       coreAge: s.coreAge != null ? s.coreAge : null,
       strengthPct: s.strengthPct != null ? s.strengthPct : null,
+      strengthLabel: s.strengthLabel || null,
       outlook: s.outlook || null,
       atRiskValue: Math.round(leagueRisk),
       atRiskPct: pct(leagueRisk, s.rosterValue || 0),
