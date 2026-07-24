@@ -90,7 +90,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
   const [data, setData] = useState(() => (peekResource(deskKey) ? peekResource(deskKey).value : null));
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(() => !peekResource(deskKey));
-  const [tab, setTab] = useState(initialTab === 'propose' ? 'propose' : 'offers');
+  const [tab, setTab] = useState(initialTab === 'propose' ? 'propose' : 'inbox');
   const [busy, setBusy] = useState(null); // offerId being responded to
   const [rejectTarget, setRejectTarget] = useState(null); // offer being rejected (optional note modal)
   const [rejectNote, setRejectNote] = useState('');
@@ -185,6 +185,12 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
   const sendOptions = useMemo(() => sortAssets([...((data && data.myPlayers) || []), ...((data && data.myPicks) || [])], sortKey), [data, sortKey]);
   const sendList = Object.values(send);
   const receiveList = Object.values(receive);
+  // Split offers by direction so Inbox (offers TO me) and Sent (offers FROM me) live on separate
+  // tabs — a mixed list makes it easy to mistake a sent offer for one you can accept.
+  const allOffers = (data && data.offers) || [];
+  const incomingOffers = allOffers.filter((o) => o.direction !== 'outgoing');
+  const outgoingOffers = allOffers.filter((o) => o.direction === 'outgoing');
+  const activeOffers = tab === 'sent' ? outgoingOffers : incomingOffers;
   const preview = useMemo(() => tradeMath.analyze(receiveList, sendList), [receiveList, sendList]);
   const personalPreview = useMemo(() => tradeMath.personalAnalyze(receiveList, sendList), [receiveList, sendList]);
   // Live construction for BOTH sides of the offer being built.
@@ -354,7 +360,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
       setSend({});
       setReceive({});
       setCounterInfo(null);
-      setTab('offers');
+      setTab('sent'); // land on Sent so the just-proposed offer is right there to review/withdraw
       await load();
     } catch (e) {
       Alert.alert('Could not propose', e.message);
@@ -403,7 +409,11 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
       ) : null}
 
       <View style={styles.segment}>
-        {[['offers', `Offers${data && data.offers.length ? ` · ${data.offers.length}` : ''}`], ['propose', 'Propose']].map(([k, label]) => (
+        {[
+          ['inbox', `Inbox${incomingOffers.length ? ` · ${incomingOffers.length}` : ''}`],
+          ['sent', `Sent${outgoingOffers.length ? ` · ${outgoingOffers.length}` : ''}`],
+          ['propose', 'Propose'],
+        ].map(([k, label]) => (
           <Pressable key={k} style={[styles.seg, tab === k && styles.segActive]} onPress={() => setTab(k)}>
             <Text style={[styles.segText, tab === k && styles.segTextActive]}>{label}</Text>
           </Pressable>
@@ -453,12 +463,16 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
-      {tab === 'offers' ? (
+      {tab === 'inbox' || tab === 'sent' ? (
         <ScrollView contentContainerStyle={styles.list}>
-          {data.offers.length === 0 ? (
-            <Text style={styles.empty}>No pending trade offers in this league.</Text>
+          {activeOffers.length === 0 ? (
+            <Text style={styles.empty}>
+              {tab === 'sent'
+                ? 'You haven’t sent any trade offers in this league. Build one on the Propose tab.'
+                : 'No incoming trade offers in this league.'}
+            </Text>
           ) : (
-            data.offers.map((o, i) => (
+            activeOffers.map((o, i) => (
               <Reveal key={o.id} delay={Math.min(i, 6) * 55}>
                 <OfferCard offer={o} busy={busy === o.id} onAccept={(off) => respond(off, 'accept')} onReject={openReject} onWithdraw={withdraw} onCounter={startCounter} onOpenPlayer={onOpenPlayer} />
               </Reveal>
@@ -660,11 +674,18 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
 
 function OfferCard({ offer, busy, onAccept, onReject, onWithdraw, onCounter, onOpenPlayer }) {
   const v = VERDICT[offer.analysis.verdict] || VERDICT.fair;
+  const outgoing = offer.direction === 'outgoing';
+  // A colored left stripe + a direction pill so received-vs-sent reads instantly, even at a glance:
+  // gold = you SENT it, blue = it came TO you.
+  const dirColor = outgoing ? colors.gold : colors.accent;
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, { borderLeftWidth: 3, borderLeftColor: dirColor }]}>
       <View style={styles.cardTop}>
+        <View style={[styles.dirPill, { borderColor: dirColor }]}>
+          <Text style={[styles.dirPillText, { color: dirColor }]}>{outgoing ? 'SENT' : 'RECEIVED'}</Text>
+        </View>
         <Text style={styles.cardFrom} numberOfLines={1}>
-          <Text style={styles.cardDir}>{offer.direction === 'outgoing' ? 'Sent to ' : 'From '}</Text>
+          <Text style={styles.cardDir}>{outgoing ? 'to ' : 'from '}</Text>
           {offer.withName}
         </Text>
         <View style={[styles.badge, { borderColor: v.color }]}>
@@ -903,6 +924,8 @@ const styles = StyleSheet.create({
   cardTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
   cardFrom: { color: colors.text, fontSize: 16, fontWeight: '800', flex: 1, marginRight: 8 },
   cardDir: { color: colors.textDim, fontSize: 13, fontWeight: '700' },
+  dirPill: { borderWidth: 1, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, marginRight: 8 },
+  dirPillText: { fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
   badge: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3 },
   badgeText: { fontSize: 11, fontWeight: '800' },
   side: { marginTop: 8 },
