@@ -1,14 +1,16 @@
 'use strict';
 
-// Playoff brackets for a league (M6+). Reads MFL's `playoffBrackets` export and normalizes it into
-// a rounds→games shape the mobile bracket screen renders. My franchise is flagged so the UI can
-// highlight my path. Demo returns a hand-built Championship bracket fixture.
+// Playoff brackets for a league (M6+). MFL's `playoffBrackets` export only returns bracket
+// DEFINITIONS (name, startWeek, teamsInvolved, bracketWinnerTitle) — NOT the games. The actual
+// matchups + scores live in the `schedule` export (playoff weeks show each matchup's score and a
+// per-franchise result W/L). So we COMPOSE the two: read the bracket definitions, pull the
+// playoff-week games from the schedule, and reconstruct rounds → games by tracing advancement.
+// Confirmed against a real completed season (2025, league 69597): weeks 15/16/17 each carry only the
+// bracket games, and the championship final is the week where both teams are still undefeated in the
+// bracket; the same-week game between the two semifinal LOSERS is the 3rd-place (consolation) game.
 //
-// NOTE: MFL's per-game field names in this export are NOT yet confirmed against a live sample, so the
-// normalizer is deliberately tolerant — it accepts the common alternatives for each field (home/away
-// objects vs flat, franchise_id/id, points/score, winner/winner_franchise_id, playoffRound/round,
-// playoffGame/game/matchup). Once a real response is in hand, the alternatives can be trimmed to the
-// real keys. Fully fail-soft: any read/parse trouble yields an "unavailable" bracket, never a 500.
+// The champion is the undefeated team — surfaced as `champion` for the trophy auto-detect. Demo
+// returns a hand-built fixture. Fully fail-soft: any read/parse trouble yields available:false.
 
 const config = require('../config');
 const demo = require('../demo/fixtures');
@@ -27,8 +29,7 @@ async function findLeague(cookie, leagueId) {
   return league;
 }
 
-// First present, non-empty MFL field among candidates (each $t-unwrapped).
-function pick(obj, ...keys) {
+const pickText = (obj, ...keys) => {
   for (const k of keys) {
     if (obj && obj[k] != null) {
       const v = mfl.text(obj[k]);
@@ -36,85 +37,165 @@ function pick(obj, ...keys) {
     }
   }
   return null;
+};
+
+// The "championship" bracket among the definitions: the one whose winner title names a champion,
+// else the biggest field, else the earliest-starting.
+function pickChampionshipBracket(defs) {
+  if (!defs.length) return null;
+  const byTitle = defs.find((b) => /champ/i.test(mfl.text(b.bracketWinnerTitle) + ' ' + mfl.text(b.name)));
+  if (byTitle) return byTitle;
+  return [...defs].sort(
+    (a, b) => (mfl.num(b.teamsInvolved) || 0) - (mfl.num(a.teamsInvolved) || 0) || (mfl.num(a.startWeek) || 0) - (mfl.num(b.startWeek) || 0)
+  )[0];
 }
 
-// Normalize one side (home/away) of a playoff game. MFL may nest it as an object
-// ({franchise_id, points, seed}) or spell the ids flat on the game — the caller passes whichever
-// it found. Resolves the team name from the franchise-name map; `mine` flags my franchise.
-function normSide(node, names, myFranchiseId) {
-  if (node == null) return null;
-  // A side can be a bare franchise-id string, or an object with the id under one of these keys.
-  const fid = typeof node === 'object' ? pick(node, 'franchise_id', 'id', 'franchise') : mfl.text(node);
+// One schedule matchup → { aId, bId, aScore, bScore, winnerId, loserId, played }. MFL gives an
+// explicit per-franchise result (W/L); fall back to the score when it's absent (unplayed → neither).
+function parseMatchup(m) {
+  const fr = mfl.toArray(m && m.franchise);
+  if (fr.length < 2) return null;
+  const [A, B] = fr;
+  const aId = mfl.text(A.id);
+  const bId = mfl.text(B.id);
+  const aScore = mfl.num(A.score);
+  const bScore = mfl.num(B.score);
+  const aRes = mfl.text(A.result).toUpperCase();
+  const bRes = mfl.text(B.result).toUpperCase();
+  let winnerId = null;
+  if (aRes === 'W') winnerId = aId;
+  else if (bRes === 'W') winnerId = bId;
+  else if (Number.isFinite(aScore) && Number.isFinite(bScore) && aScore !== bScore) winnerId = aScore > bScore ? aId : bId;
+  const played = aRes === 'W' || aRes === 'L' || bRes === 'W' || bRes === 'L' || Number.isFinite(aScore);
+  return {
+    aId,
+    bId,
+    aScore: Number.isFinite(aScore) ? aScore : null,
+    bScore: Number.isFinite(bScore) ? bScore : null,
+    winnerId,
+    loserId: winnerId ? (winnerId === aId ? bId : aId) : null,
+    played,
+  };
+}
+
+// Round title from its distance to the final (the last round is the Championship).
+function roundTitle(index, total) {
+  if (total <= 1) return 'Final';
+  const fromEnd = total - 1 - index;
+  if (fromEnd === 0) return 'Championship';
+  if (fromEnd === 1) return 'Semifinals';
+  if (fromEnd === 2) return 'Quarterfinals';
+  return `Round ${index + 1}`;
+}
+
+function side(fid, score, names, myFranchiseId) {
   if (!fid) return null;
-  const seedRaw = typeof node === 'object' ? pick(node, 'seed', 'playoffSeed') : null;
-  const ptsRaw = typeof node === 'object' ? pick(node, 'points', 'score', 'fpts') : null;
-  const seed = seedRaw != null ? mfl.num(seedRaw) : null;
-  const points = ptsRaw != null ? mfl.num(ptsRaw) : null;
   return {
     franchiseId: String(fid),
     name: names.get(String(fid)) || `Team ${fid}`,
-    seed: Number.isFinite(seed) ? seed : null,
-    points: Number.isFinite(points) ? points : null,
+    seed: null, // seeds are optional polish (would come from final standings) — omitted for now
+    points: Number.isFinite(score) ? score : null,
     mine: String(fid) === String(myFranchiseId),
   };
 }
 
-function normGame(g, idx, names, myFranchiseId) {
-  // home/away as nested objects, else flat *_franchise / *_id fields on the game.
-  const home = normSide(g.home != null ? g.home : { franchise_id: pick(g, 'home_franchise', 'home_id', 'top') }, names, myFranchiseId);
-  const away = normSide(g.away != null ? g.away : { franchise_id: pick(g, 'away_franchise', 'away_id', 'bottom') }, names, myFranchiseId);
-  const winner = pick(g, 'winner', 'winner_franchise_id', 'winning_franchise');
-  const winnerFranchiseId = winner ? String(winner) : null;
-  const hasPoints = (home && home.points != null) || (away && away.points != null);
-  const status = winnerFranchiseId ? 'final' : hasPoints ? 'live' : 'scheduled';
+function buildBracket(id, name, winnerTitle, rounds, names, myFranchiseId) {
   return {
-    id: pick(g, 'id', 'game_id', 'gameId') || `g${idx}`,
-    home,
-    away,
-    winnerFranchiseId,
-    status,
-    mine: !!((home && home.mine) || (away && away.mine)),
+    id: String(id),
+    name,
+    winnerTitle: winnerTitle || null,
+    rounds: rounds.map((r, i) => ({
+      week: r.week,
+      title: roundTitle(i, rounds.length),
+      games: r.games.map((g, gi) => ({
+        id: `w${r.week}g${gi}`,
+        home: side(g.aId, g.aScore, names, myFranchiseId),
+        away: side(g.bId, g.bScore, names, myFranchiseId),
+        winnerFranchiseId: g.winnerId || null,
+        status: g.played ? 'final' : 'scheduled',
+        mine: g.aId === myFranchiseId || g.bId === myFranchiseId,
+      })),
+    })),
   };
 }
 
-// A human title for a round given its position and size (last round is the Championship).
-function roundTitle(node, index, total) {
-  const explicit = pick(node, 'title', 'name', 'round_name');
-  if (explicit) return explicit;
-  if (index === total - 1) return 'Championship';
-  if (index === total - 2) return 'Semifinals';
-  if (index === total - 3) return 'Quarterfinals';
-  return `Round ${index + 1}`;
-}
+// Reconstruct the championship bracket (and a 3rd-place bracket if present) from the definitions +
+// the schedule's playoff-week games. Returns { available, brackets[], champion }.
+function reconstruct(defs, weeklySchedule, names, myFranchiseId) {
+  const champMeta = pickChampionshipBracket(defs);
+  if (!champMeta) return { available: false, brackets: [] };
+  const startWeek = mfl.num(champMeta.startWeek);
+  if (!Number.isFinite(startWeek)) return { available: false, brackets: [] };
 
-function normBracket(b, names, myFranchiseId) {
-  const rawRounds = mfl.toArray(b.playoffRound != null ? b.playoffRound : b.round);
-  const rounds = rawRounds.map((r, i) => {
-    const games = mfl.toArray(r.playoffGame != null ? r.playoffGame : r.game != null ? r.game : r.matchup)
-      .map((g, gi) => normGame(g, gi, names, myFranchiseId));
-    const weekRaw = pick(r, 'week', 'w');
-    return { week: weekRaw != null ? mfl.num(weekRaw) : null, title: roundTitle(r, i, rawRounds.length), games };
-  });
-  return { id: pick(b, 'id', 'bracket_id') || 'bracket', name: pick(b, 'name', 'bracket_name') || 'Playoffs', rounds };
+  // Playoff games by week (only weeks at/after the bracket start; those carry just the bracket games).
+  const byWeek = new Map();
+  for (const wk of mfl.toArray(weeklySchedule)) {
+    const w = mfl.num(wk && wk.week);
+    if (!Number.isFinite(w) || w < startWeek) continue;
+    const games = mfl.toArray(wk.matchup).map(parseMatchup).filter(Boolean);
+    if (games.length) byWeek.set(w, games);
+  }
+  const weeks = [...byWeek.keys()].sort((a, b) => a - b);
+  if (!weeks.length) return { available: false, brackets: [] };
+  const finalWeek = weeks[weeks.length - 1];
+
+  // Walk the weeks; a team's losses so far tell us who's still in the championship hunt. In the final
+  // week the game between two still-undefeated teams is the CHAMPIONSHIP; a game between two teams
+  // that each already lost once is the 3rd-place (consolation) game.
+  const losses = {};
+  const champRounds = [];
+  const thirdGames = [];
+  for (const w of weeks) {
+    const games = byWeek.get(w);
+    if (w < finalWeek) {
+      champRounds.push({ week: w, games });
+      for (const g of games) if (g.loserId) losses[g.loserId] = (losses[g.loserId] || 0) + 1;
+    } else {
+      const undefeated = (g) => (losses[g.aId] || 0) === 0 && (losses[g.bId] || 0) === 0;
+      const champGames = games.filter(undefeated);
+      const rest = games.filter((g) => !undefeated(g));
+      if (champGames.length) champRounds.push({ week: w, games: champGames });
+      thirdGames.push(...rest);
+    }
+  }
+  if (!champRounds.length) return { available: false, brackets: [] };
+
+  const brackets = [buildBracket(champMeta.id || 'championship', champMeta.name || 'Playoff Bracket', champMeta.bracketWinnerTitle, champRounds, names, myFranchiseId)];
+
+  // A 3rd-place / consolation bracket, if the definitions name one and we split games into it.
+  const thirdMeta = defs.find((b) => b !== champMeta && /3rd|third|consol|place/i.test(mfl.text(b.bracketWinnerTitle) + ' ' + mfl.text(b.name)));
+  if (thirdGames.length) {
+    brackets.push(buildBracket((thirdMeta && thirdMeta.id) || 'consolation', (thirdMeta && thirdMeta.name) || 'Consolation', (thirdMeta && thirdMeta.bracketWinnerTitle) || '3rd Place', [{ week: finalWeek, games: thirdGames }], names, myFranchiseId));
+  }
+
+  // Champion = winner of the championship bracket's final game.
+  const finalRound = champRounds[champRounds.length - 1];
+  const finalGame = finalRound && finalRound.games[0];
+  const championId = finalGame ? finalGame.winnerId : null;
+  const champion = championId
+    ? { franchiseId: String(championId), name: names.get(String(championId)) || `Team ${championId}`, title: pickText(champMeta, 'bracketWinnerTitle') || 'League Champion' }
+    : null;
+
+  return { available: true, brackets, champion };
 }
 
 async function getBrackets(cookie, leagueId) {
   if (config.demoMode) {
     const fx = demo.playoffBrackets(leagueId);
-    return fx || { leagueId: String(leagueId), name: null, myFranchiseId: null, available: false, brackets: [] };
+    return fx || { leagueId: String(leagueId), name: null, myFranchiseId: null, available: false, brackets: [], champion: null };
   }
   const league = await findLeague(cookie, leagueId);
-  const empty = { leagueId: league.leagueId, name: league.name, myFranchiseId: league.franchiseId, available: false, brackets: [] };
+  const empty = { leagueId: league.leagueId, name: league.name, myFranchiseId: league.franchiseId, available: false, brackets: [], champion: null };
   try {
-    const [raw, names] = await Promise.all([
+    const [defs, sched, names] = await Promise.all([
       mflRepo.playoffBrackets(league, cookie),
+      mflRepo.schedule(league, cookie),
       leaguesService.franchiseNames(cookie, league),
     ]);
-    const brackets = raw
-      .map((b) => normBracket(b, names, league.franchiseId))
-      .filter((b) => b.rounds.some((r) => r.games.length));
-    if (!brackets.length) return empty; // no brackets configured / not seeded yet (offseason, etc.)
-    return { leagueId: league.leagueId, name: league.name, myFranchiseId: league.franchiseId, available: true, brackets };
+    if (!defs.length) return empty;
+    const built = reconstruct(defs, sched, names, league.franchiseId);
+    if (!built.available) return empty;
+    return { leagueId: league.leagueId, name: league.name, myFranchiseId: league.franchiseId, ...built };
   } catch (e) {
     console.log(`[playoffs] league=${league.leagueId} error=${e.message}`);
     return empty;

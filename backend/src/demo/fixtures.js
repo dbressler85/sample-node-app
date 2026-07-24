@@ -179,15 +179,18 @@ function demoPlayoffBrackets(leagueId) {
       mine: !!((home && home.mine) || (away && away.mine)),
     };
   };
+  const me = bySeed[4];
   return {
     leagueId,
     name: lg.name,
     myFranchiseId: lg.franchiseId,
     available: true,
+    champion: me ? { franchiseId: me.franchiseId, name: me.name, title: 'League Champion' } : null,
     brackets: [
       {
         id: 'championship',
         name: 'Championship',
+        winnerTitle: 'League Champion',
         rounds: [
           // Top 2 seeds get a bye; seeds 3–6 play the Wild Card round.
           { week: 15, title: 'Wild Card', games: [game('wc1', 3, 108.4, 6, 96.2, 3), game('wc2', 4, 121.0, 5, 118.7, 4)] },
