@@ -38,7 +38,7 @@ function normalize(payload) {
     leagueName: leagueName.slice(0, 80),
     year,
     leagueId: p.leagueId ? String(p.leagueId) : null,
-    source: 'manual',
+    source: p.source === 'auto' ? 'auto' : 'manual',
   };
 }
 
@@ -83,4 +83,59 @@ function remove(token, id) {
   return { removed: id, ...list(token) };
 }
 
-module.exports = { list, add, remove };
+// Auto-detect championships from MFL playoff history. For each of the owner's leagues, scan past
+// seasons (year-path) from the last completed one backwards, stopping at the first year the league
+// ran no playoff bracket (it didn't exist yet — earlier years won't either). A season where the
+// bracket champion is MY franchise is a title. Detection is deterministic (champion = the undefeated
+// bracket team) and fail-soft per read, so a flaky season is skipped, not fatal. Returns candidates
+// tagged with whether they're already in the case. Leagues scan in parallel; years within a league
+// run in sequence so the early-stop can bound the work to each league's real lifespan.
+const MAX_YEARS_BACK = 15;
+async function detect(cookie, token, { yearsBack = 12 } = {}) {
+  if (config.demoMode) return { candidates: [], summary: { found: 0, new: 0 }, demo: true };
+  const playoffs = require('./playoffs'); // lazy — avoids a trophies↔playoffs require cycle
+  const leaguesService = require('./leagues');
+  const leagues = await leaguesService.listLeagues(cookie);
+  const thisSeason = parseInt(config.season, 10) || new Date().getFullYear();
+  const back = Math.min(Math.max(1, yearsBack), MAX_YEARS_BACK);
+
+  const existing = new Set();
+  for (const t of trophyStore.list(token)) {
+    if (t.leagueId) existing.add(`${t.leagueId}|${t.year}`.toLowerCase());
+    if (t.leagueName) existing.add(`${t.leagueName}|${t.year}`.toLowerCase());
+  }
+
+  const perLeague = await Promise.all(
+    leagues.map(async (league) => {
+      const titles = [];
+      for (let year = thisSeason - 1; year >= thisSeason - back; year -= 1) {
+        const res = await playoffs.championFor(cookie, league, String(year));
+        if (!res.exists) break; // no bracket that year → league predates it; stop scanning back
+        if (res.champion && String(res.champion.franchiseId) === String(league.franchiseId)) {
+          titles.push({ leagueId: league.leagueId, leagueName: league.name, team: league.franchiseName || `Team ${league.franchiseId}`, year });
+        }
+      }
+      return titles;
+    })
+  );
+
+  const candidates = perLeague
+    .flat()
+    .sort((a, b) => b.year - a.year || String(a.leagueName).localeCompare(String(b.leagueName)))
+    .map((c) => ({
+      ...c,
+      alreadyInCase: existing.has(`${c.leagueId}|${c.year}`.toLowerCase()) || existing.has(`${c.leagueName}|${c.year}`.toLowerCase()),
+    }));
+  return { candidates, summary: { found: candidates.length, new: candidates.filter((c) => !c.alreadyInCase).length } };
+}
+
+// Detect + add every NEW championship in one shot (source:'auto'), returning what was added plus the
+// refreshed case. The one-tap "find my titles" action; anything mis-detected is reversible (remove).
+async function detectAndAdd(cookie, token, opts) {
+  const { candidates } = await detect(cookie, token, opts);
+  const fresh = candidates.filter((c) => !c.alreadyInCase);
+  const added = fresh.map((c) => trophyStore.add(token, normalize({ ...c, source: 'auto' })));
+  return { added, scanned: candidates.length, ...list(token) };
+}
+
+module.exports = { list, add, remove, detect, detectAndAdd };

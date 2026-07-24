@@ -21,8 +21,11 @@ function list(token) {
 function add(token, trophy) {
   const d = db();
   if (!d[token]) d[token] = [];
-  const key = (t) => `${t.leagueId || t.leagueName || ''}|${t.year}`.toLowerCase();
-  const existing = d[token].find((t) => key(t) === key(trophy));
+  // Dedup across BOTH id and name keys so an auto-detected title (has leagueId) doesn't duplicate a
+  // manually-entered one (leagueId null, same league name + year), and vice-versa.
+  const keys = (t) => [`${t.leagueId || ''}|${t.year}`.toLowerCase(), `${t.leagueName || ''}|${t.year}`.toLowerCase()].filter((k) => !k.startsWith('|'));
+  const wanted = new Set(keys(trophy));
+  const existing = d[token].find((t) => keys(t).some((k) => wanted.has(k)));
   if (existing) return { ...existing };
   const row = { id: crypto.randomUUID(), source: 'manual', ...trophy };
   d[token].push(row);

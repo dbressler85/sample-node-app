@@ -38,6 +38,26 @@ export default function TrophyCaseScreen({ onBack }) {
   const [leagueName, setLeagueName] = useState('');
   const [year, setYear] = useState('');
   const [saving, setSaving] = useState(false);
+  const [detecting, setDetecting] = useState(false);
+
+  async function detect() {
+    setDetecting(true);
+    try {
+      const res = await api.detectTrophies();
+      apply(res);
+      const n = (res.added || []).length;
+      if (n) {
+        const lines = res.added.map((t) => `${t.year} · ${t.leagueName}`).join('\n');
+        Alert.alert(`Found ${n} title${n === 1 ? '' : 's'}! 🏆`, lines);
+      } else {
+        Alert.alert('All caught up', 'No new championships found in your MyFantasyLeague playoff history.');
+      }
+    } catch (e) {
+      Alert.alert('Could not scan', e.message);
+    } finally {
+      setDetecting(false);
+    }
+  }
 
   const trophies = (data && data.trophies) || [];
   const summary = data && data.summary;
@@ -91,6 +111,12 @@ export default function TrophyCaseScreen({ onBack }) {
           {summary.total} title{summary.total === 1 ? '' : 's'} · {summary.leagues} league{summary.leagues === 1 ? '' : 's'}
           {summary.latest ? ` · latest ${summary.latest}` : ''}
         </Text>
+      ) : null}
+
+      {!loading && !error ? (
+        <Pressable onPress={detect} disabled={detecting} style={({ pressed }) => [styles.detectBtn, pressed && { opacity: 0.85 }]}>
+          {detecting ? <ActivityIndicator color={colors.accent} /> : <Text style={styles.detectText}>🔍 Find my titles from MyFantasyLeague</Text>}
+        </Pressable>
       ) : null}
 
       {loading ? (
@@ -158,6 +184,8 @@ const styles = StyleSheet.create({
   addBtn: { width: 74, alignItems: 'flex-end' },
   addBtnText: { color: colors.gold, fontSize: 14, fontWeight: '800' },
   subtitle: { color: colors.textDim, fontSize: 13, fontWeight: '700', paddingHorizontal: 16, paddingBottom: 8 },
+  detectBtn: { marginHorizontal: 12, marginBottom: 8, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, paddingVertical: 11, alignItems: 'center' },
+  detectText: { color: colors.accent, fontSize: 14, fontWeight: '800' },
   center: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 28 },
 
   grid: { padding: 12, paddingBottom: 40 },

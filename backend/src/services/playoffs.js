@@ -202,4 +202,23 @@ async function getBrackets(cookie, leagueId) {
   }
 }
 
-module.exports = { getBrackets };
+// The champion of a SPECIFIC past season for a league (year overrides the season in the URL path).
+// Returns { exists, champion } — `exists` is false when the league ran no playoff bracket that year
+// (didn't exist yet / not configured), which lets a caller stop scanning earlier years. Detection
+// only needs the champion's franchise id, so we skip the franchise-name fetch (names resolve to
+// `Team <id>`; callers supply their own display name). Fail-soft.
+async function championFor(cookie, league, year) {
+  try {
+    const [defs, sched] = await Promise.all([
+      mflRepo.playoffBrackets(league, cookie, { year }),
+      mflRepo.schedule(league, cookie, { year }),
+    ]);
+    if (!defs.length) return { exists: false, champion: null };
+    const built = reconstruct(defs, sched, new Map(), league.franchiseId);
+    return { exists: true, champion: built.available ? built.champion : null };
+  } catch (e) {
+    return { exists: false, champion: null };
+  }
+}
+
+module.exports = { getBrackets, championFor };

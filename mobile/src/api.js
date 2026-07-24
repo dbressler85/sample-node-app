@@ -135,6 +135,8 @@ export const api = {
   trophies: () => request('/api/trophies'),
   addTrophy: (body) => request('/api/trophies', { method: 'POST', body }),
   removeTrophy: (id) => request(`/api/trophies/${id}`, { method: 'DELETE' }),
+  // Scan MFL playoff history across your leagues and add every championship found (source auto).
+  detectTrophies: () => request('/api/trophies/detect', { method: 'POST', body: {} }),
 
   // Cross-league watchlist
   watchlist: () => request('/api/watchlist'),
