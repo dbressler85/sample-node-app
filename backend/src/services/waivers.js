@@ -730,13 +730,75 @@ async function submit(cookie, token, leagueId, payload) {
   return { submitted: claim, board: await getBoard(cookie, token, leagueId, {}) };
 }
 
+// Cancel ONE queued pick on MFL by RESUBMITTING its whole round with REPLACE and every OTHER pick
+// preserved — MFL has no "delete one claim" call. Per the waiverRequest/blindBidWaiverRequest form:
+// PICKS added to a round APPEND unless REPLACE is set (then they replace the round's entries), and
+// "to clear the whole round, pass an empty value for PICKS". So we re-read MFL's authoritative queue,
+// drop the target pick at `idx` (the index reconciledPending minted the id from), and REPLACE the
+// round with the survivors (empty PICKS when it was the last one). Claims placed OUTSIDE the app in
+// the same round survive because we rebuild from MFL's own current queue. Surfaces MFL's error detail
+// on rejection (never a bare status). Read/rebuild is fail-soft; the write is not (a silent failure
+// would leave a "canceled" claim to still process).
+async function cancelMflPick({ cookie, league, system, round, idx }) {
+  const reqs = await mflRepo.pendingWaivers(league, cookie);
+  const req = reqs.find((r) => r.system === system && r.round === round);
+  // Nothing queued for this round on MFL anymore (already cleared/processed) → nothing to cancel.
+  if (!req) return;
+  const kept = req.picks.filter((_, i) => i !== idx);
+  const asToken = (p) =>
+    system === 'faab'
+      ? `${p.add}_${Math.round(Number(p.bid) || 0)}_${p.drop || '0000'}`
+      : `${p.add}_${p.drop || '0000'}`;
+  const PICKS = kept.map(asToken).join(','); // '' clears the whole round
+  const command = system === 'faab' ? 'blindBidWaiverRequest' : 'waiverRequest';
+  const params = { host: league.host, cookie, L: league.leagueId, ROUND: round, PICKS, REPLACE: 1 };
+  try {
+    await mfl.importRequest(command, params);
+  } catch (e) {
+    const detail = mfl.errorDetail(e);
+    console.warn(`[waivers] MFL rejected cancel — L=${league.leagueId} system=${system} round=${round} idx=${idx} kept=${kept.length} — ${detail}`);
+    const err = new Error(`MyFantasyLeague rejected the cancel: ${detail}`);
+    err.status = e.status || 502;
+    err.detail = detail;
+    throw err;
+  }
+}
+
 async function cancel(cookie, token, leagueId, claimId) {
-  const removed = store.remove(token, leagueId, config.demoMode ? demo.pendingClaims(leagueId) : [], claimId);
+  // Demo: the local store IS the source of truth — no MFL round to resubmit.
+  if (config.demoMode) {
+    const removed = store.remove(token, leagueId, demo.pendingClaims(leagueId), claimId);
+    if (!removed) {
+      const err = new Error('Claim not found');
+      err.status = 404;
+      throw err;
+    }
+    return { canceled: claimId, board: await getBoard(cookie, token, leagueId, {}) };
+  }
+
+  // Live: an MFL-sourced claim (id "mfl-<system>-<round>-<idx>", minted by reconciledPending) lives
+  // ONLY in MFL's queue — the old store.remove would 404 on it AND leave the real bid to process.
+  // Cancel it on MFL by resubmitting the round without that pick.
+  const m = /^mfl-(faab|fcfs)-(\d+)-(\d+)$/.exec(String(claimId));
+  if (m) {
+    const league = await findLeague(cookie, leagueId);
+    await cancelMflPick({ cookie, league, system: m[1], round: Number(m[2]), idx: Number(m[3]) });
+    // Drop any local mirror of the same claim (app-submitted claims are stored locally too), then
+    // refresh the reads so the board we return reflects the now-shorter queue.
+    store.remove(token, leagueId, [], claimId);
+    invalidate(cookie, leagueId);
+    return { canceled: claimId, board: await getBoard(cookie, token, leagueId, {}) };
+  }
+
+  // Live but locally-tracked (e.g. an immediate free-agency add mirror that never got an MFL id):
+  // remove it from the store as before.
+  const removed = store.remove(token, leagueId, [], claimId);
   if (!removed) {
     const err = new Error('Claim not found');
     err.status = 404;
     throw err;
   }
+  invalidate(cookie, leagueId);
   return { canceled: claimId, board: await getBoard(cookie, token, leagueId, {}) };
 }
 
