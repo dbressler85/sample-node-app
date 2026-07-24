@@ -223,31 +223,44 @@ async function livePendingOffers(cookie, league) {
     if (!list.length) return [];
     const names = await leaguesService.franchiseNames(cookie, league);
     const toks = (v) => mfl.text(v).split(/[,;|]/).map((s) => s.trim()).filter(Boolean);
+    const me = league.franchiseId;
+    // MFL's pendingTrades returns EVERY pending trade involving my franchise — both offers made TO me
+    // (I'm `offeredto`) AND offers I SENT (I'm `offeringteam`). Emit both so my sent offers are
+    // visible (and withdrawable), not just my inbox. Perspective is always MINE.
     return list
-      .filter((tr) => mfl.text(mfl.attr(tr, 'offeredto')) === league.franchiseId)
-      .map((tr, i) => {
-        const from = mfl.text(mfl.attr(tr, 'offeringteam'));
-        // The trade id is what tradeResponse targets — accepting/rejecting the WRONG id (or a
-        // made-up one) is the worst failure mode here, so extract it explicitly and never fall
-        // back to an array index. If MFL doesn't give one, log the raw keys (so we can see the
-        // real field name) and leave id null — the UI keeps the offer visible but read-only.
+      .map((tr) => {
+        const offeredTo = mfl.text(mfl.attr(tr, 'offeredto'));
+        const offeringTeam = mfl.text(mfl.attr(tr, 'offeringteam'));
+        const incoming = offeredTo === me; // they offered to me
+        const outgoing = offeringTeam === me; // I offered to them
+        if (!incoming && !outgoing) return null; // not mine (shouldn't happen under the cookie scope)
+        const withId = incoming ? offeringTeam : offeredTo;
+        // The trade id is what tradeResponse (accept/reject/revoke) targets — hitting the WRONG id (or
+        // a made-up one) is the worst failure here, so extract it explicitly and never fall back to an
+        // array index. If MFL doesn't give one, log the raw keys and leave id null (the UI keeps the
+        // offer visible but read-only).
         const tradeIdRaw = mfl.attr(tr, 'trade_id', 'id', 'tradeid');
         if (tradeIdRaw == null) console.warn(`[trades] pendingTrade with no trade_id (L=${league.leagueId}); attrs: ${Object.keys(tr || {}).join(',')}`);
+        // MFL names the sides `will_give_up` / `will_receive` from the OFFERER's point of view.
+        // attr() matches any casing (the receive side previously only checked camelCase → "give · 0").
+        const willGiveUp = toks(mfl.attr(tr, 'willgiveup'));
+        const willReceive = toks(mfl.attr(tr, 'willreceive', 'willreceiveinreturn'));
+        // Re-cast to MY perspective (acquire = what I'd get, send = what I'd give):
+        //   incoming — the OFFERER gives up willGiveUp (I acquire it) and receives willReceive (I send it).
+        //   outgoing — I am the offerer, so I give up willGiveUp (I send it) and receive willReceive (I acquire it).
         return {
           id: mfl.text(tradeIdRaw) || null,
-          direction: 'incoming',
+          direction: incoming ? 'incoming' : 'outgoing',
           status: 'pending',
-          withFranchiseId: from,
-          withName: names.get(from) || 'Another team',
+          withFranchiseId: withId,
+          withName: names.get(withId) || 'Another team',
           expires: mfl.text(mfl.attr(tr, 'expires')) || null,
           comments: mfl.text(mfl.attr(tr, 'comments', 'message')) || null,
-          // MFL names these `will_give_up` / `will_receive` (snake_case) here — the
-          // receive side previously only checked camelCase, so what you'd give up
-          // came back empty ("You give · 0"). attr() matches any casing.
-          acquire: toks(mfl.attr(tr, 'willgiveup')),
-          send: toks(mfl.attr(tr, 'willreceive', 'willreceiveinreturn')),
+          acquire: incoming ? willGiveUp : willReceive,
+          send: incoming ? willReceive : willGiveUp,
         };
-      });
+      })
+      .filter(Boolean);
   } catch (e) {
     return [];
   }

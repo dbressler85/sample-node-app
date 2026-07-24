@@ -663,7 +663,10 @@ function OfferCard({ offer, busy, onAccept, onReject, onWithdraw, onCounter, onO
   return (
     <View style={styles.card}>
       <View style={styles.cardTop}>
-        <Text style={styles.cardFrom} numberOfLines={1}>{offer.withName}</Text>
+        <Text style={styles.cardFrom} numberOfLines={1}>
+          <Text style={styles.cardDir}>{offer.direction === 'outgoing' ? 'Sent to ' : 'From '}</Text>
+          {offer.withName}
+        </Text>
         <View style={[styles.badge, { borderColor: v.color }]}>
           <Text style={[styles.badgeText, { color: v.color }]}>{v.label}</Text>
         </View>
@@ -899,6 +902,7 @@ const styles = StyleSheet.create({
   card: { backgroundColor: colors.card, borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: 14 },
   cardTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
   cardFrom: { color: colors.text, fontSize: 16, fontWeight: '800', flex: 1, marginRight: 8 },
+  cardDir: { color: colors.textDim, fontSize: 13, fontWeight: '700' },
   badge: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3 },
   badgeText: { fontSize: 11, fontWeight: '800' },
   side: { marginTop: 8 },

@@ -30,8 +30,13 @@ mfl.exportRequest = async (type, opts = {}) => {
       return { rosters: { franchise: Object.entries(ids).map(([id, list]) => ({ id, player: list.map((pid) => ({ id: pid, status: 'starter' })) })) } };
     }
     case 'pendingTrades':
-      // They give up player 20 + $15 FAAB (BB_15) for my player 1. FAAB is a tradeable asset.
-      return { pendingTrades: { pendingTrade: [{ trade_id: 'TR9', offeringteam: '0002', offeredto: '0001', willGiveUp: '20,BB_15', willReceiveInReturn: '1' }] } };
+      // MFL returns EVERY pending trade involving my franchise, both directions:
+      //  • INCOMING — 0002 gives up player 20 + $15 FAAB for my player 1 (I'm `offeredto`).
+      //  • OUTGOING — I (0001) offered my player 1 to 0003 for their player 30 (I'm `offeringteam`).
+      return { pendingTrades: { pendingTrade: [
+        { trade_id: 'TR9', offeringteam: '0002', offeredto: '0001', willGiveUp: '20,BB_15', willReceiveInReturn: '1' },
+        { trade_id: 'TR10', offeringteam: '0001', offeredto: '0003', willGiveUp: '1', willReceiveInReturn: '30' },
+      ] } };
     case 'injuries':
       return { injuries: { injury: [] } };
     case 'nflSchedule':
@@ -86,6 +91,22 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   const pick = lg.myPicks.find((p) => p.name === '2027 1st');
   assert(pick && pick.id === 'FP_0003_2027_1', `pick carries real MFL token, got ${pick && pick.id}`);
   console.log(`✓ live league: ${lg.partners.length} partners, ${lg.myPlayers.length} my players, pick token ${pick.id}`);
+
+  // The desk shows BOTH directions — including offers I SENT, so I can see/withdraw them.
+  const inOffer = lg.offers.find((of) => of.direction === 'incoming');
+  const sentOffer = lg.offers.find((of) => of.direction === 'outgoing');
+  assert(inOffer && inOffer.id === 'TR9' && inOffer.canRespond === true && inOffer.canRevoke === false, `incoming offer respondable, got ${JSON.stringify(inOffer && { d: inOffer.direction, r: inOffer.canRespond })}`);
+  assert(sentOffer, 'my SENT offer is visible on the desk (the other side of the coin)');
+  assert(sentOffer.id === 'TR10' && sentOffer.withName === 'Third Team', `sent offer targets the right team, got ${JSON.stringify({ id: sentOffer.id, with: sentOffer.withName })}`);
+  assert(sentOffer.canRevoke === true && sentOffer.canRespond === false, 'a sent offer is WITHDRAWABLE (revoke), not accept/rejectable');
+  // Perspective stays MINE: I give my player 1 (Mine WR), I receive their player 30 (Other RB).
+  assert(sentOffer.send.some((a) => a.name === 'Mine WR'), `sent offer: I give my player, got ${JSON.stringify(sentOffer.send.map((a) => a.name))}`);
+  assert(sentOffer.acquire.some((a) => a.name === 'Other RB'), `sent offer: I receive their player, got ${JSON.stringify(sentOffer.acquire.map((a) => a.name))}`);
+  console.log('✓ live desk: SENT offer visible (direction outgoing, withdrawable, my-perspective sides)');
+
+  // The cross-league OVERVIEW stays an inbox — incoming only (a "what needs my response" view).
+  assert(ov.offers.every((of) => of.direction === 'incoming'), 'cross-league overview is incoming-only (inbox)');
+  console.log('✓ cross-league overview stays incoming-only (inbox)');
 
   // Respond (accept) -> MFL import tradeResponse.
   await trades.respond(CK, TK, '1000', 'TR9', 'accept');

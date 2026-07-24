@@ -508,6 +508,9 @@ const TRADE_OFFERS = {
     // FAAB is tradeable: they offer a player + $20 of blind-bidding budget for my Nix. MFL
     // represents the budget as a BB_<dollars> token in the give/receive lists.
     { id: 't3', withFranchiseId: '0009', withName: 'Dynasty Sharks', acquire: ['14106', 'BB_20'], send: ['15870'] },
+    // An OUTGOING offer I sent (direction 'outgoing' → shows as "Sent to …" with a Withdraw button):
+    // my player for their 2027 1st. Demonstrates the other side of the coin — seeing/withdrawing sent offers.
+    { id: 't4', direction: 'outgoing', withFranchiseId: '0004', withName: 'Waiver Wire Wolves', acquire: ['pick:2027 1st'], send: ['13649'] },
   ],
   '19622': [
     { id: 't2', withFranchiseId: '0005', withName: 'Rebuild Rangers', acquire: ['pick:2027 1st', 'pick:2027 2nd'], send: ['13649'] }, // picks for my Gibbs
