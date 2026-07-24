@@ -55,12 +55,15 @@ tradesService.getOverview = async () => ({
   offers: [{ id: 'o1', leagueId: 'H', leagueName: 'League H', withName: 'Team Rocket', analysis: { verdict: 'favorable' } }],
 });
 // A manual trade deadline set on league F, ~10 days out → a timed trade_deadline item on On Deck.
+// (Exercises the real effectiveDeadline manual-override path.)
 const tradeDeadlines = require('../../src/store/tradeDeadlines');
 const dl = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 tradeDeadlines.set('tk', 'F', dl);
-// League G has NO manual deadline but MFL's calendar carries one (+12d) → auto-surfaced.
+// League G has NO manual deadline but MFL's calendar carries one (+12d) → auto-surfaced. Stub the
+// calendar read so the real effectiveDeadline → nextTradeDeadline chain resolves it (source: mfl).
+const mflRepo = require('../../src/lib/mflRepo');
 const gDeadlineMs = Date.now() + 12 * 24 * 60 * 60 * 1000;
-tradesService.nextTradeDeadline = async (cookie, league) => (league.leagueId === 'G' ? gDeadlineMs : null);
+mflRepo.calendar = async (league) => (league.leagueId === 'G' ? [{ type: 'TRADE_DEADLINE', start_time: Math.floor(gDeadlineMs / 1000) }] : []);
 
 const ondeck = require('../../src/services/ondeck');
 const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
@@ -82,7 +85,7 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   // League E: 2 claims in, run time unknown → label-only (sorts after every timed item), hasClaims.
   const wrE = r.items.find((i) => i.type === 'waiver_run' && i.leagueId === 'E');
   assert(types.indexOf('waiver_run:E') > types.indexOf('draft_start:B'), 'label-only (claims-in) waiver run sorts after timed items');
-  assert(wrE.at === null && wrE.atLabel === 'Wed 3:00 AM' && wrE.hasClaims === true && wrE.claimCount === 2 && /2 claims in/.test(wrE.detail), 'E waiver run: label-only, deduped, claims counted');
+  assert(wrE.at === null && wrE.atLabel === 'Wed 3:00 AM' && wrE.hasClaims === true && wrE.claimCount === 2 && /2 claims submitted/.test(wrE.detail), 'E waiver run: label-only, deduped, claims counted');
   // League F: no claims but an imminent run (+2d) → shown, timestamped, hasClaims=false.
   const wrF = r.items.find((i) => i.type === 'waiver_run' && i.leagueId === 'F');
   assert(wrF && wrF.hasClaims === false && wrF.claimCount === 0 && wrF.at !== null, 'F waiver run: imminent, no claims, timestamped');
@@ -92,6 +95,14 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   const to = r.items.find((i) => i.type === 'trade_offer');
   assert(to && to.leagueId === 'H' && /Team Rocket/.test(to.label) && to.action === 'trade', 'trade offer folded into On Deck');
   assert(to.at === null && /favorable/.test(to.detail), 'trade offer is untimed with a verdict detail');
+  // Action vs upcoming classification: submitted claims (E) are UPCOMING (already acted); a claim-free
+  // imminent run (F), trade offers, lineups, drafts-on-clock are ACTIONS. summary.actions counts them.
+  assert(to.kind === 'action', 'trade offer is an action');
+  assert(wrE.kind === 'upcoming' && /process/i.test(wrE.label), `submitted-claim waiver is upcoming ("Your claims process"), got ${wrE.kind}/${wrE.label}`);
+  assert(wrF.kind === 'action', 'a claim-free imminent waiver run is an action');
+  assert(r.items.find((i) => i.type === 'draft_clock').kind === 'action', 'draft clock is an action');
+  const expectActions = r.items.filter((i) => i.kind === 'action').length;
+  assert(r.summary.actions === expectActions && r.summary.upcoming === r.items.filter((i) => i.kind === 'upcoming').length, `summary splits actions/upcoming, got ${JSON.stringify({ a: r.summary.actions, u: r.summary.upcoming })}`);
   // Manual trade deadline on league F → a timed trade_deadline item (source: manual).
   const td = r.items.find((i) => i.type === 'trade_deadline' && i.leagueId === 'F');
   assert(td && td.at !== null && td.action === 'trade' && td.source === 'manual' && /deadline/i.test(td.label), `manual trade deadline surfaced + timed, got ${JSON.stringify(td)}`);

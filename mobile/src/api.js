@@ -74,6 +74,8 @@ export const api = {
   me: () => request('/api/me'),
   leaguesList: () => request('/api/leagues'),
   roster: (leagueId) => request(`/api/leagues/${leagueId}/roster`),
+  moveIr: (leagueId, moves) => request(`/api/leagues/${leagueId}/ir`, { method: 'POST', body: moves }),
+  moveTaxi: (leagueId, moves) => request(`/api/leagues/${leagueId}/taxi`, { method: 'POST', body: moves }),
   // League hub (M5): standings, every team's roster (scouting), and a transaction feed.
   leagueStandings: (leagueId) => request(`/api/leagues/${leagueId}/standings`),
   leagueTeams: (leagueId) => request(`/api/leagues/${leagueId}/teams`),
@@ -121,6 +123,7 @@ export const api = {
     return request(`/api/players/rankings?${p.toString()}`);
   },
   playerProfile: (id) => request(`/api/players/${id}`),
+  comparePlayers: (ids) => request(`/api/players/compare?ids=${ids.map(encodeURIComponent).join(',')}`),
   playerAddPreview: (id) => request(`/api/players/${id}/add/preview`),
   playerAdd: (id, leagues) => request(`/api/players/${id}/add`, { method: 'POST', body: { leagues } }),
   playerTradePreview: (id, leagueIds) => request(`/api/players/${id}/trade/preview${leagueIds && leagueIds.length ? `?leagues=${leagueIds.map(encodeURIComponent).join(',')}` : ''}`),
@@ -138,8 +141,13 @@ export const api = {
 
   // Drafts (M6)
   drafts: () => request('/api/drafts'),
+  pickInventory: () => request('/api/picks'),
   leagueDraft: (leagueId, position) =>
     request(`/api/leagues/${leagueId}/draft${position ? `?position=${position}` : ''}`),
+  draftList: (leagueId, position) =>
+    request(`/api/leagues/${leagueId}/draftlist${position ? `?position=${position}` : ''}`),
+  saveDraftList: (leagueId, players) =>
+    request(`/api/leagues/${leagueId}/draftlist`, { method: 'POST', body: { players } }),
   makeDraftPick: (leagueId, playerId) =>
     request(`/api/leagues/${leagueId}/draft/pick`, { method: 'POST', body: { playerId } }),
 
@@ -163,6 +171,10 @@ export const api = {
   // Trade bait ("on the block") — centralized across leagues.
   tradeBait: () => request('/api/tradebait'),
   tradeMarket: () => request('/api/tradebait/market'),
+  // Block editor: light per-league list (current checked tokens + note); the roster checklist per
+  // league comes from api.roster(). Save the whole league's block (players + picks) in one shot.
+  blockEditor: () => request('/api/tradebait/editor'),
+  saveBlock: (leagueId, tokens, note) => request(`/api/leagues/${leagueId}/tradebait`, { method: 'POST', body: { tokens, note } }),
   leagueBait: (leagueId) => request(`/api/leagues/${leagueId}/tradebait`),
   addBait: (leagueId, playerId, note) => request(`/api/leagues/${leagueId}/tradebait/${playerId}`, { method: 'POST', body: { note } }),
   removeBait: (leagueId, playerId) => request(`/api/leagues/${leagueId}/tradebait/${playerId}`, { method: 'DELETE' }),

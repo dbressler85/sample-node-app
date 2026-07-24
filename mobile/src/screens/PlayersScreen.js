@@ -3,6 +3,7 @@ import { View, Text, FlatList, StyleSheet, Pressable, TextInput, ActivityIndicat
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import AvailabilityBadge from '../components/AvailabilityBadge';
+import AddAcrossSheet from '../components/AddAcrossSheet';
 import { TargetIcon, AvoidIcon, WatchIcon } from '../components/PlayerActionIcons';
 import { getValue, setValue } from '../cache';
 import { peekResource, primeResource } from '../useCachedResource';
@@ -13,6 +14,7 @@ import { ScreenTitle, Value } from '../components/Brand';
 
 const TABS = [
   ['rankings', 'Rankings'],
+  ['free', 'Free Agents'],
   ['watch', 'Watch'],
   ['mine', 'My Players'],
   ['news', 'News'],
@@ -89,6 +91,7 @@ export default function PlayersScreen({ onOpenPlayer }) {
   const [mine, setMine] = useState(null);
   const [news, setNews] = useState(null);
   const [watch, setWatch] = useState(null);
+  const [free, setFree] = useState(null);
   const [error, setError] = useState(null);
   const [pos, setPos] = useState(null); // position filter (null = All), applies to rankings/search/mine
   const [format, setFormat] = useState('1qb'); // value lens: '1qb' | 'sf' — re-prices & resorts the board
@@ -97,6 +100,7 @@ export default function PlayersScreen({ onOpenPlayer }) {
   const [listSort, setListSort] = useState('default'); // secondary sort for Rankings/My Players/Watch
   const [tagOverride, setTagOverride] = useState({}); // id -> 'target'|'avoid'|null (optimistic)
   const [watchOverride, setWatchOverride] = useState({}); // id -> bool (optimistic)
+  const [addAcross, setAddAcross] = useState(null); // {id,name} → batch "claim across leagues" sheet
 
   // Debounced search on query change (or the position filter) — wait ~300ms after the last
   // keystroke so a multi-character name fires one request, not one per letter.
@@ -186,6 +190,8 @@ export default function PlayersScreen({ onOpenPlayer }) {
     // Watchlist changes as you star players elsewhere, so refetch each time the
     // tab is opened rather than caching it.
     if (tab === 'watch') { setWatch(null); api.watchlist().then(setWatch).catch((e) => setError(e.message)); }
+    // Free agents shift constantly (adds/drops/waivers process), so refetch on open.
+    if (tab === 'free') { setFree(null); api.bestAvailable().then(setFree).catch((e) => setError(e.message)); }
   }, [tab, mine, news]);
 
   // Inline Target/Avoid/Watch toggles. Optimistic: flip a per-id override immediately,
@@ -219,6 +225,12 @@ export default function PlayersScreen({ onOpenPlayer }) {
   const searchData = useMemo(() => (searchRes ? sortPlayers(searchRes.players, listSort) : []), [searchRes, listSort]);
   const rankingsData = useMemo(() => (rankings ? sortPlayers(rankings.players, listSort) : []), [rankings, listSort]);
   const watchData = useMemo(() => (watch ? sortPlayers(watch.players, listSort) : []), [watch, listSort]);
+  // Free agents: server sends them best-first (by value); default keeps that order. Position
+  // filter reuses the shared `pos` chip; secondary sort reuses `listSort`.
+  const freeData = useMemo(
+    () => (free ? sortPlayers(free.players.filter((p) => !pos || p.position === pos), listSort) : []),
+    [free, pos, listSort]
+  );
   const mineData = useMemo(
     () => (mine ? sortPlayers(mine.players.filter((p) => !pos || p.position === pos), listSort) : []),
     [mine, pos, listSort]
@@ -325,6 +337,32 @@ export default function PlayersScreen({ onOpenPlayer }) {
                 }
               />
             </>
+          ) : tab === 'free' ? (
+            <>
+              <View style={styles.freeIntro}>
+                <Text style={styles.freeIntroText}>
+                  {free
+                    ? `Free agents available in one or more of your ${free.totalLeagues} league${free.totalLeagues === 1 ? '' : 's'}, most-available first. Tap a player to add him, or use Sort to rank by value.`
+                    : 'Free agents available across your leagues.'}
+                </Text>
+              </View>
+              <PosFilter pos={pos} setPos={setPos} />
+              <SortRow value={listSort} onChange={setListSort} />
+              <FlatList
+                data={freeData}
+                keyExtractor={(p) => p.id}
+                extraData={{ tagOverride, watchOverride, listSort }}
+                contentContainerStyle={styles.list}
+                renderItem={({ item, index }) => <Reveal delay={Math.min(index, 12) * 32} animate={index < 14}><PlayerRow p={item} sub={`free in ${item.leagueCount} league${item.leagueCount === 1 ? '' : 's'}`} tag={resolveTag(item)} watched={resolveWatch(item)} {...rowActions} onQuickAdd={() => setAddAcross({ id: item.id, name: item.name })} onPress={() => onOpenPlayer(item.id)} /></Reveal>}
+                ListEmptyComponent={
+                  !free ? (
+                    <PlayerListSkeleton />
+                  ) : (
+                    <Text style={styles.note}>{pos ? `No ${pos}s are available in any of your leagues right now.` : 'No available players across your leagues right now.'}</Text>
+                  )
+                }
+              />
+            </>
           ) : tab === 'watch' ? (
             <>
               {watch && watch.players.length ? <SortRow value={listSort} onChange={setListSort} /> : null}
@@ -407,11 +445,23 @@ export default function PlayersScreen({ onOpenPlayer }) {
           )}
         </>
       )}
+
+      {addAcross ? (
+        <AddAcrossSheet
+          player={addAcross}
+          onClose={() => setAddAcross(null)}
+          onDone={() => {
+            setAddAcross(null);
+            // Reflect the add: the player is no longer free, so refetch the tab.
+            if (tab === 'free') { setFree(null); api.bestAvailable().then(setFree).catch((e) => setError(e.message)); }
+          }}
+        />
+      ) : null}
     </View>
   );
 }
 
-function PlayerRow({ p, rank, sub, tag, watched, showTrend, onTag, onWatch, onPress }) {
+function PlayerRow({ p, rank, sub, tag, watched, showTrend, onTag, onWatch, onQuickAdd, onPress }) {
   const posColor = positionColors[p.position] || colors.textDim;
   const t = tag !== undefined ? tag : p.tag || null;
   const w = watched !== undefined ? watched : !!p.watched;
@@ -457,6 +507,16 @@ function PlayerRow({ p, rank, sub, tag, watched, showTrend, onTag, onWatch, onPr
               <WatchIcon size={18} color={w ? colors.gold : colors.textDim} filled={w} />
             </Pressable>
           </View>
+        ) : null}
+        {onQuickAdd ? (
+          <Pressable
+            onPress={onQuickAdd}
+            hitSlop={6}
+            style={({ pressed }) => [styles.quickAdd, pressed && { opacity: 0.7 }]}
+            accessibilityLabel={`Add ${p.name} across leagues`}
+          >
+            <Text style={styles.quickAddText}>+ Add{p.leagueCount > 1 ? ` ${p.leagueCount}` : ''}</Text>
+          </Pressable>
         ) : null}
       </View>
     </Pressable>
@@ -657,6 +717,8 @@ const styles = StyleSheet.create({
   lsDivider: { width: StyleSheet.hairlineWidth, alignSelf: 'stretch', minHeight: 22, backgroundColor: colors.border, marginHorizontal: 4 },
   rightCol: { alignItems: 'flex-end', marginLeft: 10, gap: 7 },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  quickAdd: { borderWidth: 1, borderColor: colors.good, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
+  quickAddText: { color: colors.good, fontSize: 12, fontWeight: '800' },
   newsSearchWrap: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, marginBottom: 6 },
   newsSortRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, gap: 8, marginBottom: 6 },
   newsSortLabel: { color: colors.textDim, fontSize: 12, fontWeight: '700', marginRight: 2 },
@@ -664,6 +726,8 @@ const styles = StyleSheet.create({
   newsSortChipActive: { backgroundColor: colors.cardAlt, borderColor: colors.accent },
   newsSortText: { color: colors.textDim, fontSize: 12, fontWeight: '700' },
   newsSearch: { flex: 1, color: colors.text, fontSize: 14, paddingVertical: 9 },
+  freeIntro: { paddingHorizontal: 16, paddingBottom: 4, paddingTop: 2 },
+  freeIntroText: { color: colors.textDim, fontSize: 12, lineHeight: 17 },
   list: { paddingHorizontal: 16, paddingBottom: 32, paddingTop: 4 },
   row: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 12, marginBottom: 10 },
   skRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 12, marginBottom: 10 },

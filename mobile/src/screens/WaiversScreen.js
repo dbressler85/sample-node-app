@@ -15,7 +15,6 @@ import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import { celebrate } from '../components/Celebrate';
 import AvailabilityBadge from '../components/AvailabilityBadge';
-import AddAcrossSheet from '../components/AddAcrossSheet';
 import ErrorView from '../components/ErrorView';
 import Reveal from '../components/Reveal';
 import useAndroidBack from '../useAndroidBack';
@@ -39,7 +38,7 @@ export default function WaiversScreen({ active = true, initialLeagueId, initialP
   // full-screen spinner every single time). It revalidates in the background and after a claim.
   const { data: pending, reload: loadPending } = useCachedResource('waivers:pending', () => api.waiverPending(), { active });
   const [wizardLoading, setWizardLoading] = useState(false);
-  const [segment, setSegment] = useState('leagues'); // 'leagues' | 'best' | 'pending'
+  const [segment, setSegment] = useState('leagues'); // 'leagues' | 'pending'
   // A league drill-in: the per-league board. Set from a card tap or a Home
   // deep-link (initialLeagueId), which lands the user straight on that board.
   const [openLeagueId, setOpenLeagueId] = useState(initialLeagueId || null);
@@ -49,11 +48,9 @@ export default function WaiversScreen({ active = true, initialLeagueId, initialP
   // in-season streaming.
   const [sort, setSort] = useState('value');
   const [board, setBoard] = useState(null);
-  const [best, setBest] = useState(null);
   const [loading, setLoading] = useState(false); // board (drill-in) loading
   const [error, setError] = useState(null);
   const [claim, setClaim] = useState(null); // {leagueId, addId}
-  const [addPlayer, setAddPlayer] = useState(null); // batch "claim across N leagues"
 
   function closeBoard() {
     setOpenLeagueId(null);
@@ -63,10 +60,6 @@ export default function WaiversScreen({ active = true, initialLeagueId, initialP
 
   // Back: claim / batch sheet first, then the board drill-in (returns to overview).
   useAndroidBack(useCallback(() => {
-    if (addPlayer) {
-      setAddPlayer(null);
-      return true;
-    }
     if (claim) {
       setClaim(null);
       return true;
@@ -76,7 +69,7 @@ export default function WaiversScreen({ active = true, initialLeagueId, initialP
       return true;
     }
     return false;
-  }, [addPlayer, claim, openLeagueId]));
+  }, [claim, openLeagueId]));
 
   // Board for the drilled-in league.
   const loadBoard = useCallback(async () => {
@@ -96,15 +89,7 @@ export default function WaiversScreen({ active = true, initialLeagueId, initialP
     if (openLeagueId) loadBoard();
   }, [openLeagueId, loadBoard]);
 
-  // Best-available loads lazily when shown (and not while drilled in). Pending rides the cached
-  // hook above, so it's already painted — no lazy fetch needed here.
-  useEffect(() => {
-    if (openLeagueId) return;
-    if (segment === 'best' && !best) api.bestAvailable().then(setBest).catch((e) => setError(e.message));
-  }, [segment, best, openLeagueId]);
-
   function refreshAll() {
-    setBest(null);
     if (openLeagueId) loadBoard();
     loadOverview();
     loadPending();
@@ -179,7 +164,6 @@ export default function WaiversScreen({ active = true, initialLeagueId, initialP
           <View style={styles.segment}>
             {[
               ['leagues', 'Leagues'],
-              ['best', 'Best Available'],
               ['pending', 'Pending'],
             ].map(([k, label]) => (
               <Pressable key={k} style={[styles.seg, segment === k && styles.segActive]} onPress={() => setSegment(k)}>
@@ -212,8 +196,6 @@ export default function WaiversScreen({ active = true, initialLeagueId, initialP
                 onRefresh={loadOverview}
               />
             </>
-          ) : segment === 'best' ? (
-            <BestView best={best} onClaimAll={setAddPlayer} />
           ) : (
             <PendingView pending={pending} onCancel={cancelClaim} onOpenPlayer={onOpenPlayer} />
           )}
@@ -233,16 +215,6 @@ export default function WaiversScreen({ active = true, initialLeagueId, initialP
         />
       ) : null}
 
-      {addPlayer ? (
-        <AddAcrossSheet
-          player={addPlayer}
-          onClose={() => setAddPlayer(null)}
-          onDone={() => {
-            setAddPlayer(null);
-            refreshAll();
-          }}
-        />
-      ) : null}
     </View>
   );
 }
@@ -279,6 +251,22 @@ function runLabel(ms) {
   return days <= 1 ? 'tomorrow' : `in ${days} days`;
 }
 
+// The league's pickup posture → a clear, color-coded banner. Three distinct states.
+function stateInfo(item) {
+  if (item.waiverState === 'fa_open') {
+    return { icon: '🟢', label: 'Free agency open', sub: 'Add anyone now — processes immediately', color: colors.good };
+  }
+  if (item.waiverState === 'waivers_soon') {
+    return {
+      icon: '⏳',
+      label: item.nextWaiverRun != null ? `Waivers process ${runLabel(item.nextWaiverRun)}` : 'Waiver cycle running',
+      sub: 'Claims you place queue now and process at the run',
+      color: colors.accent,
+    };
+  }
+  return { icon: '🔒', label: 'Waivers closed', sub: item.lockReason || 'No open free agency and no upcoming waiver run', color: colors.textDim };
+}
+
 function LeagueCard({ item, onPress }) {
   if (item.error) {
     return (
@@ -294,21 +282,17 @@ function LeagueCard({ item, onPress }) {
       : item.system === 'fcfs' && item.waiverPriority
       ? `Priority #${item.waiverPriority}`
       : null;
-  // Waivers about to process — highlight the card so it's obvious which leagues are in an active
-  // waiver cycle vs. quiet. Shown even when the league is locked: a claim-window lock IS the
-  // cycle (blind bids are still open), and those are exactly the leagues the owner wants to spot.
-  const imminent = item.waiverImminent && item.nextWaiverRun != null;
+  const st = stateInfo(item);
   return (
-    <Pressable style={({ pressed }) => [styles.ovCard, imminent && styles.ovCardImminent, pressed && { opacity: 0.7 }]} onPress={onPress}>
+    <Pressable style={({ pressed }) => [styles.ovCard, { borderLeftWidth: 3, borderLeftColor: st.color }, pressed && { opacity: 0.7 }]} onPress={onPress}>
       <View style={styles.ovTop}>
         <Text style={styles.ovName} numberOfLines={1}>{item.name}</Text>
-        {item.locked ? <Text style={styles.lockBadge}>🔒 LOCKED</Text> : <SystemBadge system={item.system} />}
+        <SystemBadge system={item.system} />
       </View>
-      {imminent ? (
-        <View style={styles.imminentBadge}>
-          <Text style={styles.imminentText}>⏳ Waivers process {runLabel(item.nextWaiverRun)}</Text>
-        </View>
-      ) : null}
+      <View style={[styles.stateBanner, { backgroundColor: st.color + '18', borderColor: st.color + '55' }]}>
+        <Text style={[styles.stateLabel, { color: st.color }]}>{st.icon}  {st.label}</Text>
+        <Text style={styles.stateSub} numberOfLines={2}>{st.sub}</Text>
+      </View>
       <Text style={styles.ovMeta}>
         {[
           budget,
@@ -317,7 +301,6 @@ function LeagueCard({ item, onPress }) {
           .filter(Boolean)
           .join('  ·  ')}
       </Text>
-      {item.locked ? <Text style={styles.lockReason} numberOfLines={2}>{item.lockReason}</Text> : null}
       {item.topAvailable && item.topAvailable.length ? (
         <Text style={styles.ovTop3} numberOfLines={1}>
           Top: {item.topAvailable.map((p) => `${p.name.split(',')[0]}${p.value != null ? ` (${p.value})` : ''}`).join(', ')}
@@ -459,45 +442,6 @@ function FaRow({ p, onPress, onOpenPlayer }) {
         <Text style={styles.addBtn}>+ Claim</Text>
       </Pressable>
     </View>
-  );
-}
-
-function BestView({ best, onClaimAll }) {
-  if (!best) return <Center><ActivityIndicator color={colors.accent} size="large" /></Center>;
-  return (
-    <FlatList
-      data={best.players}
-      keyExtractor={(p) => p.id}
-      contentContainerStyle={styles.list}
-      ListEmptyComponent={
-        <View style={styles.emptyWrap}>
-          <Text style={styles.emptyTitle}>No cross-league free agents</Text>
-          <Text style={styles.emptyText}>
-            Nothing notable is available across your leagues right now. Open a league from the
-            Leagues tab to see its full board.
-          </Text>
-        </View>
-      }
-      renderItem={({ item }) => {
-        const posColor = positionColors[item.position] || colors.textDim;
-        return (
-          <Pressable style={({ pressed }) => [styles.faRow, pressed && { opacity: 0.7 }]} onPress={() => onClaimAll({ id: item.id, name: item.name })}>
-            <View style={[styles.posBadge, { backgroundColor: posColor + '22', borderColor: posColor }]}>
-              <Text style={[styles.pos, { color: posColor }]}>{item.position}</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.faName} numberOfLines={1}>{item.name}</Text>
-              <Text style={styles.faMeta}>
-                {item.team} · free in {item.leagueCount} league{item.leagueCount === 1 ? '' : 's'}
-                {item.trend ? ` · +${(item.trend / 1000).toFixed(1)}k adds` : ''}
-              </Text>
-            </View>
-            {item.value != null ? <Text style={styles.faValue}>{item.value}</Text> : null}
-            <Text style={styles.addBtn}>+ Claim {item.leagueCount}</Text>
-          </Pressable>
-        );
-      }}
-    />
   );
 }
 
@@ -760,6 +704,9 @@ const styles = StyleSheet.create({
   ovTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   ovName: { color: colors.text, fontSize: 16, fontWeight: '700', flex: 1, marginRight: 10 },
   ovMeta: { color: colors.textDim, fontSize: 12, fontWeight: '700', marginTop: 8 },
+  stateBanner: { marginTop: 8, borderRadius: 10, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 7 },
+  stateLabel: { fontSize: 13, fontWeight: '900' },
+  stateSub: { color: colors.textDim, fontSize: 11, fontWeight: '600', marginTop: 2 },
   ovTop3: { color: colors.textDim, fontSize: 12, marginTop: 6 },
   lockBadge: { color: colors.warn, fontSize: 10, fontWeight: '900', borderWidth: 1, borderColor: colors.warn, borderRadius: 5, paddingHorizontal: 6, paddingVertical: 1, overflow: 'hidden' },
   lockReason: { color: colors.warn, fontSize: 12, marginTop: 6, lineHeight: 16 },
@@ -827,9 +774,6 @@ const styles = StyleSheet.create({
   resultDim: { color: colors.textDim, fontWeight: '600' },
   resultLeague: { color: colors.textDim, fontSize: 12, marginTop: 2 },
   empty: { color: colors.textDim, textAlign: 'center', marginTop: 24 },
-  emptyWrap: { paddingHorizontal: 20, paddingTop: 50, alignItems: 'center' },
-  emptyTitle: { color: colors.text, fontSize: 16, fontWeight: '800', marginBottom: 8 },
-  emptyText: { color: colors.textDim, fontSize: 13, textAlign: 'center', lineHeight: 19 },
   error: { color: colors.bad, textAlign: 'center' },
   sysBadge: { fontSize: 10, fontWeight: '900', borderWidth: 1, borderRadius: 5, paddingHorizontal: 6, paddingVertical: 1, overflow: 'hidden' },
   // sheet

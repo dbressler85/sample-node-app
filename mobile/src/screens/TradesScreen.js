@@ -300,6 +300,13 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
       return;
     }
     const partner = (data.partners || []).find((p) => p.franchiseId === seed.partnerFranchiseId);
+    // "Propose trade for these" from a rival's block: pre-check the chosen assets on the YOU-GET side.
+    if (seed.receiveTokens && seed.receiveTokens.length && partner) {
+      const want = new Set(seed.receiveTokens.map(String));
+      const picked = (partner.players || []).filter((pl) => want.has(String(pl.id)));
+      if (picked.length) setReceive(Object.fromEntries(picked.map((pl) => [pl.id, pl])));
+      return;
+    }
     const target = partner && partner.players.find((pl) => String(pl.id) === String(seed.targetPlayerId));
     if (target) setReceive({ [target.id]: target });
     applySuggestion(seed.targetPlayerId, seed.partnerFranchiseId);

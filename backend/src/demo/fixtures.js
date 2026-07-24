@@ -613,8 +613,17 @@ const SCHEDULE = {
   ARI: [{ week: 4, opp: '@SF', difficulty: 8 }, { week: 5, opp: '@IND', difficulty: 5 }, { week: 6, opp: 'GB', difficulty: 7 }],
 };
 
+// A subset of demo leagues carry a trade deadline (others deliberately don't, so the UI
+// exercises both the "deadline set" and "no deadline" paths). Days-from-now, resolved
+// against the deterministic demo clock at read time.
+const TRADE_DEADLINE_DAYS = { '64097': 16, '19622': 41 };
+
 module.exports = {
   players: () => PLAYERS,
+  tradeDeadline: (leagueId) => {
+    const days = TRADE_DEADLINE_DAYS[String(leagueId)];
+    return days == null ? null : new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
+  },
   playerStatus: () => ({ ...PLAYER_STATUS }),
   byes: () => ({ ...BYES }),
   matchupProjection: (leagueId) => (MATCHUP_PROJECTION[leagueId] ? { ...MATCHUP_PROJECTION[leagueId] } : null),

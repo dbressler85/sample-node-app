@@ -180,7 +180,10 @@ async function getLeagueTriage(cookie, token, leagueId) {
   }
 
   items.push(...(await extraItems(cookie, token, league)));
-  return { leagueId: league.leagueId, name: league.name, status, phase, dynasty, items };
+  // Effective trade deadline (manual override → demo/calendar) so the card can show a countdown.
+  const tradesService = require('./trades'); // lazy require avoids a portfolio↔trades load cycle
+  const tradeDeadline = await tradesService.effectiveDeadline(cookie, token, league).catch(() => null);
+  return { leagueId: league.leagueId, name: league.name, status, phase, dynasty, tradeDeadline, items };
 }
 
 async function getHome(cookie, token) {
@@ -311,6 +314,13 @@ async function getDashboard(cookie, token) {
   ]);
   const valid = loaded.filter(Boolean);
 
+  // Trade deadlines per league (manual → demo/calendar), resolved in parallel so the per-league
+  // breakdown — and the Leagues switcher that reads it — can show a countdown chip.
+  const tradesService = require('./trades'); // lazy require avoids a portfolio↔trades load cycle
+  const deadlineList = await Promise.all(valid.map(({ league }) => tradesService.effectiveDeadline(cookie, token, league).catch(() => null)));
+  const deadlineByLeague = {};
+  valid.forEach(({ league }, i) => { if (deadlineList[i]) deadlineByLeague[String(league.leagueId)] = deadlineList[i]; });
+
   let totalValue = 0;
   let playerCount = 0;
   let ageValueSum = 0; // value-weighted age numerator
@@ -397,6 +407,7 @@ async function getDashboard(cookie, token) {
       outlook: s.outlook || null,
       atRiskValue: Math.round(leagueRisk),
       atRiskPct: pct(leagueRisk, s.rosterValue || 0),
+      tradeDeadline: deadlineByLeague[String(league.leagueId)] || null,
     });
   }
 

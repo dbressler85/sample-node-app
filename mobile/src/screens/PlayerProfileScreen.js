@@ -91,7 +91,7 @@ function PriorStatLines({ stats }) {
   );
 }
 
-export default function PlayerProfileScreen({ playerId, seed, onBack, onOpenTradeDesk, onOpenTradeWizard }) {
+export default function PlayerProfileScreen({ playerId, seed, onBack, onOpenTradeDesk, onOpenTradeWizard, onCompare }) {
   // The cross-league profile is a heavy read (per-league value snapshots), so it runs through the
   // shared cache hook: a warm remount (reopening the same player) paints instantly from memory,
   // reloads are throttled, and a failed refresh keeps the last profile (C1/C2/C4). The key is
@@ -185,6 +185,11 @@ export default function PlayerProfileScreen({ playerId, seed, onBack, onOpenTrad
     <View style={styles.container}>
       <View style={styles.topbar}>
         <Pressable onPress={onBack} hitSlop={10}><Text style={styles.back}>‹ Players</Text></Pressable>
+        {onCompare ? (
+          <Pressable onPress={() => onCompare({ id: p.id, name: p.name })} hitSlop={10}>
+            <Text style={styles.compareLink}>⚖ Compare</Text>
+          </Pressable>
+        ) : null}
       </View>
 
       <ScrollView contentContainerStyle={styles.body}>
@@ -475,6 +480,7 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8 },
   back: { color: colors.accent, fontSize: 16, fontWeight: '600' },
+  compareLink: { color: colors.accent, fontSize: 15, fontWeight: '700' },
   star: { color: colors.textDim, fontSize: 14, fontWeight: '800' },
   starOn: { color: colors.gold },
   body: { padding: 16 },

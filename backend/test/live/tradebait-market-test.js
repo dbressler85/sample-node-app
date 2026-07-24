@@ -71,7 +71,11 @@ const tradebait = require('../../src/services/tradebait');
   assert(rebuild.note === 'Rebuilding — picks please', 'rival asking-price note surfaced');
   assert(rebuild.assets.some((a) => a.kind === 'pick'), 'rival block includes a pick');
   assert(market.totals.teams === 2, 'market totals count the rival teams');
-  console.log('✓ market: rival blocks resolved (names, assets, notes), mine excluded');
+  // Sorted by position, picks at the end; player assets carry injury/bye availability.
+  assert(six.assets[0].position === 'RB' && six.assets[1].position === 'WR', `assets sorted by position (RB before WR), got ${six.assets.map((a) => a.position)}`);
+  assert(rebuild.assets[rebuild.assets.length - 1].kind === 'pick', 'picks sort to the end');
+  assert(six.assets.every((a) => a.kind !== 'player' || 'availability' in a), 'rival player assets carry availability (injury/bye)');
+  console.log('✓ market: rival blocks — sorted (pos → picks), player availability, mine excluded');
 
   console.log('\nTRADEBAIT MARKET HARNESS PASSED');
 })().catch((e) => { console.error(e.message); process.exit(1); });

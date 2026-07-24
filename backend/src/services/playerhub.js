@@ -598,4 +598,48 @@ async function submitDrop(cookie, token, playerId, leagueIds) {
   return { results, summary: { requested: results.length, dropped: results.filter((r) => r.ok).length } };
 }
 
-module.exports = { search, rankings, profile, previewAdd, submitAdd, submitDrop, invalidateGather };
+// Side-by-side comparison of up to 4 players — the fields you weigh in a trade: value, age,
+// overall/positional rank, ownership, trend, availability, and last year's stat line. Shares one
+// player-map + enrichment + rank build across every id (unlike opening N profiles), so it's a
+// single lightweight read. Prior-season stats reuse the same demo fixture / Sleeper box score the
+// profile card uses.
+async function compare(cookie, token, ids) {
+  const unique = [...new Set((ids || []).map(String).filter(Boolean))].slice(0, 4);
+  if (!unique.length) return { players: [] };
+  const [byId, enr] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(undefined, cookie)]);
+  const ranks = computeRanks(byId, enr);
+  const ctx = await ctxFor(cookie);
+  const priorYear = Number(config.season) - 1;
+  let leagues = null; // lazily loaded once, only on the live prior-season path
+  const players = await Promise.all(
+    unique.map(async (id) => {
+      const base = playersLib.resolve(byId, id);
+      if (!base) return null;
+      let priorSeason = null;
+      if (config.demoMode) {
+        const prior = demo.priorSeason(id);
+        priorSeason = prior ? { year: priorYear, ...prior } : null;
+      } else {
+        if (!leagues) leagues = await leaguesService.listLeagues(cookie);
+        priorSeason = await livePriorSeasonTotal(cookie, leagues[0], id, enr).catch(() => null);
+      }
+      return {
+        id: base.id,
+        name: base.name,
+        position: base.position,
+        team: base.team,
+        age: enr.age(id),
+        value: enr.value(id),
+        overallRank: ranks.overall.get(id) || null,
+        posRank: ranks.pos.get(id) || null,
+        ownership: enr.ownership(id),
+        trend: enr.trend(id),
+        availability: availabilityLib.resolve(base, ctx.statusMap, ctx.byeMap, ctx.week),
+        priorSeason,
+      };
+    })
+  );
+  return { players: players.filter(Boolean) };
+}
+
+module.exports = { search, rankings, profile, compare, previewAdd, submitAdd, submitDrop, invalidateGather };

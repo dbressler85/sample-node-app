@@ -39,6 +39,18 @@ function baitAsset(token, byId, enr) {
   return { id: token, kind: 'pick', name: label, position: 'PICK', team: null, value: picksLib.value(label), age: null };
 }
 
+// Display order for trade-bait assets: players by position (QB→RB→WR→TE→…), ties by value, then
+// draft picks at the end (by value). Used everywhere bait is listed — mine and rivals'.
+const POS_RANK = { QB: 0, RB: 1, WR: 2, TE: 3, PK: 4, K: 4, PN: 5, DEF: 6, DL: 6, LB: 6, CB: 6, S: 6 };
+function assetRank(a) {
+  if (a.kind === 'pick') return 99;
+  const r = POS_RANK[a.position];
+  return r != null ? r : 50;
+}
+function sortAssets(assets) {
+  return assets.slice().sort((a, b) => assetRank(a) - assetRank(b) || (b.value || 0) - (a.value || 0));
+}
+
 // My franchise's CURRENT bait on MFL for a league: { ids: [...tokens], note }. null on a read
 // failure (so callers can decline to WRITE and risk clobbering a set they couldn't read).
 async function mflBaitFor(cookie, league) {
@@ -240,7 +252,7 @@ async function getBlockDemo(cookie, token) {
 async function getMarket(cookie, token) {
   if (config.demoMode) return { leagues: [], totals: { teams: 0, assets: 0, leagues: 0 } };
   const leagues = await leaguesService.orderedLeagues(cookie, token);
-  const [byId, enr] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(undefined, cookie)]);
+  const [byId, enr, ctx] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(undefined, cookie), ctxFor(cookie)]);
 
   const out = await Promise.all(
     leagues.map(async (league) => {
@@ -252,10 +264,17 @@ async function getMarket(cookie, token) {
         .filter((b) => mfl.text(mfl.attr(b, 'franchise_id', 'franchiseId')) !== String(league.franchiseId))
         .map((b) => {
           const fid = mfl.text(mfl.attr(b, 'franchise_id', 'franchiseId'));
-          const assets = baitTokens(b)
-            .map((tok) => baitAsset(tok, byId, enr))
-            .filter((a) => config.demoMode || a.kind === 'pick' || (a.name && !/^Player \d+$/.test(a.name)))
-            .sort((a, b2) => (b2.value || 0) - (a.value || 0));
+          const assets = sortAssets(
+            baitTokens(b)
+              .map((tok) => {
+                const a = baitAsset(tok, byId, enr);
+                // Injury/bye status for players (rivals' AND — via getBlock — yours), so a scan of a
+                // rival's block shows who's actually deployable.
+                if (a.kind === 'player') a.availability = availabilityLib.resolve(playersLib.resolve(byId, a.id), ctx.statusMap, ctx.byeMap, ctx.week);
+                return a;
+              })
+              .filter((a) => config.demoMode || a.kind === 'pick' || (a.name && !/^Player \d+$/.test(a.name)))
+          );
           return {
             franchiseId: fid,
             name: names.get(fid) || `Team ${fid}`,
@@ -280,6 +299,52 @@ async function getMarket(cookie, token) {
       leagues: leaguesWithBait.length,
     },
   };
+}
+
+// Light per-league editor list for MANAGING your block: EVERY league (so you can add to any), each
+// with its current bait token set + the one asking-price note. The full roster checklist itself is
+// fetched lazily per league via the roster endpoint (which already carries value/age/availability) —
+// this just says which of those are currently checked, and the note. Cheap: one bait read per league.
+async function getBlockEditor(cookie, token) {
+  const allLeagues = await leaguesService.listLeagues(cookie);
+  const leagues = await Promise.all(
+    allLeagues.map(async (league) => {
+      let blockTokens = [];
+      let note = '';
+      if (config.demoMode) {
+        blockTokens = baitStore.listLeague(token, league.leagueId).map(String);
+        const entry = baitStore.list(token).find((e) => e.leagueId === String(league.leagueId) && e.note);
+        note = entry ? entry.note : '';
+      } else {
+        const mine = await mflBaitFor(cookie, league);
+        blockTokens = mine ? mine.ids : [];
+        note = (mine && mine.note) || '';
+      }
+      return { leagueId: String(league.leagueId), name: league.name, note: note || '', blockTokens, count: blockTokens.length };
+    })
+  );
+  // Leagues with bait first (most first), then the rest alphabetically.
+  leagues.sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+  return { leagues, totals: { onBlock: leagues.reduce((s, l) => s + l.count, 0), leagues: leagues.length } };
+}
+
+// Save the WHOLE block for one league in one shot: `tokens` is the complete checked set (players +
+// picks), `note` the single asking-price/target for the league. Replaces MFL's listing (which is one
+// per franchise) and re-syncs the local mirror so on-block badges match.
+async function saveBlock(cookie, token, leagueId, tokens, note) {
+  const league = await findLeague(cookie, leagueId);
+  const clean = [...new Set((Array.isArray(tokens) ? tokens : []).map(String).map((s) => s.trim()).filter(Boolean))];
+  if (!config.demoMode) {
+    if (!league) { const e = new Error('That league is not in your account.'); e.status = 404; throw e; }
+    await writeBait(cookie, league, clean, note || '');
+  }
+  // Re-sync the local mirror (drives the ⇄ on-block badges) to exactly the saved set.
+  const cleanSet = new Set(clean);
+  for (const id of baitStore.listLeague(token, leagueId).map(String)) {
+    if (!cleanSet.has(id)) baitStore.remove(token, leagueId, id);
+  }
+  for (const id of clean) baitStore.add(token, leagueId, id, note || null);
+  return { ok: true, leagueId: String(leagueId), count: clean.length, note: note || '' };
 }
 
 // Player ids on the block in one league — lets a roster/players view mark them with the ⇄ badge.
@@ -360,4 +425,4 @@ async function remove(cookie, token, leagueId, playerId) {
   return { ok: true, onBlock: false, leagueId: String(leagueId), id, synced };
 }
 
-module.exports = { getBlock, getMarket, leagueIds, add, remove };
+module.exports = { getBlock, getBlockEditor, saveBlock, getMarket, leagueIds, add, remove };

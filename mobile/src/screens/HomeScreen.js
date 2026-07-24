@@ -35,6 +35,14 @@ function ordinal(n) {
   return `${n}${s[(v - 20) % 10] || s[v] || s[0]}`;
 }
 
+// Compact countdown for a trade deadline (ms epoch) → { label, urgent }. Urgent (≤7 days out)
+// tints the chip so a near deadline reads at a glance.
+function deadlineChip(at) {
+  const days = Math.ceil((at - Date.now()) / 86400000);
+  const label = days <= 0 ? 'today' : days === 1 ? 'tomorrow' : `in ${days}d`;
+  return { label, urgent: days <= 7 };
+}
+
 // Run `worker` over items with limited concurrency.
 async function runPool(items, limit, worker) {
   let idx = 0;
@@ -74,6 +82,17 @@ export default function HomeScreen({ active = true, demoMode, onOpenLineup, onOp
   const [onDeck, setOnDeck] = useState(homeCache.onDeck || null); // time-sorted deadlines across leagues
   const [watchAlerts, setWatchAlerts] = useState(homeCache.watchAlerts || []); // watched players now free / on the block
   const [showAllWatch, setShowAllWatch] = useState(false); // Watchlist section: show all vs. the first few
+  // A watched player free/on-the-block in several leagues arrives as one alert PER league — group them
+  // to one row per player so the list doesn't repeat the same name.
+  const watchGroups = useMemo(() => {
+    const map = new Map();
+    for (const a of watchAlerts) {
+      const key = `${a.playerId}:${a.type}`;
+      if (!map.has(key)) map.set(key, { playerId: a.playerId, name: a.name, type: a.type, leagues: [] });
+      map.get(key).leagues.push(a.leagueName);
+    }
+    return [...map.values()];
+  }, [watchAlerts]);
   const [progress, setProgress] = useState(null); // { done, total }
   const [error, setError] = useState(null);
   const [booting, setBooting] = useState(!homeCache.leagues); // in-memory data → paint immediately, no spinner
@@ -149,7 +168,7 @@ export default function HomeScreen({ active = true, demoMode, onOpenLineup, onOp
       await runPool(list, CONCURRENCY, async (lg) => {
         try {
           const t = await api.leagueTriage(lg.leagueId);
-          collected[lg.leagueId] = { name: t.name, status: t.status, items: t.items, phase: t.phase, dynasty: t.dynasty };
+          collected[lg.leagueId] = { name: t.name, status: t.status, items: t.items, phase: t.phase, dynasty: t.dynasty, tradeDeadline: t.tradeDeadline };
         } catch (e) {
           collected[lg.leagueId] = { name: lg.name, status: 'error', items: [] };
         }
@@ -207,6 +226,15 @@ export default function HomeScreen({ active = true, demoMode, onOpenLineup, onOp
     };
   }, [leagues, statuses]);
 
+  // Leagues with an upcoming trade deadline, soonest first — drives the "Trade deadlines" section.
+  const deadlineLeagues = useMemo(() => {
+    const now = Date.now();
+    return leagues
+      .map((l) => ({ leagueId: l.leagueId, name: (statuses[l.leagueId] || {}).name || l.name, dl: (statuses[l.leagueId] || {}).tradeDeadline }))
+      .filter((x) => x.dl && x.dl.at > now)
+      .sort((a, b) => a.dl.at - b.dl.at);
+  }, [leagues, statuses]);
+
   if (booting) {
     return (
       <View style={[styles.container, styles.center]}>
@@ -256,30 +284,14 @@ export default function HomeScreen({ active = true, demoMode, onOpenLineup, onOp
         refreshControl={<RefreshControl refreshing={false} onRefresh={refresh} tintColor={colors.accent} />}
         ListHeaderComponent={
           <View>
-            {onDeck && onDeck.items && onDeck.items.length ? (
-              <Pressable
-                style={({ pressed }) => [styles.onDeckRow, onDeck.summary.onClock > 0 && styles.onDeckRowNow, pressed && { opacity: 0.75 }]}
-                onPress={onOpenOnDeck}
-              >
-                <Text style={styles.onDeckIcon}>⏱</Text>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.onDeckName}>On Deck</Text>
-                  <Text style={styles.onDeckSub} numberOfLines={1}>
-                    {onDeck.summary.onClock > 0
-                      ? `${onDeck.summary.onClock} on the clock now · ${onDeck.items.length} total`
-                      : `${onDeck.items.length} deadline${onDeck.items.length === 1 ? '' : 's'} coming up`}
-                  </Text>
-                </View>
-                <Text style={styles.teamChev}>›</Text>
-              </Pressable>
-            ) : null}
             <Portfolio
               p={portfolio}
               phase={phase}
               loading={summaryLoading}
               onLeagues={onOpenLeagues}
               onPortfolio={onOpenPortfolio}
-              onOpenAttention={onOpenOnDeck}
+              onOpenOnDeck={onOpenOnDeck}
+              onDeck={onDeck}
             />
             {drafts.length ? (
               <View>
@@ -310,32 +322,54 @@ export default function HomeScreen({ active = true, demoMode, onOpenLineup, onOp
                 ))}
               </View>
             ) : null}
-            {watchAlerts.length ? (
+            {deadlineLeagues.length ? (
               <View>
-                <Text style={styles.section}>Watchlist · {watchAlerts.length}</Text>
-                {(showAllWatch ? watchAlerts : watchAlerts.slice(0, 6)).map((a, i) => (
+                <Text style={styles.section}>Trade deadlines · {deadlineLeagues.length}</Text>
+                {deadlineLeagues.map((x) => {
+                  const c = deadlineChip(x.dl.at);
+                  return (
+                    <Pressable
+                      key={x.leagueId}
+                      style={({ pressed }) => [styles.deadlineRow, pressed && { opacity: 0.7 }]}
+                      onPress={() => onOpenLeague({ leagueId: x.leagueId, name: x.name })}
+                    >
+                      <Text style={styles.deadlineIcon}>⏳</Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.deadlineName} numberOfLines={1}>{x.name}</Text>
+                        <Text style={styles.deadlineSub} numberOfLines={1}>Last day to trade · {x.dl.date}</Text>
+                      </View>
+                      <Text style={[styles.deadlinePill, c.urgent && styles.deadlinePillUrgent]}>{c.label}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ) : null}
+            {watchGroups.length ? (
+              <View>
+                <Text style={styles.section}>Watchlist · {watchGroups.length}</Text>
+                {(showAllWatch ? watchGroups : watchGroups.slice(0, 6)).map((g, i) => (
                   <Pressable
-                    key={`${a.playerId}-${a.leagueId}-${i}`}
+                    key={`${g.playerId}-${g.type}-${i}`}
                     style={({ pressed }) => [styles.watchRow, pressed && { opacity: 0.7 }]}
-                    onPress={() => onOpenPlayer(a.playerId)}
+                    onPress={() => onOpenPlayer(g.playerId)}
                   >
                     <Text style={styles.watchIcon}>⭐</Text>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.watchName} numberOfLines={1}>{a.name}</Text>
-                      <Text style={[styles.watchSub, a.type === 'free' && { color: colors.good }]} numberOfLines={1}>
-                        {a.type === 'free' ? `Now a free agent in ${a.leagueName}` : `On the block in ${a.leagueName}`}
+                      <Text style={styles.watchName} numberOfLines={1}>{g.name}</Text>
+                      <Text style={[styles.watchSub, g.type === 'free' && { color: colors.good }]} numberOfLines={1}>
+                        {g.type === 'free' ? 'Now a free agent' : 'On the block'} in {g.leagues.length === 1 ? g.leagues[0] : `${g.leagues.length} leagues`}
                       </Text>
                     </View>
                     <Text style={styles.teamChev}>›</Text>
                   </Pressable>
                 ))}
-                {watchAlerts.length > 6 ? (
+                {watchGroups.length > 6 ? (
                   <Pressable
                     style={({ pressed }) => [styles.viewAll, pressed && { opacity: 0.7 }]}
                     onPress={() => setShowAllWatch((v) => !v)}
                   >
                     <Text style={styles.viewAllText}>
-                      {showAllWatch ? 'Show less' : `View all ${watchAlerts.length}`}
+                      {showAllWatch ? 'Show less' : `View all ${watchGroups.length}`}
                     </Text>
                   </Pressable>
                 ) : null}
@@ -361,7 +395,7 @@ export default function HomeScreen({ active = true, demoMode, onOpenLineup, onOp
                 already populated (cache or a prior good load), a transient backend hiccup stays
                 silent rather than replacing a working screen with a scary error + zeros. */}
             {error && leagues.length === 0 ? <Text style={styles.error}>{error}</Text> : null}
-            {!summaryLoading && portfolio.actionItems === 0 && !loading ? (
+            {onDeck && onDeck.summary && onDeck.summary.actions === 0 && !loading ? (
               <Text style={styles.clear}>🎉 Nothing needs you right now.</Text>
             ) : null}
           </View>
@@ -374,21 +408,24 @@ export default function HomeScreen({ active = true, demoMode, onOpenLineup, onOp
   );
 }
 
-function Portfolio({ p, phase, loading, onLeagues, onPortfolio, onOpenAttention }) {
+function Portfolio({ p, phase, loading, onLeagues, onPortfolio, onOpenOnDeck, onDeck }) {
   const offseason = phase === 'offseason';
+  // On Deck tile headlines what actually needs you (actions), not scheduled/already-done status —
+  // sourced from On Deck itself so the count always matches what you see when you open it.
+  const actions = onDeck && onDeck.summary ? onDeck.summary.actions : null;
+  const onClock = !!(onDeck && onDeck.summary && onDeck.summary.onClock > 0);
   // The Leagues count is known as soon as the league list loads, so keep it live.
   return (
     <View style={styles.portfolio}>
       <View style={styles.tileRow}>
         <Tile label="Leagues ›" value={String(p.leagues)} loading={loading && !p.leagues} onPress={onLeagues} />
-        {/* Shows the number of action ITEMS (what the feed lists), so the tile's count
-            matches the feed it opens — not a separate "leagues affected" number. */}
         <Tile
-          label={onOpenAttention ? 'Needs attention ›' : 'Needs attention'}
-          value={String(p.actionItems)}
-          accent={p.actionItems > 0}
-          loading={loading}
-          onPress={onOpenAttention}
+          label="On Deck ›"
+          value={actions != null ? String(actions) : '—'}
+          accent={actions > 0}
+          gold={onClock}
+          loading={!onDeck}
+          onPress={onOpenOnDeck}
         />
       </View>
       <PressableScale style={styles.portfolioLink} onPress={onPortfolio}>
@@ -524,6 +561,12 @@ const styles = StyleSheet.create({
   watchIcon: { fontSize: 16, marginRight: 12 },
   watchName: { color: colors.text, fontSize: 15, fontWeight: '700' },
   watchSub: { color: colors.textDim, fontSize: 12, marginTop: 2 },
+  deadlineRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, paddingVertical: 12, paddingHorizontal: 14, marginBottom: 8 },
+  deadlineIcon: { fontSize: 16, marginRight: 12 },
+  deadlineName: { color: colors.text, fontSize: 15, fontWeight: '700' },
+  deadlineSub: { color: colors.textDim, fontSize: 12, marginTop: 2 },
+  deadlinePill: { color: colors.textDim, backgroundColor: colors.cardAlt, fontSize: 12, fontWeight: '800', paddingHorizontal: 9, paddingVertical: 4, borderRadius: 6, overflow: 'hidden', marginLeft: 8 },
+  deadlinePillUrgent: { color: '#20180a', backgroundColor: colors.warn },
   viewAll: { alignItems: 'center', paddingVertical: 10, marginBottom: 4 },
   viewAllText: { color: colors.accent, fontSize: 13, fontWeight: '700' },
   inboxRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 14, marginTop: 12 },

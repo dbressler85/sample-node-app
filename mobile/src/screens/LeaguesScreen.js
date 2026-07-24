@@ -5,6 +5,13 @@ import { colors } from '../theme';
 import Reveal from '../components/Reveal';
 import useAndroidBack from '../useAndroidBack';
 
+// Compact countdown for a trade deadline ({ at: ms }) → { label, urgent }, or null when none/past.
+function deadlineChip(dl) {
+  if (!dl || !dl.at || dl.at <= Date.now()) return null;
+  const days = Math.ceil((dl.at - Date.now()) / 86400000);
+  return { label: days <= 0 ? 'trade: today' : days === 1 ? 'trade: tomorrow' : `trade: ${days}d`, urgent: days <= 7 };
+}
+
 // The full list of your leagues, moved off the Home command center (which is now an
 // action list). Doubles as the league switcher: PIN a league (★) to float it to the
 // top of every cross-league view. The backend returns leagues pinned-first with the
@@ -26,7 +33,7 @@ export default function LeaguesScreen({ onBack, onOpenLeague, onOpenDraftHub }) 
       .then((d) => {
         const map = {};
         for (const l of (d && d.byLeague) || []) {
-          map[String(l.leagueId)] = { value: l.value, outlook: l.outlook, strengthPct: l.strengthPct, atRiskPct: l.atRiskPct };
+          map[String(l.leagueId)] = { value: l.value, outlook: l.outlook, strengthPct: l.strengthPct, atRiskPct: l.atRiskPct, tradeDeadline: l.tradeDeadline };
         }
         setEnrich(map);
       })
@@ -85,6 +92,7 @@ export default function LeaguesScreen({ onBack, onOpenLeague, onOpenDraftHub }) 
           const e = enrich[String(item.leagueId)];
           const sub = e ? [e.outlook, e.value != null ? `${e.value} value` : null].filter(Boolean).join(' · ') : null;
           const risk = e && e.atRiskPct > 0 ? e.atRiskPct : null;
+          const dl = e ? deadlineChip(e.tradeDeadline) : null;
           return (
             <Reveal delay={Math.min(index, 10) * 40} animate={index < 12}>
             <View style={styles.row}>
@@ -94,6 +102,7 @@ export default function LeaguesScreen({ onBack, onOpenLeague, onOpenDraftHub }) 
               <Pressable style={styles.nameWrap} onPress={() => onOpenLeague({ leagueId: item.leagueId, name: item.name })}>
                 <View style={styles.nameLine}>
                   <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
+                  {dl ? <Text style={[styles.dlChip, dl.urgent && styles.dlChipUrgent]}>{dl.label}</Text> : null}
                 </View>
                 {sub ? (
                   <Text style={styles.leagueSub} numberOfLines={1}>
@@ -144,6 +153,8 @@ const styles = StyleSheet.create({
   name: { color: colors.text, fontSize: 16, fontWeight: '700', flexShrink: 1, marginRight: 8 },
   leagueSub: { color: colors.textDim, fontSize: 12, marginTop: 3 },
   riskTag: { color: colors.warn, fontWeight: '700' },
+  dlChip: { color: colors.textDim, backgroundColor: colors.cardAlt, fontSize: 10, fontWeight: '800', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 5, overflow: 'hidden' },
+  dlChipUrgent: { color: '#20180a', backgroundColor: colors.warn },
   chev: { color: colors.textDim, fontSize: 20, fontWeight: '700', paddingLeft: 4 },
   error: { color: colors.bad, textAlign: 'center', padding: 12 },
   empty: { color: colors.textDim, textAlign: 'center', padding: 30 },

@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, SectionList, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { View, Text, SectionList, StyleSheet, Pressable, ActivityIndicator, Alert } from 'react-native';
 import { api } from '../api';
 import PlayerRow from '../components/PlayerRow';
 import Reveal from '../components/Reveal';
@@ -36,9 +36,48 @@ export default function RosterScreen({ league, onBack, onOpenTrades, onOpenDraft
   // Roster via the shared cache hook: instant repaint on return, throttled reloads, and it
   // keeps the roster on a failed refresh (C1/C2/C4). A trade/draft done in an overlay marks it
   // stale (invalidate-on-write), so returning here refetches (C3).
-  const { data: roster, error, loading } = useCachedResource(`roster:${league.leagueId}`, () => api.roster(league.leagueId));
+  const { data: roster, error, loading, reload } = useCachedResource(`roster:${league.leagueId}`, () => api.roster(league.leagueId));
   const [baited, setBaited] = useState(() => new Set()); // player ids on the block here
   const [sortKey, setSortKey] = useState(null); // null = group by lineup slot; else a flat sorted list
+  const [movingId, setMovingId] = useState(null); // player id whose IR/taxi move is in flight
+
+  // Which roster bucket each player is in, so the per-row IR/taxi actions are correct in BOTH the
+  // grouped and the flat-sorted views. active = starter/bench.
+  const bucketOf = useMemo(() => {
+    const m = {};
+    if (roster) {
+      for (const p of roster.starters || []) m[String(p.id)] = 'active';
+      for (const p of roster.bench || []) m[String(p.id)] = 'active';
+      for (const p of roster.ir || []) m[String(p.id)] = 'ir';
+      for (const p of roster.taxi || []) m[String(p.id)] = 'taxi';
+    }
+    return m;
+  }, [roster]);
+
+  // Fire an IR/taxi move, then refetch so the roster reflects it. MFL enforces eligibility
+  // (IR needs an injury designation; taxi needs a rookie/young player) — surface its error.
+  const move = async (player, call) => {
+    setMovingId(String(player.id));
+    try {
+      await call();
+      reload();
+    } catch (e) {
+      Alert.alert('Move not allowed', e.message);
+    } finally {
+      setMovingId(null);
+    }
+  };
+  const moveActionsFor = (player) => {
+    const bucket = bucketOf[String(player.id)];
+    const id = String(player.id);
+    if (bucket === 'ir') return [{ key: 'act', label: 'Activate', onPress: () => move(player, () => api.moveIr(league.leagueId, { activate: [id] })) }];
+    if (bucket === 'taxi') return [{ key: 'promo', label: 'Promote', onPress: () => move(player, () => api.moveTaxi(league.leagueId, { promote: [id] })) }];
+    if (bucket === 'active') return [
+      { key: 'ir', label: '→ IR', onPress: () => move(player, () => api.moveIr(league.leagueId, { deactivate: [id] })) },
+      { key: 'taxi', label: '→ Taxi', onPress: () => move(player, () => api.moveTaxi(league.leagueId, { demote: [id] })) },
+    ];
+    return [];
+  };
 
   // Trade-bait board for this league, alongside — secondary, best-effort.
   useEffect(() => {
@@ -159,11 +198,28 @@ export default function RosterScreen({ league, onBack, onOpenTrades, onOpenDraft
               {section.title} · {section.data.length}
             </Text>
           )}
-          renderItem={({ item, index }) => (
-            <Reveal delay={Math.min(index, 12) * 32} animate={index < 14}>
-              <PlayerRow player={item} baited={baited.has(String(item.id))} onToggleBait={toggleBait} onOpenPlayer={onOpenPlayer} />
-            </Reveal>
-          )}
+          renderItem={({ item, index }) => {
+            const acts = moveActionsFor(item);
+            const busy = movingId === String(item.id);
+            return (
+              <Reveal delay={Math.min(index, 12) * 32} animate={index < 14}>
+                <PlayerRow player={item} baited={baited.has(String(item.id))} onToggleBait={toggleBait} onOpenPlayer={onOpenPlayer} />
+                {acts.length ? (
+                  <View style={styles.moveRow}>
+                    {busy ? (
+                      <ActivityIndicator color={colors.accent} size="small" />
+                    ) : (
+                      acts.map((a) => (
+                        <Pressable key={a.key} onPress={a.onPress} hitSlop={6} style={({ pressed }) => [styles.moveBtn, pressed && { opacity: 0.7 }]}>
+                          <Text style={styles.moveTxt}>{a.label}</Text>
+                        </Pressable>
+                      ))
+                    )}
+                  </View>
+                ) : null}
+              </Reveal>
+            );
+          }}
           ListFooterComponent={
             roster && roster.picks && roster.picks.length ? (
               <View>
@@ -256,4 +312,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   error: { color: colors.bad, textAlign: 'center' },
+  moveRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingBottom: 10, paddingLeft: 54, minHeight: 20 },
+  moveBtn: { borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
+  moveTxt: { color: colors.accent, fontSize: 11, fontWeight: '800' },
 });

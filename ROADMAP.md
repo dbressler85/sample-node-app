@@ -287,6 +287,51 @@ Grouped into four "synergy systems", highest-leverage first:
   on your side (`seed.sendPickToken`; pick value centralized in `lib/picks.value` so the roster
   and desk always agree). *(Remaining: a positional value breakdown of the roster.)*
 
+## Owner writes unlocked by the confirmed MFL API
+
+The full MFL Import **and Misc** references were captured on-device (2026-07-22, dbressler85's
+login). All of these are **owner-accessible** (no commissioner cookie; the owner's own session
+cookie authorizes them — `FRANCHISE_ID`/`FRANCHISE_PICK` is only for commissioner impersonation).
+New features we can build on the strength of that confirmation:
+
+- [ ] **In-app drafting via `live_draft` — supersedes the make-a-pick 501.** *Correction:* MFL
+  **does** expose a per-pick draft write, just not in the Import set — it's a **Misc** command
+  (`protocol://host/<year>/live_draft?...`), which is why the Import reference didn't list it.
+  `live_draft` with `CMD=DRAFT`, `PLAYER_PICK`, `ROUND`, `PICK` (`JSON=1` for a JSON result) makes
+  the pick, and is **restricted to league owners** — an owner can draft their own player, and the
+  `COMMENTS` field is explicitly *"meant for email drafts."* So in-app drafting is buildable for
+  **both live and slow/email** drafts. Rework `draft.makePick`: it already validates on-the-clock /
+  it's-your-pick / not-already-drafted and derives `ROUND`/`PICK` from the grid, so swap the honest
+  501 for a `live_draft?CMD=DRAFT` call (Misc URL shape — `year/live_draft?…`, not
+  `import?TYPE=…`, so add a small Misc-request helper alongside `importRequest`). Timer control
+  (`CMD=PAUSE`/`RESUME`/`SKIP`/`UNDO`) is commissioner-only — out of scope for now.
+- [x] **My Draft List (auto-pick queue) — complements live drafting.** `import?TYPE=myDraftList`
+  with `PLAYERS=<csv>` (owner; overwrites the prior list). Shipped: a **My Draft List editor**
+  (`DraftListScreen`, reached from the Draft screen's ★ button) that frames it as a pre-draft /
+  during-draft tool to narrow the pool — two panes (My List: reorder ⤒/↑/↓, remove, auto-fill
+  top-10-by-value; Add players: value-ranked available pool + position chips + search), a
+  status-aware banner ("on the clock" + "auto-picks next: <top undrafted on your list>"), drafted
+  players greyed/struck, local edits with one Save (whole-set replace). Backend
+  `draft.getDraftList`/`saveDraftList` + `GET/POST /api/leagues/:id/draftlist`; live seeds once from
+  MFL's `myDraftList` export then writes back via the import. *(Remaining: live-account write
+  verification, and one-tap "fill my needs" from the needs/surplus model.)*
+- [x] **Injured-Reserve management.** `import?TYPE=ir` (`ACTIVATE` / `DEACTIVATE` / `DROP`). Shipped:
+  per-player actions on the Roster screen — active players get **→ IR**, IR players get **Activate**.
+  `roster.moveIr` + `POST /api/leagues/:id/ir`; demo reflects via a `rosterMoves` overlay, live
+  writes MFL then re-reads. MFL enforces eligibility (needs an injury designation) — its error is
+  surfaced. *(Remaining: live-write verification; optional "→ IR" shortcut on an injured player in
+  the lineup editor.)*
+- [x] **Taxi-squad management.** `import?TYPE=taxi_squad` (`PROMOTE` / `DEMOTE` / `DROP`). Shipped:
+  active players get **→ Taxi**, taxi players get **Promote**, same Roster-screen action row.
+  `roster.moveTaxi` + `POST /api/leagues/:id/taxi`. Taxi eligibility (rookie/young) is enforced by
+  MFL and surfaced on rejection. *(Remaining: live-write verification.)*
+
+*(Also confirmed owner-accessible and worth a later pass: `keepers` (keeper selections),
+`myWatchList` (sync MFL's watch list with ours), and `chat_save` (post to league chat — Misc
+command; note there's no API to **read** chat, only the `…/<league>_chat.xml` file). Not scheduled
+yet. The Misc reference also confirms our `login` should be POST + HTTPS + `XML=1`, and the static
+`mfl_status` / `nfl_sched` JSON feeds back our current-week + schedule reads.)*
+
 ## Design & motion
 
 Moving the app from "functional but uninspired" toward a slick, branded product.

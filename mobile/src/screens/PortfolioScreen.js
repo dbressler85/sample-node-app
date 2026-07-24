@@ -68,6 +68,10 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
       setShopError('Could not remove tag');
     });
   }, []);
+  // Your-tags filters + sort.
+  const [tagKind, setTagKind] = useState('all'); // 'all' | 'target' | 'avoid'
+  const [tagPos, setTagPos] = useState(null); // null | 'QB' | 'RB' | …
+  const [tagSort, setTagSort] = useState('value'); // 'value' | 'position' | 'name' | 'tag' | 'shares'
 
   // renderItem for the holdings FlatList — a memoized HoldingRow. MUST stay above the early returns
   // below so the hook count is stable across renders (data-null render vs loaded render); it reads
@@ -207,28 +211,6 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
           </View>
         ) : null}
 
-        {/* Concentration — stack risk unique to a multi-league book: value tied to one NFL
-            team (a bad season dents many rosters) or one bye week (a rough week of empty slots). */}
-        {d.concentration && (d.concentration.byTeam.length || d.concentration.byBye.length) ? (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Concentration</Text>
-            {d.concentration.byTeam.slice(0, 5).map((t) => (
-              <View key={t.team} style={styles.concRow}>
-                <Text style={[styles.concName, t.pct >= 15 && { color: colors.warn }]}>{t.team}</Text>
-                <View style={styles.concTrack}>
-                  <View style={[styles.concFill, { width: `${Math.min(100, t.pct * 3)}%`, backgroundColor: t.pct >= 15 ? colors.warn : colors.accent }]} />
-                </View>
-                <Text style={styles.concPct}>{t.pct}%</Text>
-              </View>
-            ))}
-            {d.concentration.byBye.length ? (
-              <Text style={styles.concBye}>
-                Heaviest bye: <Text style={{ color: colors.text, fontWeight: '800' }}>Week {d.concentration.byBye[0].week}</Text> holds {d.concentration.byBye[0].pct}% of your value.
-              </Text>
-            ) : null}
-            <Text style={styles.hint}>How much of your portfolio rides on one NFL team or a single bye week — the more concentrated, the more one team’s season swings your whole book.</Text>
-          </View>
-        ) : null}
 
         {/* Allocation by position — the portfolio's "sectors" as a single stacked bar. Tap a
             segment (or legend key) to filter the holdings below to that position; tap it again
@@ -461,14 +443,53 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
         {/* Your tags — the players you've flagged Target/Avoid, on your rosters. Tap a name to open
             the card; tap ⊗ to untag. */}
         {(() => {
-          const tagged = (d.taggedPlayers || []).filter((p) => !untagged.has(p.id));
-          if (!tagged.length) return null;
+          const all = (d.taggedPlayers || []).filter((p) => !untagged.has(p.id));
+          if (!all.length) return null;
+          const positions = [...new Set(all.map((p) => p.position))].filter(Boolean).sort((a, b) => posRank(a) - posRank(b));
+          const tagged = all
+            .filter((p) => (tagKind === 'all' || p.tag === tagKind) && (!tagPos || p.position === tagPos))
+            .sort((a, b) => {
+              if (tagSort === 'name') return String(a.name).localeCompare(String(b.name));
+              if (tagSort === 'position') return posRank(a.position) - posRank(b.position) || (b.value || 0) - (a.value || 0);
+              if (tagSort === 'tag') return String(a.tag).localeCompare(String(b.tag)) || (b.value || 0) - (a.value || 0);
+              if (tagSort === 'shares') return (b.leagues || 0) - (a.leagues || 0) || (b.value || 0) - (a.value || 0);
+              return (b.value || 0) - (a.value || 0); // value
+            });
           return (
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>Your tags</Text>
+              <Text style={styles.cardTitle}>Your tags · {all.length}</Text>
               <Text style={styles.hint}>
                 <Text style={{ color: colors.good, fontWeight: '900' }}>◎ Targets</Text> are protected in trade suggestions; <Text style={{ color: colors.bad, fontWeight: '900' }}>⊘ Avoids</Text> are ones to shop. Tap ⊗ to untag.
               </Text>
+              {/* Filter by tag type + position; sort by value / position / name / tag / shares. */}
+              <View style={styles.tagFilterRow}>
+                {[['all', 'All'], ['target', '◎ Targets'], ['avoid', '⊘ Avoids']].map(([k, lbl]) => (
+                  <Pressable key={k} onPress={() => setTagKind(k)} style={[styles.tChip, tagKind === k && styles.tChipOn]}>
+                    <Text style={[styles.tChipTxt, tagKind === k && styles.tChipTxtOn]}>{lbl}</Text>
+                  </Pressable>
+                ))}
+              </View>
+              {positions.length > 1 ? (
+                <View style={styles.tagFilterRow}>
+                  <Pressable onPress={() => setTagPos(null)} style={[styles.tChip, !tagPos && styles.tChipOn]}>
+                    <Text style={[styles.tChipTxt, !tagPos && styles.tChipTxtOn]}>All pos</Text>
+                  </Pressable>
+                  {positions.map((pos) => (
+                    <Pressable key={pos} onPress={() => setTagPos(tagPos === pos ? null : pos)} style={[styles.tChip, tagPos === pos && styles.tChipOn]}>
+                      <Text style={[styles.tChipTxt, tagPos === pos && styles.tChipTxtOn]}>{pos}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null}
+              <View style={styles.tagFilterRow}>
+                <Text style={styles.tagSortLabel}>Sort</Text>
+                {[['value', 'Value'], ['position', 'Pos'], ['name', 'Name'], ['tag', 'Tag'], ['shares', 'Shares']].map(([k, lbl]) => (
+                  <Pressable key={k} onPress={() => setTagSort(k)} style={[styles.tChip, tagSort === k && styles.tChipOn]}>
+                    <Text style={[styles.tChipTxt, tagSort === k && styles.tChipTxtOn]}>{lbl}</Text>
+                  </Pressable>
+                ))}
+              </View>
+              {tagged.length === 0 ? <Text style={styles.hint}>No tagged players match.</Text> : null}
               {tagged.map((p) => (
                 <View key={p.id} style={styles.tagRow}>
                   <Pressable
@@ -538,6 +559,11 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
 // state changed re-renders. Sides of the holdings card are drawn by the row-frame wrapper in
 // renderHolding; this renders the row content + its bottom hairline.
 // 7-day value-trend arrow for a holding: rising / falling / flat.
+const POS_RANK = { QB: 0, RB: 1, WR: 2, TE: 3, PK: 4, K: 4, PN: 5, DEF: 6, DL: 6, LB: 6, CB: 6, S: 6 };
+function posRank(pos) {
+  return POS_RANK[pos] != null ? POS_RANK[pos] : 50;
+}
+
 function trendGlyph(dir) {
   return dir === 'up' ? '▲' : dir === 'down' ? '▼' : '◆';
 }
@@ -692,6 +718,12 @@ const styles = StyleSheet.create({
   holdTrend: { fontSize: 12, fontWeight: '900', marginTop: 1 },
   holdTrendNone: { color: colors.textDim, fontSize: 12, fontWeight: '700', marginTop: 1 },
   tagRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+  tagFilterRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 8 },
+  tagSortLabel: { color: colors.textDim, fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4, marginRight: 2 },
+  tChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
+  tChipOn: { borderColor: colors.accent, backgroundColor: colors.accent + '22' },
+  tChipTxt: { color: colors.textDim, fontSize: 12, fontWeight: '800' },
+  tChipTxtOn: { color: colors.accent },
   untagBtn: { paddingHorizontal: 10, paddingVertical: 6, marginLeft: 8 },
   untagTxt: { color: colors.textDim, fontSize: 18, fontWeight: '900' },
   statRow: { flexDirection: 'row', marginTop: 16, gap: 10 },

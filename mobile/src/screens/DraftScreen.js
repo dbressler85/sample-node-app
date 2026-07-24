@@ -68,7 +68,7 @@ const PoolRow = React.memo(function PoolRow({ p, rank, myTurn, canPick, isPickin
   );
 });
 
-export default function DraftScreen({ league, demoMode, onBack, onOpenPlayer, onOpenTrades }) {
+export default function DraftScreen({ league, demoMode, onBack, onOpenPlayer, onOpenTrades, onOpenDraftList }) {
   // Seed the board from the survive-remount cache so reopening the draft paints the last board
   // instantly instead of a cold spinner; the live poll (below) keeps it current.
   const boardKey = `draft:${league.leagueId}`;
@@ -222,6 +222,16 @@ export default function DraftScreen({ league, demoMode, onBack, onOpenPlayer, on
                 <Text style={styles.sched}>Starts {fmtDate(data.startTime)}</Text>
               ) : null}
 
+              {onOpenDraftList ? (
+                <Pressable style={({ pressed }) => [styles.listBtn, pressed && { opacity: 0.85 }]} onPress={() => onOpenDraftList(league)}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.listBtnTitle}>★ My Draft List</Text>
+                    <Text style={styles.listBtnSub}>Rank your targets — MFL auto-picks the top available when you're on the clock</Text>
+                  </View>
+                  <Text style={styles.listBtnChev}>›</Text>
+                </Pressable>
+              ) : null}
+
               {myTurn ? (
                 <View style={styles.clock}>
                   <Text style={styles.clockText}>You're on the clock — pick {data.onClock.round}.{String(data.onClock.pick).padStart(2, '0')}</Text>
@@ -303,6 +313,10 @@ const styles = StyleSheet.create({
   badge: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 4 },
   badgeText: { fontSize: 12, fontWeight: '800' },
   sched: { color: colors.textDim, fontSize: 13, marginTop: 6 },
+  listBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.gold + '77', paddingHorizontal: 14, paddingVertical: 12, marginTop: 12 },
+  listBtnTitle: { color: colors.gold, fontSize: 14, fontWeight: '900' },
+  listBtnSub: { color: colors.textDim, fontSize: 11, marginTop: 2, lineHeight: 15 },
+  listBtnChev: { color: colors.textDim, fontSize: 20, fontWeight: '700', marginLeft: 8 },
   clock: { backgroundColor: colors.gold + '22', borderColor: colors.gold, borderWidth: 1, borderRadius: 12, padding: 14, marginTop: 12 },
   clockText: { color: colors.gold, fontSize: 16, fontWeight: '900' },
   clockSub: { color: colors.textDim, fontSize: 12, marginTop: 3 },

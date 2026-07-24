@@ -47,6 +47,17 @@ router.get('/players/rankings', async (req, res, next) => {
   }
 });
 
+// GET /api/players/compare?ids=a,b,c — side-by-side comparison of up to 4 players.
+// (Declared before /players/:id so "compare" isn't swallowed as an id.)
+router.get('/players/compare', async (req, res, next) => {
+  try {
+    const ids = String(req.query.ids || '').split(',').map((s) => s.trim()).filter(Boolean);
+    res.json(checkResponse(schemas.Compare, await hub.compare(req.mflCookie, req.account, ids), 'GET /players/compare'));
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/players/:id/add/preview — one claim preview per league he's free in.
 router.get('/players/:id/add/preview', async (req, res, next) => {
   try {

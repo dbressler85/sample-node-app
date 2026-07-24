@@ -16,11 +16,13 @@ const mflRepo = require('../lib/mflRepo');
 const enrichmentLib = require('../lib/enrichment');
 const leagueFormat = require('../lib/leagueformat');
 const playersLib = require('../lib/players');
+const picksLib = require('../lib/picks');
 const adpLib = require('../lib/adp');
 const leaguesService = require('./leagues');
 const waiversService = require('./waivers');
 const rosterService = require('./roster');
 const draftStore = require('../store/draft');
+const draftListStore = require('../store/draftList');
 const playerTags = require('../store/playerTags');
 const { createMemo } = require('../lib/memo');
 
@@ -306,17 +308,17 @@ async function makePick(cookie, token, leagueId, playerId) {
   if (drafted.has(String(playerId))) throwBad('That player is already drafted.');
 
   if (!config.demoMode) {
-    // MFL exposes NO documented live "make a pick" import — `draftPick` is not a real TYPE,
-    // and `draftResults`/`auctionResults` are bulk commissioner XML loads explicitly "not to
-    // implement a live draft application" (see docs/MFL_API_AUDIT.md §2). So rather than fire a
-    // request MFL rejects with a cryptic error, we surface an honest one and send the owner to
-    // MFL's own draft room. The draft board stays fully readable in the app; only the in-app
-    // pick action is unavailable for live leagues. (Mobile also hides the pick affordance in
-    // live — staged for the next build.)
+    // NOTE: a live make-a-pick API DOES exist — it's the *Misc* command `live_draft`
+    // (`year/live_draft?CMD=DRAFT&PLAYER_PICK&ROUND&PICK`, owner-accessible), not an
+    // `import?TYPE=` write, which is why an earlier audit pass concluded it was absent
+    // (see docs/MFL_API_AUDIT.md §2 + ROADMAP "Owner writes unlocked…"). Wiring it is a
+    // planned change; until it's built and verified against a live draft, keep the honest
+    // 501 rather than firing an unverified write at a real league. The board stays fully
+    // readable; only the in-app pick action is deferred.
     const err = new Error(
       'In-app drafting isn’t available for live leagues yet — make your pick in the MyFantasyLeague draft room. It’ll show here once MFL processes it.'
     );
-    err.status = 501; // Not Implemented
+    err.status = 501; // Not Implemented (planned: live_draft?CMD=DRAFT)
     throw err;
   }
   draftStore.add(token, leagueId, config.demoMode ? demo.draft(leagueId).picks : [], {
@@ -375,4 +377,133 @@ async function upcomingPicksByFranchise(cookie, token, league) {
   }
 }
 
-module.exports = { getOverview, getLeague, makePick, upcomingPicksByFranchise, freeAgencyOpen };
+// Every draft pick YOU own across all your leagues — the current-year draft picks (still in the
+// draft grid) plus future-season picks (MFL's futureDraftPicks). Read-only: a value-tagged
+// inventory grouped by year, so you can see your pick capital at a glance and which picks were
+// acquired in a trade (and from whom). Trading picks stays on the trade desk.
+async function getPickInventory(cookie, token) {
+  const leagues = await leaguesService.orderedLeagues(cookie, token);
+  const per = await Promise.all(
+    leagues.map(async (league) => {
+      const myFid = String(league.franchiseId).padStart(4, '0');
+      const [future, upcomingMap, names] = await Promise.all([
+        picksLib.franchisePicks(cookie, league).catch(() => []),
+        upcomingPicksByFranchise(cookie, token, league).catch(() => ({})),
+        leaguesService.franchiseNames(cookie, league).catch(() => new Map()),
+      ]);
+      const upcoming = upcomingMap[String(league.franchiseId)] || [];
+      const base = { leagueId: league.leagueId, leagueName: league.name };
+      const rows = upcoming.map((p) => ({
+        ...base, token: p.token, label: p.label, year: p.year, round: p.round, pick: p.pick || null,
+        value: picksLib.value(p.label), kind: 'upcoming', acquiredFrom: null,
+      }));
+      for (const p of future) {
+        // FP_<originalOwner>_<year>_<round>: a pick whose original owner isn't me was acquired.
+        const m = /^FP_(\d+)_/.exec(String(p.token));
+        const owner = m ? String(m[1]).padStart(4, '0') : myFid;
+        const acquired = owner !== myFid;
+        rows.push({
+          ...base, token: p.token, label: p.label, year: p.year, round: p.round, pick: null,
+          value: picksLib.value(p.label), kind: 'future',
+          acquiredFrom: acquired ? (names.get(owner) || names.get(String(Number(owner))) || `Franchise ${owner}`) : null,
+        });
+      }
+      return rows;
+    })
+  );
+  const picks = per.flat().sort((a, b) => (a.year || 0) - (b.year || 0) || (a.round || 0) - (b.round || 0) || (b.value || 0) - (a.value || 0));
+  const byYear = [];
+  for (const p of picks) {
+    let g = byYear.find((x) => x.year === p.year);
+    if (!g) { g = { year: p.year, picks: [], value: 0 }; byYear.push(g); }
+    g.picks.push(p);
+    g.value += p.value || 0;
+  }
+  const summary = {
+    total: picks.length,
+    totalValue: picks.reduce((s, p) => s + (p.value || 0), 0),
+    firsts: picks.filter((p) => p.round === 1).length,
+    acquired: picks.filter((p) => p.acquiredFrom).length,
+    leagues: leagues.length,
+  };
+  return { summary, byYear, picks };
+}
+
+// Best-effort read of MFL's own `myDraftList` export, so a live owner who set a list on MFL's
+// site sees it here on first open. Undocumented shape to us, so stay tolerant; null on any miss
+// (we then fall back to an empty local list).
+async function liveDraftListIds(cookie, league) {
+  try {
+    const res = await mfl.exportRequest('myDraftList', { host: league.host, cookie, L: league.leagueId });
+    const root = (res && (res.myDraftList || res.myDraftPool || res.draftList)) || null;
+    const players = root && (root.player || root.players || root.playerId);
+    return mfl.toArray(players).map((p) => String((p && (p.id || p.player)) || p)).filter((s) => s && s !== '[object Object]');
+  } catch (e) {
+    return null;
+  }
+}
+
+// The owner's "My Draft List" for one league — a ranked shortlist that (pre-draft) narrows the
+// pool to who they actually want, and (during a slow/live draft) drives MFL's auto-pick: MFL takes
+// the top still-available player from this list when the owner's clock fires. Returns the ranked
+// list (each flagged `drafted` if already gone), the `nextUp` (top available — who MFL would pick
+// for you now), on-the-clock state, and a value-ranked `available` pool to add from (minus anyone
+// drafted, rostered, or already on the list). `position` filters the add-pool.
+async function getDraftList(cookie, token, leagueId, { position } = {}) {
+  const league = await findLeague(cookie, leagueId);
+  const [byId, enr] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(await leagueFormat.format(cookie, league), cookie)]);
+  const draft = await loadDraft(cookie, token, league).catch(() => null);
+  const slots = draft ? slotsFor(draft).map((s) => ({ ...s, player: s.playerId ? resolvePlayer(byId, s.playerId, enr) : null })) : [];
+  const status = draft ? statusOf(draft, slots) : 'none';
+  const clock = draft ? onClockSlot(status, slots) : null;
+  const drafted = new Set(slots.filter((s) => s.playerId).map((s) => String(s.playerId)));
+
+  // Our stored order is the source of truth (we write it via myDraftList). Live: if we've never
+  // stored one, try to seed from MFL's own list a first time.
+  let ids = draftListStore.get(token, leagueId);
+  if (ids == null && !config.demoMode) ids = await liveDraftListIds(cookie, league);
+  ids = ids || [];
+
+  const list = ids.map((id, i) => {
+    const p = resolvePlayer(byId, id, enr);
+    return {
+      rank: i + 1, id: String(id), name: p.name, position: p.position, team: p.team,
+      value: enr.value(id), tag: playerTags.get(token, id) || null, drafted: drafted.has(String(id)),
+    };
+  });
+  // "Next up" = the highest-ranked player still on the board — the one MFL would auto-pick for you.
+  const nextUp = list.find((p) => !p.drafted) || null;
+
+  // A value-ranked pool to add from, minus anyone drafted, rostered, or already on the list.
+  const onList = new Set(ids.map(String));
+  const available = (await buildPool(cookie, league, drafted, byId, enr, position).catch(() => []))
+    .filter((p) => !onList.has(String(p.id)))
+    .map((p) => ({ ...p, tag: playerTags.get(token, p.id) || null }));
+
+  return {
+    leagueId: league.leagueId,
+    name: league.name,
+    status,
+    onClock: clock ? { mine: clock.franchiseId === league.franchiseId, round: clock.round, pick: clock.pick, overall: clock.overall } : null,
+    count: list.length,
+    draftedCount: list.filter((p) => p.drafted).length,
+    nextUp,
+    list,
+    available,
+  };
+}
+
+// Replace the whole ranked list for a league. Live: pushes to MFL via `myDraftList` (overwrites the
+// owner's prior list) then mirrors locally; demo: local store only. Returns the refreshed view.
+async function saveDraftList(cookie, token, leagueId, ids) {
+  const league = await findLeague(cookie, leagueId);
+  const clean = [...new Set((ids || []).map((x) => String(x)).filter(Boolean))];
+  if (!config.demoMode) {
+    // myDraftList overwrites the owner's prior list; surfaces MFL's own error detail on failure.
+    await mfl.importRequest('myDraftList', { host: league.host, cookie, L: league.leagueId, PLAYERS: clean.join(',') });
+  }
+  draftListStore.set(token, leagueId, clean);
+  return getDraftList(cookie, token, leagueId);
+}
+
+module.exports = { getOverview, getLeague, makePick, upcomingPicksByFranchise, freeAgencyOpen, getPickInventory, getDraftList, saveDraftList };

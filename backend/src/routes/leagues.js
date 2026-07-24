@@ -48,6 +48,28 @@ router.get('/leagues/:leagueId/roster', async (req, res, next) => {
   }
 });
 
+// POST /api/leagues/:leagueId/ir — move players to/from Injured Reserve.
+// Body: { activate?: [ids], deactivate?: [ids], drop?: [ids] }. Returns the refreshed roster.
+router.post('/leagues/:leagueId/ir', async (req, res, next) => {
+  try {
+    const { activate, deactivate, drop } = req.body || {};
+    res.json(checkResponse(schemas.Roster, await rosterService.moveIr(req.mflCookie, req.account, req.params.leagueId, { activate, deactivate, drop }), 'POST /ir'));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/leagues/:leagueId/taxi — move players to/from the Taxi Squad.
+// Body: { promote?: [ids], demote?: [ids], drop?: [ids] }. Returns the refreshed roster.
+router.post('/leagues/:leagueId/taxi', async (req, res, next) => {
+  try {
+    const { promote, demote, drop } = req.body || {};
+    res.json(checkResponse(schemas.Roster, await rosterService.moveTaxi(req.mflCookie, req.account, req.params.leagueId, { promote, demote, drop }), 'POST /taxi'));
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/leagues/:leagueId/standings — every franchise ranked (record, PF/PA).
 router.get('/leagues/:leagueId/standings', async (req, res, next) => {
   try {

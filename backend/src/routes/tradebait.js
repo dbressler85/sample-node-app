@@ -17,6 +17,27 @@ router.get('/tradebait', async (req, res, next) => {
   }
 });
 
+// GET /api/tradebait/editor — light per-league list for managing the block (all leagues + the
+// current checked tokens + note). The roster checklist is fetched per league via /leagues/:id/roster.
+router.get('/tradebait/editor', async (req, res, next) => {
+  try {
+    res.json(await tradebait.getBlockEditor(req.mflCookie, req.account));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/leagues/:leagueId/tradebait — save the WHOLE block for a league at once.
+// Body: { tokens: [...player/pick tokens], note }. Replaces MFL's listing for your franchise.
+router.post('/leagues/:leagueId/tradebait', async (req, res, next) => {
+  try {
+    const body = req.body || {};
+    res.json(await tradebait.saveBlock(req.mflCookie, req.account, req.params.leagueId, body.tokens, body.note));
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/tradebait/market — what every OTHER franchise is shopping across your leagues.
 router.get('/tradebait/market', async (req, res, next) => {
   try {

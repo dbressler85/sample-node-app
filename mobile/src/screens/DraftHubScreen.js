@@ -27,7 +27,7 @@ const ordinal = (n) => {
   return `${n}${s[(v - 20) % 10] || s[v] || s[0]}`;
 };
 
-export default function DraftHubScreen({ onBack, onOpenDraft }) {
+export default function DraftHubScreen({ onBack, onOpenDraft, onOpenPicks }) {
   // Stale-while-revalidate: Home already fetched `api.drafts()` and wrote it to this same
   // 'drafts' cache key, so opening the hub from Home paints instantly, then revalidates.
   const { data, error, refreshing, loading, reload } = useCachedResource('drafts', () => api.drafts());
@@ -61,6 +61,13 @@ export default function DraftHubScreen({ onBack, onOpenDraft }) {
           {summary.onClock ? <Text style={{ color: colors.gold, fontWeight: '800' }}>{`${summary.onClock} on the clock`}</Text> : 'None on the clock'}
           {`  ·  ${summary.live} live  ·  ${summary.scheduled} scheduled`}
         </Text>
+      ) : null}
+
+      {onOpenPicks ? (
+        <Pressable style={({ pressed }) => [styles.capitalBtn, pressed && { opacity: 0.8 }]} onPress={onOpenPicks}>
+          <Text style={styles.capitalText}>🎯 Your pick capital across all leagues</Text>
+          <Text style={styles.chev}>›</Text>
+        </Pressable>
       ) : null}
 
       {loading ? (
@@ -147,6 +154,8 @@ const styles = StyleSheet.create({
   back: { color: colors.accent, fontSize: 16, fontWeight: '600', width: 54 },
   title: { color: colors.text, fontSize: 20, fontWeight: '900' },
   subtitle: { color: colors.textDim, fontSize: 13, textAlign: 'center', marginTop: 4 },
+  capitalBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: 16, marginTop: 12, backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 15, paddingVertical: 13 },
+  capitalText: { color: colors.text, fontSize: 14, fontWeight: '800' },
   list: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 32 },
   section: { color: colors.textDim, fontSize: 12, fontWeight: '800', letterSpacing: 0.4, textTransform: 'uppercase', marginTop: 14, marginBottom: 8 },
   row: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 15, marginBottom: 8 },

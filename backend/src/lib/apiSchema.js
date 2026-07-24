@@ -139,6 +139,7 @@ const Portfolio = z.object({
       leagueId: z.string(),
       name: z.string(),
       value: z.number().nullable().optional(),
+      tradeDeadline: z.object({ at: z.number(), date: z.string(), source: z.string() }).nullable().optional(),
     })
   ),
   ageCurve: z.array(z.object({ band: z.string(), value: z.number(), pct: z.number() })),
@@ -197,6 +198,11 @@ const Rankings = z.object({
   players: z.array(PlayerIdentity),
   total: z.number().nullable().optional(),
   hasMore: z.boolean().nullable().optional(),
+});
+
+// GET /api/players/compare — side-by-side comparison of up to 4 players.
+const Compare = z.object({
+  players: z.array(z.object({ id: z.string(), name: z.string(), position: z.string() })),
 });
 
 // GET /api/players/:id — the cross-league player profile. Pins the two sections the screen reads
@@ -279,6 +285,7 @@ const Home = z.object({
 const HomeLeague = z.object({
   leagueId: z.string(),
   name: z.string(),
+  tradeDeadline: z.object({ at: z.number(), date: z.string(), source: z.string() }).nullable().optional(),
   items: z.array(z.object({ id: z.string(), type: z.string() })),
 });
 
@@ -313,6 +320,22 @@ const Drafts = z.object({
   drafts: z.array(
     z.object({ leagueId: z.string(), name: z.string(), status: z.string().nullable().optional() })
   ),
+});
+
+// GET /api/picks — your cross-league draft-pick inventory, grouped by year.
+const PickInventory = z.object({
+  summary: z.object({ total: z.number(), totalValue: z.number(), firsts: z.number(), leagues: z.number() }),
+  byYear: z.array(z.object({ year: z.number().nullable(), picks: z.array(z.object({ token: z.string(), label: z.string() })) })),
+});
+
+// GET/POST /api/leagues/:leagueId/draftlist — the owner's ranked My Draft List + add-pool.
+const DraftList = z.object({
+  leagueId: z.string(),
+  name: z.string(),
+  status: z.string(),
+  nextUp: z.object({ id: z.string(), name: z.string() }).nullable().optional(),
+  list: z.array(z.object({ id: z.string(), name: z.string(), position: z.string(), drafted: z.boolean() })),
+  available: z.array(z.object({ id: z.string(), name: z.string(), position: z.string() })),
 });
 
 // GET /api/leagues/:leagueId/draft — the draft grid.
@@ -397,6 +420,7 @@ const schemas = {
   Lineups,
   Me,
   Rankings,
+  Compare,
   Profile,
   WaiversOverview,
   WaiversBest,
@@ -412,6 +436,8 @@ const schemas = {
   Tags,
   Drafts,
   DraftBoard,
+  DraftList,
+  PickInventory,
   Teams,
   Transactions,
   LineupDetail,

@@ -17,6 +17,7 @@ const TYPE = {
   waiver_run: { icon: '⇄', tint: colors.accent },
   trade_offer: { icon: '🤝', tint: colors.accent },
   trade_deadline: { icon: '⏳', tint: colors.bad },
+  ir_violation: { icon: '🚑', tint: colors.bad },
 };
 
 // Human "time until" for an ISO timestamp. Near times count down; far ones show
@@ -34,7 +35,7 @@ function countdown(iso) {
   return new Date(iso).toLocaleString(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' });
 }
 
-export default function OnDeckScreen({ onBack, onOpenLineup, onOpenDraft, onOpenWaivers, onOpenTradeInbox }) {
+export default function OnDeckScreen({ onBack, onOpenLineup, onOpenDraft, onOpenWaivers, onOpenTradeInbox, onOpenRoster }) {
   // Stale-while-revalidate: paint the last On Deck snapshot from disk instantly,
   // then refetch in the background (and on the 60s poll). Countdowns recompute from
   // each item's timestamp client-side, so a briefly-stale paint is fine.
@@ -70,9 +71,22 @@ export default function OnDeckScreen({ onBack, onOpenLineup, onOpenDraft, onOpen
     else if (item.action === 'lineup') onOpenLineup(league);
     else if (item.action === 'waiver') onOpenWaivers(league);
     else if (item.action === 'trade') onOpenTradeInbox && onOpenTradeInbox(league);
+    else if (item.action === 'roster') onOpenRoster && onOpenRoster(league);
   }
 
   const items = (data && data.items) || [];
+  // Two buckets: things that actually need you now vs. scheduled / already-done status.
+  const actions = items.filter((i) => (i.kind || 'action') === 'action');
+  const upcoming = items.filter((i) => i.kind === 'upcoming');
+  const rows = [];
+  if (actions.length) {
+    rows.push({ header: 'Needs you', count: actions.length, key: 'h-action' });
+    actions.forEach((it, idx) => rows.push({ item: it, key: `a-${it.type}:${it.leagueId}:${idx}` }));
+  }
+  if (upcoming.length) {
+    rows.push({ header: 'Upcoming', count: upcoming.length, key: 'h-up' });
+    upcoming.forEach((it, idx) => rows.push({ item: it, key: `u-${it.type}:${it.leagueId}:${idx}` }));
+  }
 
   return (
     <View style={styles.container}>
@@ -84,11 +98,12 @@ export default function OnDeckScreen({ onBack, onOpenLineup, onOpenDraft, onOpen
       {data ? (
         <>
           <Text style={styles.subtitle}>
-            {items.length ? `${items.length} deadline${items.length === 1 ? '' : 's'} across your leagues` : 'Nothing on deck'}
+            {actions.length ? `${actions.length} need${actions.length === 1 ? 's' : ''} you` : 'Nothing needs you'}
+            {upcoming.length ? <Text style={{ color: colors.textDim }}>{`  ·  ${upcoming.length} upcoming`}</Text> : null}
             {data.summary && data.summary.onClock ? <Text style={{ color: colors.gold, fontWeight: '800' }}>{`  ·  ${data.summary.onClock} on the clock`}</Text> : null}
           </Text>
           <Text style={styles.explain}>
-            Everything with a deadline, soonest first — draft clocks, lineup locks, and waiver runs (leagues you have claims in, plus any running in the next 3 days).
+            <Text style={{ fontWeight: '800', color: colors.text }}>Needs you</Text> = things to act on (draft clocks, lineups, waivers you haven’t claimed, trade offers, deadlines). <Text style={{ fontWeight: '800', color: colors.text }}>Upcoming</Text> = scheduled or already done (your submitted claims processing, a scheduled draft).
           </Text>
         </>
       ) : null}
@@ -99,15 +114,21 @@ export default function OnDeckScreen({ onBack, onOpenLineup, onOpenDraft, onOpen
         <View style={styles.center}><Text style={styles.error}>{error}</Text></View>
       ) : (
         <FlatList
-          data={items}
-          keyExtractor={(i) => `${i.type}:${i.leagueId}`}
+          data={rows}
+          keyExtractor={(r) => r.key}
           contentContainerStyle={styles.list}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={reload} tintColor={colors.accent} />}
-          renderItem={({ item }) => <DeadlineRow item={item} onPress={() => act(item)} />}
+          renderItem={({ item: row }) =>
+            row.header ? (
+              <Text style={styles.sectionHeader}>{row.header} · {row.count}</Text>
+            ) : (
+              <DeadlineRow item={row.item} onPress={() => act(row.item)} />
+            )
+          }
           ListEmptyComponent={
             <View style={styles.emptyWrap}>
               <Text style={styles.emptyTitle}>🎉 All clear</Text>
-              <Text style={styles.emptyText}>No lineup locks, draft clocks, or waiver runs coming up across your leagues.</Text>
+              <Text style={styles.emptyText}>Nothing needs you and nothing’s coming up across your leagues.</Text>
             </View>
           }
         />
@@ -147,6 +168,7 @@ const styles = StyleSheet.create({
   subtitle: { color: colors.textDim, fontSize: 13, textAlign: 'center', marginTop: 4 },
   explain: { color: colors.textDim, fontSize: 12, textAlign: 'center', marginTop: 4, paddingHorizontal: 24, lineHeight: 17, opacity: 0.85 },
   list: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 32 },
+  sectionHeader: { color: colors.accent, fontSize: 13, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 10, marginBottom: 8 },
   row: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 15, marginBottom: 8 },
   rowNow: { borderColor: colors.gold, backgroundColor: colors.cardAlt },
   icon: { fontSize: 18, width: 30, textAlign: 'center', marginRight: 8 },

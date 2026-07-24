@@ -1081,4 +1081,24 @@ async function nextTradeDeadline(cookie, league) {
   }
 }
 
-module.exports = { getOverview, getLeague, getLeagueFit, respond, propose, analyze, crossLeaguePreview, crossLeaguePropose, suggestFor, askFor, fullDealFor, counterFor, nextTradeDeadline, tradeFitSummary, tradeBaitByFranchise, personalAnalyze, tagNotes };
+// A league's effective trade deadline, resolved once for every surface that needs it
+// (On Deck, the Home/league-card countdown chip). Precedence: a manual override the owner
+// set, else the demo fixture (demo mode) or MFL's league calendar (live). Returns
+// { at: ms, date: 'YYYY-MM-DD', source } or null when there's none upcoming.
+async function effectiveDeadline(cookie, token, league) {
+  const manual = tradeDeadlines.get(token, league.leagueId);
+  if (manual) {
+    const ms = new Date(`${manual}T23:59:59Z`).getTime();
+    return Number.isNaN(ms) ? null : { at: ms, date: manual, source: 'manual' };
+  }
+  if (config.demoMode) {
+    const d = demo.tradeDeadline(league.leagueId);
+    if (!d) return null;
+    return { at: new Date(`${d}T23:59:59Z`).getTime(), date: d, source: 'demo' };
+  }
+  const ms = await nextTradeDeadline(cookie, league).catch(() => null);
+  if (!ms) return null;
+  return { at: ms, date: new Date(ms).toISOString().slice(0, 10), source: 'mfl' };
+}
+
+module.exports = { getOverview, getLeague, getLeagueFit, respond, propose, analyze, crossLeaguePreview, crossLeaguePropose, suggestFor, askFor, fullDealFor, counterFor, nextTradeDeadline, effectiveDeadline, tradeFitSummary, tradeBaitByFranchise, personalAnalyze, tagNotes };

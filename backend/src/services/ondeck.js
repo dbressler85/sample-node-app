@@ -19,7 +19,7 @@ const lineupsService = require('./lineups');
 const waiversService = require('./waivers');
 const leaguesService = require('./leagues');
 const tradesService = require('./trades');
-const tradeDeadlines = require('../store/tradeDeadlines');
+const rosterService = require('./roster');
 
 // Waiver runs this soon count as "on deck" even with no claim in yet — the window to get one in.
 const WAIVER_IMMINENT_MS = 3 * 24 * 60 * 60 * 1000;
@@ -65,9 +65,9 @@ async function getOnDeck(cookie, token) {
   // Drafts run year-round in dynasty.
   for (const d of draftOv.drafts || []) {
     if (d.myOnClock) {
-      items.push({ type: 'draft_clock', leagueId: d.leagueId, leagueName: d.name, at: null, now: true, action: 'draft', label: "You're on the clock", detail: d.type || 'Draft' });
+      items.push({ type: 'draft_clock', kind: 'action', leagueId: d.leagueId, leagueName: d.name, at: null, now: true, action: 'draft', label: "You're on the clock", detail: d.type || 'Draft' });
     } else if (d.status === 'scheduled' && d.startTime) {
-      items.push({ type: 'draft_start', leagueId: d.leagueId, leagueName: d.name, at: d.startTime, action: 'draft', label: 'Draft starts', detail: d.type || null });
+      items.push({ type: 'draft_start', kind: 'upcoming', leagueId: d.leagueId, leagueName: d.name, at: d.startTime, action: 'draft', label: 'Draft starts', detail: d.type || null });
     }
   }
 
@@ -75,7 +75,7 @@ async function getOnDeck(cookie, token) {
   if (locks) {
     for (const l of locks.leagues) {
       if (l.status && l.status !== 'optimal' && l.status !== 'error' && l.status !== 'offseason') {
-        items.push({ type: 'lineup_lock', leagueId: l.leagueId, leagueName: l.name, at: locks.kickoff, action: 'lineup', label: 'Lineups lock', detail: LINEUP_DETAIL[l.status] || l.status });
+        items.push({ type: 'lineup_lock', kind: 'action', leagueId: l.leagueId, leagueName: l.name, at: locks.kickoff, action: 'lineup', label: 'Lineups lock', detail: LINEUP_DETAIL[l.status] || l.status });
       }
     }
   }
@@ -93,41 +93,27 @@ async function getOnDeck(cookie, token) {
     if (!g.when && c.processTime) g.when = c.processTime;
   }
 
-  // Trade deadlines — MFL DOES carry them on the league calendar, so use that automatically; a
-  // manual entry (for a league without one on the calendar) overrides. One timed item per league.
-  const manualDeadlines = tradeDeadlines.all(token);
-  const autoDeadlines = {};
-  if (!config.demoMode) {
-    const ds = await Promise.all(leagueList.map((l) => tradesService.nextTradeDeadline(cookie, l).catch(() => null)));
-    leagueList.forEach((l, i) => { if (ds[i]) autoDeadlines[String(l.leagueId)] = ds[i]; });
-  }
-  for (const l of leagueList) {
-    const lid = String(l.leagueId);
-    const m = manualDeadlines[lid];
-    let atMs = null;
-    let source = null;
-    if (m) {
-      const d = new Date(`${m}T23:59:59Z`);
-      if (!Number.isNaN(d.getTime())) { atMs = d.getTime(); source = 'manual'; }
-    } else if (autoDeadlines[lid]) {
-      atMs = autoDeadlines[lid];
-      source = 'mfl';
-    }
-    if (atMs == null || atMs <= Date.now()) continue; // none / already passed → not on deck
+  // Trade deadlines — one resolver owns the precedence (manual override → demo fixture / MFL
+  // league calendar). One timed item per league that has an upcoming deadline.
+  const deadlines = await Promise.all(leagueList.map((l) => tradesService.effectiveDeadline(cookie, token, l).catch(() => null)));
+  leagueList.forEach((l, i) => {
+    const dl = deadlines[i];
+    if (!dl || dl.at == null || dl.at <= Date.now()) return; // none / already passed → not on deck
     items.push({
-      type: 'trade_deadline', leagueId: l.leagueId, leagueName: l.name, at: new Date(atMs).toISOString(),
-      action: 'trade', label: 'Trade deadline', source,
-      detail: source === 'mfl' ? 'From your league calendar' : 'Last day to make a trade',
+      type: 'trade_deadline', kind: 'action', leagueId: l.leagueId, leagueName: l.name, at: new Date(dl.at).toISOString(),
+      action: 'trade', label: 'Trade deadline', source: dl.source,
+      detail: dl.source === 'mfl' ? 'From your league calendar' : 'Last day to make a trade',
     });
-  }
+  });
 
   if (config.demoMode) {
-    // Demo has no machine-readable run time — surface the claim leagues (all "have claims").
+    // Demo has no machine-readable run time — surface the claim leagues. Claims already IN aren't an
+    // action you owe; they're upcoming status ("your claims process at X").
     for (const [leagueId, g] of byLeague) {
       items.push({
-        type: 'waiver_run', leagueId, leagueName: g.leagueName, at: null, atLabel: g.when || null,
-        action: 'waiver', label: 'Waivers process', hasClaims: true, claimCount: g.count,
-        detail: `${g.count} claim${g.count === 1 ? '' : 's'} in`,
+        type: 'waiver_run', kind: 'upcoming', leagueId, leagueName: g.leagueName, at: null, atLabel: g.when || null,
+        action: 'waiver', label: 'Your claims process', hasClaims: true, claimCount: g.count,
+        detail: `${g.count} claim${g.count === 1 ? '' : 's'} submitted`,
       });
     }
   } else {
@@ -145,15 +131,18 @@ async function getOnDeck(cookie, token) {
       if (claimCount === 0 && !imminent) return; // no claim + not soon → not on deck
       items.push({
         type: 'waiver_run',
+        // Claims already in = upcoming status (nothing owed); a run coming with NO claim yet is a
+        // real action (get one in before the window closes).
+        kind: claimCount > 0 ? 'upcoming' : 'action',
         leagueId: l.leagueId,
         leagueName: l.name,
         at: runMs ? new Date(runMs).toISOString() : null,
         atLabel: runMs ? null : g && g.when ? g.when : null,
         action: 'waiver',
-        label: 'Waivers process',
+        label: claimCount > 0 ? 'Your claims process' : 'Waivers run',
         hasClaims: claimCount > 0,
         claimCount,
-        detail: claimCount > 0 ? `${claimCount} claim${claimCount === 1 ? '' : 's'} in` : 'no claims yet — window open',
+        detail: claimCount > 0 ? `${claimCount} claim${claimCount === 1 ? '' : 's'} submitted` : 'no claims yet — window open',
       });
     });
   }
@@ -163,6 +152,7 @@ async function getOnDeck(cookie, token) {
   for (const o of tradeOv.offers || []) {
     items.push({
       type: 'trade_offer',
+      kind: 'action',
       leagueId: o.leagueId,
       leagueName: o.leagueName,
       at: null,
@@ -171,6 +161,28 @@ async function getOnDeck(cookie, token) {
       label: `Trade offer from ${o.withName || 'another team'}`,
       detail: o.analysis && o.analysis.verdict ? `${o.analysis.verdict} for you` : 'Review and respond',
     });
+  }
+
+  // IR violations: a player parked on Injured Reserve who is no longer IR-eligible — healthy
+  // (ACTIVE) in MFL's injury data. MFL's injury feed carries the IR/OUT designation, so a
+  // genuinely injured IR player reads IR/OUT and is skipped; only a recovered one reads ACTIVE and
+  // gets flagged. Most leagues require you to activate or drop him, and an illegal IR can lock your
+  // lineup — so it's an action. Live: in-season only (offseason has no injury data). Demo: always.
+  if (config.demoMode || inSeason) {
+    const rosters = await Promise.all((leagueList || []).map((l) => rosterService.myRosterEnriched(cookie, l.leagueId).catch(() => null)));
+    for (const r of rosters) {
+      if (!r) continue;
+      const bad = (r.ir || []).filter((p) => p.availability && p.availability.status === 'ACTIVE');
+      if (!bad.length) continue;
+      const names = bad.map((p) => String(p.name).split(',')[0]);
+      items.push({
+        type: 'ir_violation', kind: 'action', leagueId: r.leagueId, leagueName: r.name, at: null,
+        action: 'roster',
+        label: bad.length === 1 ? 'Illegal IR' : `${bad.length} illegal IR`,
+        players: bad.map((p) => ({ id: p.id, name: p.name, position: p.position })),
+        detail: `${names.join(', ')} ${bad.length === 1 ? 'is' : 'are'} healthy but on IR — activate or drop to keep your roster legal`,
+      });
+    }
   }
 
   // (On Deck is time-sorted, so pinning doesn't reorder deadlines.)
@@ -187,6 +199,11 @@ async function getOnDeck(cookie, token) {
     items: visible,
     summary: {
       total: visible.length,
+      // `actions` = items that actually need you (draft clock, lineups, a waiver with no claim in yet,
+      // trade offers, trade deadlines). `upcoming` = scheduled/already-acted status (your submitted
+      // claims processing, a scheduled draft). The Home tile headlines `actions`.
+      actions: visible.filter((i) => i.kind === 'action').length,
+      upcoming: visible.filter((i) => i.kind === 'upcoming').length,
       onClock: visible.filter((i) => i.now).length,
       soonest: firstTimed ? firstTimed.at : null,
     },

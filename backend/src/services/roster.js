@@ -12,6 +12,7 @@ const nflLib = require('../lib/nfl');
 const enrichmentLib = require('../lib/enrichment');
 const leagueFormat = require('../lib/leagueformat');
 const picksLib = require('../lib/picks');
+const rosterMoves = require('../store/rosterMoves');
 const { createMemo } = require('../lib/memo');
 const leaguesService = require('./leagues');
 
@@ -114,7 +115,7 @@ async function allFranchiseRosters(league, cookie) {
 // My raw roster id-lists (starters/bench/ir/taxi), from the all-franchise response
 // in live mode or the fixture in demo.
 function myBuckets(franchises, league) {
-  if (config.demoMode) return demo.roster(league.leagueId) || { starters: [], bench: [], ir: [], taxi: [] };
+  if (config.demoMode) return rosterMoves.apply(league.leagueId, demo.roster(league.leagueId) || { starters: [], bench: [], ir: [], taxi: [] });
   const mine = (franchises || []).find((f) => String(f.id) === league.franchiseId) || (franchises || [])[0];
   return mine ? bucketPlayers(mine.player) : { starters: [], bench: [], ir: [], taxi: [] };
 }
@@ -127,7 +128,7 @@ function myBuckets(franchises, league) {
 // LIGHT single-franchise read (live) or the fixture (demo) — no all-franchise fetch. Shared by
 // myRosterLight (ids only) and myRosterEnriched (ids + enrichment).
 async function myBucketIds(cookie, league) {
-  if (config.demoMode) return demo.roster(league.leagueId) || { starters: [], bench: [], ir: [], taxi: [] };
+  if (config.demoMode) return rosterMoves.apply(league.leagueId, demo.roster(league.leagueId) || { starters: [], bench: [], ir: [], taxi: [] });
   const franchises = await mflRepo.rosters(league, cookie, { FRANCHISE: league.franchiseId });
   const mine = franchises.find((f) => String(f.id) === league.franchiseId) || franchises[0];
   return mine ? bucketPlayers(mine.player) : { starters: [], bench: [], ir: [], taxi: [] };
@@ -279,4 +280,42 @@ async function leagueFranchises(cookie, leagueId) {
   });
 }
 
-module.exports = { getRoster, invalidate, computeOutlook, leagueFranchises, myRosterLight, myRosterEnriched };
+// Move players between the active roster and Injured Reserve. `activate` = IR → active,
+// `deactivate` = active → IR, `drop` = release. Live writes MFL's owner-accessible `ir` import
+// (eligibility — a DEACTIVATE needs an injured designation — is enforced by MFL; we surface its
+// error); demo records the move in the overlay so the roster reflects it. Returns the fresh roster.
+async function moveIr(cookie, token, leagueId, { activate = [], deactivate = [], drop = [] } = {}) {
+  const league = await findLeague(cookie, leagueId);
+  if (!league) { const e = new Error(`League ${leagueId} not found for this account`); e.status = 404; throw e; }
+  const csv = (a) => (a && a.length ? a.map(String).join(',') : undefined);
+  if (!config.demoMode) {
+    await mfl.importRequest('ir', { host: league.host, cookie, L: league.leagueId, ACTIVATE: csv(activate), DEACTIVATE: csv(deactivate), DROP: csv(drop) });
+    invalidate(cookie, leagueId);
+  } else {
+    for (const id of activate) rosterMoves.set(leagueId, id, 'active');
+    for (const id of deactivate) rosterMoves.set(leagueId, id, 'ir');
+    for (const id of drop) rosterMoves.set(leagueId, id, 'dropped');
+  }
+  return getRoster(cookie, leagueId);
+}
+
+// Move players between the active roster and the Taxi Squad. `promote` = taxi → active,
+// `demote` = active → taxi, `drop` = release. Live writes MFL's owner-accessible `taxi_squad`
+// import (taxi eligibility — rookie/young — is enforced by MFL; we surface its error); demo records
+// the move in the overlay. Returns the fresh roster.
+async function moveTaxi(cookie, token, leagueId, { promote = [], demote = [], drop = [] } = {}) {
+  const league = await findLeague(cookie, leagueId);
+  if (!league) { const e = new Error(`League ${leagueId} not found for this account`); e.status = 404; throw e; }
+  const csv = (a) => (a && a.length ? a.map(String).join(',') : undefined);
+  if (!config.demoMode) {
+    await mfl.importRequest('taxi_squad', { host: league.host, cookie, L: league.leagueId, PROMOTE: csv(promote), DEMOTE: csv(demote), DROP: csv(drop) });
+    invalidate(cookie, leagueId);
+  } else {
+    for (const id of promote) rosterMoves.set(leagueId, id, 'active');
+    for (const id of demote) rosterMoves.set(leagueId, id, 'taxi');
+    for (const id of drop) rosterMoves.set(leagueId, id, 'dropped');
+  }
+  return getRoster(cookie, leagueId);
+}
+
+module.exports = { getRoster, invalidate, computeOutlook, leagueFranchises, myRosterLight, myRosterEnriched, moveIr, moveTaxi };

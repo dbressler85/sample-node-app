@@ -38,6 +38,19 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   assert((await trades.nextTradeDeadline('ck', { leagueId: '1' })) === null, 'no trade-deadline event → null');
   console.log('✓ nextTradeDeadline reads MFL’s calendar TRADE_DEADLINE event (soonest future)');
 
+  // --- effectiveDeadline: one resolver, precedence manual → demo fixture ---
+  // Demo mode: a league with a fixture deadline resolves to source 'demo'.
+  const eff = await trades.effectiveDeadline('ck', 'tk', { leagueId: '64097', host: 'www.myfantasyleague.com' });
+  assert(eff && eff.source === 'demo' && eff.at > Date.now(), `effectiveDeadline returns the demo fixture, got ${JSON.stringify(eff)}`);
+  // A manual override wins over the fixture.
+  store.set('tk', '64097', '2026-10-01');
+  const eff2 = await trades.effectiveDeadline('ck', 'tk', { leagueId: '64097' });
+  assert(eff2 && eff2.source === 'manual' && eff2.date === '2026-10-01', `manual override wins, got ${JSON.stringify(eff2)}`);
+  store.set('tk', '64097', null);
+  // A demo league without a fixture deadline resolves to null.
+  assert((await trades.effectiveDeadline('ck', 'tk', { leagueId: '40750' })) == null, 'a league with no deadline resolves to null');
+  console.log('✓ effectiveDeadline: manual override wins, else demo fixture, else null');
+
   // --- API round-trip on the trades desk ---
   const app = require('../../src/app');
   const server = app.listen(0);
@@ -68,6 +81,17 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
     })).json();
     assert(clr.deadline === null, 'POST null clears the deadline');
     console.log('✓ deadline round-trips through the API onto the trades desk');
+
+    // --- demo fixture surfaces on Home triage + the portfolio breakdown (the countdown chip) ---
+    const triage = await (await fetch(`${base}/api/home/league/64097`, { headers: h })).json();
+    assert(triage.tradeDeadline && triage.tradeDeadline.source === 'demo' && /^\d{4}-\d{2}-\d{2}$/.test(triage.tradeDeadline.date),
+      `home triage carries the demo deadline, got ${JSON.stringify(triage.tradeDeadline)}`);
+    const port = await (await fetch(`${base}/api/portfolio`, { headers: h })).json();
+    const row = (port.byLeague || []).find((l) => l.leagueId === '64097');
+    assert(row && row.tradeDeadline && row.tradeDeadline.at > Date.now(), `portfolio byLeague carries an upcoming deadline, got ${JSON.stringify(row && row.tradeDeadline)}`);
+    const noDl = (port.byLeague || []).find((l) => l.leagueId === '40750');
+    assert(noDl && noDl.tradeDeadline == null, 'a league without a fixture deadline reports null');
+    console.log('✓ demo deadline surfaces on Home triage + portfolio breakdown');
   } finally {
     server.close();
   }

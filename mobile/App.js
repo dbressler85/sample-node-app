@@ -30,6 +30,9 @@ import TradeWizardScreen from './src/screens/TradeWizardScreen';
 import OnTheBlockScreen from './src/screens/OnTheBlockScreen';
 import DraftScreen from './src/screens/DraftScreen';
 import DraftHubScreen from './src/screens/DraftHubScreen';
+import PickInventoryScreen from './src/screens/PickInventoryScreen';
+import CompareScreen from './src/screens/CompareScreen';
+import DraftListScreen from './src/screens/DraftListScreen';
 import OnDeckScreen from './src/screens/OnDeckScreen';
 import { loadSession, clearSession } from './src/auth';
 import { loadDisplayFont, fonts } from './src/typography';
@@ -219,6 +222,9 @@ export default function App() {
   const openBlock = () => pushOverlay({ type: 'block' });
   const openDraft = (league) => pushOverlay({ type: 'draft', league });
   const openDraftHub = () => pushOverlay({ type: 'draftHub' });
+  const openPickInventory = () => pushOverlay({ type: 'pickInventory' });
+  const openCompare = (seedPlayer) => pushOverlay({ type: 'compare', seedPlayer });
+  const openDraftList = (league) => pushOverlay({ type: 'draftList', league });
   const openLeagues = () => pushOverlay({ type: 'leagues' });
   const openLeagueHub = (league) => pushOverlay({ type: 'league', league });
   const openPortfolio = () => pushOverlay({ type: 'portfolio' });
@@ -323,16 +329,19 @@ export default function App() {
         return (
           <OnTheBlockScreen
             onBack={popOverlay}
-            onShopLeague={(league) => openTrades(league, 'propose')}
-            onShopPlayer={({ leagueId, name, sendPlayerId, partnerFranchiseId }) => openTrades({ leagueId, name }, 'propose', { sendPlayerId, partnerFranchiseId })}
+            onProposeWith={({ leagueId, name, partnerFranchiseId, receiveTokens }) => openTrades({ leagueId, name }, 'propose', { partnerFranchiseId, receiveTokens })}
             onOpenPlayer={openPlayer}
             onOpenInbox={() => { popOverlay(); setTab('trades'); }}
           />
         );
       case 'draft':
-        return <DraftScreen league={o.league} demoMode={demoMode} onBack={popOverlay} onOpenPlayer={openPlayer} onOpenTrades={openTrades} />;
+        return <DraftScreen league={o.league} demoMode={demoMode} onBack={popOverlay} onOpenPlayer={openPlayer} onOpenTrades={openTrades} onOpenDraftList={openDraftList} />;
+      case 'draftList':
+        return <DraftListScreen league={o.league} onBack={popOverlay} onOpenPlayer={openPlayer} />;
       case 'draftHub':
-        return <DraftHubScreen onBack={popOverlay} onOpenDraft={openDraft} />;
+        return <DraftHubScreen onBack={popOverlay} onOpenDraft={openDraft} onOpenPicks={openPickInventory} />;
+      case 'pickInventory':
+        return <PickInventoryScreen onBack={popOverlay} />;
       case 'leagues':
         return <LeaguesScreen onBack={popOverlay} onOpenLeague={openLeagueHub} onOpenDraftHub={openDraftHub} />;
       case 'league':
@@ -362,6 +371,7 @@ export default function App() {
             onOpenDraft={openDraft}
             onOpenWaivers={(league) => openWaivers({ leagueId: league.leagueId })}
             onOpenTradeInbox={openTradeInbox}
+            onOpenRoster={openRoster}
           />
         );
       case 'playerProfile':
@@ -372,8 +382,11 @@ export default function App() {
             onBack={popOverlay}
             onOpenTradeDesk={(ctx) => openTrades({ leagueId: ctx.leagueId, name: ctx.name }, 'propose', { targetPlayerId: ctx.targetPlayerId, partnerFranchiseId: ctx.partnerFranchiseId })}
             onOpenTradeWizard={openTradeWizard}
+            onCompare={openCompare}
           />
         );
+      case 'compare':
+        return <CompareScreen seedPlayer={o.seedPlayer} onBack={popOverlay} onOpenPlayer={openPlayer} />;
       case 'tradeWizard':
         return <TradeWizardScreen queue={o.queue} onExit={popOverlay} onOpenPlayer={openPlayer} />;
       default:

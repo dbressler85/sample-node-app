@@ -907,10 +907,28 @@ async function getOverview(cookie, token) {
         // "Imminent" = the next run is ahead of us but within the act-now window. A run already
         // in the past (stale calendar occurrence) doesn't count.
         const waiverImminent = waiverRun != null && waiverRun > Date.now() && waiverRun - Date.now() <= config.waiverImminentMs;
+        // The league's pickup posture, so the UI can be explicit:
+        //   'fa_open'      — free agency is OPEN: add anyone immediately (FCFS or a faab league between runs).
+        //   'waivers_soon' — a waiver run is scheduled ahead: claims queue now and process then.
+        //   'locked'       — neither: no open FA and no upcoming run (draft pending / offseason quiet).
+        let waiverState;
+        if (config.demoMode) {
+          waiverState = settings.system === 'free' ? 'fa_open' : 'waivers_soon';
+        } else {
+          const draftService = require('./draft'); // lazy require — avoids a waivers↔draft cycle
+          const [calLock, open] = await Promise.all([
+            calendarLock(cookie, league).catch(() => null),
+            draftService.freeAgencyOpen(cookie, token, league).catch(() => true),
+          ]);
+          const faOpen = !calLock && open;
+          const hasUpcomingRun = waiverRun != null && waiverRun > Date.now();
+          waiverState = faOpen ? 'fa_open' : hasUpcomingRun ? 'waivers_soon' : 'locked';
+        }
         return {
           leagueId: league.leagueId,
           name: league.name,
           system: settings.system,
+          waiverState,
           faabRemaining: settings.faabRemaining != null ? settings.faabRemaining : null,
           waiverPriority: settings.waiverPriority || null,
           rosterSize: settings.rosterSize || null,
