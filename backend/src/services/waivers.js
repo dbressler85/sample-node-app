@@ -322,7 +322,13 @@ async function getBoard(cookie, token, leagueId, { position, sort } = {}) {
   // chosen sort still orders within each group.
   for (const p of freeAgents) p.tag = playerTags.get(token, p.id) || null;
   const tagRank = (p) => (p.tag === 'target' ? 0 : p.tag === 'avoid' ? 2 : 1);
-  freeAgents.sort((a, b) => tagRank(a) - tagRank(b) || (b[key] || 0) - (a[key] || 0));
+  // Break ties on the chosen key by projected points, so equal-value players — and especially the
+  // flat-valued streamers (kickers/defenses all share one baseline) — order by who actually scores
+  // more this week instead of arbitrarily. A no-op in the offseason (projections are empty), useful
+  // in-season for streaming decisions.
+  freeAgents.sort(
+    (a, b) => tagRank(a) - tagRank(b) || (b[key] || 0) - (a[key] || 0) || (b.projection || 0) - (a.projection || 0)
+  );
 
   // Reconcile the local claim store with MFL's authoritative pending waivers (see reconciledPending).
   const pending = await reconciledPending(cookie, token, league, byId);

@@ -481,9 +481,8 @@ add another data source.
 - [ ] **Push-notification delivery on a real device.** The scheduler + Expo push
   path is built; delivery (on-the-clock, new trade offers) needs a physical device
   with a real Expo push token to confirm end-to-end.
-- [ ] **Keep the Render instance warm.** Free-tier spin-down adds a ~30–60s cold
-  start on first open after idle — the most likely remaining "the app feels slow"
-  cause. Options: a paid always-on instance, or a small cron ping to `/api/health`
-  every few minutes.
+- [x] **Keep the Render instance warm.** Done: the service runs on Render's always-on
+  `starter` plan (no idle sleep / cold starts), and a `keep-warm.yml` GitHub Action pings
+  the health endpoint as a belt-and-suspenders backstop.
 - [ ] **Play Store packaging.** Build + submit the Android app (EAS), store listing,
   and release channel.

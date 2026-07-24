@@ -62,6 +62,12 @@ const CK = 'ck', TK = 'tk';
   assert(board.rosterFull === true, 'roster 2/2 detected full');
   console.log('✓ #7 live settings: budget + waiver priority parsed, roster fullness real');
 
+  // Projection tiebreak: with FantasyCalc empty here, every FA shares value 0, so the board must
+  // fall back to projected points — higher projection first — instead of an arbitrary order.
+  const projs = board.freeAgents.map((p) => p.projection || 0);
+  assert(projs.every((v, i) => i === 0 || projs[i - 1] >= v), `equal-value FAs ordered by projection, got ${JSON.stringify(projs)}`);
+  console.log('✓ board projection tiebreak: equal-value free agents rank by projected points');
+
   // #8 — a real free agent validates; a player rostered elsewhere is rejected.
   const okFa = await waivers.preview(CK, TK, 'L1', { addId: '50', dropId: '2' });
   assert(!okFa.errors.some((e) => /not available/i.test(e)), 'free agent 50 accepted');

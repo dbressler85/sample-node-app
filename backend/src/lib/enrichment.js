@@ -59,6 +59,15 @@ let sleeperCache = { at: 0, raw: new Map() }; // sleeperId -> count
 let ownershipCache = { at: 0, map: new Map() }; // mflId -> owned % (site-wide, from MFL topOwns)
 let addsCache = { at: 0, map: new Map() }; // mflId -> add count (site-wide, from MFL topAdds)
 
+// In-flight promise coalescing: on a cold cache, a burst of concurrent snapshot() calls (one per
+// league, across ~6 formats) would each fire the SAME external fetch. The resolved-value caches above
+// only help AFTER the first fetch returns. These hold the pending promise so simultaneous callers
+// share one request per provider (per format for FantasyCalc) instead of stampeding the API.
+const fcInflight = new Map(); // format key -> pending getFantasyCalc promise
+let sleeperInflight = null;
+let ownershipInflight = null;
+let addsInflight = null;
+
 async function fetchJson(url, ms = 10000) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), ms);
@@ -98,7 +107,13 @@ async function getFantasyCalc(format) {
   const key = `${format.numQbs}|${format.ppr}`;
   const hit = fcCache.get(key);
   if (hit && Date.now() - hit.at < TTL_MS) return hit;
+  if (fcInflight.has(key)) return fcInflight.get(key); // a fetch for this format is already running — share it
+  const p = buildFantasyCalc(format, key, hit);
+  fcInflight.set(key, p);
+  try { return await p; } finally { fcInflight.delete(key); }
+}
 
+async function buildFantasyCalc(format, key, hit) {
   const value = new Map();
   const age = new Map();
   const rank = new Map();
@@ -135,9 +150,15 @@ async function getFantasyCalc(format) {
   return entry;
 }
 
-// Sleeper trending adds (sleeperId -> count), fetched once and cached.
+// Sleeper trending adds (sleeperId -> count), fetched once and cached (in-flight coalesced).
 async function getSleeperTrending() {
   if (sleeperCache.raw.size && Date.now() - sleeperCache.at < TTL_MS) return sleeperCache.raw;
+  if (sleeperInflight) return sleeperInflight;
+  const p = buildSleeperTrending();
+  sleeperInflight = p;
+  try { return await p; } finally { sleeperInflight = null; }
+}
+async function buildSleeperTrending() {
   const raw = new Map();
   try {
     const rows = await fetchJson(SLEEPER_TREND_URL);
@@ -178,6 +199,12 @@ const ADD_FIELDS = ['adds', 'count', 'percent', 'pct'];
 async function getMflOwnership(cookie) {
   if (!cookie) return ownershipCache.map;
   if (ownershipCache.map.size && Date.now() - ownershipCache.at < TTL_MS) return ownershipCache.map;
+  if (ownershipInflight) return ownershipInflight;
+  const p = buildMflOwnership(cookie);
+  ownershipInflight = p;
+  try { return await p; } finally { ownershipInflight = null; }
+}
+async function buildMflOwnership(cookie) {
   const map = new Map();
   try {
     // topOwns returns players by site-wide ownership %, DESCENDING (fields: id + percent). Without a
@@ -208,6 +235,12 @@ async function getMflOwnership(cookie) {
 async function getMflAdds(cookie) {
   if (!cookie) return addsCache.map;
   if (addsCache.map.size && Date.now() - addsCache.at < TTL_MS) return addsCache.map;
+  if (addsInflight) return addsInflight;
+  const p = buildMflAdds(cookie);
+  addsInflight = p;
+  try { return await p; } finally { addsInflight = null; }
+}
+async function buildMflAdds(cookie) {
   const map = new Map();
   try {
     // Same as topOwns: request a large COUNT so mid-list free agents get their add count, not just
