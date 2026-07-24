@@ -519,12 +519,11 @@ async function currentWaiverRound(cookie, league) {
 
 // Recent WON waiver claims for MY franchise, from MFL's transactions log. A BBID_WAIVER / WAIVER
 // transaction is a claim that PROCESSED — the player was actually added — so these are the "won"
-// results the Pending tab shows. MFL records what HAPPENED, not failed bids, so lost claims don't
-// appear here (they'd have to be inferred from a submitted claim that yielded no add — a later
-// enhancement). The transaction shape (type / franchise / `transaction` = "added|dropped") is the
-// same one league.js already parses; the FAAB bid amount is surfaced only when MFL names it on the
-// row (its position in the payload isn't confirmed yet — pending a live sample). Best-effort +
-// fail-soft: any read/parse trouble yields [] and the section simply stays empty.
+// results the Pending tab shows, now WITH the winning FAAB bid (parsed from the row; see below).
+// MFL records what HAPPENED, not failed bids: a LOSING blind bid is not written to the transaction
+// log at all (only the winner's add is), so "outbid" results can't come from this export — they'd
+// require snapshotting our pending bids before a run and diffing after (a stateful follow-up).
+// Best-effort + fail-soft: any read/parse trouble yields [] and the section simply stays empty.
 async function liveWaiverResults(cookie, league, byId, limit = 8) {
   try {
     // Filter server-side (MFL recommends it — the log "can be a very large set"): the confirmed
@@ -549,10 +548,19 @@ async function liveWaiverResults(cookie, league, byId, limit = 8) {
       const first = (csv) => (csv || '').split(',').map((s) => s.trim()).filter(Boolean)[0];
       const add = ref(first(parts[0]));
       if (!add) continue; // no resolvable player added → not a result we can show
-      const drop = ref(first(parts[1])); // the player dropped to make room (null if none / unresolved)
-      // Only trust a NAMED bid field (positional payload parsing is unconfirmed) — else null.
-      let bid = mfl.num(t.bbid);
-      if (bid == null) bid = mfl.num(t.bid);
+      // CONFIRMED against a live sample: the payload is pipe-delimited with the BID in the MIDDLE for
+      // blind-bid rows — "<add>,|<bid>|<drop>," (e.g. "17036,|25.00|15254," = added 17036 for $25,
+      // dropped 15254; "16387,|258.00|" = added 16387 for $258, no drop). An FCFS WAIVER row has no
+      // bid segment — "<add>,|<drop>,". So the bid is parts[1] on a BBID row (NOT a separate t.bbid
+      // field, which doesn't exist), and the drop shifts to parts[2].
+      let bid = null;
+      let drop = null;
+      if (type === 'BBID_WAIVER') {
+        bid = mfl.num(parts[1]);
+        drop = ref(first(parts[2]));
+      } else {
+        drop = ref(first(parts[1]));
+      }
       // Flat shape (name + separate id): keeps the field `add` a plain string for older app builds,
       // while addId/dropId make both names tappable through to the player card in newer builds.
       out.push({ add: add.name, addId: add.id, drop: drop ? drop.name : null, dropId: drop ? drop.id : null, bid, result: 'won', at: mfl.num(t.timestamp) });
