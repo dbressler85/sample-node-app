@@ -209,6 +209,16 @@ function buildView({ league, week, requirements, pool, starterIds, franchiseName
     optimal: optimal[i] || null,
   }));
 
+  // Slots no healthy player can fill — i.e. a starting position where everyone eligible is
+  // OUT/injured/bye (a "wiped position"). Naming the position(s) lets Under Center point you
+  // straight at the right waiver replacements instead of a generic "needs a pickup".
+  const unfillable = slots
+    .filter((s) => !s.optimal)
+    .map((s) => ({ name: s.name, eligible: s.eligible }));
+  // The distinct positions to shop for, in slot order (e.g. ['QB'] when your only QB is on bye,
+  // or ['RB','WR'] for a FLEX). Deduped, capped to the real eligible set.
+  const unfillablePositions = [...new Set(unfillable.flatMap((s) => s.eligible))];
+
   const currentIds = current.filter(Boolean).map((p) => p.id);
   const optimalIds = optimal.filter(Boolean).map((p) => p.id);
   const currentEmpty = current.filter((x) => !x).length;
@@ -282,6 +292,9 @@ function buildView({ league, week, requirements, pool, starterIds, franchiseName
     delta,
     emptySlots: currentEmpty,
     warnings,
+    // Starting positions no healthy player can fill (wiped by injury/bye) + the positions to shop.
+    unfillable,
+    unfillablePositions,
     status,
   };
 }
@@ -378,6 +391,8 @@ function summarize(view) {
     delta: view.delta,
     emptySlots: view.emptySlots,
     warnings: view.warnings,
+    unfillable: view.unfillable,
+    unfillablePositions: view.unfillablePositions,
     matchup: view.matchup,
     slotCount: view.slots.length,
   };

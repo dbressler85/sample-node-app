@@ -67,6 +67,15 @@ export default function OnDeckScreen({ onBack, onOpenLineup, onOpenDraft, onOpen
 
   function act(item) {
     const league = { leagueId: item.leagueId, name: item.leagueName };
+    // A wiped starting position (all your QBs/K/DEF out or on bye) jumps STRAIGHT to that league's
+    // waiver board, pre-filtered to the position and sorted by this week's projection — the fastest
+    // path to a replacement. Only pre-filter for a single wiped position (a FLEX spans several).
+    if (item.replacements) {
+      const r = item.replacements;
+      const position = r.positions && r.positions.length === 1 ? r.positions[0] : null;
+      onOpenWaivers({ leagueId: r.leagueId, position, sort: r.sort || 'projection' });
+      return;
+    }
     if (item.action === 'draft') onOpenDraft(league);
     else if (item.action === 'lineup') onOpenLineup(league);
     else if (item.action === 'waiver') onOpenWaivers(league);

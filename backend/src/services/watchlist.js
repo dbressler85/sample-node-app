@@ -17,6 +17,7 @@ const leaguesService = require('./leagues');
 const rosterService = require('./roster');
 const waiversService = require('./waivers');
 const standingLib = require('../lib/standing');
+const pointsMaps = require('../lib/pointsMaps');
 const watchStore = require('../store/watchlist');
 
 async function ctxFor(cookie) {
@@ -75,6 +76,9 @@ async function getWatchlist(cookie, token) {
     gather(cookie, token),
     (config.demoMode ? Promise.resolve(demo.news()) : newsLib.mflNews(cookie)).catch(() => []),
   ]);
+  // Season-to-date points + this week's projection, under the owner's primary league's scoring —
+  // the same at-a-glance numbers the other Players tabs carry.
+  const points = await pointsMaps.maps(cookie, data[0] ? data[0].league : null, ctx.week);
 
   const newsByPlayer = new Map();
   for (const n of rawNews) {
@@ -104,6 +108,8 @@ async function getWatchlist(cookie, token) {
       age: enr.age(id),
       trend: enr.trend(id),
       ownership: enr.ownership(id),
+      seasonPoints: points.season.get(String(id)) ?? null,
+      weekProjection: points.proj.get(String(id)) ?? null,
       availability: availabilityLib.resolve(base, ctx.statusMap, ctx.byeMap, ctx.week),
       news: (newsByPlayer.get(String(id)) || []).slice(0, 3),
       leagues,

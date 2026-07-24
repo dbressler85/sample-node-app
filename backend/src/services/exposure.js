@@ -7,11 +7,18 @@
 const config = require('../config');
 const demo = require('../demo/fixtures');
 const newsLib = require('../lib/news');
+const nflLib = require('../lib/nfl');
 const leaguesService = require('./leagues');
 const rosterService = require('./roster');
 const standingLib = require('../lib/standing');
+const pointsMaps = require('../lib/pointsMaps');
 const playerTags = require('../store/playerTags');
 const watchStore = require('../store/watchlist');
+
+// Current NFL week (demo fixture or live), for the season/projection numbers below.
+async function currentWeek(cookie) {
+  return config.demoMode ? demo.week() : nflLib.currentWeek(cookie);
+}
 
 async function gather(cookie, token) {
   const leagues = await leaguesService.orderedLeagues(cookie, token);
@@ -32,6 +39,10 @@ async function gather(cookie, token) {
 
 async function getExposure(cookie, token) {
   const { totalLeagues, rosters } = await gather(cookie, token);
+  // Season-to-date points + this week's projection, under the owner's primary league's scoring —
+  // surfaced on every My Players row (same numbers the rest of the Players screen shows).
+  const league0 = rosters[0] ? rosters[0].league : null;
+  const points = await pointsMaps.maps(cookie, league0, await currentWeek(cookie));
   const map = new Map(); // playerId -> aggregate record
 
   for (const { league, roster } of rosters) {
@@ -71,6 +82,8 @@ async function getExposure(cookie, token) {
       count: p.leagues.length,
       startingCount: p.leagues.filter((l) => l.starting).length,
       exposurePct: totalLeagues ? Math.round((p.leagues.length / totalLeagues) * 100) : 0,
+      seasonPoints: points.season.get(String(p.id)) ?? null,
+      weekProjection: points.proj.get(String(p.id)) ?? null,
       tag: tags[String(p.id)] || null,
       watched: watchSet.has(String(p.id)),
     }))

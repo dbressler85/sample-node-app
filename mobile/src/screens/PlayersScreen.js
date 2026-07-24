@@ -487,6 +487,7 @@ function PlayerRow({ p, rank, sub, tag, watched, showTrend, onTag, onWatch, onQu
           {p.leagueCount > 1 && p.leagueOwned != null ? ` · rostered ${p.leagueOwned}/${p.leagueCount}` : ''}
           {sub ? ` · ${sub}` : ''}
         </Text>
+        <PointsLine season={p.seasonPoints} proj={p.weekProjection} />
       </View>
       <View style={styles.rightCol}>
         {showTrend && p.trend ? (
@@ -526,6 +527,30 @@ function PlayerRow({ p, rank, sub, tag, watched, showTrend, onTag, onWatch, onQu
 // While a player list loads, show its silhouette rather than a lone spinner — placeholder
 // rows shaped like a PlayerRow (rank · badge · name/meta · value) breathing as one. Feels
 // faster and doesn't jump the layout when the real rows land. One Pulse drives them all.
+// Season-to-date points (SZN) + this week's projection (PROJ) — surfaced on every player row
+// across the Players screen (especially useful for streaming free agents). Renders nothing when
+// neither number is known (offseason projection, or a player MFL has no score for), so a row never
+// shows an empty stat strip. Numbers are under the owner's primary league's scoring.
+function PointsLine({ season, proj }) {
+  if (season == null && proj == null) return null;
+  return (
+    <View style={styles.ptsLine}>
+      {proj != null ? (
+        <Text style={styles.ptsItem}>
+          <Text style={styles.ptsLabel}>PROJ </Text>
+          <Text style={styles.ptsProj}>{proj}</Text>
+        </Text>
+      ) : null}
+      {season != null ? (
+        <Text style={styles.ptsItem}>
+          <Text style={styles.ptsLabel}>SZN </Text>
+          <Text style={styles.ptsSeason}>{season}</Text>
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
 function PlayerListSkeleton({ count = 9 }) {
   return (
     <Pulse min={0.45}>
@@ -631,6 +656,7 @@ function WatchRow({ p, onPress }) {
           {s.tradeTarget > 0 ? <Text style={[styles.chip, styles.chipTrade]}>{s.tradeTarget} on other teams</Text> : null}
           {p.news && p.news.length ? <Text style={[styles.chip, styles.chipNews]}>news</Text> : null}
         </View>
+        <PointsLine season={p.seasonPoints} proj={p.weekProjection} />
       </View>
       {p.value != null ? <Text style={styles.value}>{p.value}</Text> : null}
     </Pressable>
@@ -750,6 +776,11 @@ const styles = StyleSheet.create({
   mine: { color: colors.good, fontSize: 9, fontWeight: '900', marginLeft: 6, borderWidth: 1, borderColor: colors.good, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1, overflow: 'hidden' },
   tagMark: { fontSize: 13, fontWeight: '900', marginLeft: 6 },
   meta: { color: colors.textDim, fontSize: 12, marginTop: 2 },
+  ptsLine: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 },
+  ptsItem: { fontSize: 12 },
+  ptsLabel: { color: colors.textDim, fontSize: 10, fontWeight: '800', letterSpacing: 0.4 },
+  ptsProj: { color: colors.accent, fontSize: 13, fontWeight: '900' },
+  ptsSeason: { color: colors.text, fontSize: 13, fontWeight: '800' },
   value: { color: colors.gold, fontSize: 15, fontWeight: '900', marginLeft: 10 },
   trendBox: { alignItems: 'flex-end', marginLeft: 10 },
   trend: { color: colors.good, fontSize: 14, fontWeight: '900' },

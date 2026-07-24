@@ -19,6 +19,7 @@ const availabilityLib = require('../lib/availability');
 const enrichmentLib = require('../lib/enrichment');
 const nflLib = require('../lib/nfl');
 const leagueFormat = require('../lib/leagueformat');
+const pointsMaps = require('../lib/pointsMaps');
 const leaguesService = require('./leagues');
 const rosterService = require('./roster');
 const playersLib = require('../lib/players');
@@ -310,9 +311,18 @@ async function getBoard(cookie, token, leagueId, { position, sort } = {}) {
   // Drop entities whose name didn't resolve (team defenses / non-player ids show
   // up as "Player 0800" and clutter the live board).
   if (!config.demoMode) freeAgents = freeAgents.filter((p) => p.name && !/^Player \d+$/.test(p.name));
-  if (position) freeAgents = freeAgents.filter((p) => p.position === position);
+  // Normalize the position filter so a "K" (or "Def"/"DST") request matches the canonical stored
+  // position ("PK"/"DEF") — otherwise a kicker filter matched nothing (kickers are stored as PK).
+  const posFilter = position ? playersLib.normalizePosition(position) : null;
+  if (posFilter) freeAgents = freeAgents.filter((p) => p.position === posFilter);
 
-  const SORT_KEYS = { projection: 'projection', trend: 'trend', ownership: 'ownership', value: 'value' };
+  // Season-to-date points for each free agent (under this league's scoring), so the board can rank
+  // by who's actually producing this year — the sortable "current-year point total" streamers want.
+  const week = config.demoMode ? demo.week() : await nflLib.currentWeek(cookie).catch(() => null);
+  const points = await pointsMaps.maps(cookie, league, week);
+  for (const p of freeAgents) p.seasonPoints = points.season.get(String(p.id)) ?? null;
+
+  const SORT_KEYS = { projection: 'projection', season: 'seasonPoints', trend: 'trend', ownership: 'ownership', value: 'value' };
   // Default sort: dynasty value. It's meaningful year-round (waivers/free agents
   // churn all offseason in dynasty), whereas weekly projection is empty between
   // seasons. Now that the enrichment layer supplies values in live too, value is
@@ -902,6 +912,9 @@ async function cancel(cookie, token, leagueId, claimId) {
 async function getBestAvailable(cookie, token) {
   const leagues = await leaguesService.orderedLeagues(cookie, token);
   const [byId, enr, ctx] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(undefined, cookie), ctxFor(cookie)]);
+  // Season-to-date points + this week's projection, under the owner's primary league's scoring — the
+  // key streaming signal for free agents (who to grab this week), on every row.
+  const points = await pointsMaps.maps(cookie, leagues[0] || null, ctx.week);
   const map = new Map();
 
   // Read every league's settings + free agents in parallel, then merge the (sync)
@@ -919,7 +932,7 @@ async function getBestAvailable(cookie, token) {
   );
   for (const { league, settings, fas } of perLeague) {
     for (const fa of fas) {
-      if (!map.has(fa.id)) map.set(fa.id, { id: fa.id, name: fa.name, position: fa.position, team: fa.team, value: fa.value, age: fa.age, trend: fa.trend, ownership: fa.ownership, availability: fa.availability, leagues: [] });
+      if (!map.has(fa.id)) map.set(fa.id, { id: fa.id, name: fa.name, position: fa.position, team: fa.team, value: fa.value, age: fa.age, trend: fa.trend, ownership: fa.ownership, availability: fa.availability, seasonPoints: points.season.get(String(fa.id)) ?? null, weekProjection: points.proj.get(String(fa.id)) ?? null, leagues: [] });
       map.get(fa.id).leagues.push({ leagueId: league.leagueId, name: league.name, system: settings.system });
     }
   }
