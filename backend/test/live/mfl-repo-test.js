@@ -29,6 +29,15 @@ const ENVELOPES = {
   calendar: { calendar: { event: [{ type: 'lock' }] } },
   tradeBait: { tradeBaits: { tradeBait: [{ franchise_id: '1' }] } }, // type != envelope key
   transactions: { transactions: { transaction: [{ type: 'TRADE' }] } },
+  // Trimmed from a real `assets` export: a franchise carries BOTH current-year (DP_) and future
+  // (FP_) pick blocks, players, and FAAB. The FP description names the original owner (with HTML).
+  assets: { assets: { franchise: [{
+    id: '0001',
+    currentYearDraftPicks: { draftPick: [{ pick: 'DP_0_8', description: 'Year 2026 Draft Pick 1.09' }] },
+    futureYearDraftPicks: { draftPick: [{ pick: 'FP_0002_2027_1', description: 'Year 2027 Round 1 Draft Pick from <b>Downs With The Sickness</b>' }] },
+    players: { player: [{ id: '13592' }, { id: '15693' }] },
+    blindBiddingDollars: { amount: '500.00' },
+  }] } },
 };
 
 let calls = [];
@@ -94,6 +103,21 @@ function lastCall() {
     const out = await run();
     assert(Array.isArray(out) && out.length === 0, `${name}: empty envelope -> []`);
   }
+
+  // assets: the purpose-built "what can this franchise trade" read. Confirms BOTH pick blocks are
+  // parsed (current-year DP_ + future FP_), the tokens decode to the right round/pick/year/owner,
+  // FAAB + players come through, and the FP description's HTML is stripped.
+  mfl.exportRequest = async (type, params) => { calls.push({ type, params }); return ENVELOPES[type] || {}; };
+  const fa = (await mflRepo.assets(league, cookie))[0];
+  assert(lastCall().type === 'assets', 'assets issues the assets export');
+  assert(fa.id === '0001' && fa.faab === 500 && fa.playerIds.length === 2, `assets carries id/faab/players, got ${JSON.stringify({ id: fa.id, faab: fa.faab, n: fa.playerIds.length })}`);
+  assert(fa.picks.length === 2, `assets merges current + future pick blocks (got ${fa.picks.length})`);
+  const dp = fa.picks.find((p) => p.token === 'DP_0_8');
+  assert(dp && dp.kind === 'current' && dp.round === 1 && dp.pick === 9, `DP_0_8 decodes to current 1.09, got ${JSON.stringify(dp)}`);
+  const fp = fa.picks.find((p) => p.token === 'FP_0002_2027_1');
+  assert(fp && fp.kind === 'future' && fp.originalOwner === '0002' && fp.year === 2027 && fp.round === 1, `FP token decodes owner/year/round, got ${JSON.stringify(fp)}`);
+  assert(fp.description === 'Year 2027 Round 1 Draft Pick from Downs With The Sickness', `FP description HTML is stripped, got "${fp.description}"`);
+  console.log('✓ assets: current + future picks parsed; DP_/FP_ tokens decode; FAAB/players/desc clean');
 
   mfl.exportRequest = origExport; // restore, just in case
 

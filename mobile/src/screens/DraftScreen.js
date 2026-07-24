@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, FlatList, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, FlatList, ActivityIndicator, Alert, Modal, TextInput } from 'react-native';
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import PressableScale from '../components/PressableScale';
@@ -77,6 +77,8 @@ export default function DraftScreen({ league, demoMode, onBack, onOpenPlayer, on
   const [loading, setLoading] = useState(() => !peekResource(boardKey));
   const [position, setPosition] = useState(null);
   const [picking, setPicking] = useState(null); // playerId being drafted
+  const [confirming, setConfirming] = useState(null); // player pending the draft-confirm sheet
+  const [note, setNote] = useState(''); // optional pick comment (email drafts)
 
   useAndroidBack(useCallback(() => { onBack(); return true; }, [onBack]));
 
@@ -101,10 +103,10 @@ export default function DraftScreen({ league, demoMode, onBack, onOpenPlayer, on
   usePoll(load, 15000, !!(data && data.status === 'in_progress') && !picking);
 
   const myTurn = !!(data && data.onClock && data.onClock.mine);
-  // Live drafting isn't supported: MyFantasyLeague has no make-a-pick API, so the backend 501s.
-  // In live we keep the board fully readable but hide the in-app Draft affordance and point to
-  // MFL's draft room. In demo, picks work in-app as before.
-  const canPickInApp = !!demoMode;
+  // In-app drafting works in BOTH modes now: live picks go through MFL's `live_draft` command
+  // (CMD=DRAFT), so a live/slow draft can be run from the app. A live pick is a real, hard-to-undo
+  // write, so confirmDraft double-confirms and notes the submission.
+  const canPickInApp = true;
   const canPick = myTurn && canPickInApp;
 
   const pool = useMemo(() => {
@@ -114,24 +116,20 @@ export default function DraftScreen({ league, demoMode, onBack, onOpenPlayer, on
 
   // A draft pick is irreversible, so confirm before committing (the pool rows now open
   // a profile on tap, and the explicit Draft button routes through here).
+  // A pick is irreversible, so route it through a confirm sheet (with an optional note that MFL
+  // surfaces in the draft log — "meant for email drafts").
   function confirmDraft(p) {
     if (!myTurn || picking != null) return;
-    if (!canPickInApp) {
-      // Defensive — the Draft button is hidden in live, but never fire a pick MFL will reject.
-      Alert.alert('Draft in MyFantasyLeague', 'In-app drafting isn’t available for live leagues yet — make your pick in the MyFantasyLeague draft room. It’ll show here once MFL processes it.');
-      return;
-    }
-    Alert.alert('Draft this player?', `${p.name} — ${p.position}${p.team ? ` · ${p.team}` : ''}${p.value != null ? ` · value ${p.value}` : ''}`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Draft', style: 'default', onPress: () => draftPlayer(p) },
-    ]);
+    setNote('');
+    setConfirming(p);
   }
 
-  async function draftPlayer(p) {
+  async function draftPlayer(p, comment) {
     if (!myTurn) return;
+    setConfirming(null);
     setPicking(p.id);
     try {
-      const res = await api.makeDraftPick(league.leagueId, p.id);
+      const res = await api.makeDraftPick(league.leagueId, p.id, comment && comment.trim() ? comment.trim() : undefined);
       setData(res);
       primeResource(boardKey, res);
     } catch (e) {
@@ -292,12 +290,63 @@ export default function DraftScreen({ league, demoMode, onBack, onOpenPlayer, on
           }
         />
       )}
+
+      <Modal visible={!!confirming} transparent animationType="fade" onRequestClose={() => setConfirming(null)}>
+        <Pressable style={styles.backdrop} onPress={() => setConfirming(null)}>
+          <Pressable style={styles.sheet} onPress={() => {}}>
+            {confirming ? (
+              <>
+                <Text style={styles.sheetTitle}>
+                  Draft {confirming.name}
+                  {data && data.onClock ? ` at ${data.onClock.round}.${String(data.onClock.pick).padStart(2, '0')}` : ''}?
+                </Text>
+                <Text style={styles.sheetMeta}>
+                  {confirming.position}{confirming.team ? ` · ${confirming.team}` : ''}{confirming.value != null ? ` · value ${confirming.value}` : ''}
+                </Text>
+                {!demoMode ? (
+                  <>
+                    <TextInput
+                      style={styles.noteInput}
+                      placeholder="Add a note (optional — shown in the draft log)"
+                      placeholderTextColor={colors.textDim}
+                      value={note}
+                      onChangeText={setNote}
+                      maxLength={255}
+                      multiline
+                    />
+                    <Text style={styles.sheetWarn}>This submits your pick to MyFantasyLeague — it can’t be undone from the app.</Text>
+                  </>
+                ) : null}
+                <View style={styles.sheetBtns}>
+                  <Pressable style={({ pressed }) => [styles.sheetBtn, pressed && { opacity: 0.7 }]} onPress={() => setConfirming(null)}>
+                    <Text style={styles.sheetBtnText}>Cancel</Text>
+                  </Pressable>
+                  <Pressable style={({ pressed }) => [styles.sheetBtn, styles.sheetBtnGo, pressed && { opacity: 0.85 }]} onPress={() => draftPlayer(confirming, note)}>
+                    <Text style={[styles.sheetBtnText, styles.sheetBtnGoText]}>Draft</Text>
+                  </Pressable>
+                </View>
+              </>
+            ) : null}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
+  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  sheet: { backgroundColor: colors.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, borderTopWidth: 1, borderColor: colors.border },
+  sheetTitle: { color: colors.text, fontSize: 18, fontWeight: '900' },
+  sheetMeta: { color: colors.textDim, fontSize: 13, marginTop: 4 },
+  noteInput: { marginTop: 14, minHeight: 44, maxHeight: 100, backgroundColor: colors.cardAlt, borderRadius: 10, borderWidth: 1, borderColor: colors.border, color: colors.text, fontSize: 14, paddingHorizontal: 12, paddingVertical: 10, textAlignVertical: 'top' },
+  sheetWarn: { color: colors.textDim, fontSize: 12, marginTop: 10, lineHeight: 16 },
+  sheetBtns: { flexDirection: 'row', gap: 10, marginTop: 18 },
+  sheetBtn: { flex: 1, alignItems: 'center', paddingVertical: 13, borderRadius: 12, borderWidth: 1, borderColor: colors.border },
+  sheetBtnText: { color: colors.text, fontSize: 15, fontWeight: '800' },
+  sheetBtnGo: { backgroundColor: colors.gold, borderColor: colors.gold },
+  sheetBtnGoText: { color: '#20180a' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8 },
   back: { color: colors.accent, fontSize: 16, fontWeight: '600', width: 60 },

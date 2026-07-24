@@ -6,12 +6,14 @@
 // inactive, or on a bye; and it should flag (but still allow) Questionable/Doubtful
 // players. Availability is derived from injury status + the team's bye week.
 
-// Statuses that make a player unstartable.
-const UNAVAILABLE = new Set(['OUT', 'IR', 'SUSPENDED', 'INACTIVE', 'BYE']);
+// Statuses that make a player unstartable. The IR/PUP/NFI/RETIRED/HOLDOUT variants are all real
+// values MFL's `injuries` feed emits (confirmed against a live export) — before, they fell through
+// as "startable", so the optimizer could have started a retired or IR-PUP player.
+const UNAVAILABLE = new Set(['OUT', 'IR', 'IR-PUP', 'IR-NFI', 'PUP', 'NFI', 'RETIRED', 'HOLDOUT', 'SUSPENDED', 'INACTIVE', 'BYE']);
 
 // Short display labels + severity (higher = worse) for sorting/urgency.
-const SEVERITY = { OUT: 3, IR: 3, SUSPENDED: 3, INACTIVE: 3, BYE: 3, DOUBTFUL: 2, QUESTIONABLE: 1, ACTIVE: 0 };
-const LABEL = { QUESTIONABLE: 'Q', DOUBTFUL: 'D', OUT: 'OUT', IR: 'IR', INACTIVE: 'INA', SUSPENDED: 'SUS', BYE: 'BYE', ACTIVE: '' };
+const SEVERITY = { OUT: 3, IR: 3, 'IR-PUP': 3, 'IR-NFI': 3, PUP: 3, NFI: 3, RETIRED: 3, HOLDOUT: 3, SUSPENDED: 3, INACTIVE: 3, BYE: 3, DOUBTFUL: 2, QUESTIONABLE: 1, ACTIVE: 0 };
+const LABEL = { QUESTIONABLE: 'Q', DOUBTFUL: 'D', OUT: 'OUT', IR: 'IR', 'IR-PUP': 'IR', 'IR-NFI': 'IR', PUP: 'PUP', NFI: 'NFI', RETIRED: 'RET', HOLDOUT: 'HOLD', INACTIVE: 'INA', SUSPENDED: 'SUS', BYE: 'BYE', ACTIVE: '' };
 
 // Resolve a player's availability for the given week.
 //   statusMap: { [playerId]: 'OUT' | 'QUESTIONABLE' | ... }

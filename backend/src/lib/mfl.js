@@ -380,6 +380,23 @@ async function importRequest(type, { host = config.apiHost, cookie = null, ...pa
   }
 }
 
+// Invoke a MISC command (protocol://host/<year>/<command>?args) — the third MFL command family
+// beside export/import, used for stateful actions like `live_draft` (make a pick / control the
+// timer) and `chat_save`. Params go in the query (POST, like imports). Recognizes MFL's "OK"
+// success marker (some misc commands report success in the same `error` field as failures).
+async function miscRequest(command, { host = config.apiHost, cookie = null, ...params } = {}) {
+  const query = {};
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== null) query[k] = v;
+  }
+  try {
+    return await rawRequest({ host, command, params: query, cookie, method: 'POST' });
+  } catch (e) {
+    if (isImportOk(e)) return { status: 'OK' };
+    throw e;
+  }
+}
+
 // True when an MFL import error actually carries the success marker "OK" (tolerant of the
 // {"error":"OK"} form, the <status>OK</status> form, and trailing punctuation/whitespace).
 function isImportOk(e) {
@@ -469,6 +486,7 @@ module.exports = {
   login,
   exportRequest,
   importRequest,
+  miscRequest,
   invalidateLeague,
   toArray,
   text,

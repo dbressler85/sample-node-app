@@ -54,10 +54,11 @@ router.post('/leagues/:leagueId/draftlist', async (req, res, next) => {
   }
 });
 
-// POST /api/leagues/:leagueId/draft/pick — make a pick { playerId }.
+// POST /api/leagues/:leagueId/draft/pick — make a pick { playerId, comments? }.
 router.post('/leagues/:leagueId/draft/pick', async (req, res, next) => {
   try {
-    res.json(await draft.makePick(req.mflCookie, req.account, req.params.leagueId, (req.body || {}).playerId));
+    const { playerId, comments } = req.body || {};
+    res.json(await draft.makePick(req.mflCookie, req.account, req.params.leagueId, playerId, comments));
   } catch (err) {
     next(err);
   }

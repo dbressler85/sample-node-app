@@ -439,9 +439,12 @@ async function getLeague(cookie, token, leagueId) {
   //   • in demo the live picks map is empty, so my own picks come from the demo fixture.
   // Every read is caught to a safe default: the offers you came to review must render even if
   // the bait board or a picks read is momentarily flaky — a partial desk beats a 500.
-  const [rawLeagueOffers, baitMap, picksMap, upcoming, demoMyPicks, autoDeadlineMs] = await Promise.all([
+  const [rawLeagueOffers, baitMap, assetsMap, picksMap, upcoming, demoMyPicks, autoDeadlineMs] = await Promise.all([
     offersForLeague(cookie, token, league, byId, enr).catch((e) => { console.warn(`[trades] offersForLeague failed for L=${leagueId}: ${e.message}`); return []; }),
     tradeBaitByFranchise(cookie, token, league).catch(() => new Map()),
+    // Authoritative tradable picks per franchise (post-trade ownership, one read). Null → fall back
+    // to composing futureDraftPicks + the draft grid below.
+    picksLib.assetsByFranchise(cookie, league).catch(() => null),
     picksLib.franchisePicksMap(cookie, league).catch(() => ({})),
     draftService.upcomingPicksByFranchise(cookie, token, league).catch(() => ({})),
     (config.demoMode ? picksLib.franchisePicks(cookie, league) : Promise.resolve(null)).catch(() => null),
@@ -454,14 +457,23 @@ async function getLeague(cookie, token, leagueId) {
   const myBait = baitMap.get(String(league.franchiseId)) || new Set();
   const picksFor = (fid) => (picksMap[String(fid)] || []).map((p) => asset(p.token, byId, enr));
   const upcomingFor = (fid) => (upcoming[String(fid)] || []).map((p) => asset(p.token, byId, enr));
+  // All of a franchise's tradable picks (current-year first, then future). Prefer the authoritative
+  // `assets` read; else compose the draft grid (current) + futureDraftPicks (future) as before.
+  // Demo has no assets → my picks come from the demo fixture, partners' from the (empty) composition.
+  const picksAssetsFor = (fid) => {
+    const fromAssets = assetsMap && (assetsMap[String(fid)] || assetsMap[String(fid).padStart(4, '0')]);
+    if (fromAssets) return fromAssets.map((p) => asset(p.token, byId, enr));
+    const future = config.demoMode && String(fid) === String(league.franchiseId)
+      ? (demoMyPicks || []).map((p) => asset(p.token, byId, enr))
+      : picksFor(fid);
+    return [...upcomingFor(fid), ...future];
+  };
 
   const myPlayers = [...(roster.starters || []), ...(roster.bench || [])]
     .map((p) => ({ id: p.id, name: p.name, position: p.position, team: p.team, value: enr.value(p.id), tag: playerTags.get(token, p.id), bait: myBait.has(String(p.id)) }))
     .sort((a, b) => (b.value || 0) - (a.value || 0));
   // Picks carry the real MFL trade token as their id, so a proposal can include them.
-  const myFuturePicks = config.demoMode ? (demoMyPicks || []).map((p) => asset(p.token, byId, enr)) : picksFor(league.franchiseId);
-  // Current-year picks first (the draft that hasn't happened), then future-season picks.
-  const myPicks = [...upcomingFor(league.franchiseId), ...myFuturePicks];
+  const myPicks = picksAssetsFor(league.franchiseId);
 
   const partners = rawPartners.map((pt) => {
     const bait = baitMap.get(String(pt.franchiseId)) || new Set();
@@ -478,7 +490,7 @@ async function getLeague(cookie, token, leagueId) {
       surplus: (ns[String(pt.franchiseId)] || {}).surplus || [],
       depth: (ns[String(pt.franchiseId)] || {}).depth || {},
       // Roster players then their draft picks (current-year + future) — the builder sorts picks last.
-      players: [...rosterPlayers, ...upcomingFor(pt.franchiseId), ...picksFor(pt.franchiseId)],
+      players: [...rosterPlayers, ...picksAssetsFor(pt.franchiseId)],
     };
   });
 
@@ -1053,10 +1065,12 @@ async function getLeagueFit(cookie, token, leagueId) {
   }
 }
 
-// The league's trade deadline from MFL's `calendar` export — MFL DOES carry it as a typed event
-// (`TRADE_DEADLINE`, epoch-seconds `start_time`), same shape as the waiver-process events. Returns
-// the soonest future deadline in ms, or null. Tolerant of type/label variants; fully fail-soft.
-const TRADE_DEADLINE_TYPES = new Set(['TRADE_DEADLINE', 'TRADEDEADLINE']);
+// The league's trade deadline from MFL's `calendar` export. MFL's calendarEvent reference is
+// explicit that the trade-deadline event type is **`TRADE`** (confirmed against a live calendar —
+// the earlier `TRADE_DEADLINE` guess would silently miss it); the epoch-seconds `start_time` is the
+// deadline. Kept the `TRADE_DEADLINE`/`TRADEDEADLINE` and label variants as defensive fallbacks
+// (e.g. a CUSTOM event titled "Trade Deadline"). Returns the soonest future deadline in ms, or null.
+const TRADE_DEADLINE_TYPES = new Set(['TRADE', 'TRADE_DEADLINE', 'TRADEDEADLINE']);
 async function nextTradeDeadline(cookie, league) {
   try {
     const events = await mflRepo.calendar(league, cookie);
@@ -1067,7 +1081,6 @@ async function nextTradeDeadline(cookie, league) {
       const label = `${mfl.text(ev.title)} ${mfl.text(ev.description)}`.toUpperCase();
       const isDeadline =
         TRADE_DEADLINE_TYPES.has(type) ||
-        (/TRADE/.test(type) && /DEADLINE/.test(type)) ||
         (/TRADE/.test(label) && /DEADLINE/.test(label));
       if (!isDeadline) continue;
       const startSec = mfl.num(ev.start_time);

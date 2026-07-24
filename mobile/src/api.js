@@ -148,8 +148,8 @@ export const api = {
     request(`/api/leagues/${leagueId}/draftlist${position ? `?position=${position}` : ''}`),
   saveDraftList: (leagueId, players) =>
     request(`/api/leagues/${leagueId}/draftlist`, { method: 'POST', body: { players } }),
-  makeDraftPick: (leagueId, playerId) =>
-    request(`/api/leagues/${leagueId}/draft/pick`, { method: 'POST', body: { playerId } }),
+  makeDraftPick: (leagueId, playerId, comments) =>
+    request(`/api/leagues/${leagueId}/draft/pick`, { method: 'POST', body: { playerId, comments } }),
 
   // Trades (M5)
   trades: () => request('/api/trades'),

@@ -294,8 +294,9 @@ async function getLeague(cookie, token, leagueId, { position } = {}) {
   };
 }
 
-// Make a pick when on the clock.
-async function makePick(cookie, token, leagueId, playerId) {
+// Make a pick when on the clock. `comments` is optional — MFL's live_draft accepts a note that's
+// "meant for email drafts" (shown in the draft log, not the live room); ignored in demo.
+async function makePick(cookie, token, leagueId, playerId, comments) {
   const league = await findLeague(cookie, leagueId);
   const draft = await loadDraft(cookie, token, league);
   if (!draft) throwBad('This league has no draft.');
@@ -308,28 +309,35 @@ async function makePick(cookie, token, leagueId, playerId) {
   if (drafted.has(String(playerId))) throwBad('That player is already drafted.');
 
   if (!config.demoMode) {
-    // NOTE: a live make-a-pick API DOES exist — it's the *Misc* command `live_draft`
-    // (`year/live_draft?CMD=DRAFT&PLAYER_PICK&ROUND&PICK`, owner-accessible), not an
-    // `import?TYPE=` write, which is why an earlier audit pass concluded it was absent
-    // (see docs/MFL_API_AUDIT.md §2 + ROADMAP "Owner writes unlocked…"). Wiring it is a
-    // planned change; until it's built and verified against a live draft, keep the honest
-    // 501 rather than firing an unverified write at a real league. The board stays fully
-    // readable; only the in-app pick action is deferred.
-    const err = new Error(
-      'In-app drafting isn’t available for live leagues yet — make your pick in the MyFantasyLeague draft room. It’ll show here once MFL processes it.'
-    );
-    err.status = 501; // Not Implemented (planned: live_draft?CMD=DRAFT)
-    throw err;
+    // Submit the pick to MFL's live-draft engine — the Misc command `live_draft`
+    // (year/live_draft?CMD=DRAFT&PLAYER_PICK&ROUND&PICK), owner-accessible, confirmed against MFL's
+    // Misc API reference. ROUND/PICK must match the current On-The-Clock slot (validated above);
+    // MFL rejects a stale/taken pick and its error is surfaced. Works for live AND slow/email drafts.
+    const note = typeof comments === 'string' ? comments.trim().slice(0, 255) : '';
+    await mfl.miscRequest('live_draft', {
+      host: league.host,
+      cookie,
+      L: league.leagueId,
+      CMD: 'DRAFT',
+      PLAYER_PICK: String(playerId),
+      ROUND: clock.round,
+      PICK: clock.pick,
+      COMMENTS: note || undefined, // optional note for the draft log ("meant for email drafts")
+      JSON: 1,
+    });
+    // The pick lands on my roster and the draft grid — drop this league's cached reads so the board
+    // and roster reflect it immediately (a fresh draftResults may lag a beat).
+    rosterService.invalidate(cookie, leagueId);
+    mfl.invalidateLeague(cookie, leagueId);
   }
+  // Record the pick locally (both modes): demo has no backing draft engine; live overlays it onto
+  // the grid (loadDraft merges draftStore picks) until a fresh draftResults read catches up.
   draftStore.add(token, leagueId, config.demoMode ? demo.draft(leagueId).picks : [], {
     round: clock.round,
     pick: clock.pick,
     franchiseId: league.franchiseId,
     playerId: String(playerId),
   });
-  // The pick lands on my roster and updates the draft board — drop this league's
-  // cached roster + reads so the board and roster reflect it immediately.
-  if (!config.demoMode) rosterService.invalidate(cookie, leagueId);
   return getLeague(cookie, token, leagueId);
 }
 
@@ -385,14 +393,33 @@ async function getPickInventory(cookie, token) {
   const leagues = await leaguesService.orderedLeagues(cookie, token);
   const per = await Promise.all(
     leagues.map(async (league) => {
-      const myFid = String(league.franchiseId).padStart(4, '0');
-      const [future, upcomingMap, names] = await Promise.all([
+      const rawFid = String(league.franchiseId);
+      const myFid = rawFid.padStart(4, '0');
+      const base = { leagueId: league.leagueId, leagueName: league.name };
+      // Authoritative source: MFL's `assets` export (post-trade ownership + owner names in the
+      // description). Falls back to composing draftResults (current) + futureDraftPicks (future).
+      const [assetsMap, future, upcomingMap, names] = await Promise.all([
+        picksLib.assetsByFranchise(cookie, league).catch(() => null),
         picksLib.franchisePicks(cookie, league).catch(() => []),
         upcomingPicksByFranchise(cookie, token, league).catch(() => ({})),
         leaguesService.franchiseNames(cookie, league).catch(() => new Map()),
       ]);
-      const upcoming = upcomingMap[String(league.franchiseId)] || [];
-      const base = { leagueId: league.leagueId, leagueName: league.name };
+
+      const mine = assetsMap && (assetsMap[myFid] || assetsMap[rawFid]);
+      if (mine) {
+        return mine.map((p) => {
+          const acquired = p.kind === 'future' && p.originalOwner && String(p.originalOwner).padStart(4, '0') !== myFid;
+          return {
+            ...base, token: p.token, label: p.label, year: p.year, round: p.round, pick: p.pick,
+            value: picksLib.value(p.label),
+            kind: p.kind === 'future' ? 'future' : 'upcoming',
+            acquiredFrom: acquired ? (p.from || `Franchise ${p.originalOwner}`) : null,
+          };
+        });
+      }
+
+      // Fallback (incl. demo): current-year (draft grid) then future-season (futureDraftPicks).
+      const upcoming = upcomingMap[rawFid] || [];
       const rows = upcoming.map((p) => ({
         ...base, token: p.token, label: p.label, year: p.year, round: p.round, pick: p.pick || null,
         value: picksLib.value(p.label), kind: 'upcoming', acquiredFrom: null,
@@ -429,15 +456,17 @@ async function getPickInventory(cookie, token) {
   return { summary, byYear, picks };
 }
 
-// Best-effort read of MFL's own `myDraftList` export, so a live owner who set a list on MFL's
-// site sees it here on first open. Undocumented shape to us, so stay tolerant; null on any miss
-// (we then fall back to an empty local list).
+// Read MFL's own `myDraftList` export, so a live owner who set a list on MFL's site sees it here on
+// first open. Confirmed shape (live sample): { myDraftList: { player: [{ id, order }] } } — `order`
+// is the authoritative 0-based rank, so sort by it rather than trusting array order. Null on any
+// miss (we then fall back to an empty local list).
 async function liveDraftListIds(cookie, league) {
   try {
     const res = await mfl.exportRequest('myDraftList', { host: league.host, cookie, L: league.leagueId });
-    const root = (res && (res.myDraftList || res.myDraftPool || res.draftList)) || null;
-    const players = root && (root.player || root.players || root.playerId);
-    return mfl.toArray(players).map((p) => String((p && (p.id || p.player)) || p)).filter((s) => s && s !== '[object Object]');
+    return mfl.toArray(res && res.myDraftList && res.myDraftList.player)
+      .filter((p) => p && p.id != null && p.id !== '')
+      .sort((a, b) => (mfl.num(a.order) || 0) - (mfl.num(b.order) || 0))
+      .map((p) => String(p.id));
   } catch (e) {
     return null;
   }

@@ -1,7 +1,10 @@
 'use strict';
 // Stubbed LIVE-mode harness for drafts: draftResults -> board/order/on-clock,
-// freeAgents -> value-ranked pool, and makePick -> MFL import draftPick.
+// freeAgents -> value-ranked pool, and makePick -> MFL Misc `live_draft` (CMD=DRAFT).
 process.env.MFL_DEMO_MODE = 'false';
+const os = require('os');
+const path = require('path');
+process.env.DATA_DIR = path.join(os.tmpdir(), `dc-draftlive-${process.pid}-${Date.now()}`);
 
 const mfl = require('../../src/lib/mfl');
 
@@ -30,6 +33,10 @@ mfl.exportRequest = async (type, opts = {}) => {
       ] }] } };
     case 'freeAgents':
       return { freeAgents: { leagueUnit: { player: [{ id: '30' }, { id: '31' }, { id: '20' }] } } };
+    case 'myDraftList':
+      // Real shape: { myDraftList: { player: [{ id, order }] } }. Deliberately OUT of array order
+      // to prove we sort by the `order` field (0-based rank), not the array order.
+      return { myDraftList: { player: [{ id: '31', order: '1' }, { id: '30', order: '0' }, { id: '20', order: '2' }] } };
     default:
       return {};
   }
@@ -67,20 +74,29 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   assert(!dl.available.some((p) => p.id === '20'), 'already-drafted player excluded from pool');
   console.log('✓ league board + value-ranked available pool');
 
-  // Live drafting is NOT supported: MFL has no documented make-a-pick import (draftPick
-  // isn't a real TYPE — see docs/MFL_API_AUDIT.md §2). makePick must fail fast with an
-  // honest 501 and must NOT fire any import at MFL. The read paths above stay fully live.
-  let threw = false;
-  try {
-    await draft.makePick(CK, TK, '1000', '30');
-  } catch (e) {
-    threw = true;
-    assert(e.status === 501, `live makePick returns 501 Not Implemented, got ${e.status}`);
-    assert(/draft room|isn’t available/i.test(e.message), 'the error points the owner to MFL’s draft room');
-  }
-  assert(threw, 'live makePick fails fast instead of pretending to draft');
-  assert(!imported.some((c) => c.type === 'draftPick'), 'no draftPick import is ever sent to MFL in live mode');
-  console.log('✓ make pick: live drafting is hidden — 501, no MFL write');
+  // The My Draft List seeds from MFL's `myDraftList` export on first open, ranked by the `order`
+  // field (not array order); a listed player already off the board is flagged drafted.
+  const dlist = await draft.getDraftList(CK, TK, '1000');
+  assert(dlist.list.map((p) => p.id).join(',') === '30,31,20', `draft list seeded in MFL order, got ${dlist.list.map((p) => p.id)}`);
+  assert(dlist.list[0].id === '30' && dlist.list[0].rank === 1, 'order=0 ranks first');
+  assert(dlist.list.find((p) => p.id === '20').drafted === true, 'a listed player already drafted is flagged');
+  console.log('✓ getDraftList seeds from myDraftList export, ordered by `order`');
+
+  // Live drafting IS supported via MFL's Misc `live_draft` command (CMD=DRAFT) — confirmed against
+  // the Misc API reference. makePick must fire live_draft (NOT an import) with ROUND/PICK matching
+  // the on-clock slot, then reflect the pick on the board.
+  const drafted = [];
+  mfl.miscRequest = async (command, params) => { drafted.push({ command, params }); return { status: 'OK' }; };
+  const after = await draft.makePick(CK, TK, '1000', '30', '  Best value on the board  ');
+  assert(drafted.length === 1 && drafted[0].command === 'live_draft', 'makePick fires the live_draft Misc command');
+  const pk = drafted[0].params;
+  assert(pk.CMD === 'DRAFT' && String(pk.PLAYER_PICK) === '30' && Number(pk.ROUND) === 1 && Number(pk.PICK) === 2,
+    `live_draft carries CMD=DRAFT + PLAYER_PICK + on-clock ROUND/PICK, got ${JSON.stringify(pk)}`);
+  assert(pk.COMMENTS === 'Best value on the board', `the optional pick comment is trimmed and passed through, got ${JSON.stringify(pk.COMMENTS)}`);
+  assert(!imported.some((c) => c.type === 'draftPick'), 'no bogus draftPick import is ever sent to MFL');
+  assert(after.board.find((s) => s.round === 1 && s.pick === 2 && s.player && String(s.player.id) === '30'),
+    'the just-made pick is reflected on the board (optimistic overlay)');
+  console.log('✓ make pick: fires live_draft (CMD=DRAFT), reflects the pick, no import');
 
   console.log('\nLIVE DRAFT HARNESS PASSED');
 })().catch((e) => { console.error(e.message); process.exit(1); });

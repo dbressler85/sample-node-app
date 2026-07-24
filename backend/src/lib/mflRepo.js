@@ -182,16 +182,24 @@ function parsePickToken(token) {
   return { kind: 'unknown' };
 }
 
-// One franchise's tradable assets -> { id, playerIds[], faab, picks[] }. `picks` carries the raw
-// token plus its parsed round/year/owner (the token encodes the ORIGINAL owner; the pick is listed
-// under whoever CURRENTLY holds it — so this is the authoritative "what can each team trade").
-function normFranchiseAssets(fr) {
-  const playerIds = mfl.toArray(fr && fr.players && fr.players.player).map((p) => mfl.text(p.id));
-  const faab = fr && fr.blindBiddingDollars ? mfl.num(fr.blindBiddingDollars.amount) : null;
-  const picks = mfl.toArray(fr && fr.futureYearDraftPicks && fr.futureYearDraftPicks.draftPick).map((dp) => {
+// One franchise's tradable assets -> { id, playerIds[], faab, picks[] }. Each pick carries the raw
+// token plus its parsed round/year/owner (an FP token encodes the ORIGINAL owner; every pick is
+// listed under whoever CURRENTLY holds it — so this is the authoritative "what can each team
+// trade", reflecting post-trade ownership incl. acquired picks in a non-natural slot). Reads BOTH
+// the current-year (`DP_` tokens) and future-year (`FP_` tokens) blocks a live sample confirmed.
+function readAssetPicks(node) {
+  return mfl.toArray(node && node.draftPick).map((dp) => {
     const token = mfl.text(dp && dp.pick);
     return { token, description: stripHtml(mfl.text(dp && dp.description)), ...parsePickToken(token) };
   });
+}
+function normFranchiseAssets(fr) {
+  const playerIds = mfl.toArray(fr && fr.players && fr.players.player).map((p) => mfl.text(p.id));
+  const faab = fr && fr.blindBiddingDollars ? mfl.num(fr.blindBiddingDollars.amount) : null;
+  const picks = [
+    ...readAssetPicks(fr && fr.currentYearDraftPicks),
+    ...readAssetPicks(fr && fr.futureYearDraftPicks),
+  ];
   return { id: mfl.text(fr && fr.id), playerIds, faab, picks };
 }
 

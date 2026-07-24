@@ -23,20 +23,29 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   const trades = require('../../src/services/trades');
   const soonSec = Math.floor((Date.now() + 20 * 24 * 60 * 60 * 1000) / 1000);
   const pastSec = Math.floor((Date.now() - 5 * 24 * 60 * 60 * 1000) / 1000);
+  // MFL's real trade-deadline event type is `TRADE` (per the calendarEvent import reference).
   mflRepo.calendar = async () => [
     { type: 'WAIVER_BBID', start_time: String(soonSec + 100000) },
-    { type: 'TRADE_DEADLINE', start_time: String(pastSec) }, // already passed → ignored
-    { type: 'TRADE_DEADLINE', start_time: String(soonSec) }, // the upcoming one
+    { type: 'TRADE', start_time: String(pastSec) }, // already passed → ignored
+    { type: 'TRADE', start_time: String(soonSec) }, // the upcoming one
   ];
   const dlMs = await trades.nextTradeDeadline('ck', { leagueId: '1', host: 'www.myfantasyleague.com' });
-  assert(dlMs === soonSec * 1000, `reads the soonest FUTURE TRADE_DEADLINE, got ${dlMs} vs ${soonSec * 1000}`);
-  // Also matches when the type differs but the label says "trade deadline".
+  assert(dlMs === soonSec * 1000, `reads the soonest FUTURE TRADE event, got ${dlMs} vs ${soonSec * 1000}`);
+  // `TRADE_DEADLINE`/`TRADEDEADLINE` and a labelled CUSTOM event still match (defensive fallbacks).
+  mflRepo.calendar = async () => [{ type: 'TRADE_DEADLINE', start_time: String(soonSec) }];
+  assert((await trades.nextTradeDeadline('ck', { leagueId: '1' })) === soonSec * 1000, 'TRADE_DEADLINE fallback still matches');
   mflRepo.calendar = async () => [{ type: 'CUSTOM', title: 'Trade Deadline', start_time: String(soonSec) }];
   assert((await trades.nextTradeDeadline('ck', { leagueId: '1' })) === soonSec * 1000, 'matches a trade-deadline by label too');
-  // No deadline on the calendar → null.
-  mflRepo.calendar = async () => [{ type: 'WAIVER_BBID', start_time: String(soonSec) }];
-  assert((await trades.nextTradeDeadline('ck', { leagueId: '1' })) === null, 'no trade-deadline event → null');
-  console.log('✓ nextTradeDeadline reads MFL’s calendar TRADE_DEADLINE event (soonest future)');
+  // A real calendar with NO trade event (waiver/keeper/draft events only) → null, not a false hit.
+  mflRepo.calendar = async () => [
+    { type: 'KEEPERS', start_time: '1770919200', end_time: '1784944800' },
+    { type: 'WAIVER_BBID', happens: '33', start_time: '1778724000' },
+    { type: 'WAIVER_LOCK', happens: '16', start_time: '1778724000' },
+    { type: 'DRAFT_START', start_time: '1785078000' },
+    { type: 'WAIVER_NONE', start_time: '1799031600' },
+  ];
+  assert((await trades.nextTradeDeadline('ck', { leagueId: '1' })) === null, 'a calendar without a TRADE event → null');
+  console.log('✓ nextTradeDeadline reads MFL’s calendar TRADE event (soonest future); no false hits');
 
   // --- effectiveDeadline: one resolver, precedence manual → demo fixture ---
   // Demo mode: a league with a fixture deadline resolves to source 'demo'.

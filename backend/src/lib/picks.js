@@ -8,6 +8,7 @@
 const config = require('../config');
 const demo = require('../demo/fixtures');
 const mfl = require('./mfl');
+const mflRepo = require('./mflRepo');
 
 // Estimated dynasty value (0-100 scale) for a draft pick from its label. This is a
 // model, not a market price: a round-based baseline plus a dynasty time-value discount
@@ -115,4 +116,41 @@ async function franchisePicksMap(cookie, league) {
   }
 }
 
-module.exports = { franchisePicks, franchisePicksMap, ordinal, labelForToken, value };
+// A future pick's description reads "Year 2027 Round 1 Draft Pick from <original owner team>";
+// pull the team name out (HTML already stripped by the repo). Null for current-year picks (no "from").
+function fromDescription(desc) {
+  const m = /\bfrom\s+(.+)$/i.exec(String(desc || '').trim());
+  return m ? m[1].trim() : null;
+}
+
+// Every franchise's tradable picks from MFL's purpose-built `assets` export — the authoritative,
+// post-trade view (acquired picks show under their CURRENT holder, incl. non-natural slots), in ONE
+// read, with the original owner's team name in each future pick's description. Returns
+// { [franchiseId]: [{ token, label, year, round, pick, kind:'current'|'future', originalOwner, from }] }
+// or null (demo, or any read/parse trouble) so callers fall back to composing from draftResults +
+// futureDraftPicks. Live only.
+async function assetsByFranchise(cookie, league) {
+  if (config.demoMode) return null;
+  try {
+    const franchises = await mflRepo.assets(league, cookie);
+    if (!franchises.length) return null;
+    const out = {};
+    for (const fr of franchises) {
+      out[String(fr.id)] = (fr.picks || []).map((p) => ({
+        token: p.token,
+        label: labelForToken(p.token),
+        year: p.year != null ? p.year : (p.kind === 'future' ? null : Number(config.season)),
+        round: p.round != null ? p.round : null,
+        pick: p.pick != null ? p.pick : null,
+        kind: p.kind === 'future' ? 'future' : 'current',
+        originalOwner: p.originalOwner || null,
+        from: fromDescription(p.description),
+      }));
+    }
+    return out;
+  } catch (e) {
+    return null;
+  }
+}
+
+module.exports = { franchisePicks, franchisePicksMap, assetsByFranchise, ordinal, labelForToken, value };

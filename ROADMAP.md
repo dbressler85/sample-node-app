@@ -294,17 +294,17 @@ login). All of these are **owner-accessible** (no commissioner cookie; the owner
 cookie authorizes them — `FRANCHISE_ID`/`FRANCHISE_PICK` is only for commissioner impersonation).
 New features we can build on the strength of that confirmation:
 
-- [ ] **In-app drafting via `live_draft` — supersedes the make-a-pick 501.** *Correction:* MFL
-  **does** expose a per-pick draft write, just not in the Import set — it's a **Misc** command
-  (`protocol://host/<year>/live_draft?...`), which is why the Import reference didn't list it.
-  `live_draft` with `CMD=DRAFT`, `PLAYER_PICK`, `ROUND`, `PICK` (`JSON=1` for a JSON result) makes
-  the pick, and is **restricted to league owners** — an owner can draft their own player, and the
-  `COMMENTS` field is explicitly *"meant for email drafts."* So in-app drafting is buildable for
-  **both live and slow/email** drafts. Rework `draft.makePick`: it already validates on-the-clock /
-  it's-your-pick / not-already-drafted and derives `ROUND`/`PICK` from the grid, so swap the honest
-  501 for a `live_draft?CMD=DRAFT` call (Misc URL shape — `year/live_draft?…`, not
-  `import?TYPE=…`, so add a small Misc-request helper alongside `importRequest`). Timer control
-  (`CMD=PAUSE`/`RESUME`/`SKIP`/`UNDO`) is commissioner-only — out of scope for now.
+- [x] **In-app drafting via `live_draft` — supersedes the make-a-pick 501.** Shipped: MFL's per-pick
+  draft write is the **Misc** command `live_draft` (`year/live_draft?CMD=DRAFT&PLAYER_PICK&ROUND&PICK`,
+  owner-accessible, `COMMENTS` "meant for email drafts"). Added `mfl.miscRequest` (the third command
+  family beside export/import, with the same "OK" success-marker handling) and rewired
+  `draft.makePick`: after its on-the-clock / your-pick / not-taken validation it fires
+  `live_draft?CMD=DRAFT`, invalidates the league's cached reads, and optimistically overlays the pick
+  on the board. Mobile now allows drafting in **live** too (was demo-only) with a confirmation that
+  notes it submits to MFL and can't be undone from the app. Works for live AND slow/email drafts.
+  Timer control (`PAUSE`/`RESUME`/`SKIP`/`UNDO`) is commissioner-only — out of scope. *(Remaining:
+  verify the exact request against a live draft — MFL's Misc test form is the safe way; a slow/email
+  draft is the low-stakes case to confirm on.)*
 - [x] **My Draft List (auto-pick queue) — complements live drafting.** `import?TYPE=myDraftList`
   with `PLAYERS=<csv>` (owner; overwrites the prior list). Shipped: a **My Draft List editor**
   (`DraftListScreen`, reached from the Draft screen's ★ button) that frames it as a pre-draft /
@@ -440,16 +440,16 @@ add another data source.
 - [ ] **Live projections floor/ceiling.** Floor/median/ceiling bands are a model
   estimate (position volatility around the projection), flagged as estimates in the
   UI — not a real distribution. A better source would replace the heuristic.
-- [ ] **Source tradeable picks from MFL's `assets` export.** Current-year (upcoming-draft)
-  picks are currently derived from the `draftResults` grid: ownership is authoritative
-  (MFL's per-slot `franchise`, correct even after pick trades), but the `DP_<round-1>_<pick-1>`
-  trade token is *constructed* by us from MFL's round/pick numbers — the one part that
-  needs an on-device check. MFL's `export?TYPE=assets` is purpose-built for "what can this
-  franchise trade" and should return players + current/future picks **already tokenized** in
-  the exact trade-API format, removing the construction (and covering edge cases like
-  conditional picks). Rework to use `assets` as the primary source with the `draftResults`
-  derivation as fallback. Blocked on confirming the export's exact shape against a live
-  account (MFL blocks their API docs from us), so pair with the live-MFL verification below.
+- [x] **Source tradeable picks from MFL's `assets` export.** Done: a live `assets` sample confirmed
+  the shape and that our token construction was already correct (`DP_<round-1>_<pick-1>`,
+  `FP_<owner>_<year>_<round>`). `picksLib.assetsByFranchise` reads the purpose-built export once →
+  every franchise's players + FAAB + current/future picks already tokenized, with **post-trade
+  ownership** (acquired picks under their current holder, incl. non-natural slots) and the original
+  owner's **team name in each future pick's description**. Wired into the **pick inventory** (Pick
+  Capital — "acquired from X" now comes free) and **trade construction** (`trades.getLeague`
+  my/partner picks), each with a fallback to the old `draftResults` + `futureDraftPicks` composition
+  (and the demo fixture). Also fixed the shipped-but-unused `normFranchiseAssets`, which had dropped
+  the current-year (`DP_`) block. Verified by `mfl-repo` + `picks-assets` harnesses.
 
 ## Hardening & ops
 
