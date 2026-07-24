@@ -24,6 +24,7 @@ const rosterService = require('./roster');
 const playersLib = require('../lib/players');
 const { createMemo } = require('../lib/memo');
 const store = require('../store/waivers');
+const waiverBids = require('../store/waiverBids');
 const playerTags = require('../store/playerTags');
 
 // Free-agent reads are heavy (the freeAgents + projectedScores exports, then
@@ -567,6 +568,42 @@ async function liveWaiverResults(cookie, league, byId, limit = 8) {
     }
     out.sort((a, b) => (b.at || 0) - (a.at || 0));
     return out.slice(0, limit);
+  } catch (e) {
+    return [];
+  }
+}
+
+// Outbid (LOST) blind bids for MY franchise. MFL never writes a losing bid to the transaction log,
+// so we snapshot our MFL-queued bids (from pendingWaivers — covers bids placed on the SITE too, not
+// just the app) on each view, then detect losses by reconciliation: a bid that's since vanished from
+// MFL's pending set was processed by a run; if the player isn't in our recent WINS we were outbid.
+// Also purges any resolved app-submitted mirror from the local store so a settled bid stops showing
+// as pending. Best-effort + fail-soft. `wins` is the liveWaiverResults rows (won adds).
+async function lostBidResults(cookie, token, league, byId, wins) {
+  if (config.demoMode) return [];
+  try {
+    const reqs = await mflRepo.pendingWaivers(league, cookie); // cached; also read by reconciledPending
+    const picks = reqs.flatMap((req) =>
+      req.picks.map((p) => ({ round: req.round, system: req.system, addId: String(p.add), dropId: p.drop ? String(p.drop) : null, bid: p.bid }))
+    );
+    const wonAddIds = new Set(wins.map((r) => String(r.addId)).filter(Boolean));
+    const { lost, clearedAddIds } = waiverBids.sync(token, league.leagueId, picks, wonAddIds, Date.now());
+    // Settled bids shouldn't linger as pending: drop any matching app-submitted mirror from the store.
+    if (clearedAddIds.length) {
+      const cleared = new Set(clearedAddIds.map(String));
+      for (const c of store.list(token, league.leagueId, [])) {
+        const addId = c.add && (c.add.id || c.add);
+        if (addId && cleared.has(String(addId))) store.remove(token, league.leagueId, [], c.id);
+      }
+    }
+    return lost
+      .map((r) => {
+        const add = playersLib.resolve(byId, r.addId);
+        if (!add.name || /^Player \d+$/.test(add.name)) return null;
+        const drop = r.dropId ? playersLib.resolve(byId, r.dropId) : null;
+        return { add: add.name, addId: add.id, drop: drop ? drop.name : null, dropId: drop ? drop.id : null, bid: r.bid, result: 'lost', at: Math.floor((r.at || 0) / 1000) };
+      })
+      .filter(Boolean);
   } catch (e) {
     return [];
   }
@@ -1177,10 +1214,13 @@ async function getPending(cookie, token) {
         config.demoMode ? Promise.resolve(null) : nextWaiverRun(cookie, league).catch(() => null),
       ]);
       const at = runMs ? new Date(runMs).toISOString() : null;
+      // OUTBID losses (snapshot of our queued bids vs the wins), folded in alongside the won results.
+      const lost = config.demoMode ? [] : await lostBidResults(cookie, token, league, byId, rs);
+      const lostAddIds = new Set(lost.map((l) => String(l.addId)));
       const pending = pend
-        .filter((c) => (c.status || 'pending') === 'pending')
+        .filter((c) => (c.status || 'pending') === 'pending' && !(c.add && lostAddIds.has(String(c.add.id))))
         .map((c) => ({ ...c, leagueId: league.leagueId, leagueName: league.name, at, atLabel: c.processTime || null }));
-      const results = rs.map(normResult).map((r) => ({ ...r, leagueId: league.leagueId, leagueName: league.name }));
+      const results = [...rs, ...lost].map(normResult).map((r) => ({ ...r, leagueId: league.leagueId, leagueName: league.name }));
       return { pending, results };
     })
   );

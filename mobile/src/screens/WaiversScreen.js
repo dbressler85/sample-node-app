@@ -504,7 +504,9 @@ function PendingView({ pending, onCancel, onOpenPlayer }) {
           </Text>
           <View style={{ flex: 1 }}>
             <Text style={styles.resultText} numberOfLines={1}>
-              <Text style={styles.resultAddSign}>+ </Text>
+              {/* A green "+" reads as "acquired" — only right for a WON add. An outbid LOSS shows a
+                  neutral bullet so the row doesn't imply we got the player. */}
+              {r.result === 'won' ? <Text style={styles.resultAddSign}>+ </Text> : <Text style={styles.resultDim}>• </Text>}
               <ResultName player={{ name: r.add, id: r.addId }} onOpenPlayer={onOpenPlayer} />
               {r.drop ? (
                 <Text style={styles.resultDim}>
@@ -512,7 +514,7 @@ function PendingView({ pending, onCancel, onOpenPlayer }) {
                   <ResultName player={{ name: r.drop, id: r.dropId }} onOpenPlayer={onOpenPlayer} />
                 </Text>
               ) : null}
-              {r.bid != null ? <Text style={styles.resultDim}>{`  ·  $${r.bid}`}</Text> : null}
+              {r.bid != null ? <Text style={styles.resultDim}>{`  ·  $${r.bid}${r.result === 'won' ? '' : ' bid'}`}</Text> : null}
             </Text>
             <Text style={styles.resultLeague} numberOfLines={1}>{r.leagueName}</Text>
           </View>
