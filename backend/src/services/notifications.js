@@ -142,10 +142,14 @@ function buildFor(state, draftOv, tradeOv, deck = { items: [] }, watchAlerts = {
   const offerIds = curOffers.map((o) => `${o.leagueId}:${o.id}`);
   const prevOffers = new Set(state.offerIds || []);
 
-  // Lineup locks that need attention (from On Deck). Keyed by league + kickoff, so a
-  // hole fires once per week per league — and re-fires next week's lock, not every tick.
+  // Lineup locks that need attention (from On Deck). Keyed by league + kickoff + the PROBLEM (status +
+  // which starting slots are wiped), so it fires once per week per league AND re-fires within the week
+  // when the problem changes — e.g. a starter you'd set is newly ruled OUT (optimal→suboptimal, or a
+  // new position hole). That's the "pre-kickoff inactive sweep": you get told your lineup broke, even
+  // after you already set it, instead of a single stale notification per week.
   const curLineups = (deck.items || []).filter((i) => i.type === 'lineup_lock');
-  const lineupKeys = curLineups.map((i) => `${i.leagueId}:${i.at || ''}`);
+  const lineupKey = (i) => `${i.leagueId}:${i.at || ''}:${i.status || ''}:${(i.wiped || []).slice().sort().join(',')}`;
+  const lineupKeys = curLineups.map(lineupKey);
   const prevLineups = new Set(state.lineupKeys || []);
 
   // Watchlist alerts: a tracked player is newly a free agent / on another owner's block.
@@ -185,7 +189,7 @@ function buildFor(state, draftOv, tradeOv, deck = { items: [] }, watchAlerts = {
     }
     if (prefs.lineupAttention !== false) {
       for (const i of curLineups) {
-        if (!prevLineups.has(`${i.leagueId}:${i.at || ''}`)) {
+        if (!prevLineups.has(lineupKey(i))) {
           msgs.push({ to: state.expoPushToken, title: 'Lineup needs attention ⚑', body: `${i.leagueName} — ${i.detail || 'set your starters'}`, data: { type: 'lineup', leagueId: i.leagueId } });
         }
       }
