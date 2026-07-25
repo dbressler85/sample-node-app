@@ -13,25 +13,36 @@ const leagueFormat = require('./leagueformat');
 const POS_ORDER = ['QB', 'RB', 'WR', 'TE', 'FLEX', 'SUPERFLEX', 'OP', 'K', 'PK', 'DEF', 'DST'];
 const posRank = (n) => { const i = POS_ORDER.indexOf(n); return i === -1 ? POS_ORDER.length : i; };
 
-// "1QB · 2RB · 3WR · 1TE · 2FLEX" — every required starting slot with its count.
+// One slot's label: "1QB", or "≤3RB" when it's a range ("up to 3"), so a min-max lineup reads
+// honestly instead of implying you start the max at every position.
+function slotLabel(r) {
+  const max = r.max != null ? r.max : r.count || 1;
+  const min = r.min != null ? r.min : max;
+  return min < max ? `≤${max}${r.slot || r.name}` : `${max}${r.slot || r.name}`;
+}
+
+// "1QB · ≤3RB · ≤5WR · 1TE · 1K · 1DEF" — every starting slot with its (possibly ranged) count.
 function lineupLabel(reqs) {
   return (reqs || [])
     .slice()
-    .sort((a, b) => posRank(a.name) - posRank(b.name))
-    .map((r) => `${r.count || 1}${r.name}`)
+    .sort((a, b) => posRank(a.slot || a.name) - posRank(b.slot || b.name))
+    .map(slotLabel)
     .join(' · ');
 }
 
 async function build(cookie, league) {
-  const [fmt, reqs] = await Promise.all([
+  const [fmt, spec] = await Promise.all([
     leagueFormat.format(cookie, league),
-    leagueFormat.requirements(cookie, league),
+    leagueFormat.startersSpec(cookie, league),
   ]);
   const superflex = !!(fmt && fmt.numQbs >= 2);
   const ppr = fmt && fmt.ppr != null ? fmt.ppr : 1;
   // Extra points per TE reception above the base — the "TE premium" that lifts TE value.
   const tePremium = fmt && fmt.tePpr != null && fmt.tePpr > ppr ? Math.round((fmt.tePpr - ppr) * 100) / 100 : 0;
-  const starters = (reqs || []).map((r) => ({ slot: r.name, count: r.count || 1, eligible: r.eligible || [] }));
+  // Per-slot: keep min/max so the UI can show ranges; `count` (max) stays for callers that expect it.
+  const starters = (spec.slots || []).map((r) => ({ slot: r.name, count: r.count || 1, min: r.min != null ? r.min : r.count || 1, max: r.max != null ? r.max : r.count || 1, eligible: r.eligible || [] }));
+  // `hasRange` lets the UI note the label is a set of maximums whose true total is `totalStarters`.
+  const hasRange = starters.some((r) => r.min < r.max);
   return {
     scoringLabel: leagueFormat.label(fmt),
     superflex,
@@ -39,9 +50,12 @@ async function build(cookie, league) {
     pprLabel: ppr >= 1 ? 'Full PPR' : ppr >= 0.5 ? 'Half PPR' : 'Standard',
     tePremium,
     lineup: {
-      label: lineupLabel(reqs),
+      label: lineupLabel(starters),
       starters,
-      totalStarters: starters.reduce((s, r) => s + (r.count || 0), 0),
+      // Authoritative number of players you actually start (MFL's `starters count`), which for a
+      // min-max lineup is LESS than the sum of the per-position maximums.
+      totalStarters: spec.total,
+      hasRange,
     },
   };
 }

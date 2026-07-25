@@ -461,7 +461,9 @@ const DRAFTS = {
   '40750': {
     status: 'in_progress',
     type: 'Rookie draft',
-    startTime: '2026-08-10T23:00:00Z',
+    // A genuinely LIVE draft has a start time in the PAST (it started yesterday). A future start
+    // means the draft hasn't begun — even with picks on the board (keepers) — and reads 'scheduled'.
+    startTime: '2026-07-24T18:00:00Z',
     rounds: 2,
     snake: true,
     order: ['0002', '0009', '0007'], // 0007 = me; I'm on the clock at 1.03

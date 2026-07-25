@@ -28,6 +28,17 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   assert(d.picksMade === 0, 'no picks made');
   console.log('✓ future-start draft: scheduled, not on the clock (grid laid out but not begun)');
 
+  // The reported bug: a KEEPER draft that starts tomorrow, with keeper picks ALREADY on the board
+  // (franchise 0001 pre-assigned 1.01). Made picks must NOT flip a future-start draft to
+  // "in progress → you're on the clock" — a future start is authoritative even with picks present.
+  const keeperGrid = grid.map((g, i) => (i === 0 ? { ...g, player: '14801' } : { ...g })); // 0001 keeper at 1.01
+  mflRepo.draftResults = async () => [{ unit: 'LEAGUE', startTime: String(future), draftType: 'SNAKE', draftPick: keeperGrid }];
+  const ovK = await draft.getOverview('ck', 'tk');
+  const dK = ovK.drafts.find((x) => x.leagueId === '9001');
+  assert(dK.status === 'scheduled', `a future-start keeper draft (picks pre-loaded) still reads scheduled, got ${dK.status}`);
+  assert(dK.myOnClock === false, 'I am NOT on the clock before a keeper draft starts, even with keepers on the board');
+  console.log('✓ future-start KEEPER draft: pre-loaded picks do not put you on the clock');
+
   // Same grid but a PAST start + a made pick → genuinely in progress, and 0001 (1.01 unmade) is up.
   const past = Math.floor(Date.now() / 1000) - 3600;
   const started = grid.map((g, i) => (i === 0 ? { ...g } : g)); // still no players => on the clock at 1.01

@@ -23,24 +23,53 @@ function slotName(eligible) {
   return eligible.join('/');
 }
 
-// Normalized starting-lineup requirements: [{ name, eligible[], count }].
-async function requirements(cookie, league) {
-  if (config.demoMode) return demo.lineupRequirements(league.leagueId) || [];
+// Full starting-lineup spec: the per-slot rules AND the league's authoritative TOTAL starter count.
+// MFL's `starters` node carries a `count` attribute (e.g. "10") that is the number of players you
+// ACTUALLY start — which, for a min-max lineup, is LESS than the sum of the per-position maximums
+// (e.g. 1QB + up-to-3RB + up-to-5WR + 1TE + 1K + 1DEF sums to 12 maxes but the league starts 10).
+// Each slot keeps `min`/`max` (from a "1-3" style limit) plus `count` = max for optimizer back-compat.
+//   { slots: [{ name, eligible[], count, min, max }], total }
+const startersMemo = createMemo({ ttlMs: config.mflStaticTtlMs });
+
+function startersSpec(cookie, league) {
+  if (config.demoMode) {
+    const slots = (demo.lineupRequirements(league.leagueId) || []).map((r) => ({ ...r, min: r.count || 1, max: r.count || 1 }));
+    const demoTotal = demo.starterTotal ? demo.starterTotal(league.leagueId) : null;
+    return Promise.resolve({ slots, total: demoTotal != null ? demoTotal : slots.reduce((s, r) => s + (r.count || 0), 0) });
+  }
+  return startersMemo.get(`${cookie}|${league.leagueId}`, () => buildStartersSpec(cookie, league));
+}
+
+async function buildStartersSpec(cookie, league) {
   const res = await mfl.exportRequest('league', { host: league.host, cookie, L: league.leagueId });
-  const positions = mfl.toArray(res && res.league && res.league.starters && res.league.starters.position);
-  return positions.map((p) => {
-    const eligible = String(p.name || '')
+  const startersNode = res && res.league && res.league.starters;
+  const positions = mfl.toArray(startersNode && startersNode.position);
+  const slots = positions.map((p) => {
+    const eligible = mfl.text(p.name)
       .split('|')
       .map((s) => s.trim())
       .filter(Boolean)
       .map((s) => playersLib.normalizePosition(s));
-    // MFL limits can be a range ("1-3"); we take the max as the slot count and
-    // log it so a min-max lineup can't quietly miscount starters.
-    const rawLimit = String(p.limit || '1');
-    if (rawLimit.includes('-')) console.log(`[leagueformat] league=${league.leagueId} range slot limit "${rawLimit}" for "${p.name}" — using max`);
-    const max = parseInt(rawLimit.split('-').pop(), 10) || 1;
-    return { name: slotName(eligible), eligible, count: max };
+    // MFL limits can be a range ("1-3"): keep both ends. `count` stays the MAX for the optimizer,
+    // while min/max let the UI say "up to 3" and the league total (below) says how many really start.
+    const rawLimit = mfl.text(p.limit) || '1';
+    const parts = rawLimit.split('-');
+    const min = parseInt(parts[0], 10) || 0;
+    const max = parseInt(parts[parts.length - 1], 10) || 1;
+    return { name: slotName(eligible), eligible, count: max, min, max };
   });
+  // The authoritative total: MFL's `starters count`. Fall back to the sum of maxes only if absent
+  // (a lineup with no ranges — where the two are equal anyway).
+  const totalAttr = mfl.num(startersNode && startersNode.count);
+  const total = totalAttr && totalAttr > 0 ? totalAttr : slots.reduce((s, r) => s + (r.max || 0), 0);
+  const sumMax = slots.reduce((s, r) => s + (r.max || 0), 0);
+  if (total !== sumMax) console.log(`[leagueformat] league=${league.leagueId} total starters=${total} (sum of position maxes=${sumMax} — min-max lineup)`);
+  return { slots, total };
+}
+
+// Normalized starting-lineup requirements: [{ name, eligible[], count, min, max }].
+async function requirements(cookie, league) {
+  return (await startersSpec(cookie, league)).slots;
 }
 
 // How many QBs a lineup can start (superflex/2QB -> 2, otherwise 1). Counts every
@@ -169,4 +198,4 @@ function label(fmt) {
   return `${qb} · ${pprLabel}${te}`;
 }
 
-module.exports = { requirements, format, numQbs, scoringRules, label };
+module.exports = { requirements, startersSpec, format, numQbs, scoringRules, label };

@@ -28,7 +28,9 @@ export default function LeagueContext({ context }) {
       </View>
       {lineup && lineup.label ? (
         <Text style={styles.line}>
-          <Text style={styles.lineLabel}>Starters  </Text>{lineup.label}
+          <Text style={styles.lineLabel}>Starters  </Text>
+          {lineup.totalStarters != null ? <Text style={styles.startTotal}>{lineup.totalStarters} total  </Text> : null}
+          {lineup.label}
         </Text>
       ) : null}
       {team && (team.outlook || team.coreAge != null || team.strengthLabel) ? (
@@ -51,4 +53,5 @@ const styles = StyleSheet.create({
   chipText: { fontSize: 11, fontWeight: '800', letterSpacing: 0.3 },
   line: { color: colors.text, fontSize: 12.5, lineHeight: 17 },
   lineLabel: { color: colors.textDim, fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
+  startTotal: { color: colors.gold, fontWeight: '900' },
 });

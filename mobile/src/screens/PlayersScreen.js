@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, FlatList, StyleSheet, Pressable, TextInput, ActivityIndicator, Linking, ScrollView } from 'react-native';
+import { View, Text, FlatList, StyleSheet, Pressable, TextInput, ActivityIndicator, Linking } from 'react-native';
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import AvailabilityBadge from '../components/AvailabilityBadge';
@@ -283,11 +283,8 @@ export default function PlayersScreen({ onOpenPlayer }) {
       {searching ? (
         <>
           <PosFilter pos={pos} setPos={setPos} />
-          {searchRes && searchRes.players.length ? (
-            <LensSortRow format={format} setFormat={setFormat} sort={listSort} onSort={setListSort} />
-          ) : (
-            <ValueLens format={format} setFormat={setFormat} />
-          )}
+          <ValueLens format={format} setFormat={setFormat} />
+          {searchRes && searchRes.players.length ? <SortRow value={listSort} onChange={setListSort} /> : null}
           {!searchRes ? (
             <PlayerListSkeleton />
           ) : (
@@ -314,17 +311,16 @@ export default function PlayersScreen({ onOpenPlayer }) {
           {tab === 'rankings' ? (
             <>
               <View style={styles.typeRow}>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.typeScroll} contentContainerStyle={styles.typeScrollRow}>
-                  {RANK_TYPES.map(([k, label]) => (
-                    <Pressable key={k} style={[styles.typeChip, rankType === k && styles.typeChipActive]} onPress={() => setRankType(k)}>
-                      <Text style={[styles.typeText, rankType === k && { color: colors.text }]}>{label}</Text>
-                    </Pressable>
-                  ))}
-                  <View style={styles.typeInfo}><InfoDot id="ranking" size={16} /></View>
-                </ScrollView>
+                {RANK_TYPES.map(([k, label]) => (
+                  <Pressable key={k} style={[styles.typeChip, rankType === k && styles.typeChipActive]} onPress={() => setRankType(k)}>
+                    <Text style={[styles.typeText, rankType === k && { color: colors.text }]}>{label}</Text>
+                  </Pressable>
+                ))}
+                <View style={styles.typeInfo}><InfoDot id="ranking" size={16} /></View>
               </View>
               <PosFilter pos={pos} setPos={setPos} rankType={rankType} setRankType={setRankType} />
-              <LensSortRow format={format} setFormat={setFormat} sort={listSort} onSort={setListSort} />
+              <ValueLens format={format} setFormat={setFormat} />
+              <SortRow value={listSort} onChange={setListSort} />
               <FlatList
                 style={styles.grow}
                 data={rankingsData}
@@ -585,8 +581,10 @@ function PlayerListSkeleton({ count = 9 }) {
 // column and the chips rendered as full-height bars while the list was loading.
 // When given rankType/setRankType (rankings tab only) it also hosts the Rookies filter.
 function PosFilter({ pos, setPos, rankType, setRankType }) {
+  // Wrapping row (not a horizontal scroll) so the position chips never side-scroll — they flow onto a
+  // second line on a narrow screen.
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.posScroll} contentContainerStyle={styles.posRow}>
+    <View style={styles.posRow}>
       {POSITIONS.map(([k, label]) => (
         <Pressable key={label} style={[styles.posChip, pos === k && styles.posChipActive]} onPress={() => setPos(k)}>
           <Text style={[styles.posChipText, pos === k && { color: colors.text }]}>{label}</Text>
@@ -600,7 +598,7 @@ function PosFilter({ pos, setPos, rankType, setRankType }) {
           <Text style={[styles.posChipText, rankType === 'rookies' && { color: colors.gold }]}>Rookies</Text>
         </Pressable>
       ) : null}
-    </ScrollView>
+    </View>
   );
 }
 
@@ -619,31 +617,6 @@ function ValueLens({ format, setFormat }) {
         ))}
       </View>
     </View>
-  );
-}
-
-// Combined controls strip: the value lens (1QB / Superflex) and the list sort on ONE row,
-// split by a thin divider — no "Value lens" label, to save vertical space. Horizontally
-// scrollable so it never overflows on a narrow screen.
-function LensSortRow({ format, setFormat, sort, onSort }) {
-  return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.lensSortScroll} contentContainerStyle={styles.lensSortRow}>
-      <View style={styles.lensToggle}>
-        {[['1qb', '1QB'], ['sf', 'Superflex']].map(([k, label]) => (
-          <Pressable key={k} style={[styles.lensSeg, format === k && styles.lensSegActive]} onPress={() => setFormat(k)}>
-            <Text style={[styles.lensSegText, format === k && styles.lensSegTextActive]}>{label}</Text>
-          </Pressable>
-        ))}
-      </View>
-      <InfoDot id="format" />
-      <View style={styles.lsDivider} />
-      <Text style={styles.newsSortLabel}>Sort</Text>
-      {LIST_SORTS.map(([k, label]) => (
-        <Pressable key={k} style={[styles.newsSortChip, sort === k && styles.newsSortChipActive]} onPress={() => onSort(k)}>
-          <Text style={[styles.newsSortText, sort === k && { color: colors.text }]}>{label}</Text>
-        </Pressable>
-      ))}
-    </ScrollView>
   );
 }
 
@@ -721,7 +694,7 @@ const styles = StyleSheet.create({
   segActive: { backgroundColor: colors.cardAlt },
   segText: { color: colors.textDim, fontSize: 13, fontWeight: '700' },
   segTextActive: { color: colors.text },
-  typeRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 6 },
+  typeRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, rowGap: 8, paddingHorizontal: 16, paddingVertical: 6 },
   // flexGrow:0 keeps the horizontal strip at chip height instead of stretching to fill the
   // column (the same fix the positional filter needed).
   typeScroll: { flexGrow: 0, flexShrink: 0 },
@@ -731,7 +704,7 @@ const styles = StyleSheet.create({
   typeChipActive: { backgroundColor: colors.cardAlt, borderColor: colors.accent },
   typeText: { color: colors.textDim, fontSize: 12, fontWeight: '700' },
   posScroll: { flexGrow: 0, flexShrink: 0 },
-  posRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, gap: 8, paddingVertical: 6 },
+  posRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, rowGap: 8, paddingHorizontal: 16, paddingVertical: 6 },
   posChip: { backgroundColor: colors.card, borderRadius: 8, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 13, paddingVertical: 5 },
   rookChip: { borderColor: colors.gold + '55' },
   rookChipActive: { backgroundColor: colors.gold + '22', borderColor: colors.gold },
