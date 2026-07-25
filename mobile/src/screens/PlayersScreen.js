@@ -61,15 +61,26 @@ function timeAgo(iso) {
 
 // Secondary sort for the player lists (Rankings / My Players / Watch). 'default' keeps the
 // list's natural order (the rank type on Rankings; the server order elsewhere).
-const LIST_SORTS = [['default', 'Default'], ['value', 'Value'], ['name', 'Name'], ['position', 'Pos']];
+const LIST_SORTS = [['default', 'Default'], ['value', 'Value'], ['proj', 'Proj'], ['season', 'Yr pts'], ['name', 'Name'], ['position', 'Pos']];
 const POS_ORDER = { QB: 1, RB: 2, WR: 3, TE: 4, PK: 5, K: 5, DEF: 6 };
+// Sort a player list by the chosen key. Numeric keys sort desc with nulls sinking to the bottom
+// (a player with no known projection/points shouldn't float above one who has them).
 function sortPlayers(list, key) {
   if (!key || key === 'default') return list;
   const arr = [...list];
   if (key === 'value') return arr.sort((a, b) => (b.value || 0) - (a.value || 0));
+  if (key === 'proj') return arr.sort((a, b) => nullLast(a.weekProjection, b.weekProjection));
+  if (key === 'season') return arr.sort((a, b) => nullLast(a.seasonPoints, b.seasonPoints));
   if (key === 'name') return arr.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
   if (key === 'position') return arr.sort((a, b) => (POS_ORDER[a.position] || 9) - (POS_ORDER[b.position] || 9) || (b.value || 0) - (a.value || 0));
   return arr;
+}
+// Descending compare that keeps nulls/undefined at the end regardless of sort direction.
+function nullLast(a, b) {
+  if (a == null && b == null) return 0;
+  if (a == null) return 1;
+  if (b == null) return -1;
+  return b - a;
 }
 
 const NEWS_SORTS = [['impact', 'Impact'], ['recent', 'Recent']];
@@ -746,7 +757,7 @@ const styles = StyleSheet.create({
   quickAdd: { borderWidth: 1, borderColor: colors.good, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
   quickAddText: { color: colors.good, fontSize: 12, fontWeight: '800' },
   newsSearchWrap: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, marginBottom: 6 },
-  newsSortRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, gap: 8, marginBottom: 6 },
+  newsSortRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', rowGap: 6, paddingHorizontal: 16, gap: 8, marginBottom: 6 },
   newsSortLabel: { color: colors.textDim, fontSize: 12, fontWeight: '700', marginRight: 2 },
   newsSortChip: { backgroundColor: colors.card, borderRadius: 8, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 5 },
   newsSortChipActive: { backgroundColor: colors.cardAlt, borderColor: colors.accent },
