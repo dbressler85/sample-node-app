@@ -49,7 +49,7 @@ function shutdown(signal) {
   console.log(`\n${signal} received — flushing state and shutting down`);
   clearInterval(notifyTimer);
   warm.stop();
-  persist.flush();
+  persist.flushSync(); // sync: the process is exiting, an async write wouldn't finish
   server.close(() => process.exit(0));
   // Don't hang forever if connections linger.
   setTimeout(() => process.exit(0), 3000).unref();

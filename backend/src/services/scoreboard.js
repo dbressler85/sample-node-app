@@ -10,6 +10,7 @@ const demo = require('../demo/fixtures');
 const mfl = require('../lib/mfl');
 const mflRepo = require('../lib/mflRepo');
 const nflLib = require('../lib/nfl');
+const { logDegrade } = require('../lib/safe');
 const leaguesService = require('./leagues');
 const playersLib = require('../lib/players');
 
@@ -97,6 +98,7 @@ async function liveForLeague(cookie, league) {
     card.me.yetToPlayers = await resolveYetToPlay(cookie, ytpIds);
     return card;
   } catch (e) {
+    logDegrade(`scoreboard.liveForLeague league=${league.leagueId}`, e);
     return null;
   }
 }

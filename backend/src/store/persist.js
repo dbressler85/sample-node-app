@@ -31,7 +31,34 @@ function load() {
 }
 load();
 
-function flush() {
+let writing = false; // an async flush is in flight
+let dirtyDuringWrite = false; // a touch() landed mid-write → re-flush after
+
+// Async debounced write — OFF the event loop's critical path. `writeFileSync` here stalled the single
+// loop for every concurrent request during the write, and it's driven hot (the notifications tick
+// touch()es per device). Serialize once, write-temp + rename atomically via fs.promises. Only one
+// flush runs at a time; a touch() during a write sets a dirty flag so we re-flush once it finishes.
+async function flush() {
+  if (timer) { clearTimeout(timer); timer = null; }
+  if (!writable || writing) { if (writing) dirtyDuringWrite = true; return; }
+  writing = true;
+  try {
+    await fs.promises.mkdir(config.dataDir, { recursive: true });
+    const tmp = `${FILE}.tmp`;
+    await fs.promises.writeFile(tmp, JSON.stringify(root));
+    await fs.promises.rename(tmp, FILE); // atomic replace
+  } catch (e) {
+    writable = false;
+    console.log(`[persist] writes disabled (${e.message}); continuing in memory`);
+  } finally {
+    writing = false;
+    if (dirtyDuringWrite) { dirtyDuringWrite = false; scheduleWrite(); }
+  }
+}
+
+// Synchronous flush — only for process shutdown (an async write wouldn't finish before exit) and the
+// test reload helper. Never use on a hot request path.
+function flushSync() {
   if (timer) { clearTimeout(timer); timer = null; }
   if (!writable) return;
   try {
@@ -47,7 +74,7 @@ function flush() {
 
 function scheduleWrite() {
   if (!writable || timer) return;
-  timer = setTimeout(flush, 250);
+  timer = setTimeout(() => { flush().catch(() => {}); }, 250);
   if (timer.unref) timer.unref(); // don't keep the process alive for a pending write
 }
 
@@ -64,9 +91,9 @@ function touch() {
 // Test helper: force a synchronous flush, drop the in-memory copy, and reload
 // from disk — simulating a process restart.
 function _reloadFromDisk() {
-  flush();
+  flushSync();
   root = {};
   load();
 }
 
-module.exports = { ns, touch, flush, _reloadFromDisk, _file: FILE };
+module.exports = { ns, touch, flush, flushSync, _reloadFromDisk, _file: FILE };

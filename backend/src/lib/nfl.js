@@ -151,11 +151,13 @@ async function byeMap(cookie, week) {
   }
 }
 
-// Injury/status map for a week: { [playerId]: 'OUT' | 'QUESTIONABLE' | ... }.
-async function injuryMap(cookie, week) {
+// Injury/status map for a week: { [playerId]: 'OUT' | 'QUESTIONABLE' | ... }. `opts` passes through to
+// the MFL read (e.g. `{ priority: 'low' }` when the warm loop primes it — a background prime must never
+// jump ahead of a user's own read).
+async function injuryMap(cookie, week, opts = {}) {
   if (!week) return {}; // no active week (offseason) -> nothing to fetch
   try {
-    const res = await mfl.exportRequest('injuries', { cookie, W: week });
+    const res = await mfl.exportRequest('injuries', { cookie, W: week, ...opts });
     const list = mfl.toArray(res && res.injuries && res.injuries.injury);
     const map = {};
     for (const i of list) map[String(i.id)] = String(i.status || '').toUpperCase();

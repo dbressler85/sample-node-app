@@ -8,6 +8,7 @@ const config = require('../config');
 const demo = require('../demo/fixtures');
 const mfl = require('../lib/mfl');
 const mflRepo = require('../lib/mflRepo');
+const { logDegrade } = require('../lib/safe');
 const leaguesService = require('./leagues');
 const playersLib = require('../lib/players');
 const picksLib = require('../lib/picks');
@@ -38,6 +39,7 @@ async function playoffSpotsFor(cookie, league) {
     const n = parseInt(lg.playoffTeams || lg.playoffs || lg.playoff_teams || '', 10);
     return Number.isFinite(n) && n > 0 ? n : null;
   } catch (e) {
+    logDegrade(`league.playoffSpots league=${league.leagueId}`, e);
     return null;
   }
 }

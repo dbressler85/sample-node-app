@@ -12,6 +12,11 @@ import AnimatedNumber from '../components/AnimatedNumber';
 // Chart width = screen minus the body padding (16×2) and card padding (16×2).
 const CHART_W = Dimensions.get('window').width - 64;
 
+// Fixed holdings-row height — MUST match styles.holdRow.height. Feeds getItemLayout so the virtualized
+// list knows every row's offset up front and a fast fling never renders blank cells.
+const HOLDING_ROW_HEIGHT = 54;
+const getHoldingLayout = (_data, index) => ({ length: HOLDING_ROW_HEIGHT, offset: HOLDING_ROW_HEIGHT * index, index });
+
 // Cross-league dynasty portfolio: total invested value, how it's spread by age, and
 // the value "at risk" — tied up in hurt starters or players aging past their
 // position's decline curve. The strategic counterpart to the Home action list.
@@ -138,6 +143,7 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
         data={visibleHoldings}
         keyExtractor={(h) => h.id}
         renderItem={renderHolding}
+        getItemLayout={getHoldingLayout}
         extraData={baitOverride}
         initialNumToRender={12}
         maxToRenderPerBatch={12}
@@ -686,7 +692,10 @@ const styles = StyleSheet.create({
   holdKeyName: { flex: 1, color: colors.textDim, fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.3 },
   holdKeyVal: { color: colors.gold, fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.3 },
   holdKeyPct: { color: colors.textDim, fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.3, marginTop: 1 },
-  holdRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 9, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+  // Fixed height (must equal HOLDING_ROW_HEIGHT) so the FlatList's getItemLayout is exact — a fast
+  // fling then never flashes blank rows (UX_GUARDRAILS §2). Two single-line texts, so content never
+  // changes the height; alignItems centers them in the fixed box.
+  holdRow: { flexDirection: 'row', alignItems: 'center', height: 54, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   holdIdentity: { flex: 1, flexDirection: 'row', alignItems: 'center' },
   shop: { marginLeft: 10, borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 9, paddingVertical: 5 },
   shopOn: { backgroundColor: colors.gold, borderColor: colors.gold },

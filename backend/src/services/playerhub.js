@@ -10,6 +10,7 @@ const config = require('../config');
 const demo = require('../demo/fixtures');
 const mfl = require('../lib/mfl');
 const mflRepo = require('../lib/mflRepo');
+const { logDegrade } = require('../lib/safe');
 const scoringLib = require('../lib/scoring');
 const availabilityLib = require('../lib/availability');
 const playersLib = require('../lib/players');
@@ -297,6 +298,7 @@ async function liveLeagueProjection(cookie, league, playerId) {
       .find((p) => String(p.id) === String(playerId));
     return hit ? Math.round((Number(hit.score) || 0) * 10) / 10 : null;
   } catch (e) {
+    logDegrade(`playerhub.liveLeagueProjection league=${league.leagueId} player=${playerId}`, e);
     return null;
   }
 }
@@ -309,6 +311,7 @@ async function livePlayerScore(cookie, league, playerId, W) {
       .find((p) => String(p.id) === String(playerId));
     return hit && hit.score !== '' && hit.score != null ? Math.round((Number(hit.score) || 0) * 10) / 10 : null;
   } catch (e) {
+    logDegrade(`playerhub.livePlayerScore league=${league.leagueId} player=${playerId}`, e);
     return null;
   }
 }
@@ -373,6 +376,7 @@ async function livePriorSeasonTotal(cookie, league, playerId, enr) {
       stats,
     };
   } catch (e) {
+    logDegrade(`playerhub.livePriorSeasonTotal league=${league.leagueId} player=${playerId}`, e);
     return null;
   }
 }
@@ -481,6 +485,7 @@ async function profile(cookie, token, playerId) {
         const [b] = await mflRepo.playerProfiles(cookie, playerId);
         return b || null;
       } catch (e) {
+        logDegrade(`playerhub.playerProfile player=${playerId}`, e);
         return null;
       }
     })(),

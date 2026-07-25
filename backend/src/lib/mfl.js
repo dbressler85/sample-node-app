@@ -336,8 +336,13 @@ const LEAGUE_GLOBAL_TYPES = new Set([
   'rosters', 'freeAgents', 'liveScoring', 'projectedScores', 'playerScores',
   'leagueStandings', 'schedule', 'calendar', 'playoffBrackets', 'league', 'rules',
   'draftResults', 'assets', 'tradeBait', 'transactions',
-  'players', 'nflSchedule', 'topOwns', 'topAdds', 'playerProfile',
+  'players', 'nflSchedule', 'topOwns', 'topAdds', 'playerProfile', 'injuries',
 ]);
+// NOTE on `injuries`: it's a site-wide NFL feed (keyed only by week `W`, not by league or user), read
+// on EVERY roster and lineup build (availability). Keeping it per-cookie meant each user re-fetched
+// the identical list every 5 min on the Sunday hot path; sharing it (cookie dropped from the key) makes
+// the first user's fetch serve everyone for the TTL. Left on the default short TTL — injuries change
+// intraday on game day, so freshness still matters; it's the redundancy that's removed, not the cadence.
 
 // Read data via the export command (cached, TTL depends on how volatile it is).
 async function exportRequest(type, { host = config.apiHost, cookie = null, maxAge = null, year = null, priority = 'normal', ...params } = {}) {

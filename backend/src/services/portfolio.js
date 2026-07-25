@@ -142,19 +142,26 @@ function untilLabel(ms) {
 // Trade + waiver items for one league.
 async function extraItems(cookie, token, league) {
   const items = [];
-  for (const t of await pendingTrades(cookie, league)) {
+  // These three MFL reads are independent — fetch them in parallel so per-league Home triage is one
+  // round-trip, not three in series (this runs for every league on the progressive Sunday-morning Home
+  // load). Order of the assembled items below is unchanged.
+  const waiversService = config.demoMode ? null : require('./waivers'); // lazy require avoids a portfolio↔waivers cycle
+  const [trades, waivers, run] = await Promise.all([
+    pendingTrades(cookie, league),
+    pendingWaivers(cookie, token, league),
+    waiversService ? waiversService.nextWaiverRun(cookie, league).catch(() => null) : Promise.resolve(null),
+  ]);
+  for (const t of trades) {
     const detail = t.gives.length || t.gets.length ? `They give ${t.gives.join(', ') || '—'} for ${t.gets.join(', ') || '—'}` : 'Tap to review the offer';
     items.push({ id: `trade-${league.leagueId}-${t.id}`, type: 'trade_offer', severity: 'high', action: 'trade', leagueId: league.leagueId, leagueName: league.name, title: `Trade offer from ${t.from}`, subtitle: detail });
   }
-  for (const w of await pendingWaivers(cookie, token, league)) {
+  for (const w of waivers) {
     items.push({ id: `waiver-${league.leagueId}-${w.player}`, type: 'waiver_pending', severity: 'low', action: 'waiver', leagueId: league.leagueId, leagueName: league.name, title: `Waiver claim pending: ${w.player.split(',')[0]}`, subtitle: `${w.bid != null ? `$${w.bid} · ` : ''}runs ${w.runsAt}` });
   }
   // Waivers about to process: if this league's calendar shows a run within the act-now window,
   // surface it as a triage item so the owner gets one last chance to place/adjust claims. Live
   // only (demo has no calendar) and best-effort — a null next-run just omits the item.
   if (!config.demoMode) {
-    const waiversService = require('./waivers'); // lazy require avoids a portfolio↔waivers cycle
-    const run = await waiversService.nextWaiverRun(cookie, league).catch(() => null);
     if (run != null && run > Date.now() && run - Date.now() <= config.waiverImminentMs) {
       items.push({
         id: `waiver-imminent-${league.leagueId}`,
