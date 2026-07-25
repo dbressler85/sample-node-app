@@ -1,6 +1,7 @@
 'use strict';
 
 const mfl = require('./mfl');
+const mflRead = require('./mflRead'); // shared read core (device-origin spike): owns the parse
 
 // Repository layer over MFL's export envelopes.
 //
@@ -23,10 +24,12 @@ async function read(type, league, cookie, params = {}) {
   return mfl.exportRequest(type, { host: league.host, cookie, L: league.leagueId, ...params });
 }
 
-// `rosters` export -> every franchise's roster ({ id, player: [...] }).
+// `rosters` export -> every franchise's roster ({ id, player: [...] }). The envelope unwrap is now
+// single-sourced in the shared mflRead core, so the device fetches+parses this read with the SAME
+// code the backend uses here (device-origin spike — docs/DEVICE_ORIGIN_MFL.md).
 async function rosters(league, cookie, params = {}) {
   const res = await read('rosters', league, cookie, params);
-  return mfl.toArray(res && res.rosters && res.rosters.franchise);
+  return mflRead.reads.rosters.parse(res);
 }
 
 // `leagueStandings` export -> per-franchise standings rows.
