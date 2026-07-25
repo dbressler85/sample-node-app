@@ -300,6 +300,27 @@ const LIVE_TYPES = new Set(['liveScoring', 'draftResults', 'pendingTrades']);
 // avoids the rate-limit burst. (Current-week live scoring uses LIVE_TYPES instead.)
 const SLOW_TYPES = new Set(['projectedScores', 'playerScores']);
 
+// SHARED (cross-user) cache. These export types return the SAME response for every MEMBER of a
+// league — rosters, free agents, live scoring, projections, standings, schedule, settings, the draft
+// board, etc. are member-invariant — and the site-wide reads (player DB, NFL schedule, top adds/owns,
+// player bios) are identical for everyone. We cache them WITHOUT the session cookie in the key, so all
+// users share ONE cached copy: N members of the same league (e.g. everyone refreshing live scores on
+// Sunday) cause ONE MFL fetch, not N. The request still authenticates with whatever cookie was passed
+// (needed to read a private league); the first caller populates the shared entry and the rest reuse
+// it. A user can only ever request a league they belong to (their league list comes from the
+// per-cookie `myleagues`), so there's no cross-league leakage.
+//
+// EXCLUDED (kept per-cookie, because the response depends on WHO is asking): `myleagues` (your league
+// list), `pendingWaivers` (your queued claims), `pendingTrades` (your offers), `myDraftList` (your
+// list), and `playerRosterStatus` (its add-eligibility can be caller-relative) — those keep the cookie
+// in the cache key and stay private.
+const LEAGUE_GLOBAL_TYPES = new Set([
+  'rosters', 'freeAgents', 'liveScoring', 'projectedScores', 'playerScores',
+  'leagueStandings', 'schedule', 'calendar', 'playoffBrackets', 'league', 'rules',
+  'draftResults', 'assets', 'tradeBait', 'transactions',
+  'players', 'nflSchedule', 'topOwns', 'topAdds', 'playerProfile',
+]);
+
 // Read data via the export command (cached, TTL depends on how volatile it is).
 async function exportRequest(type, { host = config.apiHost, cookie = null, maxAge = null, year = null, ...params } = {}) {
   // Key on params with SORTED keys: the read cache coalesces identical reads, but
@@ -307,7 +328,10 @@ async function exportRequest(type, { host = config.apiHost, cookie = null, maxAg
   // different keys and silently double-fetch the same data. (params holds flat primitives.)
   // `year` overrides the season in the URL path, so it must be part of the key or a prior-season
   // read would collide with the current one.
-  const key = `${cookie || ''}|${host}|${type}|${year || ''}|${JSON.stringify(params, Object.keys(params).sort())}`;
+  // League-global types drop the cookie from the KEY (shared across users); everything else keeps it
+  // (private per session). The FETCH below still uses the real cookie either way.
+  const keyCookie = LEAGUE_GLOBAL_TYPES.has(type) ? '' : (cookie || '');
+  const key = `${keyCookie}|${host}|${type}|${year || ''}|${JSON.stringify(params, Object.keys(params).sort())}`;
   let ttl = DAILY_TYPES.has(type)
     ? config.mflDailyTtlMs
     : STATIC_TYPES.has(type)
@@ -341,15 +365,19 @@ async function exportRequest(type, { host = config.apiHost, cookie = null, maxAg
   return promise;
 }
 
-// Drop cached reads for one league (all its export types) after a write to it, so
-// the next read reflects the change rather than serving a pre-write snapshot for
-// the rest of the TTL. Scoped to the given cookie so it never touches another
-// account's cache. `L` (leagueId) is part of every league-scoped export's params.
+// Drop cached reads for one league (all its export types) after a write to it, so the next read
+// reflects the change rather than serving a pre-write snapshot for the rest of the TTL. `L`
+// (leagueId) is part of every league-scoped export's params. Clears BOTH the caller's own per-cookie
+// entries AND the SHARED (cookie-less) league-global entries — a write changes the league for every
+// member, so the shared copy must refetch too, and the writer's own immediate re-read must not serve
+// the pre-write shared snapshot. It does not touch OTHER users' private (per-cookie) entries, which
+// hold their own franchise data and are unaffected by this write.
 function invalidateLeague(cookie, leagueId) {
   const needleCookie = `${cookie || ''}|`;
   const needleL = `"L":"${String(leagueId)}"`;
   for (const k of readCache.keys()) {
-    if (k.startsWith(needleCookie) && k.includes(needleL)) readCache.delete(k);
+    if (!k.includes(needleL)) continue;
+    if (k.startsWith(needleCookie) || k.startsWith('|')) readCache.delete(k);
   }
 }
 
