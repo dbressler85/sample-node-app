@@ -30,6 +30,14 @@ const server = app.listen(config.port, () => {
   const mode = config.demoMode ? 'DEMO (fixture data)' : 'LIVE (MyFantasyLeague)';
   if (config.demoMode) console.warn('⚠️  DEMO MODE: any username/password is accepted and returns fixture data. Do not expose publicly.');
   console.log(`Dynasty Central backend listening on :${config.port} — ${mode}, season ${config.season}`);
+  // Surface the MFL client identity so it's verifiable that prod is sending the REGISTERED User-Agent
+  // (a mismatch silently forfeits the ~2.5x validated-client rate limit). Also visible on /_metrics.
+  if (!config.demoMode) {
+    console.log(`MFL client: User-Agent "${config.userAgent}" — registered=${config.mflClientRegistered}`);
+    if (!config.mflClientRegistered) {
+      console.log('  ↳ not registered: register + SMS-validate this exact UA for ~2.5x limits, then set MFL_CLIENT_REGISTERED=true. See docs/MFL_CLIENT_REGISTRATION.md');
+    }
+  }
 });
 
 // Push-notification scheduler: poll registered devices for new on-the-clock /
