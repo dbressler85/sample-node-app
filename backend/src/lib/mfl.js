@@ -18,6 +18,7 @@
 //    User-Agent and serialize requests with a minimum interval between them.
 
 const config = require('../config');
+const metrics = require('./metrics');
 
 // --- request throttle -------------------------------------------------------
 // Run up to mflMaxConcurrent outbound MFL requests at once, with a small stagger
@@ -230,8 +231,10 @@ async function rawRequest({ host, command, params, cookie, method = 'GET', body,
   let res;
   let text;
   for (let attempt = 0; ; attempt++) {
+    metrics.recordFetch(params.TYPE || command); // an actual outbound MFL network call (per attempt)
     res = await throttle(() => fetchAllowlisted(url, init), priority);
     if (res.status === 429) {
+      metrics.record429();
       const retryAfter = parseInt(res.headers.get('retry-after') || '', 10);
       const waitMs = Number.isFinite(retryAfter) ? retryAfter * 1000 : 2000;
       noteRateLimit(waitMs);
@@ -242,6 +245,7 @@ async function rawRequest({ host, command, params, cookie, method = 'GET', body,
       break;
     }
     if (res.status === 503 && attempt < config.mflMaxRetries) {
+      metrics.record503();
       const waitMs = Math.min(10000, 800 * 2 ** attempt);
       const jitter = Math.floor(Math.random() * 250);
       noteRateLimit(waitMs);
@@ -253,6 +257,7 @@ async function rawRequest({ host, command, params, cookie, method = 'GET', body,
   }
 
   if (!res.ok) {
+    if (res.status !== 429 && res.status !== 503) metrics.recordError(); // 429/503 already counted
     const err = new Error(`MFL request failed (${res.status}) for ${command}?TYPE=${params.TYPE || ''}`);
     err.status = res.status;
     err.body = text.slice(0, 500);
@@ -359,7 +364,11 @@ async function exportRequest(type, { host = config.apiHost, cookie = null, maxAg
   // lengthens it, and the refetched value updates the shared cache for everyone.
   if (maxAge != null) ttl = Math.min(ttl, maxAge);
   const hit = readCache.get(key);
-  if (hit && Date.now() - hit.at < ttl) return hit.promise;
+  if (hit && Date.now() - hit.at < ttl) {
+    metrics.recordHit(LEAGUE_GLOBAL_TYPES.has(type)); // a read served with NO MFL call (shared vs private)
+    return hit.promise;
+  }
+  metrics.recordMiss();
 
   const promise = rawRequest({ host, command: 'export', params: { TYPE: type, ...params }, cookie, year, priority });
   const entry = { at: Date.now(), ttl, promise };
@@ -536,6 +545,19 @@ module.exports = {
   attr,
   errorDetail,
   hostFromLeagueUrl,
+  // Live throttle + cache state for the /_metrics view (and tests): what's in-flight, what's queued
+  // in each priority lane, whether we're in a rate-limit cooldown, and the read-cache size.
+  throttleStats: () => ({
+    active,
+    queuedNormal: waiters.length,
+    queuedLow: lowWaiters.length,
+    inPenalty: inPenalty(),
+    penaltyRemainingMs: Math.max(0, penaltyUntil - Date.now()),
+    effConcurrent: effConcurrent(),
+    effInterval: effInterval(),
+    maxConcurrent: config.mflMaxConcurrent,
+    cacheSize: readCache.size,
+  }),
   // Test-only window into the adaptive throttle (see throttle-test / throttle-backoff-test).
   __throttle: { inPenalty, effConcurrent, effInterval },
 };

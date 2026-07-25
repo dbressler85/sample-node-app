@@ -17,6 +17,7 @@ const tradeBaitRoutes = require('./routes/tradebait');
 const draftRoutes = require('./routes/draft');
 const trophyRoutes = require('./routes/trophies');
 const pushRoutes = require('./routes/push');
+const metricsRoutes = require('./routes/metrics');
 
 const app = express();
 
@@ -33,6 +34,7 @@ app.get('/api/health', (req, res) => {
   res.json({ ok: true, season: config.season, demoMode: config.demoMode });
 });
 
+app.use('/api', metricsRoutes); // operational metrics (own token gate; no session middleware)
 app.use('/api/auth', authRoutes);
 app.use('/api', commandRoutes);
 app.use('/api', playerHubRoutes);

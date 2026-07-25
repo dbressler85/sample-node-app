@@ -16,6 +16,7 @@
 
 const config = require('../config');
 const mfl = require('../lib/mfl');
+const metrics = require('../lib/metrics');
 const mflRepo = require('../lib/mflRepo');
 const nflLib = require('../lib/nfl');
 const playersLib = require('../lib/players');
@@ -40,15 +41,17 @@ async function warmLeague(cookie, league, week) {
 }
 
 let running = false;
+let lastRun = null; // { at, sessions, leagues, week, fetched } — surfaced on /_metrics
 
 // One warm pass: over every active session's leagues (deduped), prime the lineup-relevant reads. The
 // global reads (player DB, NFL week/injuries) are primed once — they're the same for everyone.
 async function warmOnce() {
   if (running) return { skipped: true };
   running = true;
+  const fetchesBefore = metrics.fetchCount();
   try {
     const active = sessions.active();
-    if (!active.length) return { sessions: 0, leagues: 0 };
+    if (!active.length) { lastRun = { at: Date.now(), sessions: 0, leagues: 0, fetched: 0 }; return { sessions: 0, leagues: 0 }; }
     // Global, everyone-shares reads: prime once using any live cookie.
     const anyCookie = active[0].cookie;
     const week = await nflLib.currentWeek(anyCookie).catch(() => null);
@@ -65,8 +68,12 @@ async function warmOnce() {
         leagues += 1;
       }
     }
-    console.log(`[warm] primed ${leagues} league(s) across ${active.length} session(s), week=${week ?? '—'}`);
-    return { sessions: active.length, leagues, week };
+    // `fetched` = warm reads that actually hit MFL; the rest were free cache hits (natural traffic
+    // already warmed them). A low number here means the self-throttling is working.
+    const fetched = metrics.fetchCount() - fetchesBefore;
+    lastRun = { at: Date.now(), sessions: active.length, leagues, week, fetched };
+    console.log(`[warm] primed ${leagues} league(s) across ${active.length} session(s), ${fetched} actual MFL fetches, week=${week ?? '—'}`);
+    return { ...lastRun };
   } finally {
     running = false;
   }
@@ -104,4 +111,16 @@ function stop() {
   if (timer) { clearInterval(timer); timer = null; }
 }
 
-module.exports = { start, stop, warmOnce, inWindow };
+// Worker state for the /_metrics view.
+function stats() {
+  return {
+    enabled: !!(config.warmEnabled && !config.demoMode),
+    running: !!timer,
+    inWindow: inWindow(),
+    windowEt: `${config.warmStartHourEt}:00–${config.warmEndHourEt}:00 ET (day ${config.warmDayEt})`,
+    intervalMs: config.warmIntervalMs,
+    lastRun,
+  };
+}
+
+module.exports = { start, stop, warmOnce, inWindow, stats };

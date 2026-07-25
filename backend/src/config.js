@@ -158,6 +158,13 @@ const config = {
   // How often to re-warm during the window. Default 5min = the roster TTL, so rosters are never more
   // than one cycle stale and a league already refreshed by real traffic is a no-op cache hit.
   warmIntervalMs: int(process.env.MFL_WARM_INTERVAL_MS, 5 * 60 * 1000),
+
+  // Operational metrics endpoint (GET /api/_metrics): MFL call volume, cache hit-rate, throttle
+  // state, warm-loop stats. It exposes no user data, but it IS operational, so it's gated by a
+  // secret. Set METRICS_TOKEN and pass it as `?token=` or the `x-metrics-token` header. When unset,
+  // the endpoint is open in non-production (local/demo) and DISABLED (404) in production — so you
+  // can't accidentally expose it by forgetting to set the token.
+  metricsToken: process.env.METRICS_TOKEN || null,
 };
 
 module.exports = config;
