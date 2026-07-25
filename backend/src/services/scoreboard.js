@@ -10,7 +10,7 @@ const demo = require('../demo/fixtures');
 const mfl = require('../lib/mfl');
 const mflRepo = require('../lib/mflRepo');
 const nflLib = require('../lib/nfl');
-const { logDegrade } = require('../lib/safe');
+const { logDegrade, mapLeagues } = require('../lib/safe');
 const leaguesService = require('./leagues');
 const playersLib = require('../lib/players');
 
@@ -105,7 +105,7 @@ async function liveForLeague(cookie, league) {
 
 async function getScoreboard(cookie) {
   const leagues = await leaguesService.listLeagues(cookie);
-  const cards = (await Promise.all(leagues.map((l) => liveForLeague(cookie, l).catch(() => null)))).filter(Boolean);
+  const cards = (await mapLeagues(leagues, (l) => liveForLeague(cookie, l), null, 'scoreboard.live')).filter(Boolean);
 
   // Closest games first; locked games sink to the bottom.
   cards.sort((a, b) => {

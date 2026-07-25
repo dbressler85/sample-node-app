@@ -21,6 +21,7 @@ const leaguesService = require('./leagues');
 const lineupsService = require('./lineups');
 const rosterService = require('./roster');
 const nflLib = require('../lib/nfl');
+const { mapLeagues } = require('../lib/safe');
 const waiverStore = require('../store/waivers');
 const playerTags = require('../store/playerTags');
 const historyStore = require('../store/portfolioHistory');
@@ -235,7 +236,7 @@ async function getHome(cookie, token) {
     teams.push(...leagues.map((l) => ({ leagueId: l.leagueId, name: l.name })));
   } else {
     // Offseason: no lineups — attach each team's dynasty summary instead.
-    const rosters = await Promise.all(leagues.map((l) => rosterService.getRoster(cookie, l.leagueId).catch(() => null)));
+    const rosters = await mapLeagues(leagues, (l) => rosterService.getRoster(cookie, l.leagueId), null, 'portfolio.roster');
     leagues.forEach((l, i) => {
       const dynasty = dynastyOf(rosters[i]);
       if (dynasty) dynastyList.push(dynasty);

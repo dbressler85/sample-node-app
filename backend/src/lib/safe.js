@@ -40,4 +40,26 @@ async function safeCall(fn, fallback, ctx) {
   }
 }
 
-module.exports = { safe, safeCall, logDegrade };
+// Fan `fn` out across `leagues` concurrently, isolating each league's failure: a rejection (or a
+// synchronous throw in `fn`) logs via logDegrade and yields the fallback for THAT league, so one
+// league's hiccup never fails the whole cross-league aggregate. This is the fan-out form of safeCall —
+// the `Promise.all(leagues.map((l) => fn(l).catch(() => x)))` shape was open-coded across read services,
+// each re-implementing concurrency + per-league isolation and (usually) swallowing silently. `fn` gets
+// (league, index). `fallback` is either a value or a `(league, index) => value` builder for a
+// league-specific default (e.g. `[leagueId, null]`). `ctx` labels the log; the league id is appended.
+async function mapLeagues(leagues, fn, fallback = null, ctx = 'mapLeagues') {
+  const fb = typeof fallback === 'function' ? fallback : () => fallback;
+  return Promise.all(
+    (leagues || []).map((league, i) =>
+      Promise.resolve()
+        .then(() => fn(league, i))
+        .catch((e) => {
+          const id = (league && (league.leagueId || league.id)) || i;
+          logDegrade(`${ctx} league=${id}`, e);
+          return fb(league, i);
+        })
+    )
+  );
+}
+
+module.exports = { safe, safeCall, logDegrade, mapLeagues };

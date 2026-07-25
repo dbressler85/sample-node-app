@@ -10,6 +10,7 @@ const newsLib = require('../lib/news');
 const nflLib = require('../lib/nfl');
 const leaguesService = require('./leagues');
 const rosterService = require('./roster');
+const { mapLeagues } = require('../lib/safe');
 const standingLib = require('../lib/standing');
 const pointsMaps = require('../lib/pointsMaps');
 const playerTags = require('../store/playerTags');
@@ -23,15 +24,13 @@ async function currentWeek(cookie) {
 async function gather(cookie, token) {
   const leagues = await leaguesService.orderedLeagues(cookie, token);
   const rosters = (
-    await Promise.all(
-      leagues.map((l) =>
-        // Exposure only needs MY valued players by bucket, not the all-franchise strength build —
-        // the light enriched read skips the rival fetch + strength/picks/summary.
-        rosterService
-          .myRosterEnriched(cookie, l.leagueId)
-          .then((roster) => (roster ? { league: l, roster } : null))
-          .catch(() => null)
-      )
+    await mapLeagues(
+      leagues,
+      // Exposure only needs MY valued players by bucket, not the all-franchise strength build —
+      // the light enriched read skips the rival fetch + strength/picks/summary.
+      (l) => rosterService.myRosterEnriched(cookie, l.leagueId).then((roster) => (roster ? { league: l, roster } : null)),
+      null,
+      'exposure.roster'
     )
   ).filter(Boolean);
   return { totalLeagues: leagues.length, rosters };

@@ -24,6 +24,7 @@ const leaguesService = require('./leagues');
 const rosterService = require('./roster');
 const playersLib = require('../lib/players');
 const { createMemo } = require('../lib/memo');
+const { mapLeagues } = require('../lib/safe');
 const store = require('../store/waivers');
 const waiverBids = require('../store/waiverBids');
 const playerTags = require('../store/playerTags');
@@ -1041,7 +1042,7 @@ async function waiverLocks(cookie, token) {
     const draftService = require('./draft');
     const [draftOv, cal] = await Promise.all([
       draftService.getOverview(cookie, token).catch(() => ({ drafts: [] })),
-      Promise.all(leagues.map((l) => calendarLock(cookie, l).then((reason) => [String(l.leagueId), reason]).catch(() => [String(l.leagueId), null]))),
+      mapLeagues(leagues, (l) => calendarLock(cookie, l).then((reason) => [String(l.leagueId), reason]), (l) => [String(l.leagueId), null], 'waivers.calendarLock'),
     ]);
     // Calendar first (direct), draft state as the fallback.
     for (const [id, reason] of cal) if (reason) map.set(id, reason);
