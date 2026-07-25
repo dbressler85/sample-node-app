@@ -393,6 +393,31 @@ async function getOverview(cookie, token) {
   };
 }
 
+// Shared situational context both draft screens open with: the player index + format-aware enrichment,
+// the league's dynasty context, and my team's roster summary — all fail-soft so a hiccup never blanks
+// the board. (getLeague and getDraftList used to inline this identical fan-out.)
+async function loadDraftContext(cookie, league) {
+  const [byId, enr, context, teamSummary] = await Promise.all([
+    playersLib.load(cookie),
+    enrichmentLib.snapshot(await leagueFormat.format(cookie, league), cookie),
+    leagueContext.build(cookie, league).catch(() => null),
+    rosterService.getRoster(cookie, league.leagueId).then((r) => r.summary).catch(() => null),
+  ]);
+  return { byId, enr, context, teamSummary };
+}
+
+// The `context` payload both draft screens return: the league context with my team's dynasty read
+// folded in (or null when there's no context).
+function draftContextPayload(context, teamSummary) {
+  if (!context) return null;
+  return {
+    ...context,
+    team: teamSummary
+      ? { outlook: teamSummary.outlook || null, coreAge: teamSummary.coreAge != null ? teamSummary.coreAge : null, avgAge: teamSummary.avgAge != null ? teamSummary.avgAge : null, strengthLabel: teamSummary.strengthLabel || null }
+      : null,
+  };
+}
+
 // One league's full draft view: board, my picks, on the clock, available pool.
 async function getLeague(cookie, token, leagueId, { position } = {}) {
   const league = await findLeague(cookie, leagueId);
@@ -401,13 +426,8 @@ async function getLeague(cookie, token, leagueId, { position } = {}) {
 
   // Scoring + starting-lineup context (superflex/PPR/TE-premium + how many of each you start) and my
   // team's dynasty read (win-now/ascending, core age, strength) — the situational info that changes a
-  // draft decision. Both fail-soft so a hiccup never blanks the board.
-  const [byId, enr, context, teamSummary] = await Promise.all([
-    playersLib.load(cookie),
-    enrichmentLib.snapshot(await leagueFormat.format(cookie, league), cookie),
-    leagueContext.build(cookie, league).catch(() => null),
-    rosterService.getRoster(cookie, leagueId).then((r) => r.summary).catch(() => null),
-  ]);
+  // draft decision.
+  const { byId, enr, context, teamSummary } = await loadDraftContext(cookie, league);
   const slots = slotsFor(draft).map((s) => ({ ...s, player: s.playerId ? resolvePlayer(byId, s.playerId, enr) : null }));
   const status = statusOf(draft, slots);
   const clock = onClockSlot(status, slots);
@@ -438,14 +458,7 @@ async function getLeague(cookie, token, leagueId, { position } = {}) {
     board: slots,
     myPicks: slots.filter((s) => s.franchiseId === league.franchiseId),
     available,
-    context: context
-      ? {
-          ...context,
-          team: teamSummary
-            ? { outlook: teamSummary.outlook || null, coreAge: teamSummary.coreAge != null ? teamSummary.coreAge : null, avgAge: teamSummary.avgAge != null ? teamSummary.avgAge : null, strengthLabel: teamSummary.strengthLabel || null }
-            : null,
-        }
-      : null,
+    context: draftContextPayload(context, teamSummary),
   };
 }
 
@@ -635,12 +648,7 @@ async function liveDraftListIds(cookie, league) {
 // drafted, rostered, or already on the list). `position` filters the add-pool.
 async function getDraftList(cookie, token, leagueId, { position } = {}) {
   const league = await findLeague(cookie, leagueId);
-  const [byId, enr, context, teamSummary] = await Promise.all([
-    playersLib.load(cookie),
-    enrichmentLib.snapshot(await leagueFormat.format(cookie, league), cookie),
-    leagueContext.build(cookie, league).catch(() => null),
-    rosterService.getRoster(cookie, leagueId).then((r) => r.summary).catch(() => null),
-  ]);
+  const { byId, enr, context, teamSummary } = await loadDraftContext(cookie, league);
   const draft = await loadDraft(cookie, token, league).catch(() => null);
   const slots = draft ? slotsFor(draft).map((s) => ({ ...s, player: s.playerId ? resolvePlayer(byId, s.playerId, enr) : null })) : [];
   const status = draft ? statusOf(draft, slots) : 'none';
@@ -679,14 +687,7 @@ async function getDraftList(cookie, token, leagueId, { position } = {}) {
     nextUp,
     list,
     available,
-    context: context
-      ? {
-          ...context,
-          team: teamSummary
-            ? { outlook: teamSummary.outlook || null, coreAge: teamSummary.coreAge != null ? teamSummary.coreAge : null, avgAge: teamSummary.avgAge != null ? teamSummary.avgAge : null, strengthLabel: teamSummary.strengthLabel || null }
-            : null,
-        }
-      : null,
+    context: draftContextPayload(context, teamSummary),
   };
 }
 
