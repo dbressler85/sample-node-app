@@ -48,13 +48,13 @@ function buildSlots(draft) {
   // Key made picks by round+pick (not franchise), so a franchise holding two
   // picks in a round via a trade doesn't collide onto one slot.
   const made = new Map();
-  for (const p of draft.picks || []) made.set(`${p.round}-${p.pick}`, p.playerId);
+  for (const p of draft.picks || []) made.set(`${p.round}-${p.pick}`, p);
 
   if (!order.length || !rounds) {
     return (draft.picks || [])
       .slice()
       .sort((a, b) => a.round - b.round || a.pick - b.pick)
-      .map((p, i) => ({ overall: i + 1, round: p.round, pick: p.pick, franchiseId: p.franchiseId, playerId: p.playerId || null }));
+      .map((p, i) => ({ overall: i + 1, round: p.round, pick: p.pick, franchiseId: p.franchiseId, playerId: p.playerId || null, keeper: !!p.keeper }));
   }
 
   const slots = [];
@@ -63,7 +63,8 @@ function buildSlots(draft) {
     const roundOrder = draft.snake && r % 2 === 0 ? [...order].reverse() : order;
     roundOrder.forEach((franchiseId, i) => {
       overall += 1;
-      slots.push({ overall, round: r, pick: i + 1, franchiseId, playerId: made.get(`${r}-${i + 1}`) || null });
+      const mp = made.get(`${r}-${i + 1}`);
+      slots.push({ overall, round: r, pick: i + 1, franchiseId, playerId: mp ? mp.playerId || null : null, keeper: !!(mp && mp.keeper) });
     });
   }
   return slots;
@@ -79,6 +80,31 @@ const hasPlayer = (p) => {
   return v !== '' && v !== '0' && v !== '0000';
 };
 
+// A KEEPER pre-fill vs a real draft selection. In a keeper league MFL pre-loads the kept players into
+// the draft grid BEFORE the draft starts: each carries a real player id AND one bulk timestamp (the
+// moment keepers were locked, identical across every keeper), tagged with a "Keeper." comment. These
+// are NOT draft activity — counting them as made picks made an un-started keeper draft read as
+// "in progress → on the clock → overdue" (the stale keeper timestamp became the pick-clock anchor).
+// They still belong on the board (they're your kept players); they just don't mean the draft began.
+const isKeeper = (p) => /keeper/i.test((p && p.comments) || '');
+
+// The league's scheduled draft start, from MFL's CALENDAR `DRAFT_START` event (confirmed field:
+// `{ type: "DRAFT_START", start_time: "<epoch-seconds>" }`). This is the authoritative start — a
+// keeper/slow draft's `draftResults` often carries no startTime of its own, so without this the app
+// can't tell "hasn't started yet" from "on the clock". Returns epoch-ms or null. Best-effort + cached
+// (calendar is a shared, static-TTL read already used by waivers), so it adds ~no cost.
+async function draftStartMs(cookie, league) {
+  if (config.demoMode) return null;
+  try {
+    const events = await mflRepo.calendar(league, cookie);
+    const ev = mfl.toArray(events).find((e) => mfl.text(e && e.type).toUpperCase() === 'DRAFT_START');
+    const sec = ev ? mfl.num(ev.start_time) : null;
+    return Number.isFinite(sec) && sec > 0 ? sec * 1000 : null;
+  } catch (e) {
+    return null;
+  }
+}
+
 async function loadDraft(cookie, token, league) {
   if (config.demoMode) {
     const seed = demo.draft(league.leagueId);
@@ -88,18 +114,24 @@ async function loadDraft(cookie, token, league) {
     const lastPickAt = seed.status === 'in_progress' ? Date.now() - 22 * 60 * 1000 : null;
     return { ...seed, picks: draftStore.list(token, league.leagueId, seed.picks), lastPickAt };
   }
-  // Live: MFL draftResults. Best-effort — shapes vary, so stay defensive.
+  // Live: MFL draftResults. Best-effort — shapes vary, so stay defensive. Fetch the calendar's
+  // scheduled DRAFT_START in parallel (authoritative start time; draftResults often omits it).
   try {
-    const units = await mflRepo.draftResults(league, cookie);
+    const [units, calStartMs] = await Promise.all([
+      mflRepo.draftResults(league, cookie),
+      draftStartMs(cookie, league),
+    ]);
     const unit = units.find((u) => String(u.unit || 'LEAGUE') === 'LEAGUE') || units[0];
     if (!unit) return null;
     const raw = mfl.toArray(unit.draftPick);
     const picks = raw
       .filter(hasPlayer)
-      .map((p) => ({ round: Number(p.round), pick: Number(p.pick), franchiseId: String(p.franchise), playerId: String(p.player), timestamp: mfl.num(p.timestamp) }));
-    // The most recent pick's timestamp (epoch → ms) is when the CURRENT on-the-clock pick's timer
-    // started — the anchor for the pick-clock countdown. MFL puts a `timestamp` on each made pick.
-    const lastTs = picks.reduce((mx, p) => (p.timestamp && p.timestamp > mx ? p.timestamp : mx), 0);
+      .map((p) => ({ round: Number(p.round), pick: Number(p.pick), franchiseId: String(p.franchise), playerId: String(p.player), timestamp: mfl.num(p.timestamp), keeper: isKeeper(p) }));
+    // Only REAL (non-keeper) picks are draft activity. The most recent REAL pick's timestamp (epoch →
+    // ms) is when the current on-the-clock pick's timer started — the anchor for the countdown. Keeper
+    // pre-fills all share one lock timestamp and must never anchor the clock (that read as "overdue").
+    const realPicks = picks.filter((p) => !p.keeper);
+    const lastTs = realPicks.reduce((mx, p) => (p.timestamp && p.timestamp > mx ? p.timestamp : mx), 0);
     const lastPickAt = lastTs > 0 ? lastTs * 1000 : null;
     // If the grid includes future (empty-player) picks, we can derive order/rounds.
     const withOrder = raw.filter((p) => p.round && p.franchise);
@@ -113,17 +145,21 @@ async function loadDraft(cookie, token, league) {
       if (!picks.some((p) => p.playerId === lp.playerId)) picks.push({ round: lp.round, pick: lp.pick, franchiseId: lp.franchiseId, playerId: lp.playerId });
     }
 
-    const startTime = unit.startTime ? new Date(Number(unit.startTime) * 1000).toISOString() : null;
-    // A start time in the FUTURE is authoritative: the draft literally hasn't begun, even though MFL
-    // pre-populates the whole pick GRID (order + traded-pick slots) before it starts. Without this,
-    // an unstarted draft with its order laid out read as "in progress → you're on the clock" (MFL was
-    // still counting down ~18h). A future start beats the grid heuristic.
-    const startMs = startTime != null ? Date.parse(startTime) : null;
+    // Scheduled start: the calendar's DRAFT_START is authoritative; fall back to draftResults' own
+    // startTime only when the calendar has no draft event. A start time in the FUTURE is authoritative:
+    // the draft literally hasn't begun, even though MFL pre-populates the whole pick GRID (order +
+    // traded-pick slots, and any keepers) before it starts. Without this, an unstarted draft with its
+    // grid laid out read as "in progress → you're on the clock."
+    const unitStartMs = unit.startTime != null && unit.startTime !== '' ? Number(unit.startTime) * 1000 : NaN;
+    const startMs = calStartMs != null ? calStartMs : (Number.isFinite(unitStartMs) ? unitStartMs : null);
+    const startTime = startMs != null ? new Date(startMs).toISOString() : null;
     const notStarted = startMs != null && startMs > Date.now();
     const startedByTime = startMs != null && startMs <= Date.now();
-    // Started = the clock is running: a past start time (even before pick 1), or any pick already in.
-    // A future start beats everything (grid laid out ≠ begun). No start time → fall back to the grid.
-    const nowStarted = !notStarted && (startedByTime || raw.some(hasPlayer) || picks.length > 0);
+    // Started = the clock is running: a past start time (even before pick 1), or any REAL (non-keeper)
+    // pick already in. A future start beats everything (grid laid out ≠ begun); a keeper-only grid is
+    // NOT started (that was the "on the clock / overdue before a keeper draft begins" bug).
+    const anyRealPick = picks.some((p) => !p.keeper);
+    const nowStarted = !notStarted && (startedByTime || anyRealPick);
     const allMade = !notStarted && withOrder.length > 0 && withOrder.every(hasPlayer);
     const status = allMade ? 'complete' : nowStarted ? 'in_progress' : 'scheduled';
 
@@ -179,7 +215,7 @@ function liveSlots(draft) {
     return draft.rawSlots
       .slice()
       .sort((a, b) => Number(a.round) - Number(b.round) || Number(a.pick) - Number(b.pick))
-      .map((p, i) => ({ overall: i + 1, round: Number(p.round), pick: Number(p.pick), franchiseId: String(p.franchise), playerId: p.player && p.player !== '' ? String(p.player) : null }));
+      .map((p, i) => ({ overall: i + 1, round: Number(p.round), pick: Number(p.pick), franchiseId: String(p.franchise), playerId: p.player && p.player !== '' ? String(p.player) : null, keeper: isKeeper(p) }));
   }
   return buildSlots(draft);
 }
@@ -227,7 +263,9 @@ async function findLeague(cookie, leagueId) {
 }
 
 function statusOf(draft, slots) {
-  const anyMade = slots.some((s) => s.playerId);
+  // "Made" = a REAL draft pick, not a keeper pre-fill. A keeper league's grid is full of kept players
+  // before the draft starts; counting those as made picks flipped an un-started draft to "in progress".
+  const anyMade = slots.some((s) => s.playerId && !s.keeper);
   const anyOpen = slots.some((s) => !s.playerId);
   // A future start time means the draft hasn't begun — never on the clock yet. This is authoritative
   // even when the grid already carries picks: keeper leagues (and some MFL setups) pre-load picks
@@ -262,7 +300,7 @@ function buildPickClock(draft, status, clockConfig) {
   // yet) it started at the draft's start time. If picks HAVE been made but MFL gave no timestamp, we
   // can't time it accurately — return null (show whose turn it is) rather than anchor to the stale
   // draft start and read a false "overdue".
-  const anyPicks = (draft.picks || []).length > 0;
+  const anyPicks = (draft.picks || []).some((p) => !p.keeper); // keepers aren't real picks (see isKeeper)
   const clockStart = draft.lastPickAt || (!anyPicks && draft.startTime ? Date.parse(draft.startTime) : null);
   if (!clockStart) return null;
   const st = draftClockLib.pickClockState(clockStart, cfg.pickHours, cfg.pause, Date.now());
@@ -319,7 +357,7 @@ async function getOverview(cookie, token) {
           startTime: draft.startTime || null,
           myOnClock: !!(clock && clock.franchiseId === league.franchiseId),
           myNextPick: myNext ? { overall: myNext.overall, round: myNext.round, pick: myNext.pick } : null,
-          picksMade: slots.filter((s) => s.playerId).length,
+          picksMade: slots.filter((s) => s.playerId && !s.keeper).length,
         };
       } catch (e) {
         return { leagueId: league.leagueId, name: league.name, status: 'none' };
