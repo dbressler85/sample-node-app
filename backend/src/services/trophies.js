@@ -8,6 +8,8 @@
 const config = require('../config');
 const demo = require('../demo/fixtures');
 const trophyStore = require('../store/trophies');
+const leaguesService = require('./leagues');
+const playoffsService = require('./playoffs');
 
 function throwBad(message) {
   const err = new Error(message);
@@ -93,8 +95,7 @@ function remove(token, id) {
 const MAX_YEARS_BACK = 15;
 async function detect(cookie, token, { yearsBack = 12 } = {}) {
   if (config.demoMode) return { candidates: [], summary: { found: 0, new: 0 }, demo: true };
-  const playoffs = require('./playoffs'); // lazy — avoids a trophies↔playoffs require cycle
-  const leaguesService = require('./leagues');
+  const playoffs = playoffsService;
   const leagues = await leaguesService.listLeagues(cookie);
   const thisSeason = parseInt(config.season, 10) || new Date().getFullYear();
   const back = Math.min(Math.max(1, yearsBack), MAX_YEARS_BACK);
