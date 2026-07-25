@@ -26,6 +26,7 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   assert(d, 'the draft is in the overview');
   assert(d.status === 'scheduled', `an unstarted future draft reads scheduled, got ${d.status}`);
   assert(d.myOnClock === false, 'I am NOT on the clock before the draft starts');
+  assert(d.currentPick == null, 'a scheduled (not-yet-live) draft has no current pick on the clock');
   assert(d.picksMade === 0, 'no picks made');
   console.log('✓ future-start draft: scheduled, not on the clock (grid laid out but not begun)');
 

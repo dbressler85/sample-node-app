@@ -64,7 +64,10 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   // (for "41st overall"), so the UI never shows round.overall as if it were a slot.
   assert(d.myNextPick && d.myNextPick.round === 1 && d.myNextPick.pick === 2 && d.myNextPick.overall === 2,
     `myNextPick has round/pick/overall, got ${JSON.stringify(d.myNextPick)}`);
-  console.log('✓ overview: draftResults parsed -> in_progress, on my clock; next pick 1.02 (2nd overall)');
+  // currentPick = the pick on the clock (here it's mine). Home shows "current vs your next pick".
+  assert(d.currentPick && d.currentPick.overall === 2 && d.currentPick.round === 1 && d.currentPick.pick === 2 && d.currentPick.mine === true,
+    `currentPick reflects the on-clock slot (mine), got ${JSON.stringify(d.currentPick)}`);
+  console.log('✓ overview: draftResults parsed -> in_progress, on my clock; current + next pick 1.02 (2nd overall)');
 
   const dl = await draft.getLeague(CK, TK, '1000');
   console.log('league:', JSON.stringify({ status: dl.status, onClock: dl.onClock, avail: dl.available.map((p) => `${p.name.split(',')[0]}:${p.value}`), board: dl.board.map((s) => `${s.round}.${s.pick}=${s.player ? s.player.name.split(',')[0] : '—'}`) }));

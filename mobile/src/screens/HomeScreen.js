@@ -35,6 +35,49 @@ function ordinal(n) {
   return `${n}${s[(v - 20) % 10] || s[v] || s[0]}`;
 }
 
+// Picks until MY next pick: 0 when I'm on the clock, else (my next overall − the current pick on the
+// clock). Infinity when I have no upcoming pick or the draft isn't live — those sort last within the
+// live group. Drives both the "N away" label and the live-draft ranking.
+function picksUntilMine(d) {
+  if (d.myOnClock) return 0;
+  const cur = d.currentPick && d.currentPick.overall;
+  const mine = d.myNextPick && d.myNextPick.overall;
+  if (cur != null && mine != null && mine >= cur) return mine - cur;
+  return Number.POSITIVE_INFINITY;
+}
+
+// Home draft order: live drafts first (the one where your pick is closest on top → farthest), then
+// scheduled (soonest start → latest). A scheduled draft with no known start sinks to the bottom.
+function sortHomeDrafts(list) {
+  const isLive = (d) => d.myOnClock || d.status === 'in_progress';
+  return [...list].sort((a, b) => {
+    const la = isLive(a);
+    const lb = isLive(b);
+    if (la !== lb) return la ? -1 : 1;
+    if (la) {
+      const pa = picksUntilMine(a);
+      const pb = picksUntilMine(b);
+      return pa === pb ? 0 : pa - pb;
+    }
+    const ta = a.startTime ? new Date(a.startTime).getTime() : Infinity;
+    const tb = b.startTime ? new Date(b.startTime).getTime() : Infinity;
+    return ta - tb;
+  });
+}
+
+// Live-draft subtitle: the current pick on the clock vs. your next pick, with how many picks away it
+// is — so at a glance you know whose turn it is and how soon you're up.
+function liveDraftSub(d) {
+  const cur = d.currentPick;
+  const mine = d.myNextPick;
+  if (cur && mine && mine.overall >= cur.overall) {
+    return `${ordinal(cur.overall)} on the clock · yours ${pickCode(mine)} · ${mine.overall - cur.overall} away`;
+  }
+  if (cur && !mine) return `${ordinal(cur.overall)} on the clock · no picks left for you`;
+  if (mine) return `Live · your pick ${pickCode(mine)} · ${ordinal(mine.overall)} overall`;
+  return `Live · ${d.picksMade || 0} picks made`;
+}
+
 // Compact countdown for a trade deadline (ms epoch) → { label, urgent }. Urgent (≤7 days out)
 // tints the chip so a near deadline reads at a glance.
 function deadlineChip(at) {
@@ -154,7 +197,7 @@ export default function HomeScreen({ active = true, demoMode, onOpenLineup, onOp
       // off Home entirely — it's on the Players → News tab.
       // Write-through to the shared SWR cache keys so opening the Draft Hub / On Deck from
       // here paints Home's already-fetched data instantly instead of cold-loading.
-      api.drafts().then((d) => { const f = (d.drafts || []).filter(isDraftActionable); setDrafts(f); homeCache.drafts = f; setValue('drafts', d); }).catch(() => {});
+      api.drafts().then((d) => { const f = sortHomeDrafts((d.drafts || []).filter(isDraftActionable)); setDrafts(f); homeCache.drafts = f; setValue('drafts', d); }).catch(() => {});
 
       // On Deck — time-sorted deadlines across leagues (the proactive layer).
       api.onDeck().then((d) => { setOnDeck(d); homeCache.onDeck = d; setValue('ondeck', d); }).catch(() => {});
@@ -309,9 +352,9 @@ export default function HomeScreen({ active = true, demoMode, onOpenLineup, onOp
                       <Text style={styles.draftName} numberOfLines={1}>{d.name}</Text>
                       <Text style={styles.draftSub} numberOfLines={1}>
                         {d.myOnClock
-                          ? "You're on the clock"
+                          ? `You're on the clock${d.currentPick ? ` · ${pickCode(d.currentPick)} (${ordinal(d.currentPick.overall)})` : ''}`
                           : d.status === 'in_progress'
-                          ? `Live${d.myNextPick ? ` · your pick ${pickCode(d.myNextPick)} · ${ordinal(d.myNextPick.overall)} overall` : ''}`
+                          ? liveDraftSub(d)
                           : d.status === 'scheduled'
                           ? `Scheduled${d.startTime ? ` · ${new Date(d.startTime).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` : ''}`
                           : d.status}

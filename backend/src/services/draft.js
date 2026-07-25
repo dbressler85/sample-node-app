@@ -375,6 +375,9 @@ async function getOverview(cookie, token) {
           startTime: draft.startTime || null,
           myOnClock,
           myClock,
+          // The pick currently on the clock (whoever's up), so Home can show "current pick vs your
+          // next pick" and rank live drafts by how close your turn is. Null unless the draft is live.
+          currentPick: clock ? { overall: clock.overall, round: clock.round, pick: clock.pick, mine: myOnClock } : null,
           myNextPick: myNext ? { overall: myNext.overall, round: myNext.round, pick: myNext.pick } : null,
           picksMade: slots.filter((s) => s.playerId && !s.keeper).length,
         };
