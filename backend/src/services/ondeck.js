@@ -83,7 +83,10 @@ async function getOnDeck(cookie, token) {
         // week's projection, so the fix is one tap away.
         const wiped = l.unfillablePositions || [];
         const wipedSlots = (l.unfillable || []).map((s) => s.name);
-        const item = { type: 'lineup_lock', kind: 'action', leagueId: l.leagueId, leagueName: l.name, at: locks.kickoff, action: 'lineup', label: 'Lineups lock', detail: LINEUP_DETAIL[l.status] || l.status };
+        // `status` + `wiped` are carried through so the push layer can re-fire when the lineup PROBLEM
+        // changes mid-week (e.g. a starter newly ruled OUT flips optimal→suboptimal or opens a new hole)
+        // — not just once per kickoff. See notifications.buildFor's lineup key.
+        const item = { type: 'lineup_lock', kind: 'action', leagueId: l.leagueId, leagueName: l.name, at: locks.kickoff, status: l.status, wiped, action: 'lineup', label: 'Lineups lock', detail: LINEUP_DETAIL[l.status] || l.status };
         if (wiped.length) {
           const slotLabel = [...new Set(wipedSlots)].join(' + ') || wiped.join('/');
           item.label = `${slotLabel} slot needs a body`;

@@ -107,6 +107,16 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   assert(sent.length === b4, 'unchanged lineup/watch state sends nothing');
   console.log('✓ lineup/watch dedup holds');
 
+  // 8b) The pre-kickoff inactive sweep: the SAME league's lineup problem CHANGES mid-week (a starter
+  //     you'd set is newly ruled OUT, opening a WR hole) → the attention push re-fires, instead of
+  //     being silenced by the earlier same-week (same league+kickoff) notification.
+  const b4b = sent.length;
+  deckState = { items: [{ type: 'lineup_lock', leagueId: 'L1', leagueName: 'League One', at: '2026-09-10T17:00:00Z', status: 'risk', wiped: ['WR'], detail: 'No healthy player for your WR slot' }] };
+  await notifications.tick(deps3);
+  const relock = sent.slice(b4b);
+  assert(relock.some((m) => m.data.type === 'lineup' && m.data.leagueId === 'L1'), 'a new mid-week lineup problem re-fires the attention push');
+  console.log('✓ mid-week lineup change (starter ruled OUT) re-fires the attention push');
+
   // 9) Per-channel pref off -> that channel goes quiet even with new state.
   notifications.registerToken('tok2', 'ExpoPushTok2', { watchlist: false });
   watchState = { alerts: [{ type: 'free', playerId: 'p9', leagueId: 'L2', name: 'New Guy', leagueName: 'League Two' }] };
