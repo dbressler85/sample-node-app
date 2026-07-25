@@ -161,7 +161,8 @@ const config = {
 
   // Operational metrics endpoint (GET /api/_metrics): MFL call volume, cache hit-rate, throttle
   // state, warm-loop stats. It exposes no user data, but it IS operational, so it's gated by a
-  // secret. Set METRICS_TOKEN and pass it as `?token=` or the `x-metrics-token` header. When unset,
+  // secret. Set METRICS_TOKEN and pass it via the `x-metrics-token` header (never a query param — that
+  // would leak into request-URL logs). When unset,
   // the endpoint is open in non-production (local/demo) and DISABLED (404) in production — so you
   // can't accidentally expose it by forgetting to set the token.
   metricsToken: process.env.METRICS_TOKEN || null,

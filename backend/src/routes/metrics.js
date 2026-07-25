@@ -5,6 +5,7 @@
 // rate-limit state, and the Sunday warm loop's last run. Exposes NO user data, but it's operational,
 // so it's gated by METRICS_TOKEN (see config). Read-only; safe to poll.
 
+const crypto = require('crypto');
 const express = require('express');
 const config = require('../config');
 const mfl = require('../lib/mfl');
@@ -14,12 +15,22 @@ const sessions = require('../store/sessions');
 
 const router = express.Router();
 
-// Gate: with a token set, require it (query or header). Without a token, allow in non-production only
-// and 404 in production (so a forgotten token can't silently expose the endpoint).
+// Constant-time token compare (length guard first — timingSafeEqual throws on unequal lengths).
+function tokenMatches(given, expected) {
+  const a = Buffer.from(String(given || ''));
+  const b = Buffer.from(String(expected || ''));
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+// Gate: with a token set, require it via the `x-metrics-token` HEADER only — NOT a query param, which
+// would land in request-URL logs (morgan) and proxy access logs. Without a token, allow in
+// non-production only and 404 in production (so a forgotten token can't silently expose the endpoint).
 function gate(req, res) {
   if (config.metricsToken) {
-    const given = req.get('x-metrics-token') || req.query.token;
-    if (given !== config.metricsToken) { res.status(401).json({ error: 'metrics token required' }); return false; }
+    if (!tokenMatches(req.get('x-metrics-token'), config.metricsToken)) {
+      res.status(401).json({ error: 'metrics token required (send the x-metrics-token header)' });
+      return false;
+    }
     return true;
   }
   if (process.env.NODE_ENV === 'production') { res.status(404).json({ error: 'not found' }); return false; }
