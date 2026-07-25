@@ -32,11 +32,18 @@ const config = {
   // guard — that's the real footgun we want to catch).
   demoMode: bool(process.env.MFL_DEMO_MODE, process.env.NODE_ENV !== 'production'),
 
-  // MFL asks API clients to identify themselves with a descriptive User-Agent and
-  // to keep request volume reasonable. High-volume clients should register for an
-  // API key in the MFL Developers Program and set MFL_API_KEY.
-  // https://api.myfantasyleague.com/2020/api_info?STATE=details
-  userAgent: process.env.MFL_USER_AGENT || 'dynasty-central/0.1 (personal multi-league manager)',
+  // MFL's Developer Program authenticates a client by its registered, validated User-Agent — there
+  // is NO key to paste, the UA IS the credential. Register this exact string at the API Client
+  // Registration page (validated by an SMS code), set MFL_USER_AGENT to it in prod, and flip
+  // MFL_CLIENT_REGISTERED=true. A validated client gets ~2.5x the per-IP rate limit. Keep the string
+  // STABLE — registration is keyed to the exact UA, so a change means re-registering. The same UA
+  // should ride on every request (login + export + import). See docs/MFL_CLIENT_REGISTRATION.md.
+  userAgent: process.env.MFL_USER_AGENT || 'DynastyCentral/1.0',
+  // Whether that UA has been registered + SMS-validated with MFL. Informational: surfaced on
+  // /_metrics and logged at boot so you can confirm prod is sending the registered client string.
+  mflClientRegistered: bool(process.env.MFL_CLIENT_REGISTERED, false),
+  // Legacy per-user APIKEY (export-only, per league) — unused by the registered-UA model, kept for
+  // requests that opt into key auth. The UA registration above is the path to higher limits.
   apiKey: process.env.MFL_API_KEY || null,
 
   // Outbound MFL requests run with bounded concurrency plus a small stagger between
