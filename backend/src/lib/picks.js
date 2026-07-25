@@ -99,10 +99,10 @@ async function franchisePicks(cookie, league, franchiseId = league.franchiseId) 
       // which case we're in, so a mis-derived token can't pass silently.
       const orig = p.originalPickFor || p.originalPickForFranchise || p.originalOwningFranchiseId || p.original_franchise;
       const originalKnown = orig != null && orig !== '';
-      // MFL franchise ids are 4-digit zero-padded ("0005"). tradeProposal 500s on a
-      // future-pick token whose original-owner id is unpadded, and some originalPickFor
-      // values come back short (e.g. "5"), so pad it back to MFL's canonical width.
-      const owner = String(originalKnown ? orig : fid).padStart(4, '0');
+      // Pad the original-owner id back to MFL's canonical 4-digit width (some originalPickFor
+      // values come back short, e.g. "5") — mfl.fid() centralizes the rule (tradeProposal 500s
+      // on an unpadded future-pick token).
+      const owner = mfl.fid(originalKnown ? orig : fid);
       return { token: `FP_${owner}_${p.year}_${p.round}`, label: `${p.year} ${ordinal(p.round)}`, year: Number(p.year), round: Number(p.round), originalKnown };
     });
   } catch (e) {
@@ -124,7 +124,7 @@ async function franchisePicksMap(cookie, league) {
       out[String(fr.id)] = mfl.toArray(fr.futureDraftPick).map((p) => {
         const orig = p.originalPickFor || p.originalPickForFranchise || p.originalOwningFranchiseId || p.original_franchise;
         const originalKnown = orig != null && orig !== '';
-        const owner = String(originalKnown ? orig : fr.id).padStart(4, '0');
+        const owner = mfl.fid(originalKnown ? orig : fr.id);
         return { token: `FP_${owner}_${p.year}_${p.round}`, label: `${p.year} ${ordinal(p.round)}`, year: Number(p.year), round: Number(p.round) };
       });
     }

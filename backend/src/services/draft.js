@@ -562,7 +562,7 @@ async function getPickInventory(cookie, token) {
   const per = await Promise.all(
     leagues.map(async (league) => {
       const rawFid = String(league.franchiseId);
-      const myFid = rawFid.padStart(4, '0');
+      const myFid = mfl.fid(rawFid);
       const base = { leagueId: league.leagueId, leagueName: league.name };
       // Authoritative source: MFL's `assets` export (post-trade ownership + owner names in the
       // description). Falls back to composing draftResults (current) + futureDraftPicks (future).
@@ -576,7 +576,7 @@ async function getPickInventory(cookie, token) {
       const mine = assetsMap && (assetsMap[myFid] || assetsMap[rawFid]);
       if (mine) {
         return mine.map((p) => {
-          const acquired = p.kind === 'future' && p.originalOwner && String(p.originalOwner).padStart(4, '0') !== myFid;
+          const acquired = p.kind === 'future' && p.originalOwner && mfl.fid(p.originalOwner) !== myFid;
           return {
             ...base, token: p.token, label: p.label, year: p.year, round: p.round, pick: p.pick,
             value: picksLib.value(p.label),
@@ -595,7 +595,7 @@ async function getPickInventory(cookie, token) {
       for (const p of future) {
         // FP_<originalOwner>_<year>_<round>: a pick whose original owner isn't me was acquired.
         const m = /^FP_(\d+)_/.exec(String(p.token));
-        const owner = m ? String(m[1]).padStart(4, '0') : myFid;
+        const owner = m ? mfl.fid(m[1]) : myFid;
         const acquired = owner !== myFid;
         rows.push({
           ...base, token: p.token, label: p.label, year: p.year, round: p.round, pick: null,

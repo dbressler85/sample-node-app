@@ -299,7 +299,7 @@ async function myCompletedTrades(cookie, league) {
       if (mfl.text(t.type).toUpperCase() !== 'TRADE') continue;
       const p = mfl.text(t.transaction).split('|');
       const rowFr = mfl.text(t.franchise);
-      const other = p[2] ? String(mfl.text(p[2])).padStart(4, '0') : null;
+      const other = p[2] ? mfl.fid(p[2]) : null;
       const side0 = csv(p[0]); // what the row franchise GAVE
       const side1 = csv(p[1]); // what the row franchise RECEIVED
       let withId; let sendToks; let acquireToks;
@@ -542,7 +542,7 @@ async function getLeague(cookie, token, leagueId) {
   // `assets` read; else compose the draft grid (current) + futureDraftPicks (future) as before.
   // Demo has no assets → my picks come from the demo fixture, partners' from the (empty) composition.
   const picksAssetsFor = (fid) => {
-    const fromAssets = assetsMap && (assetsMap[String(fid)] || assetsMap[String(fid).padStart(4, '0')]);
+    const fromAssets = assetsMap && (assetsMap[String(fid)] || assetsMap[mfl.fid(fid)]);
     if (fromAssets) return fromAssets.map((p) => asset(p.token, byId, enr));
     const future = config.demoMode && String(fid) === String(league.franchiseId)
       ? (demoMyPicks || []).map((p) => asset(p.token, byId, enr))

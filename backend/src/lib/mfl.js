@@ -125,6 +125,16 @@ function num(value, fallback = null) {
   return Number.isFinite(n) ? n : fallback;
 }
 
+// The MFL franchise id is a zero-padded 4-digit string ("0005", never "5"). Unpadded ids 500 the
+// trade/proposal API and miss cross-referenced lookups (an assets map keyed by "0005" never matches
+// a bare "5"), so EVERY franchise id headed into a token, request, or keyed lookup must pass through
+// here. $t-tolerant like text(). An absent/blank id returns '' — callers that must distinguish "no
+// owner" from "franchise 0" keep their own guard (e.g. `x ? mfl.fid(x) : null`).
+function fid(value) {
+  const s = text(value).trim();
+  return s ? s.padStart(4, '0') : '';
+}
+
 // MFL lets owners style a TEAM or LEAGUE name with HTML — e.g. <font color='green'>Kellen</font>,
 // <b>…</b> — and stores it verbatim. Strip the tags (and decode the handful of common entities) so
 // a name renders as plain text everywhere it appears, instead of leaking "<font color='green'>Kell…".
@@ -546,6 +556,7 @@ module.exports = {
   toArray,
   text,
   num,
+  fid,
   cleanName,
   attr,
   errorDetail,
