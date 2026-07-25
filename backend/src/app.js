@@ -3,6 +3,8 @@
 const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 
 const config = require('./config');
 const authRoutes = require('./routes/auth');
@@ -26,13 +28,33 @@ const app = express();
 // on it. Tune via a different hop count if the deployment adds proxies.
 app.set('trust proxy', 1);
 
+// Security headers. crossOriginResourcePolicy is relaxed to 'cross-origin' because this is a JSON API
+// consumed by a separate-origin mobile client; CSP is left off (there's no HTML/browser surface to
+// protect, and the defaults would only add weight). Everything else (HSTS, nosniff, frameguard, …) is
+// the safe default.
+app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: { policy: 'cross-origin' } }));
+
 app.use(cors()); // mobile app is a separate origin
 app.use(express.json());
 app.use(morgan('dev'));
 
+// Liveness/health probes must never be rate-limited or need a body — declare BEFORE the limiter.
 app.get('/api/health', (req, res) => {
   res.json({ ok: true, season: config.season, demoMode: config.demoMode });
 });
+
+// Per-IP API rate limit — an abuse backstop with a GENEROUS ceiling (a dynasty power user's cold-open
+// fans a burst of per-league reads across 15–20 leagues; that must never trip it). Keyed on req.ip,
+// which is the real client thanks to `trust proxy` above. Applied to everything under /api except the
+// health probe declared above.
+const apiLimiter = rateLimit({
+  windowMs: config.rateLimitWindowMs,
+  max: config.rateLimitMax,
+  standardHeaders: true, // RateLimit-* headers so a client can see its budget
+  legacyHeaders: false,
+  message: { error: 'Too many requests — give it a moment and try again.' },
+});
+app.use('/api', apiLimiter);
 
 app.use('/api', metricsRoutes); // operational metrics (own token gate; no session middleware)
 app.use('/api/auth', authRoutes);

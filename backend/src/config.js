@@ -165,6 +165,13 @@ const config = {
   // the endpoint is open in non-production (local/demo) and DISABLED (404) in production — so you
   // can't accidentally expose it by forgetting to set the token.
   metricsToken: process.env.METRICS_TOKEN || null,
+
+  // Per-IP API rate limit — an abuse backstop, NOT a normal-use throttle. A dynasty power user opening
+  // the app cold fans a burst of per-league reads across 15–20 leagues, plus polling, so the ceiling is
+  // deliberately GENEROUS: only a runaway client or abuse should ever hit it. Tune via env; the window
+  // is in ms. (Health checks and the default are exempt/looser — see app.js.)
+  rateLimitWindowMs: int(process.env.RATE_LIMIT_WINDOW_MS, 60 * 1000),
+  rateLimitMax: int(process.env.RATE_LIMIT_MAX, 600),
 };
 
 module.exports = config;
