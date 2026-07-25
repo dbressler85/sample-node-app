@@ -117,4 +117,18 @@ function getByAccount(acct) {
   return bestToken ? get(bestToken) : null;
 }
 
-module.exports = { create, get, destroy, accountKey, getByAccount };
+// Every currently-valid session (non-expired), as { cookie, username, lastSeen }. Used by the
+// Sunday pre-warm worker, which needs a live MFL cookie per active account to prime that account's
+// leagues into the shared cache before kickoff. Does NOT slide the idle timeout (a background warm
+// shouldn't keep a dormant session alive) — it reads lastSeen without touching it.
+function active() {
+  const now = Date.now();
+  const out = [];
+  for (const s of mem.values()) {
+    const last = s.lastSeen || s.createdAt || 0;
+    if (now - last <= IDLE_TTL_MS) out.push({ cookie: s.cookie, username: s.username, lastSeen: last });
+  }
+  return out;
+}
+
+module.exports = { create, get, destroy, accountKey, getByAccount, active };

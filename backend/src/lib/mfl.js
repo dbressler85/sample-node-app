@@ -29,7 +29,14 @@ let active = 0;
 let lastStartAt = 0;
 let penaltyUntil = 0; // while > now, the pipe runs in gentle mode after a rate-limit
 let wakePending = false; // at most one pending timer to re-pump when a penalty lifts
-const waiters = []; // queued resolve() callbacks waiting for a slot
+// Two priority lanes. `waiters` = normal (user-facing reads); `lowWaiters` = background/bulk work
+// (the Sunday pre-warm loop, the daily player-DB refresh). The pump always drains the NORMAL lane
+// first, so background work can never delay a request a user is waiting on — it only fills the idle
+// gaps in the pipeline. Within a lane it's FIFO.
+const waiters = [];
+const lowWaiters = [];
+const pendingCount = () => waiters.length + lowWaiters.length;
+const nextWaiter = () => (waiters.length ? waiters.shift() : lowWaiters.length ? lowWaiters.shift() : null);
 
 function inPenalty() {
   return Date.now() < penaltyUntil;
@@ -51,8 +58,8 @@ function effInterval() {
 }
 
 function pumpThrottle() {
-  while (active < effConcurrent() && waiters.length) {
-    const grant = waiters.shift();
+  while (active < effConcurrent() && pendingCount()) {
+    const grant = nextWaiter(); // normal lane first, then low-priority background work
     active += 1;
     // Stagger each granted start by the min interval (accumulating), so even a
     // burst of grants spreads out rather than firing simultaneously.
@@ -65,16 +72,16 @@ function pumpThrottle() {
   }
   // If we're holding requests back only because of the penalty, wake the pump when it
   // lifts so the queue drains promptly instead of waiting on the next completion.
-  if (!wakePending && waiters.length && active < config.mflMaxConcurrent && inPenalty()) {
+  if (!wakePending && pendingCount() && active < config.mflMaxConcurrent && inPenalty()) {
     wakePending = true;
     const wake = Math.max(5, penaltyUntil - Date.now() + 5);
     setTimeout(() => { wakePending = false; pumpThrottle(); }, wake);
   }
 }
 
-async function throttle(task) {
+async function throttle(task, priority = 'normal') {
   await new Promise((resolve) => {
-    waiters.push(resolve);
+    (priority === 'low' ? lowWaiters : waiters).push(resolve);
     pumpThrottle();
   });
   try {
@@ -203,7 +210,7 @@ async function fetchAllowlisted(startUrl, init) {
   throw err;
 }
 
-async function rawRequest({ host, command, params, cookie, method = 'GET', body, year }) {
+async function rawRequest({ host, command, params, cookie, method = 'GET', body, year, priority = 'normal' }) {
   const url = buildUrl(host, command, params, year);
   const headers = { 'User-Agent': config.userAgent, Accept: 'application/json' };
   if (cookie) headers.Cookie = `MFL_USER_ID=${cookie}`;
@@ -223,7 +230,7 @@ async function rawRequest({ host, command, params, cookie, method = 'GET', body,
   let res;
   let text;
   for (let attempt = 0; ; attempt++) {
-    res = await throttle(() => fetchAllowlisted(url, init));
+    res = await throttle(() => fetchAllowlisted(url, init), priority);
     if (res.status === 429) {
       const retryAfter = parseInt(res.headers.get('retry-after') || '', 10);
       const waitMs = Number.isFinite(retryAfter) ? retryAfter * 1000 : 2000;
@@ -322,7 +329,7 @@ const LEAGUE_GLOBAL_TYPES = new Set([
 ]);
 
 // Read data via the export command (cached, TTL depends on how volatile it is).
-async function exportRequest(type, { host = config.apiHost, cookie = null, maxAge = null, year = null, ...params } = {}) {
+async function exportRequest(type, { host = config.apiHost, cookie = null, maxAge = null, year = null, priority = 'normal', ...params } = {}) {
   // Key on params with SORTED keys: the read cache coalesces identical reads, but
   // JSON.stringify is insertion-order-sensitive, so {L,FRANCHISE} and {FRANCHISE,L} would hash to
   // different keys and silently double-fetch the same data. (params holds flat primitives.)
@@ -348,7 +355,7 @@ async function exportRequest(type, { host = config.apiHost, cookie = null, maxAg
   const hit = readCache.get(key);
   if (hit && Date.now() - hit.at < ttl) return hit.promise;
 
-  const promise = rawRequest({ host, command: 'export', params: { TYPE: type, ...params }, cookie, year });
+  const promise = rawRequest({ host, command: 'export', params: { TYPE: type, ...params }, cookie, year, priority });
   const entry = { at: Date.now(), ttl, promise };
   readCache.set(key, entry);
   // A failed read must not be cached: drop it so the next call retries.
