@@ -19,6 +19,8 @@ const leagueContext = require('../lib/leagueContext');
 const playersLib = require('../lib/players');
 const picksLib = require('../lib/picks');
 const adpLib = require('../lib/adp');
+const draftClockLib = require('../lib/draftClock');
+const draftClocks = require('../store/draftClocks');
 const leaguesService = require('./leagues');
 const waiversService = require('./waivers');
 const rosterService = require('./roster');
@@ -81,7 +83,10 @@ async function loadDraft(cookie, token, league) {
   if (config.demoMode) {
     const seed = demo.draft(league.leagueId);
     if (!seed) return null;
-    return { ...seed, picks: draftStore.list(token, league.leagueId, seed.picks) };
+    // Demo has no real pick timestamps — synthesize a "last pick ~22 min ago" for a live draft so the
+    // pick-clock countdown has something to render.
+    const lastPickAt = seed.status === 'in_progress' ? Date.now() - 22 * 60 * 1000 : null;
+    return { ...seed, picks: draftStore.list(token, league.leagueId, seed.picks), lastPickAt };
   }
   // Live: MFL draftResults. Best-effort — shapes vary, so stay defensive.
   try {
@@ -91,7 +96,11 @@ async function loadDraft(cookie, token, league) {
     const raw = mfl.toArray(unit.draftPick);
     const picks = raw
       .filter(hasPlayer)
-      .map((p) => ({ round: Number(p.round), pick: Number(p.pick), franchiseId: String(p.franchise), playerId: String(p.player) }));
+      .map((p) => ({ round: Number(p.round), pick: Number(p.pick), franchiseId: String(p.franchise), playerId: String(p.player), timestamp: mfl.num(p.timestamp) }));
+    // The most recent pick's timestamp (epoch → ms) is when the CURRENT on-the-clock pick's timer
+    // started — the anchor for the pick-clock countdown. MFL puts a `timestamp` on each made pick.
+    const lastTs = picks.reduce((mx, p) => (p.timestamp && p.timestamp > mx ? p.timestamp : mx), 0);
+    const lastPickAt = lastTs > 0 ? lastTs * 1000 : null;
     // If the grid includes future (empty-player) picks, we can derive order/rounds.
     const withOrder = raw.filter((p) => p.round && p.franchise);
     const order = deriveOrder(withOrder);
@@ -128,7 +137,7 @@ async function loadDraft(cookie, token, league) {
     const type = snake === false ? 'Linear draft' : snake === true ? 'Snake draft' : 'Draft';
     if (snake == null) snake = true;
 
-    return { status, type, startTime, rounds, snake, order, picks, rawSlots: withOrder };
+    return { status, type, startTime, rounds, snake, order, picks, rawSlots: withOrder, lastPickAt };
   } catch (e) {
     // A READ FAILURE (e.g. MFL rate-limited us with a 403) is NOT the same as "this league has no
     // draft". Returning null here made a transient throttle look like a draftless league, so the
@@ -238,6 +247,37 @@ function onClockSlot(status, slots) {
   return status === 'in_progress' ? slots.find((s) => !s.playerId) || null : null;
 }
 
+// A default clock so the DEMO draft shows a live countdown without the owner configuring one
+// (8h per pick, paused midnight–8am ET). Live leagues use only the owner's stored config.
+const DEMO_CLOCK = { pickHours: 8, pause: { start: 0, end: 8 } };
+
+// The current pick's countdown, from the last pick's timestamp + the league's clock config. Only for
+// a live draft with a known clock; null otherwise (the screen then just shows whose turn it is).
+function buildPickClock(draft, status, clockConfig) {
+  if (status !== 'in_progress') return null;
+  const cfg = clockConfig || (config.demoMode ? DEMO_CLOCK : null);
+  if (!cfg) return null;
+  // The current pick's timer started at the previous pick's timestamp; for pick 1 (nothing drafted
+  // yet) it started at the draft's start time. If picks HAVE been made but MFL gave no timestamp, we
+  // can't time it accurately — return null (show whose turn it is) rather than anchor to the stale
+  // draft start and read a false "overdue".
+  const anyPicks = (draft.picks || []).length > 0;
+  const clockStart = draft.lastPickAt || (!anyPicks && draft.startTime ? Date.parse(draft.startTime) : null);
+  if (!clockStart) return null;
+  const st = draftClockLib.pickClockState(clockStart, cfg.pickHours, cfg.pause, Date.now());
+  if (!st) return null;
+  return {
+    deadline: new Date(st.deadlineMs).toISOString(),
+    remainingMs: st.remainingMs,
+    paused: st.paused,
+    overdue: st.overdue,
+    pickHours: cfg.pickHours,
+    pause: cfg.pause || null,
+    startedAt: clockStart ? new Date(clockStart).toISOString() : null,
+    configured: !!clockConfig, // false when it's the demo default (the app can prompt to set a real one)
+  };
+}
+
 // Is a league's free agency / waiver pool live yet? A player isn't truly a free agent
 // until the draft has been HELD — before that (a startup league, or an offseason rookie
 // draft that's scheduled or mid-way), the whole player universe reads as "unrostered",
@@ -317,6 +357,9 @@ async function getLeague(cookie, token, leagueId, { position } = {}) {
   // Overlay personal tags so the board can highlight your Targets and dim your Avoids.
   for (const p of available) p.tag = playerTags.get(token, p.id) || null;
 
+  const clockConfig = draftClocks.get(token, leagueId);
+  const pickClock = buildPickClock(draft, status, clockConfig);
+
   return {
     leagueId: league.leagueId,
     name: league.name,
@@ -326,6 +369,11 @@ async function getLeague(cookie, token, leagueId, { position } = {}) {
     startTime: draft.startTime || null,
     rounds: draft.rounds || null,
     onClock: clock ? { franchiseId: clock.franchiseId, mine: clock.franchiseId === league.franchiseId, overall: clock.overall, round: clock.round, pick: clock.pick } : null,
+    // The current pick's countdown (or null when there's no clock configured / draft not live). Also
+    // return the stored config + whether one is set, so the screen can offer to set/edit it.
+    pickClock,
+    clockConfig: clockConfig || null,
+    lastPickAt: draft.lastPickAt ? new Date(draft.lastPickAt).toISOString() : null,
     board: slots,
     myPicks: slots.filter((s) => s.franchiseId === league.franchiseId),
     available,
@@ -594,4 +642,10 @@ async function saveDraftList(cookie, token, leagueId, ids) {
   return getDraftList(cookie, token, leagueId);
 }
 
-module.exports = { getOverview, getLeague, makePick, upcomingPicksByFranchise, freeAgencyOpen, getPickInventory, getDraftList, saveDraftList };
+// Set/clear the owner's manual pick-clock config for a league (MFL doesn't export it). Returns the
+// normalized stored config (or null when cleared).
+function setDraftClock(token, leagueId, cfg) {
+  return { leagueId: String(leagueId), clockConfig: draftClocks.set(token, leagueId, cfg) || null };
+}
+
+module.exports = { getOverview, getLeague, makePick, upcomingPicksByFranchise, freeAgencyOpen, getPickInventory, getDraftList, saveDraftList, setDraftClock };
