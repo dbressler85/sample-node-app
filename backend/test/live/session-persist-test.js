@@ -30,7 +30,7 @@ function boot(secret, dir) {
   // Boot with a secret, create a session, flush to disk.
   let sessions = boot('secret-A', DIR);
   const token = sessions.create({ cookie: COOKIE, username: 'me' });
-  require('../../src/store/persist').flush();
+  require('../../src/store/persist').flushSync(); // sync: we read state.json on the next line
 
   // The on-disk file must NOT contain the plaintext cookie.
   const onDisk = fs.readFileSync(path.join(DIR, 'state.json'), 'utf8');
@@ -52,7 +52,7 @@ function boot(secret, dir) {
   const fresh = path.join(DIR, 'nosecret');
   let s2 = boot(null, fresh);
   const t2 = s2.create({ cookie: 'X', username: 'y' });
-  require('../../src/store/persist').flush();
+  require('../../src/store/persist').flushSync(); // sync before the simulated restart below
   s2 = boot(null, fresh);
   assert(s2.get(t2) === null, 'without SESSION_SECRET sessions are not persisted');
   console.log('✓ without SESSION_SECRET sessions stay in-memory only (safe default)');
