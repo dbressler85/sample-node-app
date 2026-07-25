@@ -17,6 +17,7 @@ const nflLib = require('../lib/nfl');
 const newsLib = require('../lib/news');
 const enrichmentLib = require('../lib/enrichment');
 const seasonStatsLib = require('../lib/seasonStats');
+const pointsMaps = require('../lib/pointsMaps');
 const leagueFormat = require('../lib/leagueformat');
 const standingLib = require('../lib/standing');
 const leaguesService = require('./leagues');
@@ -118,7 +119,7 @@ function invalidateGather(cookie) {
   gatherMemo.invalidate(cookie || '');
 }
 
-function annotate(player, byId, ranks, myRostered, mineBy, freeBy, enr, ctx, tags, watchSet, leagueCount = 0) {
+function annotate(player, byId, ranks, myRostered, mineBy, freeBy, enr, ctx, tags, watchSet, leagueCount = 0, points = null) {
   const id = String(player.id);
   const free = (freeBy.get(player.id) || []).length;
   return {
@@ -129,6 +130,10 @@ function annotate(player, byId, ranks, myRostered, mineBy, freeBy, enr, ctx, tag
     age: enr.age(player.id),
     value: enr.value(player.id),
     trend: enr.trend(player.id) || 0, // Sleeper add/drop momentum, for the Trending sort's magnitude
+    // Season-to-date fantasy points and this week's projection, under the owner's primary league's
+    // scoring — surfaced on every row (a general signal, and the streaming read for free agents).
+    seasonPoints: points ? (points.season.get(id) ?? null) : null,
+    weekProjection: points ? (points.proj.get(id) ?? null) : null,
     posRank: ranks.pos.get(player.id) || null,
     ownership: enr.ownership(player.id), // site-wide MFL ownership (kept for the profile)
     availability: availabilityLib.resolve(player, ctx.statusMap, ctx.byeMap, ctx.week),
@@ -165,20 +170,25 @@ async function buildSets(cookie) {
       freeBy.get(id).push(d.league.leagueId);
     }
   }
-  return { data, myRostered, mineBy, freeBy, leagueCount: data.length };
+  // The owner's primary league — the representative scoring for the season/projection numbers.
+  return { data, myRostered, mineBy, freeBy, leagueCount: data.length, league0: data[0] ? data[0].league : null };
 }
 
 async function search(cookie, token, { q, position, status, format } = {}) {
   const [byId, enr, ctx] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(lensFormat(format), cookie), ctxFor(cookie)]);
   const ranks = computeRanks(byId, enr);
-  const { myRostered, mineBy, freeBy, leagueCount } = await buildSets(cookie);
+  const { myRostered, mineBy, freeBy, leagueCount, league0 } = await buildSets(cookie);
+  const points = await pointsMaps.maps(cookie, league0, ctx.week);
   const tags = playerTags.all(token);
   const watchSet = new Set(watchStore.list(token).map(String));
 
   const term = (q || '').trim().toLowerCase();
+  // Normalize the position filter so a client sending "K" (or "Def", "DST", …) matches the canonical
+  // stored position ("PK" / "DEF") — otherwise a kicker filter (K) matched nothing (kickers are PK).
+  const posFilter = position ? playersLib.normalizePosition(position) : null;
   let players = [...byId.values()];
   if (term) players = players.filter((p) => p.name.toLowerCase().includes(term));
-  if (position) players = players.filter((p) => p.position === position);
+  if (posFilter) players = players.filter((p) => p.position === posFilter);
 
   // Filter + sort on cheap lookups first; run the expensive annotate (availability
   // resolution) only on the page we actually return, not the whole universe.
@@ -188,14 +198,15 @@ async function search(cookie, token, { q, position, status, format } = {}) {
   else if (status === 'available') light = light.filter((x) => !x.mine);
 
   light.sort((a, b) => b.value - a.value);
-  const players2 = light.slice(0, 60).map((x) => annotate(x.p, byId, ranks, myRostered, mineBy, freeBy, enr, ctx, tags, watchSet, leagueCount));
+  const players2 = light.slice(0, 60).map((x) => annotate(x.p, byId, ranks, myRostered, mineBy, freeBy, enr, ctx, tags, watchSet, leagueCount, points));
   return { total: light.length, format: lensFormat(format) && lensFormat(format).numQbs === 2 ? 'sf' : '1qb', players: players2 };
 }
 
 async function rankings(cookie, token, { type = 'value', position, format, offset = 0, limit = 40 } = {}) {
   const [byId, enr, ctx] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(lensFormat(format), cookie), ctxFor(cookie)]);
   const ranks = computeRanks(byId, enr);
-  const { myRostered, mineBy, freeBy, leagueCount } = await buildSets(cookie);
+  const { myRostered, mineBy, freeBy, leagueCount, league0 } = await buildSets(cookie);
+  const points = await pointsMaps.maps(cookie, league0, ctx.week);
 
   // Filter + sort on cheap enr lookups over lightweight rows, then annotate only
   // the top slice — availability resolution over the whole universe just to
@@ -204,8 +215,9 @@ async function rankings(cookie, token, { type = 'value', position, format, offse
   const watchSet = new Set(watchStore.list(token).map(String));
   let cand = [...byId.values()];
   // Position is an independent filter — it narrows any ranking type (value, trending, …),
-  // not just the legacy 'position' type.
-  if (position) cand = cand.filter((p) => p.position === position);
+  // not just the legacy 'position' type. Normalized so "K" matches kickers (stored as "PK"), etc.
+  const posFilter = position ? playersLib.normalizePosition(position) : null;
+  if (posFilter) cand = cand.filter((p) => p.position === posFilter);
   let light = cand.map((p) => ({ p, value: enr.value(p.id), age: enr.age(p.id), trend: enr.trend(p.id), owned: (mineBy.get(p.id) || []).length }));
 
   // Only rank by data we actually have, so players with no signal don't float up.
@@ -238,7 +250,7 @@ async function rankings(cookie, token, { type = 'value', position, format, offse
   const total = light.length;
   const list = light
     .slice(start, start + size)
-    .map((x) => annotate(x.p, byId, ranks, myRostered, mineBy, freeBy, enr, ctx, tags, watchSet, leagueCount));
+    .map((x) => annotate(x.p, byId, ranks, myRostered, mineBy, freeBy, enr, ctx, tags, watchSet, leagueCount, points));
 
   const note =
     total === 0

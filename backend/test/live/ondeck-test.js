@@ -26,6 +26,9 @@ lineupsService.getOverview = async () => ({
   leagues: [
     { leagueId: 'C', name: 'League C', status: 'risk' },
     { leagueId: 'D', name: 'League D', status: 'optimal' }, // should be skipped
+    // League I: your only QB is out/on bye — the QB slot can't be filled by any healthy player.
+    // Under Center must carry a record for this and deep-link to the QB waiver board by projection.
+    { leagueId: 'I', name: 'League I', status: 'incomplete', unfillable: [{ name: 'QB', eligible: ['QB'] }], unfillablePositions: ['QB'] },
   ],
 });
 waiversService.getPending = async () => ({
@@ -82,6 +85,12 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   assert(iLock > 0 && iDraft > iLock, 'lineup lock (sooner) sorts before scheduled draft (later)');
   // Optimal league produced no lineup item.
   assert(!types.includes('lineup_lock:D'), 'optimal lineup is not surfaced');
+  // League I: a wiped starting position (all QBs out/bye) surfaces a lineup record that names the
+  // position AND carries a waiver-replacement deep-link (position-filtered, projection-sorted).
+  const wipe = r.items.find((i) => i.type === 'lineup_lock' && i.leagueId === 'I');
+  assert(wipe && wipe.replacements, 'wiped-position league surfaces a lineup record with a replacements deep-link');
+  assert(wipe.replacements.leagueId === 'I' && wipe.replacements.positions.join(',') === 'QB' && wipe.replacements.sort === 'projection', `replacements deep-link targets the QB waiver board by projection, got ${JSON.stringify(wipe.replacements)}`);
+  assert(/QB/.test(wipe.label) && /out or on bye/i.test(wipe.detail), `wiped-position item names the position, got ${JSON.stringify({ label: wipe.label, detail: wipe.detail })}`);
   // League E: 2 claims already IN → NOT on deck. On Deck is action-only; a submitted claim needs
   // nothing further from you (its status lives on the Waivers → Pending tab), so it's excluded.
   assert(!types.includes('waiver_run:E'), 'claims-already-in league is not surfaced on On Deck (action-only)');

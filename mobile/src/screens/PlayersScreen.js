@@ -34,7 +34,7 @@ const POSITIONS = [
   ['RB', 'RB'],
   ['WR', 'WR'],
   ['TE', 'TE'],
-  ['K', 'K'],
+  ['PK', 'K'], // value is the canonical position (kickers are stored as PK); label stays "K"
   ['DEF', 'DEF'],
 ];
 
@@ -61,15 +61,26 @@ function timeAgo(iso) {
 
 // Secondary sort for the player lists (Rankings / My Players / Watch). 'default' keeps the
 // list's natural order (the rank type on Rankings; the server order elsewhere).
-const LIST_SORTS = [['default', 'Default'], ['value', 'Value'], ['name', 'Name'], ['position', 'Pos']];
+const LIST_SORTS = [['default', 'Default'], ['value', 'Value'], ['proj', 'Proj'], ['season', 'Yr pts'], ['name', 'Name'], ['position', 'Pos']];
 const POS_ORDER = { QB: 1, RB: 2, WR: 3, TE: 4, PK: 5, K: 5, DEF: 6 };
+// Sort a player list by the chosen key. Numeric keys sort desc with nulls sinking to the bottom
+// (a player with no known projection/points shouldn't float above one who has them).
 function sortPlayers(list, key) {
   if (!key || key === 'default') return list;
   const arr = [...list];
   if (key === 'value') return arr.sort((a, b) => (b.value || 0) - (a.value || 0));
+  if (key === 'proj') return arr.sort((a, b) => nullLast(a.weekProjection, b.weekProjection));
+  if (key === 'season') return arr.sort((a, b) => nullLast(a.seasonPoints, b.seasonPoints));
   if (key === 'name') return arr.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
   if (key === 'position') return arr.sort((a, b) => (POS_ORDER[a.position] || 9) - (POS_ORDER[b.position] || 9) || (b.value || 0) - (a.value || 0));
   return arr;
+}
+// Descending compare that keeps nulls/undefined at the end regardless of sort direction.
+function nullLast(a, b) {
+  if (a == null && b == null) return 0;
+  if (a == null) return 1;
+  if (b == null) return -1;
+  return b - a;
 }
 
 const NEWS_SORTS = [['impact', 'Impact'], ['recent', 'Recent']];
@@ -487,6 +498,7 @@ function PlayerRow({ p, rank, sub, tag, watched, showTrend, onTag, onWatch, onQu
           {p.leagueCount > 1 && p.leagueOwned != null ? ` · rostered ${p.leagueOwned}/${p.leagueCount}` : ''}
           {sub ? ` · ${sub}` : ''}
         </Text>
+        <PointsLine season={p.seasonPoints} proj={p.weekProjection} />
       </View>
       <View style={styles.rightCol}>
         {showTrend && p.trend ? (
@@ -526,6 +538,30 @@ function PlayerRow({ p, rank, sub, tag, watched, showTrend, onTag, onWatch, onQu
 // While a player list loads, show its silhouette rather than a lone spinner — placeholder
 // rows shaped like a PlayerRow (rank · badge · name/meta · value) breathing as one. Feels
 // faster and doesn't jump the layout when the real rows land. One Pulse drives them all.
+// Season-to-date points (SZN) + this week's projection (PROJ) — surfaced on every player row
+// across the Players screen (especially useful for streaming free agents). Renders nothing when
+// neither number is known (offseason projection, or a player MFL has no score for), so a row never
+// shows an empty stat strip. Numbers are under the owner's primary league's scoring.
+function PointsLine({ season, proj }) {
+  if (season == null && proj == null) return null;
+  return (
+    <View style={styles.ptsLine}>
+      {proj != null ? (
+        <Text style={styles.ptsItem}>
+          <Text style={styles.ptsLabel}>PROJ </Text>
+          <Text style={styles.ptsProj}>{proj}</Text>
+        </Text>
+      ) : null}
+      {season != null ? (
+        <Text style={styles.ptsItem}>
+          <Text style={styles.ptsLabel}>SZN </Text>
+          <Text style={styles.ptsSeason}>{season}</Text>
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
 function PlayerListSkeleton({ count = 9 }) {
   return (
     <Pulse min={0.45}>
@@ -631,6 +667,7 @@ function WatchRow({ p, onPress }) {
           {s.tradeTarget > 0 ? <Text style={[styles.chip, styles.chipTrade]}>{s.tradeTarget} on other teams</Text> : null}
           {p.news && p.news.length ? <Text style={[styles.chip, styles.chipNews]}>news</Text> : null}
         </View>
+        <PointsLine season={p.seasonPoints} proj={p.weekProjection} />
       </View>
       {p.value != null ? <Text style={styles.value}>{p.value}</Text> : null}
     </Pressable>
@@ -720,7 +757,7 @@ const styles = StyleSheet.create({
   quickAdd: { borderWidth: 1, borderColor: colors.good, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
   quickAddText: { color: colors.good, fontSize: 12, fontWeight: '800' },
   newsSearchWrap: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, marginBottom: 6 },
-  newsSortRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, gap: 8, marginBottom: 6 },
+  newsSortRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', rowGap: 6, paddingHorizontal: 16, gap: 8, marginBottom: 6 },
   newsSortLabel: { color: colors.textDim, fontSize: 12, fontWeight: '700', marginRight: 2 },
   newsSortChip: { backgroundColor: colors.card, borderRadius: 8, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 5 },
   newsSortChipActive: { backgroundColor: colors.cardAlt, borderColor: colors.accent },
@@ -750,6 +787,11 @@ const styles = StyleSheet.create({
   mine: { color: colors.good, fontSize: 9, fontWeight: '900', marginLeft: 6, borderWidth: 1, borderColor: colors.good, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1, overflow: 'hidden' },
   tagMark: { fontSize: 13, fontWeight: '900', marginLeft: 6 },
   meta: { color: colors.textDim, fontSize: 12, marginTop: 2 },
+  ptsLine: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 },
+  ptsItem: { fontSize: 12 },
+  ptsLabel: { color: colors.textDim, fontSize: 10, fontWeight: '800', letterSpacing: 0.4 },
+  ptsProj: { color: colors.accent, fontSize: 13, fontWeight: '900' },
+  ptsSeason: { color: colors.text, fontSize: 13, fontWeight: '800' },
   value: { color: colors.gold, fontSize: 15, fontWeight: '900', marginLeft: 10 },
   trendBox: { alignItems: 'flex-end', marginLeft: 10 },
   trend: { color: colors.good, fontSize: 14, fontWeight: '900' },

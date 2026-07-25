@@ -75,7 +75,22 @@ async function getOnDeck(cookie, token) {
   if (locks) {
     for (const l of locks.leagues) {
       if (l.status && l.status !== 'optimal' && l.status !== 'error' && l.status !== 'offseason') {
-        items.push({ type: 'lineup_lock', kind: 'action', leagueId: l.leagueId, leagueName: l.name, at: locks.kickoff, action: 'lineup', label: 'Lineups lock', detail: LINEUP_DETAIL[l.status] || l.status });
+        // A "wiped position" — a starting slot no healthy player can fill because everyone eligible
+        // is injured/on bye — can surface as 'incomplete' (lineup set, slot empty) OR 'risk' (the
+        // starter you set is now out and you've no healthy backup) OR 'unset'. In every case the fix
+        // is the same: pick up a replacement. When we know which positions are wiped, name them and
+        // attach a deep-link to the waiver board pre-filtered to that position and sorted by this
+        // week's projection, so the fix is one tap away.
+        const wiped = l.unfillablePositions || [];
+        const wipedSlots = (l.unfillable || []).map((s) => s.name);
+        const item = { type: 'lineup_lock', kind: 'action', leagueId: l.leagueId, leagueName: l.name, at: locks.kickoff, action: 'lineup', label: 'Lineups lock', detail: LINEUP_DETAIL[l.status] || l.status };
+        if (wiped.length) {
+          const slotLabel = [...new Set(wipedSlots)].join(' + ') || wiped.join('/');
+          item.label = `${slotLabel} slot needs a body`;
+          item.detail = `No healthy player for your ${slotLabel} slot — everyone eligible is out or on bye. Pick up a ${wiped.join('/')}.`;
+          item.replacements = { leagueId: l.leagueId, positions: wiped, sort: 'projection' };
+        }
+        items.push(item);
       }
     }
   }

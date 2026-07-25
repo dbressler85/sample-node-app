@@ -77,7 +77,7 @@ export default function App() {
   // Overlays form a stack so back returns to the previous screen (e.g. Trades or
   // Draft opened from a roster returns to that roster, not Home).
   const [overlayStack, setOverlayStack] = useState([]);
-  const [waiversTarget, setWaiversTarget] = useState(null); // {leagueId, position}
+  const [waiversTarget, setWaiversTarget] = useState(null); // {leagueId, position, sort}
   // Keep-alive tabs: each tab is MOUNTED the first time it's visited and kept mounted (hidden)
   // afterward, so switching tabs preserves scroll + in-progress state (UX_GUARDRAILS C7) — not just
   // returning from an overlay. Lazy so we never eagerly mount all six (and their fetches) at once.
@@ -254,10 +254,11 @@ export default function App() {
       case 'waivers':
         return (
           <WaiversScreen
-            key={`w-${waiversTarget ? waiversTarget.leagueId : 'all'}`}
+            key={`w-${waiversTarget ? `${waiversTarget.leagueId}-${waiversTarget.position || ''}-${waiversTarget.sort || ''}` : 'all'}`}
             active={active}
             initialLeagueId={waiversTarget ? waiversTarget.leagueId : null}
             initialPosition={waiversTarget ? waiversTarget.position : null}
+            initialSort={waiversTarget ? waiversTarget.sort : null}
             onStartWizard={openWaiverWizard}
             onOpenPlayer={openPlayer}
             onOpenLineup={openLineup}
@@ -379,7 +380,7 @@ export default function App() {
             onBack={popOverlay}
             onOpenLineup={openLineup}
             onOpenDraft={openDraft}
-            onOpenWaivers={(league) => openWaivers({ leagueId: league.leagueId })}
+            onOpenWaivers={(league) => openWaivers({ leagueId: league.leagueId, position: league.position, sort: league.sort })}
             onOpenTradeInbox={openTradeInbox}
             onOpenRoster={openRoster}
           />

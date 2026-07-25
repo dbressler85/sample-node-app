@@ -26,11 +26,12 @@ import { ScreenTitle } from '../components/Brand';
 const SORTS = [
   { key: 'value', label: 'Market' },
   { key: 'projection', label: 'Proj' },
+  { key: 'season', label: 'Yr pts' },
   { key: 'ownership', label: 'Own%' },
   { key: 'trend', label: 'Trend' },
 ];
 
-export default function WaiversScreen({ active = true, initialLeagueId, initialPosition, onStartWizard, onOpenPlayer, onOpenLineup }) {
+export default function WaiversScreen({ active = true, initialLeagueId, initialPosition, initialSort, onStartWizard, onOpenPlayer, onOpenLineup }) {
   // Landing overview via the shared hook: instant paint on remount (survives the tab-switch
   // unmount), throttled reloads, and it keeps the list on a failed refresh. `loadOverview`
   // (reload) is also called after a claim to reflect it immediately.
@@ -47,8 +48,9 @@ export default function WaiversScreen({ active = true, initialLeagueId, initialP
   const [position, setPosition] = useState(initialPosition || null);
   // Default to dynasty value: it's meaningful year-round (esp. the offseason),
   // unlike weekly projection which is empty between seasons. Toggle to Proj for
-  // in-season streaming.
-  const [sort, setSort] = useState('value');
+  // in-season streaming. A deep-link (e.g. Under Center's "replace a wiped position")
+  // can land the board pre-sorted — by this week's projection — via initialSort.
+  const [sort, setSort] = useState(initialSort || 'value');
   const [board, setBoard] = useState(null);
   const [loading, setLoading] = useState(false); // board (drill-in) loading
   const [error, setError] = useState(null);
@@ -430,6 +432,7 @@ function FaRow({ p, onPress, onOpenPlayer }) {
             {[
               p.team,
               p.projection != null ? `proj ${p.projection}` : null,
+              p.seasonPoints != null ? `${p.seasonPoints} yr` : null,
               p.ownership != null ? `${p.ownership}% rost` : null,
               p.trend ? `+${(p.trend / 1000).toFixed(1)}k adds` : null,
               p.onWaivers ? `waivers${p.clearTime ? ` ${p.clearTime}` : ''}` : 'free agent',
