@@ -20,7 +20,6 @@ const playersLib = require('../lib/players');
 const picksLib = require('../lib/picks');
 const adpLib = require('../lib/adp');
 const draftClockLib = require('../lib/draftClock');
-const draftClocks = require('../store/draftClocks');
 const leaguesService = require('./leagues');
 const waiversService = require('./waivers');
 const rosterService = require('./roster');
@@ -406,12 +405,9 @@ async function getLeague(cookie, token, leagueId, { position } = {}) {
   // Overlay personal tags so the board can highlight your Targets and dim your Avoids.
   for (const p of available) p.tag = playerTags.get(token, p.id) || null;
 
-  // Clock config: auto-detected from MFL's `league` export (draftLimitHours / draftTimerSusp) is the
-  // primary source — no owner input needed. A manually stored clock, if one was ever set, overrides it
-  // (a safety net for a league whose export lacks the fields). Demo falls back to the demo default.
-  const autoClock = config.demoMode ? null : await leagueFormat.draftClockConfig(cookie, league).catch(() => null);
-  const manualClock = draftClocks.get(token, leagueId);
-  const clockConfig = manualClock ? { ...manualClock, source: 'manual' } : autoClock;
+  // Clock config: auto-detected from MFL's `league` export (draftLimitHours / draftTimerSusp) — no
+  // owner input needed. Demo falls back to the demo default (see buildPickClock).
+  const clockConfig = config.demoMode ? null : await leagueFormat.draftClockConfig(cookie, league).catch(() => null);
   const pickClock = buildPickClock(draft, status, clockConfig);
 
   return {
@@ -696,10 +692,4 @@ async function saveDraftList(cookie, token, leagueId, ids) {
   return getDraftList(cookie, token, leagueId);
 }
 
-// Set/clear the owner's manual pick-clock config for a league (MFL doesn't export it). Returns the
-// normalized stored config (or null when cleared).
-function setDraftClock(token, leagueId, cfg) {
-  return { leagueId: String(leagueId), clockConfig: draftClocks.set(token, leagueId, cfg) || null };
-}
-
-module.exports = { getOverview, getLeague, makePick, upcomingPicksByFranchise, freeAgencyOpen, getPickInventory, getDraftList, saveDraftList, setDraftClock };
+module.exports = { getOverview, getLeague, makePick, upcomingPicksByFranchise, freeAgencyOpen, getPickInventory, getDraftList, saveDraftList };
