@@ -56,6 +56,9 @@ async function warmOnce() {
     const anyCookie = active[0].cookie;
     const week = await nflLib.currentWeek(anyCookie).catch(() => null);
     await playersLib.load(anyCookie).catch(() => {}); // the big player DB (daily-cached, global)
+    // Injuries is a shared site-wide feed hit on every roster/lineup build — prime it once so the
+    // Sunday-morning availability reads land on a warm shared entry instead of a per-user cold fetch.
+    if (week) await nflLib.injuryMap(anyCookie, week, LOW).catch(() => {});
 
     const seen = new Set();
     let leagues = 0;

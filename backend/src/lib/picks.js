@@ -9,6 +9,7 @@ const config = require('../config');
 const demo = require('../demo/fixtures');
 const mfl = require('./mfl');
 const mflRepo = require('./mflRepo');
+const { logDegrade } = require('./safe');
 
 // Estimated dynasty value (0-100 scale) for a draft pick from its label. This is a model, not a
 // market price, but it now follows a real dynasty PICK CURVE instead of a flat per-round number:
@@ -105,6 +106,7 @@ async function franchisePicks(cookie, league, franchiseId = league.franchiseId) 
       return { token: `FP_${owner}_${p.year}_${p.round}`, label: `${p.year} ${ordinal(p.round)}`, year: Number(p.year), round: Number(p.round), originalKnown };
     });
   } catch (e) {
+    logDegrade(`picks.franchisePicks league=${league.leagueId}`, e);
     return [];
   }
 }
@@ -128,6 +130,7 @@ async function franchisePicksMap(cookie, league) {
     }
     return out;
   } catch (e) {
+    logDegrade(`picks.franchisePicksMap league=${league.leagueId}`, e);
     return {};
   }
 }
@@ -165,6 +168,7 @@ async function assetsByFranchise(cookie, league) {
     }
     return out;
   } catch (e) {
+    logDegrade(`picks.assetsByFranchise league=${league.leagueId}`, e);
     return null;
   }
 }

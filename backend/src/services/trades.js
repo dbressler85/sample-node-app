@@ -10,6 +10,7 @@ const config = require('../config');
 const demo = require('../demo/fixtures');
 const mfl = require('../lib/mfl');
 const mflRepo = require('../lib/mflRepo');
+const { logDegrade } = require('../lib/safe');
 const enrichmentLib = require('../lib/enrichment');
 const leagueFormat = require('../lib/leagueformat');
 const playersLib = require('../lib/players');
@@ -262,6 +263,7 @@ async function livePendingOffers(cookie, league) {
       })
       .filter(Boolean);
   } catch (e) {
+    logDegrade(`trades.livePendingOffers league=${league.leagueId}`, e);
     return [];
   }
 }
@@ -309,6 +311,7 @@ async function myCompletedTrades(cookie, league) {
     out.sort((a, b) => (b.at || 0) - (a.at || 0));
     return out;
   } catch (e) {
+    logDegrade(`trades.myCompletedTrades league=${league.leagueId}`, e);
     return [];
   }
 }
@@ -327,6 +330,7 @@ async function liveRosters(cookie, league) {
           .map((p) => String(p.id)),
       }));
   } catch (e) {
+    logDegrade(`trades.liveRosters league=${league.leagueId}`, e);
     return [];
   }
 }
