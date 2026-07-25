@@ -33,6 +33,21 @@ const db = () => persist.ns('push'); // token -> { expoPushToken, prefs, primed,
 const DEFAULT_PREFS = { draftClock: true, tradeOffer: true, lineupAttention: true, watchlist: true, waiverResult: true };
 const CHANNELS = Object.keys(DEFAULT_PREFS);
 
+// Slow/email-draft clock reminder: a SECOND nudge (after "you're on the clock") when your pick timer is
+// about to expire, so a long clock doesn't quietly lapse into an autopick you didn't want. Only for
+// genuinely slow drafts (a multi-hour clock) — a fast/live draft's short clock is already covered by
+// the on-the-clock push, and reminding at 2h-left there would just double up.
+const CLOCK_REMINDER_MS = 2 * 60 * 60 * 1000; // fire when ≤ 2h of ACTIVE time remains
+const SLOW_DRAFT_MIN_HOURS = 4; // ...and only if the per-pick clock is at least this long
+
+// "1h 45m" / "45m" / "8m" from remaining ms.
+function shortDur(ms) {
+  const m = Math.max(0, Math.round(ms / 60000));
+  const h = Math.floor(m / 60);
+  const min = m % 60;
+  return h > 0 ? `${h}h ${min}m` : `${min}m`;
+}
+
 function registerToken(token, expoPushToken, prefs) {
   if (!token || !expoPushToken) {
     const e = new Error('An Expo push token is required.');
@@ -52,6 +67,7 @@ function registerToken(token, expoPushToken, prefs) {
     lineupKeys: existing.lineupKeys || [],
     watchKeys: existing.watchKeys || [],
     waiverKeys: existing.waiverKeys || [],
+    clockWarnKeys: existing.clockWarnKeys || [],
   };
   persist.touch();
   return { ok: true, prefs: d[token].prefs };
@@ -112,6 +128,16 @@ function buildFor(state, draftOv, tradeOv, deck = { items: [] }, watchAlerts = {
   const clockLeagues = curClock.map((d) => d.leagueId);
   const prevClock = new Set(state.clockLeagues || []);
 
+  // Slow-draft "clock running low" reminders: my on-the-clock picks whose long timer is within the
+  // final window and actively counting (not paused/overdue). Keyed by league + the exact pick, so it
+  // fires once per pick — and again for the next pick, but never twice for the same one.
+  const curClockWarn = curClock.filter((d) => {
+    const c = d.myClock;
+    return c && !c.paused && !c.overdue && c.remainingMs > 0 && c.remainingMs <= CLOCK_REMINDER_MS && (c.pickHours || 0) >= SLOW_DRAFT_MIN_HOURS;
+  });
+  const clockWarnKeys = curClockWarn.map((d) => `${d.leagueId}:${d.myClock.round}.${d.myClock.pick}`);
+  const prevClockWarn = new Set(state.clockWarnKeys || []);
+
   const curOffers = tradeOv.offers || [];
   const offerIds = curOffers.map((o) => `${o.leagueId}:${o.id}`);
   const prevOffers = new Set(state.offerIds || []);
@@ -141,6 +167,12 @@ function buildFor(state, draftOv, tradeOv, deck = { items: [] }, watchAlerts = {
       for (const d of curClock) {
         if (!prevClock.has(d.leagueId)) {
           msgs.push({ to: state.expoPushToken, title: "You're on the clock ⏱", body: `${d.name} — make your pick`, data: { type: 'draft_clock', leagueId: d.leagueId } });
+        }
+      }
+      // Slow-draft expiry reminder (same channel): fires once per pick as its long clock runs low.
+      for (const d of curClockWarn) {
+        if (!prevClockWarn.has(`${d.leagueId}:${d.myClock.round}.${d.myClock.pick}`)) {
+          msgs.push({ to: state.expoPushToken, title: 'Pick clock running low ⏳', body: `${d.name} — about ${shortDur(d.myClock.remainingMs)} left to pick ${d.myClock.round}.${String(d.myClock.pick).padStart(2, '0')}`, data: { type: 'draft_clock_warn', leagueId: d.leagueId } });
         }
       }
     }
@@ -186,7 +218,7 @@ function buildFor(state, draftOv, tradeOv, deck = { items: [] }, watchAlerts = {
     }
   }
 
-  return { msgs, clockLeagues, offerIds, lineupKeys, watchKeys, waiverKeys };
+  return { msgs, clockLeagues, offerIds, lineupKeys, watchKeys, waiverKeys, clockWarnKeys };
 }
 
 // One scheduler pass over every registered device.
@@ -222,12 +254,13 @@ async function tick(deps = {}) {
         prefs.watchlist !== false ? Promise.resolve(watchAlerts(session.cookie, token)).catch(() => ({ alerts: [] })) : Promise.resolve({ alerts: [] }),
         prefs.waiverResult !== false ? Promise.resolve(waiverResults(session.cookie, token)).catch(() => ({ results: [] })) : Promise.resolve({ results: [] }),
       ]);
-      const { msgs, clockLeagues, offerIds, lineupKeys, watchKeys, waiverKeys } = buildFor(state, draftOv, tradeOv, deck, watch, waiverRes);
+      const { msgs, clockLeagues, offerIds, lineupKeys, watchKeys, waiverKeys, clockWarnKeys } = buildFor(state, draftOv, tradeOv, deck, watch, waiverRes);
       state.clockLeagues = clockLeagues;
       state.offerIds = offerIds;
       state.lineupKeys = lineupKeys;
       state.watchKeys = watchKeys;
       state.waiverKeys = waiverKeys;
+      state.clockWarnKeys = clockWarnKeys;
       state.primed = true;
       persist.touch();
       if (msgs.length) {

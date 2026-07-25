@@ -357,13 +357,24 @@ async function getOverview(cookie, token) {
         const status = statusOf(draft, slots);
         const clock = onClockSlot(status, slots);
         const myNext = slots.find((s) => !s.playerId && s.franchiseId === league.franchiseId);
+        const myOnClock = !!(clock && clock.franchiseId === league.franchiseId);
+        // When it's MY pick, attach the live pick-clock (deadline + time left) so callers — Home and the
+        // "clock running low" push — can nudge before it expires into an autopick. Only computed on my
+        // turn (one extra, cached league-settings read), so the overview stays a light fan-out.
+        let myClock = null;
+        if (myOnClock) {
+          const clockConfig = config.demoMode ? null : await leagueFormat.draftClockConfig(cookie, league).catch(() => null);
+          const pc = buildPickClock(draft, status, clockConfig);
+          if (pc) myClock = { deadline: pc.deadline, remainingMs: pc.remainingMs, paused: pc.paused, overdue: pc.overdue, pickHours: pc.pickHours, round: clock.round, pick: clock.pick };
+        }
         return {
           leagueId: league.leagueId,
           name: league.name,
           type: draft.type,
           status,
           startTime: draft.startTime || null,
-          myOnClock: !!(clock && clock.franchiseId === league.franchiseId),
+          myOnClock,
+          myClock,
           myNextPick: myNext ? { overall: myNext.overall, round: myNext.round, pick: myNext.pick } : null,
           picksMade: slots.filter((s) => s.playerId && !s.keeper).length,
         };
