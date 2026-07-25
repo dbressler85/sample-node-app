@@ -1060,6 +1060,28 @@ async function waiverLocks(cookie, token) {
 // Per-league waiver summary for the landing list (mirrors the Lineups overview):
 // one card per league showing system, budget/priority, roster space, how many
 // free agents are worth a look, top available by value, and pending claims.
+// A league's waiver POSTURE from the calendar + draft state, shared by the waiver landing AND the
+// wizard so both agree on whether you can act now:
+//   'fa_open'      — free agency is open: add anyone immediately.
+//   'waivers_soon' — a run is scheduled ahead (calendar nextWaiverRun): QUEUE claims now, they process
+//                    then. A FAAB league between runs lands here — you can and should still queue.
+//   'locked'       — neither: no open FA and no upcoming run (draft pending / offseason quiet).
+// Returns { waiverState, lockReason }. `waiverRun` is the soonest upcoming run (ms) or null.
+async function waiverPosture(cookie, token, league, settings, waiverRun) {
+  if (config.demoMode) {
+    return { waiverState: settings.system === 'free' ? 'fa_open' : 'waivers_soon', lockReason: null };
+  }
+  const draftService = require('./draft'); // lazy require — avoids a waivers↔draft cycle
+  const [calLock, open] = await Promise.all([
+    calendarLock(cookie, league).catch(() => null),
+    draftService.freeAgencyOpen(cookie, token, league).catch(() => true),
+  ]);
+  const faOpen = !calLock && open;
+  const hasUpcomingRun = waiverRun != null && waiverRun > Date.now();
+  const waiverState = faOpen ? 'fa_open' : hasUpcomingRun ? 'waivers_soon' : 'locked';
+  return { waiverState, lockReason: waiverState === 'locked' ? calLock : null };
+}
+
 async function getOverview(cookie, token) {
   const leagues = await leaguesService.orderedLeagues(cookie, token);
   const byId = await playersLib.load(cookie); // cached; used to resolve reconciled pending names
@@ -1086,23 +1108,8 @@ async function getOverview(cookie, token) {
         // "Imminent" = the next run is ahead of us but within the act-now window. A run already
         // in the past (stale calendar occurrence) doesn't count.
         const waiverImminent = waiverRun != null && waiverRun > Date.now() && waiverRun - Date.now() <= config.waiverImminentMs;
-        // The league's pickup posture, so the UI can be explicit:
-        //   'fa_open'      — free agency is OPEN: add anyone immediately (FCFS or a faab league between runs).
-        //   'waivers_soon' — a waiver run is scheduled ahead: claims queue now and process then.
-        //   'locked'       — neither: no open FA and no upcoming run (draft pending / offseason quiet).
-        let waiverState;
-        if (config.demoMode) {
-          waiverState = settings.system === 'free' ? 'fa_open' : 'waivers_soon';
-        } else {
-          const draftService = require('./draft'); // lazy require — avoids a waivers↔draft cycle
-          const [calLock, open] = await Promise.all([
-            calendarLock(cookie, league).catch(() => null),
-            draftService.freeAgencyOpen(cookie, token, league).catch(() => true),
-          ]);
-          const faOpen = !calLock && open;
-          const hasUpcomingRun = waiverRun != null && waiverRun > Date.now();
-          waiverState = faOpen ? 'fa_open' : hasUpcomingRun ? 'waivers_soon' : 'locked';
-        }
+        // The league's pickup posture (calendar + draft aware), so the UI can be explicit.
+        const { waiverState } = await waiverPosture(cookie, token, league, settings, waiverRun);
         return {
           leagueId: league.leagueId,
           name: league.name,
@@ -1147,15 +1154,18 @@ async function getOverview(cookie, token) {
 // wizard walks these, letting the owner tweak each before submitting.
 async function getSuggestions(cookie, token) {
   const leagues = await leaguesService.listLeagues(cookie);
-  const [locks, out] = await Promise.all([
-    waiverLocks(cookie, token),
-    Promise.all(
+  // Lock REASONS (draft-pending / calendar) for the leagues that are truly locked. The lock DECISION
+  // is made per-league below from the calendar-aware posture — a 'waivers_soon' league is NOT locked
+  // even if FA is closed right now, so the wizard can still queue claims for the upcoming run.
+  const locks = await waiverLocks(cookie, token);
+  const out = await Promise.all(
     leagues.map(async (league) => {
       try {
         const settings = await loadSettings(league, cookie);
-        const [roster, fas] = await Promise.all([
+        const [roster, fas, waiverRun] = await Promise.all([
           rosterService.getRoster(cookie, league.leagueId),
           loadFreeAgents(cookie, league, settings),
+          config.demoMode ? Promise.resolve(null) : nextWaiverRun(cookie, league).catch(() => null),
         ]);
         let freeAgents = fas;
         if (!config.demoMode) freeAgents = freeAgents.filter((p) => p.name && !/^Player \d+$/.test(p.name));
@@ -1196,17 +1206,28 @@ async function getSuggestions(cookie, token) {
           };
         }
 
+        // Calendar-aware posture — the wizard MUST see upcoming runs, not just "open right now": a FAAB
+        // league between runs ('waivers_soon') should still offer a suggestion to QUEUE for the run.
+        // Only a truly 'locked' league (no open FA, no upcoming run) drops its recommendation.
+        const { waiverState } = await waiverPosture(cookie, token, league, settings, waiverRun);
+        const locked = waiverState === 'locked';
+        const lockReason = locked ? (locks.get(String(league.leagueId)) || null) : null;
+
         return {
           leagueId: league.leagueId,
           name: league.name,
           system: settings.system,
+          waiverState,
+          nextWaiverRun: waiverRun,
+          locked,
+          lockReason,
           faabRemaining: settings.faabRemaining != null ? settings.faabRemaining : null,
           minBid: settings.minBid || 1,
           rosterCount: activeCount(roster),
           rosterSize: settings.rosterSize || null,
           rosterFull: full,
           clearTime: settings.clearTime || null,
-          recommended,
+          recommended: locked ? null : recommended,
           candidates,
           bench,
         };
@@ -1214,16 +1235,14 @@ async function getSuggestions(cookie, token) {
         return { leagueId: league.leagueId, name: league.name, error: e.message };
       }
     })
-    ),
-  ]);
-  for (const l of out) {
-    const reason = locks.get(String(l.leagueId));
-    if (reason) { l.locked = true; l.lockReason = reason; l.recommended = null; }
-  }
+  );
   const summary = {
     total: out.length,
     withSuggestions: out.filter((l) => l.recommended && l.recommended.upgrade).length,
     withCandidates: out.filter((l) => l.candidates && l.candidates.length).length,
+    // Leagues actionable now: FA open OR a run scheduled ahead (queue). This is the count the wizard
+    // uses instead of "waivers open" — a FAAB league between runs is actionable, not closed.
+    actionable: out.filter((l) => l.waiverState === 'fa_open' || l.waiverState === 'waivers_soon').length,
     locked: out.filter((l) => l.locked).length,
   };
   return { leagues: out, summary };
