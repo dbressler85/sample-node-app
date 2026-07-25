@@ -16,7 +16,7 @@ const PLAYERS = [
   { id: '50', name: 'Free, C', position: 'RB', team: 'CCC' },
 ];
 
-mfl.exportRequest = async (type, opts = {}) => {
+mfl.exportRequest = async (type) => {
   switch (type) {
     case 'myleagues':
       return { leagues: { league: [{ league_id: 'L1', name: 'Pre-Draft Startup', url: 'https://www10.myfantasyleague.com/2026/home/L1', franchise_id: '0001' }] } };
@@ -59,6 +59,42 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   const ov = await waivers.getOverview('ck', 'tk');
   assert(ov.leagues[0].locked === true && ov.summary.locked === 1, 'overview marks the pre-draft league locked');
   console.log('✓ getOverview: pre-draft league flagged locked on the landing');
+
+  // The reported bug: a league whose FA is locked RIGHT NOW (a calendar lock window) but has a waiver
+  // run scheduled ahead must stay ACTIONABLE in the wizard — you queue claims for the run. The wizard
+  // was treating it as closed because it never consulted the calendar's upcoming run.
+  const soonSec = nowSec + 2 * 3600; // a run in ~2h
+  mfl.exportRequest = async (type) => {
+    switch (type) {
+      case 'myleagues':
+        return { leagues: { league: [{ league_id: 'L2', name: 'In-Season FAAB', url: 'https://www10.myfantasyleague.com/2026/home/L2', franchise_id: '0001' }] } };
+      case 'league':
+        return { league: { rosterSize: '20', minBid: '1', bbidAvailableBalance: '100', franchises: { franchise: [{ id: '0001' }] }, starters: { position: [{ name: 'RB', limit: '1' }, { name: 'WR', limit: '1' }] } } };
+      case 'rosters':
+        return { rosters: { franchise: [{ id: '0001', player: [{ id: '1', status: 'starter' }, { id: '2', status: 'nonstarter' }] }] } };
+      case 'freeAgents':
+        return { freeAgents: { leagueUnit: { player: [{ id: '50' }] } } };
+      case 'players':
+        return { players: { player: PLAYERS } };
+      case 'draftResults': // a COMPLETE draft, so the draft isn't the blocker
+        return { draftResults: { draftUnit: { unit: 'LEAGUE', draftPick: [{ round: '1', pick: '1', franchise: '0001', player: '1' }] } } };
+      case 'calendar':
+        return { calendar: { event: [
+          { type: 'WAIVER_LOCK', start_time: String(nowSec - 3600) }, // FA locked now (past lock event)
+          { type: 'WAIVER_BBID', start_time: String(soonSec) }, // ...but a run is scheduled ahead
+        ] } };
+      case 'nflSchedule': return { nflSchedule: { week: '3', matchup: [] } };
+      case 'injuries': return { injuries: { injury: [] } };
+      default: return {};
+    }
+  };
+  const sug2 = await waivers.getSuggestions('ck2', 'tk2');
+  const l2 = sug2.leagues[0];
+  assert(l2.waiverState === 'waivers_soon', `an upcoming run → waivers_soon, got ${l2.waiverState}`);
+  assert(l2.locked === false, 'a waivers_soon league is NOT locked — you can still queue');
+  assert(l2.recommended != null, 'the wizard still recommends a claim to queue for the run');
+  assert(sug2.summary.actionable === 1 && sug2.summary.locked === 0, 'summary counts it actionable, not locked');
+  console.log('✓ getSuggestions: upcoming-run league stays actionable (queue for the run), not closed');
 
   console.log('\nWAIVER LOCK HARNESS PASSED');
 })().catch((e) => { console.error(e.message); process.exit(1); });
