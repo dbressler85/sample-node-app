@@ -30,14 +30,45 @@ let active = 0;
 let lastStartAt = 0;
 let penaltyUntil = 0; // while > now, the pipe runs in gentle mode after a rate-limit
 let wakePending = false; // at most one pending timer to re-pump when a penalty lifts
-// Two priority lanes. `waiters` = normal (user-facing reads); `lowWaiters` = background/bulk work
-// (the Sunday pre-warm loop, the daily player-DB refresh). The pump always drains the NORMAL lane
-// first, so background work can never delay a request a user is waiting on — it only fills the idle
-// gaps in the pipeline. Within a lane it's FIFO.
-const waiters = [];
+// Two priority lanes. NORMAL = user-facing reads; LOW = background/bulk work (the Sunday pre-warm
+// loop, the daily player-DB refresh). The pump always drains NORMAL before LOW, so background work
+// can never delay a request a user is waiting on — it only fills idle gaps.
+//
+// NORMAL is FAIR ACROSS ACCOUNTS. Each account (keyed by its MFL cookie) has its own FIFO sub-queue,
+// and the pump ROUND-ROBINS across accounts. So one account's big cold fan-out (a 15-league
+// waivers/portfolio sweep = dozens of queued reads) can no longer park ahead of another account's
+// single interactive tap — that account's request is at most one round away, not behind the whole
+// burst. The GLOBAL concurrency + stagger + 429 penalty (below) are unchanged: MFL rate-limits per
+// IP and the server is one IP, so total outbound stays bounded regardless of account count. This is
+// latency ISOLATION between accounts, not extra quota.
+const normalQueues = new Map(); // accountKey -> [resolve, …] (FIFO within one account)
+const normalOrder = []; // round-robin ring of accountKeys that currently have pending NORMAL work
+let normalPending = 0; // total queued across all normal sub-queues (keeps pendingCount O(1))
 const lowWaiters = [];
-const pendingCount = () => waiters.length + lowWaiters.length;
-const nextWaiter = () => (waiters.length ? waiters.shift() : lowWaiters.length ? lowWaiters.shift() : null);
+const pendingCount = () => normalPending + lowWaiters.length;
+
+function pushNormal(key, resolve) {
+  let q = normalQueues.get(key);
+  if (!q) { q = []; normalQueues.set(key, q); normalOrder.push(key); }
+  q.push(resolve);
+  normalPending += 1;
+}
+
+// One resolver, round-robin: take the next account in the ring, hand out its oldest waiter, and if it
+// still has work send that account to the BACK of the ring (fair rotation). NORMAL fully before LOW.
+function nextWaiter() {
+  while (normalOrder.length) {
+    const key = normalOrder.shift();
+    const q = normalQueues.get(key);
+    if (!q || q.length === 0) { normalQueues.delete(key); continue; }
+    const resolve = q.shift();
+    normalPending -= 1;
+    if (q.length) normalOrder.push(key);
+    else normalQueues.delete(key);
+    return resolve;
+  }
+  return lowWaiters.length ? lowWaiters.shift() : null;
+}
 
 function inPenalty() {
   return Date.now() < penaltyUntil;
@@ -80,9 +111,10 @@ function pumpThrottle() {
   }
 }
 
-async function throttle(task, priority = 'normal') {
+async function throttle(task, priority = 'normal', key = 'shared') {
   await new Promise((resolve) => {
-    (priority === 'low' ? lowWaiters : waiters).push(resolve);
+    if (priority === 'low') lowWaiters.push(resolve);
+    else pushNormal(key || 'shared', resolve);
     pumpThrottle();
   });
   try {
@@ -242,7 +274,9 @@ async function rawRequest({ host, command, params, cookie, method = 'GET', body,
   let text;
   for (let attempt = 0; ; attempt++) {
     metrics.recordFetch(params.TYPE || command); // an actual outbound MFL network call (per attempt)
-    res = await throttle(() => fetchAllowlisted(url, init), priority);
+    // Key the fair queue by the user's cookie (their MFL account); unauthenticated/public reads
+    // share one 'public' bucket. This is what isolates one account's fan-out from another's.
+    res = await throttle(() => fetchAllowlisted(url, init), priority, cookie || 'public');
     if (res.status === 429) {
       metrics.record429();
       const retryAfter = parseInt(res.headers.get('retry-after') || '', 10);
@@ -500,8 +534,10 @@ async function login(username, password) {
   url.searchParams.set('XML', '1');
   if (config.apiKey) url.searchParams.set('APIKEY', config.apiKey);
 
-  const res = await throttle(() =>
-    fetch(url.toString(), { headers: { 'User-Agent': config.userAgent, Accept: '*/*' }, redirect: 'manual' })
+  const res = await throttle(
+    () => fetch(url.toString(), { headers: { 'User-Agent': config.userAgent, Accept: '*/*' }, redirect: 'manual' }),
+    'normal',
+    'login'
   );
 
   const setCookie = res.headers.get('set-cookie') || '';
@@ -565,8 +601,9 @@ module.exports = {
   // in each priority lane, whether we're in a rate-limit cooldown, and the read-cache size.
   throttleStats: () => ({
     active,
-    queuedNormal: waiters.length,
+    queuedNormal: normalPending,
     queuedLow: lowWaiters.length,
+    queuedAccounts: normalQueues.size, // distinct accounts with pending normal reads (fair-queue depth)
     inPenalty: inPenalty(),
     penaltyRemainingMs: Math.max(0, penaltyUntil - Date.now()),
     effConcurrent: effConcurrent(),
@@ -574,6 +611,16 @@ module.exports = {
     maxConcurrent: config.mflMaxConcurrent,
     cacheSize: readCache.size,
   }),
-  // Test-only window into the adaptive throttle (see throttle-test / throttle-backoff-test).
-  __throttle: { inPenalty, effConcurrent, effInterval },
+  // Test-only window into the adaptive throttle (see throttle-test / throttle-backoff-test) and the
+  // per-account fair queue (throttle-fair-test): push sentinels and drain them in round-robin order.
+  __throttle: {
+    inPenalty,
+    effConcurrent,
+    effInterval,
+    _pushNormal: pushNormal,
+    _next: nextWaiter,
+    _pushLow: (r) => lowWaiters.push(r),
+    _pending: () => pendingCount(),
+    _accounts: () => normalQueues.size,
+  },
 };
