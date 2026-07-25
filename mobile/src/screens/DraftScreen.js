@@ -131,7 +131,7 @@ const PickClock = React.memo(function PickClock({ pickClock, mine }) {
   );
 });
 
-export default function DraftScreen({ league, demoMode, onBack, onOpenPlayer, onOpenTrades, onOpenDraftList }) {
+export default function DraftScreen({ league, demoMode, covered = false, onBack, onOpenPlayer, onOpenTrades, onOpenDraftList }) {
   // Seed the board from the survive-remount cache so reopening the draft paints the last board
   // instantly instead of a cold spinner; the live poll (below) keeps it current.
   const boardKey = `draft:${league.leagueId}`;
@@ -163,7 +163,9 @@ export default function DraftScreen({ league, demoMode, onBack, onOpenPlayer, on
   // While the draft is live, poll so the board and "on the clock" update as other
   // teams pick — without a manual pull. Not while picking (avoids clobbering) or
   // when scheduled/complete.
-  usePoll(load, 15000, !!(data && data.status === 'in_progress') && !picking);
+  // Pause the live poll while this board is covered by another overlay (not visible) — but keep polling
+  // when it's the top/visible screen so a live draft never freezes (UX_GUARDRAILS: reflect-live).
+  usePoll(load, 15000, !!(data && data.status === 'in_progress') && !picking && !covered);
 
   const myTurn = !!(data && data.onClock && data.onClock.mine);
   // In-app drafting works in BOTH modes now: live picks go through MFL's `live_draft` command

@@ -250,7 +250,8 @@ export default function App() {
   function renderTabContent(key, active) {
     switch (key) {
       case 'scores':
-        return <ScoresScreen active={active} onOpenLineup={openLineup} />;
+        // A tab covered by an overlay is not visible — treat it as inactive so its live poll pauses.
+        return <ScoresScreen active={active && overlayStack.length === 0} onOpenLineup={openLineup} />;
       case 'waivers':
         return (
           <WaiversScreen
@@ -308,7 +309,10 @@ export default function App() {
   // One overlay descriptor -> its screen. Extracted so the render can stack the WHOLE overlay
   // list on top of a persistent tab layer (below) instead of returning one overlay INSTEAD of the
   // tabs. Same screens/props as before — only the layering changed.
-  function renderOverlay(o) {
+  // `covered` = this overlay is NOT the top of the stack (another overlay sits on top of it), so it's
+  // not visible. Polling overlay screens AND it into their poll gate to stop firing requests the user
+  // can't see. The TOP (visible) overlay is never `covered`, so a live draft board / hub keeps updating.
+  function renderOverlay(o, covered) {
     switch (o.type) {
       case 'roster':
         return <RosterScreen league={o.league} onBack={popOverlay} onOpenTrades={openTrades} onOpenDraft={openDraft} onOpenPlayer={openPlayer} />;
@@ -341,11 +345,11 @@ export default function App() {
           />
         );
       case 'draft':
-        return <DraftScreen league={o.league} demoMode={demoMode} onBack={popOverlay} onOpenPlayer={openPlayer} onOpenTrades={openTrades} onOpenDraftList={openDraftList} />;
+        return <DraftScreen league={o.league} demoMode={demoMode} covered={covered} onBack={popOverlay} onOpenPlayer={openPlayer} onOpenTrades={openTrades} onOpenDraftList={openDraftList} />;
       case 'draftList':
         return <DraftListScreen league={o.league} onBack={popOverlay} onOpenPlayer={openPlayer} />;
       case 'draftHub':
-        return <DraftHubScreen onBack={popOverlay} onOpenDraft={openDraft} onOpenPicks={openPickInventory} />;
+        return <DraftHubScreen covered={covered} onBack={popOverlay} onOpenDraft={openDraft} onOpenPicks={openPickInventory} />;
       case 'pickInventory':
         return <PickInventoryScreen onBack={popOverlay} />;
       case 'leagues':
@@ -377,6 +381,7 @@ export default function App() {
       case 'onDeck':
         return (
           <OnDeckScreen
+            covered={covered}
             onBack={popOverlay}
             onOpenLineup={openLineup}
             onOpenDraft={openDraft}
@@ -463,7 +468,8 @@ export default function App() {
             <ErrorBoundary silent>
               <FieldBackdrop />
             </ErrorBoundary>
-            <View style={styles.flex}>{renderOverlay(o)}</View>
+            {/* covered = another overlay sits on top of this one (it isn't the visible top). */}
+            <View style={styles.flex}>{renderOverlay(o, i < overlayStack.length - 1)}</View>
           </View>
         ))}
       </View>
