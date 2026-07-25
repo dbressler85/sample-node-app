@@ -10,6 +10,7 @@ const CHANNELS = [
   { key: 'tradeOffer', label: 'New trade offers', desc: 'When another owner sends you an offer.' },
   { key: 'lineupAttention', label: 'Lineup needs attention', desc: 'A start/sit problem before kickoff — an injured or empty starter.' },
   { key: 'watchlist', label: 'Watchlist alerts', desc: 'A player you track becomes a free agent or is put on the block.' },
+  { key: 'waiverResult', label: 'Waiver results', desc: 'When a waiver claim of yours processes — you won a player (with the FAAB bid).' },
 ];
 
 // Preferences: explicitly choose which push notifications to receive. Each toggle saves

@@ -1261,4 +1261,34 @@ async function getPending(cookie, token) {
   return { pending, results, summary: { pending: pending.length, results: results.length } };
 }
 
-module.exports = { getBoard, getOverview, getSuggestions, preview, submit, previewMulti, submitMulti, cancel, getBestAvailable, getPending, freeAgentIds, invalidate, nextWaiverRun, reconciledPending };
+// Recent WON waiver claims across ALL your leagues — the source for the "you won a player" push. Wins
+// come from MFL's transactions log (liveWaiverResults) which is READ-ONLY and idempotent, so this is
+// safe to poll on the notification tick (unlike the outbid/lost reconcile, which mutates the pending
+// snapshot and is left to getBoard). Each row: { leagueId, leagueName, add, addId, bid, at } — `at` is
+// epoch seconds, used to dedup a claim across ticks. Best-effort per league.
+async function recentResults(cookie, _token) {
+  const leagues = await leaguesService.listLeagues(cookie).catch(() => []);
+  const norm = (leagueId, leagueName, r) => ({
+    leagueId, leagueName, add: r.add, addId: r.addId != null ? String(r.addId) : null,
+    bid: r.bid != null ? r.bid : null, at: r.at || 0,
+  });
+  if (config.demoMode) {
+    const out = [];
+    for (const lg of leagues) {
+      for (const r of demo.waiverResults(lg.leagueId) || []) {
+        if ((r.result || 'won') === 'won') out.push(norm(lg.leagueId, lg.name, r));
+      }
+    }
+    return { results: out };
+  }
+  const byId = await playersLib.load(cookie).catch(() => new Map());
+  const per = await Promise.all(
+    leagues.map(async (league) => {
+      const wins = await liveWaiverResults(cookie, league, byId).catch(() => []);
+      return wins.filter((r) => (r.result || 'won') === 'won').map((r) => norm(league.leagueId, league.name, r));
+    })
+  );
+  return { results: per.flat() };
+}
+
+module.exports = { getBoard, getOverview, getSuggestions, preview, submit, previewMulti, submitMulti, cancel, getBestAvailable, getPending, freeAgentIds, invalidate, nextWaiverRun, reconciledPending, recentResults };
