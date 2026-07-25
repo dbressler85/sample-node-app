@@ -189,6 +189,63 @@ async function buildFormat(cookie, league) {
   };
 }
 
+// --- draft pick-clock settings (auto-detected from the `league` export) ------
+// MFL DOES expose the per-pick clock and the nightly suspend window as commissioner draft settings
+// on the `league` node — so the countdown needs no manual entry and no timestamp inference:
+//   draftLimitHours: "8:00"  -> 8h per pick (H:MM — hours:minutes)
+//   draftTimerSusp:  "00 08" -> timers suspend 00:00–08:00 (start hour, end hour)
+//   draftTimer:      e.g. "ONS" (a timer-mode flag; not needed to compute the countdown)
+// The suspend window is interpreted in ET (America/New_York) to match the draftClock engine — the
+// dynasty norm and correct for these leagues; a non-ET league's pause could be off by its offset,
+// which is acceptable while the engine is ET-based.
+
+// "8:00" / "8" / "8:30" -> hours as a number (8, 8, 8.5). Empty / "0:00" / malformed -> null.
+function parseLimitHours(raw) {
+  const s = raw == null ? '' : String(raw).trim();
+  if (!s) return null;
+  const [h, m] = s.split(':');
+  const hours = Number(h);
+  if (Number.isNaN(hours)) return null;
+  const mins = m != null && m !== '' && !Number.isNaN(Number(m)) ? Number(m) : 0;
+  const total = hours + mins / 60;
+  return total > 0 ? total : null;
+}
+
+// "00 08" -> { start: 0, end: 8 }. Empty / equal ends / out-of-range / malformed -> null (no pause).
+function parseSuspWindow(raw) {
+  const s = raw == null ? '' : String(raw).trim();
+  if (!s) return null;
+  const parts = s.split(/\s+/).map((n) => Number(n));
+  if (parts.length < 2) return null;
+  const [start, end] = parts;
+  if (!Number.isFinite(start) || !Number.isFinite(end) || start === end) return null;
+  if (start < 0 || start > 23 || end < 0 || end > 23) return null;
+  return { start, end };
+}
+
+// Parse a `league` export node into { pickHours, pause, source:'mfl' } (or null when no per-pick
+// clock is configured). Exported for unit testing against real export samples.
+function parseDraftClock(leagueNode) {
+  if (!leagueNode) return null;
+  const pickHours = parseLimitHours(leagueNode.draftLimitHours);
+  if (pickHours == null) return null;
+  return { pickHours, pause: parseSuspWindow(leagueNode.draftTimerSusp), source: 'mfl' };
+}
+
+// The league's auto-detected pick-clock config, read from the (cached) `league` export. Returns
+// { pickHours, pause, source:'mfl' } or null. Demo has no league export -> null (draft.js supplies
+// its own demo default). Memoized per (cookie, league) on the static TTL; the underlying league
+// read is itself HTTP-cached daily, so this is nearly free.
+const draftClockMemo = createMemo({ ttlMs: config.mflStaticTtlMs });
+
+async function draftClockConfig(cookie, league) {
+  if (config.demoMode) return null;
+  return draftClockMemo.get(`${cookie}|${league.leagueId}`, async () => {
+    const res = await mfl.exportRequest('league', { host: league.host, cookie, L: league.leagueId });
+    return parseDraftClock(res && res.league);
+  });
+}
+
 // A short human label for a format, e.g. "Superflex · PPR" or "1QB · Half-PPR".
 function label(fmt) {
   if (!fmt) return null;
@@ -198,4 +255,4 @@ function label(fmt) {
   return `${qb} · ${pprLabel}${te}`;
 }
 
-module.exports = { requirements, startersSpec, format, numQbs, scoringRules, label };
+module.exports = { requirements, startersSpec, format, numQbs, scoringRules, label, draftClockConfig, parseDraftClock };

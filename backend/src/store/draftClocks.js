@@ -1,9 +1,9 @@
 'use strict';
 
-// Per-owner, per-league DRAFT pick-clock config — entered manually, because MFL exposes the last
-// pick's timestamp but NOT the per-pick time limit or the nightly pause window (those are commissioner
-// draft settings with no machine-readable export). With this the app computes a real countdown; without
-// it the draft screen still shows whose turn it is and how long ago the last pick was. Token-keyed,
+// Per-owner, per-league DRAFT pick-clock OVERRIDE. The clock is normally auto-detected from MFL's
+// `league` export (draftLimitHours + draftTimerSusp; see lib/leagueformat.draftClockConfig) with no
+// owner input. This manual store is only a fallback/override for a league whose export somehow lacks
+// those fields — when set, draft.getLeague prefers it over the auto-detected value. Token-keyed,
 // durable via store/persist. Mirrors tradeDeadlines / playerTags / watchlist.
 
 const persist = require('./persist');

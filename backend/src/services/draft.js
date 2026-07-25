@@ -247,9 +247,10 @@ function onClockSlot(status, slots) {
   return status === 'in_progress' ? slots.find((s) => !s.playerId) || null : null;
 }
 
-// A default clock so the DEMO draft shows a live countdown without the owner configuring one
-// (8h per pick, paused midnight–8am ET). Live leagues use only the owner's stored config.
-const DEMO_CLOCK = { pickHours: 8, pause: { start: 0, end: 8 } };
+// A default clock so the DEMO draft shows a live countdown without a real league behind it (8h per
+// pick, paused midnight–8am ET). Live leagues get their real clock auto-detected from MFL's `league`
+// export (draftLimitHours / draftTimerSusp), so this default is demo-only.
+const DEMO_CLOCK = { pickHours: 8, pause: { start: 0, end: 8 }, source: 'demo' };
 
 // The current pick's countdown, from the last pick's timestamp + the league's clock config. Only for
 // a live draft with a known clock; null otherwise (the screen then just shows whose turn it is).
@@ -274,7 +275,8 @@ function buildPickClock(draft, status, clockConfig) {
     pickHours: cfg.pickHours,
     pause: cfg.pause || null,
     startedAt: clockStart ? new Date(clockStart).toISOString() : null,
-    configured: !!clockConfig, // false when it's the demo default (the app can prompt to set a real one)
+    source: cfg.source || 'mfl', // 'mfl' (auto-detected), 'manual' (owner override), or 'demo'
+    configured: (cfg.source || 'mfl') !== 'demo', // a real clock (MFL or manual), not the demo default
   };
 }
 
@@ -357,7 +359,12 @@ async function getLeague(cookie, token, leagueId, { position } = {}) {
   // Overlay personal tags so the board can highlight your Targets and dim your Avoids.
   for (const p of available) p.tag = playerTags.get(token, p.id) || null;
 
-  const clockConfig = draftClocks.get(token, leagueId);
+  // Clock config: auto-detected from MFL's `league` export (draftLimitHours / draftTimerSusp) is the
+  // primary source — no owner input needed. A manually stored clock, if one was ever set, overrides it
+  // (a safety net for a league whose export lacks the fields). Demo falls back to the demo default.
+  const autoClock = config.demoMode ? null : await leagueFormat.draftClockConfig(cookie, league).catch(() => null);
+  const manualClock = draftClocks.get(token, leagueId);
+  const clockConfig = manualClock ? { ...manualClock, source: 'manual' } : autoClock;
   const pickClock = buildPickClock(draft, status, clockConfig);
 
   return {

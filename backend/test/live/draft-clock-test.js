@@ -5,6 +5,7 @@
 process.env.MFL_DEMO_MODE = 'false';
 
 const clock = require('../../src/lib/draftClock');
+const leagueformat = require('../../src/lib/leagueformat');
 const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
 const HOUR = 3600 * 1000;
 const near = (a, b, tolMin = 6) => Math.abs(a - b) <= tolMin * 60 * 1000;
@@ -42,6 +43,19 @@ const etH = (ms) => Math.round(clock.etHour(ms) * 10) / 10;
   assert(clock.isPaused(Date.parse('2026-01-06T13:00:00Z'), { start: 23, end: 7 }) === false, 'wrap window: 8am ET is active');
   assert(clock.pickClockState(pick738, 0, null) === null && clock.pickClockState(null, 12, null) === null, 'no pickHours or no start → null (feature just off)');
   console.log('✓ wrap-around pause window + graceful null when unconfigured');
+
+  // 5) Auto-detect the clock from MFL's real `league` export fields (no manual entry). Sampled from
+  //    live league 69597: an 8h clock that suspends midnight–8am.
+  const parsed = leagueformat.parseDraftClock({ draftLimitHours: '8:00', draftTimerSusp: '00 08', draftTimer: 'ONS' });
+  assert(parsed && parsed.pickHours === 8, `draftLimitHours "8:00" -> 8h, got ${parsed && parsed.pickHours}`);
+  assert(parsed.pause && parsed.pause.start === 0 && parsed.pause.end === 8, 'draftTimerSusp "00 08" -> pause 0–8');
+  assert(parsed.source === 'mfl', 'auto-detected config is tagged source=mfl');
+  // Fractional hours ("8:30" -> 8.5), no-pause (blank / equal), and "no clock" (0 / missing) all parse.
+  assert(leagueformat.parseDraftClock({ draftLimitHours: '8:30' }).pickHours === 8.5, '"8:30" -> 8.5h');
+  assert(leagueformat.parseDraftClock({ draftLimitHours: '12:00', draftTimerSusp: '' }).pause === null, 'blank susp -> no pause');
+  assert(leagueformat.parseDraftClock({ draftLimitHours: '0:00' }) === null, '"0:00" clock -> null (feature off)');
+  assert(leagueformat.parseDraftClock({}) === null && leagueformat.parseDraftClock(null) === null, 'missing fields -> null');
+  console.log('✓ auto-detect from league export: 8:00 -> 8h, "00 08" -> pause 0–8, fractional/blank/off handled');
 
   console.log('\nDRAFT CLOCK HARNESS PASSED');
 })().catch((e) => { console.error(e.message); process.exit(1); });
