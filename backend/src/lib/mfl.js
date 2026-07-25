@@ -292,12 +292,18 @@ const READ_CACHE_MAX = 600; // bound memory: sweep expired entries once the map 
 
 // Slow-changing data gets a long TTL; live-polled data a very short one so it
 // keeps up with its poll cadence; everything else a moderate short one.
-const STATIC_TYPES = new Set(['league', 'rules', 'myleagues', 'calendar']);
+// `myleagues` = your league membership (changes when you join/leave — rare). `calendar` carries the
+// waiver/lock windows that drive imminence, so keep it on the 1h tier (fresher matters there).
+const STATIC_TYPES = new Set(['myleagues', 'calendar']);
 // Daily-changing data. MFL's docs are explicit: the player DATABASE "is only changed once a day,
 // so request it no more than once a day and keep it for that long." The NFL schedule is likewise
-// ~fixed for the season. Cache these ~a day instead of the 1h static tier (we were re-downloading
-// the whole player universe ~24× more than MFL asks).
-const DAILY_TYPES = new Set(['players', 'nflSchedule']);
+// ~fixed for the season. `league` (lineup requirements, roster size, scoring format, franchise list)
+// and `rules` (scoring) are season-static too, so they join the daily tier — settings are read on
+// nearly every screen, so re-fetching them hourly was pure waste. The ONE dynamic value MFL bundles
+// into the `league` export — the FAAB balance — is read via an independent 60s `maxAge` fresh-read
+// (waivers.getBoard), so a long base TTL here never staleness-affects FAAB; and any write invalidates
+// the league's cache immediately.
+const DAILY_TYPES = new Set(['players', 'nflSchedule', 'league', 'rules']);
 // liveScoring/draftResults are polled; pendingTrades isn't, but an incoming offer is
 // an EXTERNAL event nothing invalidates, so a 5m cache made new offers lag on the
 // inbox — keep it short so a pull-to-refresh actually surfaces them.
