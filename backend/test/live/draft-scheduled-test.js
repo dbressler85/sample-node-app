@@ -32,7 +32,7 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   // The reported bug: a KEEPER draft that starts tomorrow, with keeper picks ALREADY on the board
   // (franchise 0001 pre-assigned 1.01). Made picks must NOT flip a future-start draft to
   // "in progress → you're on the clock" — a future start is authoritative even with picks present.
-  const keeperGrid = grid.map((g, i) => (i === 0 ? { ...g, player: '14801' } : { ...g })); // 0001 keeper at 1.01
+  const keeperGrid = grid.map((g, i) => (i === 0 ? { ...g, player: '14801', comments: '[Keeper.] ' } : { ...g })); // 0001 keeper at 1.01 (MFL tags keepers)
   mflRepo.draftResults = async () => [{ unit: 'LEAGUE', startTime: String(future), draftType: 'SNAKE', draftPick: keeperGrid }];
   const ovK = await draft.getOverview('ck', 'tk');
   const dK = ovK.drafts.find((x) => x.leagueId === '9001');
@@ -98,6 +98,28 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   assert(d2.status === 'in_progress', `a past-start draft with open slots is in progress, got ${d2.status}`);
   assert(d2.myOnClock === true, 'once started, franchise 0001 is on the clock at 1.01');
   console.log('✓ past-start draft: in progress, on the clock');
+
+  // BUG (Home only shows scheduled drafts): a live draft — a REAL pick already made — whose calendar
+  // DRAFT_START is still in the FUTURE (nominal time, or opened early) must read in_progress, NOT be
+  // dragged back to scheduled (which mislabeled and hid in-progress drafts on Home).
+  const startedEarly = grid.map((g, i) => (i === 0 ? { ...g, player: '15001' } : { ...g }));
+  mflRepo.calendar = async () => [{ type: 'DRAFT_START', start_time: String(Math.floor(Date.now() / 1000) + 2 * 3600) }];
+  mflRepo.draftResults = async () => [{ unit: 'LEAGUE', draftType: 'SNAKE', draftPick: startedEarly }];
+  const ovE = await draft.getOverview('ck', 'tk');
+  const dE = ovE.drafts.find((x) => x.leagueId === '9001');
+  assert(dE.status === 'in_progress', `a real pick overrides a future nominal start → in_progress, got ${dE.status}`);
+  console.log('✓ real pick overrides a future calendar start → in_progress (not hidden from Home)');
+
+  // BUG (watchlist highlights free agents during a pending/ongoing draft): freeAgencyOpen must consult
+  // the calendar. A FUTURE DRAFT_START closes FA even when MFL hasn't laid out the grid yet (empty
+  // draftResults); a league with no draft on file at all is an established in-season league → FA open.
+  const L = { leagueId: '9001', name: 'DataForce', host: 'www49.myfantasyleague.com', franchiseId: '0001' };
+  mflRepo.draftResults = async () => []; // grid not laid out
+  mflRepo.calendar = async () => [{ type: 'DRAFT_START', start_time: String(Math.floor(Date.now() / 1000) + 3600) }];
+  assert((await draft.freeAgencyOpen('ck-fa1', 'tk', L)) === false, 'a future draft (empty grid) closes FA');
+  mflRepo.calendar = async () => [];
+  assert((await draft.freeAgencyOpen('ck-fa2', 'tk', L)) === true, 'no draft on file → established league → FA open');
+  console.log('✓ freeAgencyOpen: future draft closes FA even without a grid; no-draft league stays open');
 
   console.log('\nDRAFT SCHEDULED HARNESS PASSED');
 })().catch((e) => { console.error(e.message); process.exit(1); });
