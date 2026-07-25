@@ -24,6 +24,7 @@ const standingLib = require('../lib/standing');
 const leaguesService = require('./leagues');
 const rosterService = require('./roster');
 const waiversService = require('./waivers');
+const draftService = require('./draft');
 const dropStore = require('../store/drops');
 const watchStore = require('../store/watchlist');
 const playerTags = require('../store/playerTags');
@@ -94,7 +95,6 @@ function computeRanks(byId, enr) {
 const gatherMemo = createMemo({ ttlMs: config.mflCacheTtlMs });
 
 async function gatherUncached(cookie, token) {
-  const draftService = require('./draft'); // lazy require — avoids a playerhub↔draft load cycle
   const leagues = await leaguesService.listLeagues(cookie);
   const data = await Promise.all(
     leagues.map(async (league) => {
@@ -437,7 +437,6 @@ async function profile(cookie, token, playerId) {
     })(),
     // D) Cross-league ownership + per-league projection.
     (async () => {
-      const draftService = require('./draft'); // lazy require — avoids any load-order cycle
       const { data } = await gather(cookie, token);
       return Promise.all(
         data.map(async ({ league, roster, faSet }) => {

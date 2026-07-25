@@ -16,6 +16,8 @@ const demo = require('../demo/fixtures');
 const leaguesService = require('./leagues');
 const rosterService = require('./roster');
 const waiversService = require('./waivers');
+const draftService = require('./draft');
+const tradesService = require('./trades');
 const standingLib = require('../lib/standing');
 const pointsMaps = require('../lib/pointsMaps');
 const watchStore = require('../store/watchlist');
@@ -32,7 +34,6 @@ async function ctxFor(cookie) {
 // My roster + free-agent set per league (the cross-league "where does he stand" data),
 // plus whether the league's draft has been held (free agency isn't live until then).
 async function gather(cookie, token) {
-  const draftService = require('./draft'); // lazy require — draft pulls in a lot
   const leagues = await leaguesService.orderedLeagues(cookie, token);
   const data = await Promise.all(
     leagues.map(async (league) => {
@@ -134,9 +135,6 @@ async function alerts(cookie, token) {
   const ids = watchStore.list(token).map(String);
   if (!ids.length) return { alerts: [] };
 
-  // Lazy require to keep the module graph acyclic (trades/draft pull in a lot).
-  const tradesService = require('./trades');
-  const draftService = require('./draft');
   const [leagues, byId] = await Promise.all([
     leaguesService.orderedLeagues(cookie, token),
     playersLib.load(cookie),

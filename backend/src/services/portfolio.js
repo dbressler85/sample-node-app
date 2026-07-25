@@ -20,6 +20,8 @@ const playersLib = require('../lib/players');
 const leaguesService = require('./leagues');
 const lineupsService = require('./lineups');
 const rosterService = require('./roster');
+const waiversService = require('./waivers');
+const tradesService = require('./trades');
 const nflLib = require('../lib/nfl');
 const { mapLeagues } = require('../lib/safe');
 const waiverStore = require('../store/waivers');
@@ -102,7 +104,6 @@ async function pendingWaivers(cookie, token, league) {
   if (config.demoMode) return demo.waivers(league.leagueId);
   const toItem = (c) => ({ player: (c.add && c.add.name) || 'Player', bid: c.bid != null ? c.bid : null, runsAt: c.processTime || 'next run' });
   try {
-    const waiversService = require('./waivers'); // lazy require avoids a portfolio↔waivers cycle
     const byId = await playersLib.load(cookie);
     const claims = await waiversService.reconciledPending(cookie, token, league, byId);
     return claims.filter((c) => (c.status || 'pending') === 'pending').map(toItem);
@@ -146,11 +147,10 @@ async function extraItems(cookie, token, league) {
   // These three MFL reads are independent — fetch them in parallel so per-league Home triage is one
   // round-trip, not three in series (this runs for every league on the progressive Sunday-morning Home
   // load). Order of the assembled items below is unchanged.
-  const waiversService = config.demoMode ? null : require('./waivers'); // lazy require avoids a portfolio↔waivers cycle
   const [trades, waivers, run] = await Promise.all([
     pendingTrades(cookie, league),
     pendingWaivers(cookie, token, league),
-    waiversService ? waiversService.nextWaiverRun(cookie, league).catch(() => null) : Promise.resolve(null),
+    config.demoMode ? Promise.resolve(null) : waiversService.nextWaiverRun(cookie, league).catch(() => null),
   ]);
   for (const t of trades) {
     const detail = t.gives.length || t.gets.length ? `They give ${t.gives.join(', ') || '—'} for ${t.gets.join(', ') || '—'}` : 'Tap to review the offer';
@@ -206,7 +206,6 @@ async function getLeagueTriage(cookie, token, leagueId) {
 
   items.push(...(await extraItems(cookie, token, league)));
   // Effective trade deadline (manual override → demo/calendar) so the card can show a countdown.
-  const tradesService = require('./trades'); // lazy require avoids a portfolio↔trades load cycle
   const tradeDeadline = await tradesService.effectiveDeadline(cookie, token, league).catch(() => null);
   return { leagueId: league.leagueId, name: league.name, status, phase, dynasty, tradeDeadline, items };
 }
@@ -351,7 +350,6 @@ async function getDashboard(cookie, token) {
 
   // Trade deadlines per league (manual → demo/calendar), resolved in parallel so the per-league
   // breakdown — and the Leagues switcher that reads it — can show a countdown chip.
-  const tradesService = require('./trades'); // lazy require avoids a portfolio↔trades load cycle
   const deadlineList = await Promise.all(valid.map(({ league }) => tradesService.effectiveDeadline(cookie, token, league).catch(() => null)));
   const deadlineByLeague = {};
   valid.forEach(({ league }, i) => { if (deadlineList[i]) deadlineByLeague[String(league.leagueId)] = deadlineList[i]; });
