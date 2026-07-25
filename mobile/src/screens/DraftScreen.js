@@ -69,6 +69,68 @@ const PoolRow = React.memo(function PoolRow({ p, rank, myTurn, canPick, isPickin
   );
 });
 
+// Human duration: "7h 12m" / "12m 05s" / "45s".
+function fmtDur(ms) {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m ${String(sec).padStart(2, '0')}s`;
+  return `${sec}s`;
+}
+
+// A pause-window hour (ET, 0–23) -> "8:00 AM" for the "resumes at…" line.
+function hourLabel(h) {
+  const ampm = h % 24 < 12 ? 'AM' : 'PM';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:00 ${ampm}`;
+}
+
+// The current pick's live countdown. The backend snapshot carries the ACTIVE ms left (nightly pause
+// excluded) and whether we're paused right now. We tick that down locally each second while active,
+// and FREEZE it while paused so the pause is respected — the number doesn't drain overnight. The
+// snapshot re-anchors on every 15s poll, so local drift never accumulates and a pause boundary
+// crossed between polls self-corrects on the next refresh.
+const PickClock = React.memo(function PickClock({ pickClock, mine }) {
+  const { remainingMs, paused, overdue, pause, deadline } = pickClock;
+  const [now, setNow] = useState(() => Date.now());
+  // Anchor to this snapshot; recompute (and re-sync `now`) whenever the snapshot or paused state changes.
+  const anchor = useMemo(() => ({ at: Date.now(), remainingMs }), [remainingMs, paused]);
+  useEffect(() => {
+    setNow(Date.now());
+    if (paused) return undefined; // frozen while paused — no ticking
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [anchor, paused]);
+
+  const remaining = paused ? anchor.remainingMs : anchor.remainingMs - (now - anchor.at);
+  const isOverdue = overdue || (!paused && remaining <= 0);
+  const urgent = mine && !paused && !isOverdue && remaining <= 60 * 60 * 1000;
+  const tone = paused ? colors.accent : isOverdue ? colors.bad : urgent ? colors.warn : colors.gold;
+
+  return (
+    <View style={[styles.pc, { borderColor: tone + '66', backgroundColor: tone + '14' }]}>
+      {paused ? (
+        <>
+          <Text style={[styles.pcBig, { color: tone }]}>⏸ Paused</Text>
+          <Text style={styles.pcSub}>Resumes{pause ? ` ${hourLabel(pause.end)} ET` : ''} · {fmtDur(anchor.remainingMs)} left</Text>
+        </>
+      ) : isOverdue ? (
+        <>
+          <Text style={[styles.pcBig, { color: tone }]}>⏰ Overdue</Text>
+          <Text style={styles.pcSub}>The clock has expired — auto-pick is imminent</Text>
+        </>
+      ) : (
+        <>
+          <Text style={[styles.pcBig, { color: tone }]}>{fmtDur(remaining)} <Text style={styles.pcUnit}>left</Text></Text>
+          <Text style={styles.pcSub}>Due {fmtDate(deadline)}{pause ? ` · pauses ${hourLabel(pause.start)}–${hourLabel(pause.end)} ET` : ''}</Text>
+        </>
+      )}
+    </View>
+  );
+});
+
 export default function DraftScreen({ league, demoMode, onBack, onOpenPlayer, onOpenTrades, onOpenDraftList }) {
   // Seed the board from the survive-remount cache so reopening the draft paints the last board
   // instantly instead of a cold spinner; the live poll (below) keeps it current.
@@ -236,10 +298,14 @@ export default function DraftScreen({ league, demoMode, onBack, onOpenPlayer, on
               {myTurn ? (
                 <View style={styles.clock}>
                   <Text style={styles.clockText}>You're on the clock — pick {data.onClock.round}.{String(data.onClock.pick).padStart(2, '0')}</Text>
+                  {data.pickClock ? <PickClock pickClock={data.pickClock} mine /> : null}
                   <Text style={styles.clockSub}>{canPickInApp ? 'Tap a player below to draft' : 'Make this pick in the MyFantasyLeague draft room — it’ll show here once processed'}</Text>
                 </View>
               ) : data.onClock ? (
-                <Text style={styles.waiting}>On the clock: pick {data.onClock.round}.{String(data.onClock.pick).padStart(2, '0')} (another team)</Text>
+                <View style={styles.waitingBox}>
+                  <Text style={styles.waiting}>On the clock: pick {data.onClock.round}.{String(data.onClock.pick).padStart(2, '0')} (another team)</Text>
+                  {data.pickClock ? <PickClock pickClock={data.pickClock} /> : null}
+                </View>
               ) : null}
 
               {data.myPicks && data.myPicks.length ? (
@@ -372,7 +438,12 @@ const styles = StyleSheet.create({
   clock: { backgroundColor: colors.gold + '22', borderColor: colors.gold, borderWidth: 1, borderRadius: 12, padding: 14, marginTop: 12 },
   clockText: { color: colors.gold, fontSize: 16, fontWeight: '900' },
   clockSub: { color: colors.textDim, fontSize: 12, marginTop: 3 },
-  waiting: { color: colors.textDim, fontSize: 13, marginTop: 12, fontWeight: '600' },
+  waiting: { color: colors.textDim, fontSize: 13, fontWeight: '600' },
+  waitingBox: { marginTop: 12 },
+  pc: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, marginTop: 10 },
+  pcBig: { fontSize: 22, fontWeight: '900', fontVariant: ['tabular-nums'] },
+  pcUnit: { fontSize: 13, fontWeight: '700', color: colors.textDim },
+  pcSub: { color: colors.textDim, fontSize: 11, marginTop: 3 },
   section: { color: colors.text, fontSize: 14, fontWeight: '800', marginTop: 20, marginBottom: 8 },
   pickRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   pickNo: { color: colors.textDim, fontSize: 13, fontWeight: '800', width: 44 },

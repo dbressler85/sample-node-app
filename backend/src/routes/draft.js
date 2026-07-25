@@ -64,4 +64,15 @@ router.post('/leagues/:leagueId/draft/pick', async (req, res, next) => {
   }
 });
 
+// POST /api/leagues/:leagueId/draft-clock — set/clear a manual pick-clock OVERRIDE. The clock is
+// normally auto-detected from MFL's `league` export; this only overrides it for a league missing those
+// fields. Body: { pickHours, pauseStart?, pauseEnd? } (ET hours 0–23); falsy pickHours clears it.
+router.post('/leagues/:leagueId/draft-clock', (req, res, next) => {
+  try {
+    res.json(draft.setDraftClock(req.account, req.params.leagueId, req.body || {}));
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;

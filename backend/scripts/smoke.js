@@ -436,6 +436,9 @@ function assert(cond, msg) {
     const dl = (await j(await fetch(`${base}/api/leagues/${live.leagueId}/draft`, authed))).body;
     assert(dl.status === 'in_progress' && dl.onClock && dl.onClock.mine, 'my league draft is live and on my pick');
     assert(dl.board.some((s) => s.player) && dl.board.some((s) => !s.playerId), 'board shows made + upcoming picks');
+    // Pick-clock countdown: a live draft with a clock (demo default 8h) exposes a deadline + remaining.
+    assert(dl.pickClock && dl.pickClock.deadline && dl.pickClock.remainingMs > 0 && typeof dl.pickClock.paused === 'boolean', 'draft board carries a pick-clock countdown');
+    console.log(`✓ pick clock: ${Math.round(dl.pickClock.remainingMs / 60000)}m left on a ${dl.pickClock.pickHours}h clock (paused=${dl.pickClock.paused})`);
     assert(dl.available.length > 0 && dl.available[0].adp != null && dl.available[0].adp <= (dl.available[1] || { adp: Infinity }).adp, 'available pool ordered by ADP (market draft order)');
     console.log(
       `✓ draft board (${dl.name}): on the clock 1.${String(dl.onClock.pick).padStart(2, '0')}; ` +
