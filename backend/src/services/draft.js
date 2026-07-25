@@ -88,6 +88,23 @@ const hasPlayer = (p) => {
 // They still belong on the board (they're your kept players); they just don't mean the draft began.
 const isKeeper = (p) => /keeper/i.test((p && p.comments) || '');
 
+// The league's scheduled draft start, from MFL's CALENDAR `DRAFT_START` event (confirmed field:
+// `{ type: "DRAFT_START", start_time: "<epoch-seconds>" }`). This is the authoritative start — a
+// keeper/slow draft's `draftResults` often carries no startTime of its own, so without this the app
+// can't tell "hasn't started yet" from "on the clock". Returns epoch-ms or null. Best-effort + cached
+// (calendar is a shared, static-TTL read already used by waivers), so it adds ~no cost.
+async function draftStartMs(cookie, league) {
+  if (config.demoMode) return null;
+  try {
+    const events = await mflRepo.calendar(league, cookie);
+    const ev = mfl.toArray(events).find((e) => mfl.text(e && e.type).toUpperCase() === 'DRAFT_START');
+    const sec = ev ? mfl.num(ev.start_time) : null;
+    return Number.isFinite(sec) && sec > 0 ? sec * 1000 : null;
+  } catch (e) {
+    return null;
+  }
+}
+
 async function loadDraft(cookie, token, league) {
   if (config.demoMode) {
     const seed = demo.draft(league.leagueId);
@@ -97,9 +114,13 @@ async function loadDraft(cookie, token, league) {
     const lastPickAt = seed.status === 'in_progress' ? Date.now() - 22 * 60 * 1000 : null;
     return { ...seed, picks: draftStore.list(token, league.leagueId, seed.picks), lastPickAt };
   }
-  // Live: MFL draftResults. Best-effort — shapes vary, so stay defensive.
+  // Live: MFL draftResults. Best-effort — shapes vary, so stay defensive. Fetch the calendar's
+  // scheduled DRAFT_START in parallel (authoritative start time; draftResults often omits it).
   try {
-    const units = await mflRepo.draftResults(league, cookie);
+    const [units, calStartMs] = await Promise.all([
+      mflRepo.draftResults(league, cookie),
+      draftStartMs(cookie, league),
+    ]);
     const unit = units.find((u) => String(u.unit || 'LEAGUE') === 'LEAGUE') || units[0];
     if (!unit) return null;
     const raw = mfl.toArray(unit.draftPick);
@@ -124,12 +145,14 @@ async function loadDraft(cookie, token, league) {
       if (!picks.some((p) => p.playerId === lp.playerId)) picks.push({ round: lp.round, pick: lp.pick, franchiseId: lp.franchiseId, playerId: lp.playerId });
     }
 
-    const startTime = unit.startTime ? new Date(Number(unit.startTime) * 1000).toISOString() : null;
-    // A start time in the FUTURE is authoritative: the draft literally hasn't begun, even though MFL
-    // pre-populates the whole pick GRID (order + traded-pick slots) before it starts. Without this,
-    // an unstarted draft with its order laid out read as "in progress → you're on the clock" (MFL was
-    // still counting down ~18h). A future start beats the grid heuristic.
-    const startMs = startTime != null ? Date.parse(startTime) : null;
+    // Scheduled start: the calendar's DRAFT_START is authoritative; fall back to draftResults' own
+    // startTime only when the calendar has no draft event. A start time in the FUTURE is authoritative:
+    // the draft literally hasn't begun, even though MFL pre-populates the whole pick GRID (order +
+    // traded-pick slots, and any keepers) before it starts. Without this, an unstarted draft with its
+    // grid laid out read as "in progress → you're on the clock."
+    const unitStartMs = unit.startTime != null && unit.startTime !== '' ? Number(unit.startTime) * 1000 : NaN;
+    const startMs = calStartMs != null ? calStartMs : (Number.isFinite(unitStartMs) ? unitStartMs : null);
+    const startTime = startMs != null ? new Date(startMs).toISOString() : null;
     const notStarted = startMs != null && startMs > Date.now();
     const startedByTime = startMs != null && startMs <= Date.now();
     // Started = the clock is running: a past start time (even before pick 1), or any REAL (non-keeper)

@@ -12,6 +12,7 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   leaguesService.listLeagues = async () => [
     { leagueId: '9001', name: 'DataForce', host: 'www49.myfantasyleague.com', franchiseId: '0001' },
   ];
+  mflRepo.calendar = async () => []; // no calendar draft event by default (cases below override it)
 
   const future = Math.floor(Date.now() / 1000) + 18 * 3600; // ~18h out, in seconds (MFL epoch)
   // A full 2-round order for a 3-team league, franchise 0001 owns 1.01 — NO players picked yet.
@@ -66,6 +67,27 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   assert(dR.status === 'in_progress', `a real pick starts the draft, got ${dR.status}`);
   assert(dR.picksMade === 1, `only the real pick counts, not the keepers, got ${dR.picksMade}`);
   console.log('✓ keeper draft + one real pick: in progress, keepers still excluded from the count');
+
+  // The AUTHORITATIVE start: MFL's calendar DRAFT_START event (confirmed shape from league 15188:
+  // { type:"DRAFT_START", start_time:"<epoch>" }). draftResults has no startTime, so the calendar is
+  // what tells us "starts at 11am today" vs "on the clock now". Future DRAFT_START → still scheduled.
+  const futureCalSec = Math.floor(Date.now() / 1000) + 2 * 3600;
+  mflRepo.calendar = async () => [{ type: 'WAIVER_LOCK', start_time: '1778724000' }, { type: 'DRAFT_START', start_time: String(futureCalSec) }];
+  mflRepo.draftResults = async () => [{ unit: 'LEAGUE', draftType: 'SNAKE', draftPick: keeperNoStart }]; // no startTime
+  const ovC = await draft.getOverview('ck', 'tk');
+  const dC = ovC.drafts.find((x) => x.leagueId === '9001');
+  assert(dC.status === 'scheduled', `calendar DRAFT_START in the future → scheduled, got ${dC.status}`);
+  assert(dC.myOnClock === false, 'not on the clock before the calendar draft start');
+  console.log('✓ calendar DRAFT_START (future): scheduled until the real kickoff time');
+
+  // Once the calendar start passes, the draft is live and 0001 is on the clock at 1.01.
+  mflRepo.calendar = async () => [{ type: 'DRAFT_START', start_time: String(Math.floor(Date.now() / 1000) - 600) }];
+  const ovL = await draft.getOverview('ck', 'tk');
+  const dL = ovL.drafts.find((x) => x.leagueId === '9001');
+  assert(dL.status === 'in_progress', `calendar DRAFT_START in the past → in progress, got ${dL.status}`);
+  assert(dL.myOnClock === true, 'once the calendar start passes, 0001 is on the clock at 1.01');
+  console.log('✓ calendar DRAFT_START (past): live, on the clock at the scheduled time');
+  mflRepo.calendar = async () => []; // reset for the remaining cases
 
   // Same grid but a PAST start + a made pick → genuinely in progress, and 0001 (1.01 unmade) is up.
   const past = Math.floor(Date.now() / 1000) - 3600;
