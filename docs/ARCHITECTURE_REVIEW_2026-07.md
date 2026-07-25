@@ -35,6 +35,67 @@ defense-in-depth. Effort: **S** ~hours · **M** ~days · **L** ~week+.
 
 ---
 
+## Product/UX validation (dynasty power-user lens)
+
+A dynasty-FF product owner (commissioner running ~15 MFL leagues) reviewed this roadmap against
+the UX guardrails and the actual app. The verdict reframes the priorities:
+
+**This is a hygiene-and-hardening roadmap, not a value roadmap.** Almost nothing on it adds
+something a user can point to — which is fine (the app is feature-mature through M4), but it means
+the only items that jump the queue are the ones a user *feels*, and they all cluster on one axis:
+**Sunday-morning speed and reliability** (the 11:45am lineup scramble across N leagues is fantasy's
+most emotionally charged moment). Product-adjusted sequencing:
+
+- **Ship now, before the season (felt Sunday speed/trust):** #1 injuries share+warm *(the whole
+  ballgame — on every roster/lineup build)*, #2 parallelize `extraItems`, #6 async persist, #8
+  error-swallow telemetry *(reframed: server-side honesty powering "3 leagues rate-limited" — NOT
+  new red banners)*, and #5 Portfolio `getItemLayout` *(offseason screen, and it's offseason now)*.
+  The hot path must be tuned before Week 1 — you can't safely tune it once it's hot.
+- **Gate to their proper window, don't do now:** #10 warm budgeting & #12 per-account throttle
+  *(multi-user only — latent for a solo/hobbyist crowd)*; #13 nav + dual-cache refactor
+  *(highest UX-regression surface in the doc — do it **only** if C1–C4/C6/C10 are encoded as tests
+  first and it ships in the offseason window, else defer to next summer; never mid-season)*.
+- **Opportunistic, never a headline:** #9 `demoMode` seam *(biggest tax, lowest user signal — do it
+  when it unblocks live-MFL work)*, #14 fat-screen splits, #7 metrics-token, and the P2 cluster.
+
+**Protect these while doing the work:** #11 covered-overlay polling must **never** freeze the
+*visibly-live* draft board or scoreboard (gate background screens only — a frozen live board reads
+as a broken app); #3 draft-clock deletion is safe but sits next to the slow-draft clock powering
+On Deck + the on-the-clock push — confirm `autoClock` is untouched; #4 rate-limiter ceiling must be
+**generous** (a 15–20 league fan-out is normal power-user behavior, not abuse).
+
+### User-value gaps the engineering review couldn't see (build these)
+
+The reviews mirror the code; they can't say what the app *doesn't do*. The PO checked what already
+exists (contender/rebuild outlook ✓, My Draft List autopick queue ✓, Rookies filter ✓, On Deck
+aggregation ✓, push for on-the-clock/trade/lineup/watchlist ✓) and found these real holes — and it's
+**rookie-draft & slow-draft season right now**, which the roadmap has nothing for:
+
+1. **Waiver/FAAB *result* push + budget-remaining lens (M) — highest-value missing feature.** The app
+   speaks *going into* waivers (bid guidance, lost-bid reconciliation in-app) but push **never fires
+   for waiver results** — the 3am-Wednesday "won Wright $34 / lost to $41" moment across 15 leagues.
+   In-season-critical.
+2. **Slow/email-draft pick-clock reminders (S–M) — on-calendar now.** Push fires *once* when you go on
+   the clock, but slow drafts run 4–24h clocks over weeks; add an escalating "2h left in [league]"
+   nudge before an unwanted autopick. The queue exists; the nudge to maintain it doesn't.
+3. **Pre-kickoff final-inactive sweep (M).** Close the loop between the injuries feed (which #1 makes
+   fast/shared) and lineups already set: "a player you're *starting* in 3 leagues was just ruled OUT
+   — tap to fix" at 11:55am.
+4. **Cross-league rookie big board (M) — the offseason "Set All Lineups."** One ranked/tiered rookie
+   board that syncs into every league's autopick list at once (respecting per-roster need), instead
+   of re-ranking per league.
+
+*Nice-to-have, don't preempt the above:* turn the contender/rebuild label into per-league buy/sell
+target suggestions; a shareable/multi-year trade-fairness view for league-mate trust.
+
+**PO bottom line:** ship #1/#2/#5/#6/#8 now, gate #10/#12/#13 to their windows, let the rest ride
+opportunistically — and the one *user-facing* thing to add before the debt work is **waiver/FAAB
+result push + budget lens** (with slow-draft clock reminders as its in-flight companion). The app
+already speaks going *into* waivers and drafts; it goes silent at the exact moments a dynasty
+manager's heart rate spikes.
+
+---
+
 ## Resolved since the last review (the wins)
 
 Verified fixed by the reviewers, with the prior review's IDs where applicable:
