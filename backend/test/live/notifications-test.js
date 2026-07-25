@@ -136,6 +136,30 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   assert(sent.length === b8, 'waiverResult=false suppresses waiver notifications');
   console.log('✓ waiver-result channel can be muted');
 
+  // 11) Slow-draft clock reminder: a long on-the-clock pick running low fires a SECOND nudge (with the
+  //     time left) once, alongside the initial on-the-clock push; it then dedups.
+  const b9 = sent.length;
+  draftState = { drafts: [{ leagueId: 'D1', name: 'Slow League', myOnClock: true, myClock: { remainingMs: 90 * 60 * 1000, paused: false, overdue: false, pickHours: 8, round: 2, pick: 5 } }] };
+  await notifications.tick(deps3);
+  const cw = sent.slice(b9);
+  assert(cw.some((m) => m.data.type === 'draft_clock' && m.data.leagueId === 'D1'), 'on-the-clock push fired');
+  assert(cw.some((m) => m.data.type === 'draft_clock_warn' && m.data.leagueId === 'D1' && /1h 30m/.test(m.body)), 'clock-low reminder fired with the time left');
+  console.log('✓ slow-draft clock reminder fires (with on-the-clock) showing time remaining');
+
+  const b10 = sent.length;
+  await notifications.tick(deps3);
+  assert(sent.length === b10, 'clock reminder + on-the-clock do not repeat');
+  console.log('✓ clock reminder dedups');
+
+  // A FAST draft (short per-pick clock) gets the on-the-clock push but NO low-clock reminder.
+  draftState = { drafts: [{ leagueId: 'D2', name: 'Fast League', myOnClock: true, myClock: { remainingMs: 60 * 1000, paused: false, overdue: false, pickHours: 0.03, round: 1, pick: 1 } }] };
+  const b11 = sent.length;
+  await notifications.tick(deps3);
+  const fast = sent.slice(b11);
+  assert(fast.some((m) => m.data.type === 'draft_clock' && m.data.leagueId === 'D2'), 'fast draft still gets on-the-clock');
+  assert(!fast.some((m) => m.data.type === 'draft_clock_warn'), 'fast draft gets NO low-clock reminder');
+  console.log('✓ fast draft: on-the-clock only, no low-clock reminder');
+
   fs.rmSync(DIR, { recursive: true, force: true });
   console.log('\nNOTIFICATIONS HARNESS PASSED');
 })().catch((e) => { console.error(e.message); process.exit(1); });
