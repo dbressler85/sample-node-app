@@ -50,41 +50,43 @@ export default function HubMark({ size = 88 }) {
         {/* DC monogram — real glyph, drawn BEFORE the coronet so the crown sits on its cap-tops */}
         <SvgText
           x={100}
-          y={172}
+          y={160}
           textAnchor="middle"
           fontSize={82}
           fontWeight="900"
-          letterSpacing={-2}
+          letterSpacing={-8}
           fill="#FCE38F"
         >
           DC
         </SvgText>
 
-        {/* coronet — a five-point crown resting squarely ON the monogram like a crown on a head.
-            Center point tallest and jewelled = your title team; the flanking points = your leagues.
-            Pearl-tipped spikes rise from a decorated band with alternating gem settings. */}
+        {/* coronet — a five-point crown with a STRAIGHT-bottom band that spans the full width of the
+            monogram, its ends seated at the OUTER edges of the D and C and resting on the letters'
+            cap-tops (a crown worn on the head). Geometry is measured off the real DC glyph box (band
+            x 46.8→159, centered on the letters' ink center ~102.9), so the band always lines up with
+            the letters. Center point tallest and jewelled = your title team; flanking points = leagues. */}
         <G>
           {/* points (the jagged silhouette rising from the band) */}
           <Path
-            d="M58 107 L64 79 L74 95 L82 67 L91 89 L100 55 L109 89 L118 67 L126 95 L136 79 L142 107 Z"
+            d="M46.8 94.3 L53.5 68.3 L65.3 96.3 L77.1 54.3 L90 96.3 L102.9 42.3 L115.8 96.3 L128.7 54.3 L140.5 96.3 L152.3 68.3 L159 94.3 Z"
             fill="url(#dcGold)"
             stroke="#9C6E1C"
             strokeWidth={1}
             strokeLinejoin="round"
           />
-          {/* band */}
-          <Rect x={56} y={103} width={88} height={13} rx={4} fill="url(#dcGoldBand)" stroke="#9C6E1C" strokeWidth={1} />
-          {/* band gem settings */}
-          <Circle cx={76} cy={109.5} r={3.2} fill="#5C9BFF" stroke="#2C4E86" strokeWidth={0.8} />
-          <Circle cx={100} cy={109.5} r={3.6} fill="#E5544E" stroke="#7A241F" strokeWidth={0.8} />
-          <Circle cx={124} cy={109.5} r={3.2} fill="#5C9BFF" stroke="#2C4E86" strokeWidth={0.8} />
+          {/* band — straight bottom, full letter width */}
+          <Rect x={46.8} y={94.3} width={112.2} height={13} rx={4} fill="url(#dcGoldBand)" stroke="#9C6E1C" strokeWidth={1} />
+          {/* band gem settings (centered on the letters' ink center) */}
+          <Circle cx={78.9} cy={100.8} r={3.2} fill="#5C9BFF" stroke="#2C4E86" strokeWidth={0.8} />
+          <Circle cx={102.9} cy={100.8} r={3.6} fill="#E5544E" stroke="#7A241F" strokeWidth={0.8} />
+          <Circle cx={126.9} cy={100.8} r={3.2} fill="#5C9BFF" stroke="#2C4E86" strokeWidth={0.8} />
           {/* pearl finials on each point tip */}
-          <Circle cx={64} cy={79} r={4} fill="#FFF6DA" stroke="#9C6E1C" strokeWidth={0.8} />
-          <Circle cx={82} cy={67} r={4.5} fill="#FFF6DA" stroke="#9C6E1C" strokeWidth={0.8} />
-          <Circle cx={100} cy={55} r={6} fill="#FCE38F" stroke="#9C6E1C" strokeWidth={1} />
-          <Circle cx={100} cy={55} r={2.4} fill="#E5544E" />
-          <Circle cx={118} cy={67} r={4.5} fill="#FFF6DA" stroke="#9C6E1C" strokeWidth={0.8} />
-          <Circle cx={136} cy={79} r={4} fill="#FFF6DA" stroke="#9C6E1C" strokeWidth={0.8} />
+          <Circle cx={53.5} cy={68.3} r={4} fill="#FFF6DA" stroke="#9C6E1C" strokeWidth={0.8} />
+          <Circle cx={77.1} cy={54.3} r={4.5} fill="#FFF6DA" stroke="#9C6E1C" strokeWidth={0.8} />
+          <Circle cx={102.9} cy={42.3} r={6} fill="#FCE38F" stroke="#9C6E1C" strokeWidth={1} />
+          <Circle cx={102.9} cy={42.3} r={2.4} fill="#E5544E" />
+          <Circle cx={128.7} cy={54.3} r={4.5} fill="#FFF6DA" stroke="#9C6E1C" strokeWidth={0.8} />
+          <Circle cx={152.3} cy={68.3} r={4} fill="#FFF6DA" stroke="#9C6E1C" strokeWidth={0.8} />
         </G>
 
         {/* gridiron hash-marks */}
