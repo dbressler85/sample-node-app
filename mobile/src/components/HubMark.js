@@ -1,6 +1,6 @@
 import React from 'react';
 import { View } from 'react-native';
-import Svg, { Defs, LinearGradient, Stop, Path, Rect, Circle, Line, G, Text as SvgText } from 'react-native-svg';
+import Svg, { Defs, LinearGradient, Stop, Path, Rect, Circle, Line, G } from 'react-native-svg';
 
 // The Dynasty Central mark — "The Regent Crest." A championship shield charged with the DC monogram,
 // crowned by a five-point coronet that sits DIRECTLY ON the letters like a crown on a head, over
@@ -47,18 +47,25 @@ export default function HubMark({ size = 88 }) {
           strokeWidth={1.4}
         />
 
-        {/* DC monogram — real glyph, drawn BEFORE the coronet so the crown sits on its cap-tops */}
-        <SvgText
-          x={100}
-          y={160}
-          textAnchor="middle"
-          fontSize={82}
-          fontWeight="900"
-          letterSpacing={-8}
-          fill="#FCE38F"
-        >
-          DC
-        </SvgText>
+        {/* DC monogram — drawn as custom vector paths (not a font glyph) so the letters have FLAT,
+            squared tops for the coronet's straight band to seat on. A font C curves away at the top and
+            left a gap under the crown; this C is squared — full-width top + bottom bars, a solid left
+            bar, open on the right — so the crown reads as truly resting on the letters. Both letters
+            share a 16-unit weight and a flat cap-top at y=104, spanning the band's width (≈48→158). */}
+        <G>
+          {/* D — flat top/bottom, squared left, curved bowl; counter cut with even-odd */}
+          <Path
+            d="M48 104 L80 104 Q100 104 100 132 Q100 160 80 160 L48 160 Z
+               M64 120 L80 120 Q84 120 84 132 Q84 144 80 144 L64 144 Z"
+            fill="#FCE38F"
+            fillRule="evenodd"
+          />
+          {/* C — squared off: full-width top + bottom bars, solid left bar, open right */}
+          <Path
+            d="M106 104 L158 104 L158 120 L122 120 L122 144 L158 144 L158 160 L106 160 Z"
+            fill="#FCE38F"
+          />
+        </G>
 
         {/* coronet — a five-point crown with a STRAIGHT-bottom band that spans the full width of the
             monogram, its ends seated at the OUTER edges of the D and C and resting on the letters'
