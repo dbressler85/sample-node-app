@@ -466,6 +466,13 @@ function assert(cond, msg) {
     assert(r.status === 401, 'dashboard without token is 401');
     console.log('✓ auth required (401 without token)');
 
+    // Operational metrics endpoint: open in non-production (no token set), returns the composed view.
+    const met = await j(await fetch(`${base}/api/_metrics`));
+    assert(met.status === 200, 'metrics endpoint open in non-production');
+    assert(met.body.mfl && met.body.throttle && met.body.warm, 'metrics composes mfl + throttle + warm');
+    assert('hitRatePct' in met.body.mfl && 'cacheSize' in met.body.throttle, 'metrics exposes hit rate + cache size');
+    console.log(`✓ metrics: hitRate ${met.body.mfl.hitRatePct}%, cacheSize ${met.body.throttle.cacheSize}, warm enabled=${met.body.warm.enabled}`);
+
     console.log('\nALL SMOKE CHECKS PASSED');
   } finally {
     server.close();

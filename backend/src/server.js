@@ -4,6 +4,7 @@ const app = require('./app');
 const config = require('./config');
 const persist = require('./store/persist');
 const notifications = require('./services/notifications');
+const warm = require('./services/warm');
 
 // Demo mode accepts ANY credentials and mints a working token (fixture data only). That's
 // correct for local/demo, but shipping it to production would be an open door — so make it
@@ -38,11 +39,16 @@ const NOTIFY_MS = Number(process.env.NOTIFY_INTERVAL_MS) || 45000;
 const notifyTimer = setInterval(() => { notifications.tick().catch(() => {}); }, NOTIFY_MS);
 notifyTimer.unref();
 
+// Sunday pre-warm worker: keep active users' lineup reads warm through the game-day window. Live
+// (non-demo) mode only — it makes real MFL calls with real session cookies.
+if (config.warmEnabled && !config.demoMode) warm.start();
+
 // Flush any pending durable state on shutdown so an in-flight debounced write
 // isn't lost when the container stops or redeploys.
 function shutdown(signal) {
   console.log(`\n${signal} received — flushing state and shutting down`);
   clearInterval(notifyTimer);
+  warm.stop();
   persist.flush();
   server.close(() => process.exit(0));
   // Don't hang forever if connections linger.

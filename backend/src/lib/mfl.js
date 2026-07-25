@@ -18,6 +18,7 @@
 //    User-Agent and serialize requests with a minimum interval between them.
 
 const config = require('../config');
+const metrics = require('./metrics');
 
 // --- request throttle -------------------------------------------------------
 // Run up to mflMaxConcurrent outbound MFL requests at once, with a small stagger
@@ -29,7 +30,14 @@ let active = 0;
 let lastStartAt = 0;
 let penaltyUntil = 0; // while > now, the pipe runs in gentle mode after a rate-limit
 let wakePending = false; // at most one pending timer to re-pump when a penalty lifts
-const waiters = []; // queued resolve() callbacks waiting for a slot
+// Two priority lanes. `waiters` = normal (user-facing reads); `lowWaiters` = background/bulk work
+// (the Sunday pre-warm loop, the daily player-DB refresh). The pump always drains the NORMAL lane
+// first, so background work can never delay a request a user is waiting on — it only fills the idle
+// gaps in the pipeline. Within a lane it's FIFO.
+const waiters = [];
+const lowWaiters = [];
+const pendingCount = () => waiters.length + lowWaiters.length;
+const nextWaiter = () => (waiters.length ? waiters.shift() : lowWaiters.length ? lowWaiters.shift() : null);
 
 function inPenalty() {
   return Date.now() < penaltyUntil;
@@ -51,8 +59,8 @@ function effInterval() {
 }
 
 function pumpThrottle() {
-  while (active < effConcurrent() && waiters.length) {
-    const grant = waiters.shift();
+  while (active < effConcurrent() && pendingCount()) {
+    const grant = nextWaiter(); // normal lane first, then low-priority background work
     active += 1;
     // Stagger each granted start by the min interval (accumulating), so even a
     // burst of grants spreads out rather than firing simultaneously.
@@ -65,16 +73,16 @@ function pumpThrottle() {
   }
   // If we're holding requests back only because of the penalty, wake the pump when it
   // lifts so the queue drains promptly instead of waiting on the next completion.
-  if (!wakePending && waiters.length && active < config.mflMaxConcurrent && inPenalty()) {
+  if (!wakePending && pendingCount() && active < config.mflMaxConcurrent && inPenalty()) {
     wakePending = true;
     const wake = Math.max(5, penaltyUntil - Date.now() + 5);
     setTimeout(() => { wakePending = false; pumpThrottle(); }, wake);
   }
 }
 
-async function throttle(task) {
+async function throttle(task, priority = 'normal') {
   await new Promise((resolve) => {
-    waiters.push(resolve);
+    (priority === 'low' ? lowWaiters : waiters).push(resolve);
     pumpThrottle();
   });
   try {
@@ -203,7 +211,7 @@ async function fetchAllowlisted(startUrl, init) {
   throw err;
 }
 
-async function rawRequest({ host, command, params, cookie, method = 'GET', body, year }) {
+async function rawRequest({ host, command, params, cookie, method = 'GET', body, year, priority = 'normal' }) {
   const url = buildUrl(host, command, params, year);
   const headers = { 'User-Agent': config.userAgent, Accept: 'application/json' };
   if (cookie) headers.Cookie = `MFL_USER_ID=${cookie}`;
@@ -223,8 +231,10 @@ async function rawRequest({ host, command, params, cookie, method = 'GET', body,
   let res;
   let text;
   for (let attempt = 0; ; attempt++) {
-    res = await throttle(() => fetchAllowlisted(url, init));
+    metrics.recordFetch(params.TYPE || command); // an actual outbound MFL network call (per attempt)
+    res = await throttle(() => fetchAllowlisted(url, init), priority);
     if (res.status === 429) {
+      metrics.record429();
       const retryAfter = parseInt(res.headers.get('retry-after') || '', 10);
       const waitMs = Number.isFinite(retryAfter) ? retryAfter * 1000 : 2000;
       noteRateLimit(waitMs);
@@ -235,6 +245,7 @@ async function rawRequest({ host, command, params, cookie, method = 'GET', body,
       break;
     }
     if (res.status === 503 && attempt < config.mflMaxRetries) {
+      metrics.record503();
       const waitMs = Math.min(10000, 800 * 2 ** attempt);
       const jitter = Math.floor(Math.random() * 250);
       noteRateLimit(waitMs);
@@ -246,6 +257,7 @@ async function rawRequest({ host, command, params, cookie, method = 'GET', body,
   }
 
   if (!res.ok) {
+    if (res.status !== 429 && res.status !== 503) metrics.recordError(); // 429/503 already counted
     const err = new Error(`MFL request failed (${res.status}) for ${command}?TYPE=${params.TYPE || ''}`);
     err.status = res.status;
     err.body = text.slice(0, 500);
@@ -285,12 +297,18 @@ const READ_CACHE_MAX = 600; // bound memory: sweep expired entries once the map 
 
 // Slow-changing data gets a long TTL; live-polled data a very short one so it
 // keeps up with its poll cadence; everything else a moderate short one.
-const STATIC_TYPES = new Set(['league', 'rules', 'myleagues', 'calendar']);
+// `myleagues` = your league membership (changes when you join/leave — rare). `calendar` carries the
+// waiver/lock windows that drive imminence, so keep it on the 1h tier (fresher matters there).
+const STATIC_TYPES = new Set(['myleagues', 'calendar']);
 // Daily-changing data. MFL's docs are explicit: the player DATABASE "is only changed once a day,
 // so request it no more than once a day and keep it for that long." The NFL schedule is likewise
-// ~fixed for the season. Cache these ~a day instead of the 1h static tier (we were re-downloading
-// the whole player universe ~24× more than MFL asks).
-const DAILY_TYPES = new Set(['players', 'nflSchedule']);
+// ~fixed for the season. `league` (lineup requirements, roster size, scoring format, franchise list)
+// and `rules` (scoring) are season-static too, so they join the daily tier — settings are read on
+// nearly every screen, so re-fetching them hourly was pure waste. The ONE dynamic value MFL bundles
+// into the `league` export — the FAAB balance — is read via an independent 60s `maxAge` fresh-read
+// (waivers.getBoard), so a long base TTL here never staleness-affects FAAB; and any write invalidates
+// the league's cache immediately.
+const DAILY_TYPES = new Set(['players', 'nflSchedule', 'league', 'rules']);
 // liveScoring/draftResults are polled; pendingTrades isn't, but an incoming offer is
 // an EXTERNAL event nothing invalidates, so a 5m cache made new offers lag on the
 // inbox — keep it short so a pull-to-refresh actually surfaces them.
@@ -322,7 +340,7 @@ const LEAGUE_GLOBAL_TYPES = new Set([
 ]);
 
 // Read data via the export command (cached, TTL depends on how volatile it is).
-async function exportRequest(type, { host = config.apiHost, cookie = null, maxAge = null, year = null, ...params } = {}) {
+async function exportRequest(type, { host = config.apiHost, cookie = null, maxAge = null, year = null, priority = 'normal', ...params } = {}) {
   // Key on params with SORTED keys: the read cache coalesces identical reads, but
   // JSON.stringify is insertion-order-sensitive, so {L,FRANCHISE} and {FRANCHISE,L} would hash to
   // different keys and silently double-fetch the same data. (params holds flat primitives.)
@@ -346,9 +364,13 @@ async function exportRequest(type, { host = config.apiHost, cookie = null, maxAg
   // lengthens it, and the refetched value updates the shared cache for everyone.
   if (maxAge != null) ttl = Math.min(ttl, maxAge);
   const hit = readCache.get(key);
-  if (hit && Date.now() - hit.at < ttl) return hit.promise;
+  if (hit && Date.now() - hit.at < ttl) {
+    metrics.recordHit(LEAGUE_GLOBAL_TYPES.has(type)); // a read served with NO MFL call (shared vs private)
+    return hit.promise;
+  }
+  metrics.recordMiss();
 
-  const promise = rawRequest({ host, command: 'export', params: { TYPE: type, ...params }, cookie, year });
+  const promise = rawRequest({ host, command: 'export', params: { TYPE: type, ...params }, cookie, year, priority });
   const entry = { at: Date.now(), ttl, promise };
   readCache.set(key, entry);
   // A failed read must not be cached: drop it so the next call retries.
@@ -523,6 +545,19 @@ module.exports = {
   attr,
   errorDetail,
   hostFromLeagueUrl,
+  // Live throttle + cache state for the /_metrics view (and tests): what's in-flight, what's queued
+  // in each priority lane, whether we're in a rate-limit cooldown, and the read-cache size.
+  throttleStats: () => ({
+    active,
+    queuedNormal: waiters.length,
+    queuedLow: lowWaiters.length,
+    inPenalty: inPenalty(),
+    penaltyRemainingMs: Math.max(0, penaltyUntil - Date.now()),
+    effConcurrent: effConcurrent(),
+    effInterval: effInterval(),
+    maxConcurrent: config.mflMaxConcurrent,
+    cacheSize: readCache.size,
+  }),
   // Test-only window into the adaptive throttle (see throttle-test / throttle-backoff-test).
   __throttle: { inPenalty, effConcurrent, effInterval },
 };

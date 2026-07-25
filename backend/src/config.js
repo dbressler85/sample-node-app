@@ -137,6 +137,34 @@ const config = {
   // rest, AES-256-GCM) when an operator supplies a secret. Without it, sessions
   // stay in memory (the prior behavior) — safe, but lost on restart.
   sessionSecret: process.env.SESSION_SECRET || null,
+
+  // --- Sunday pre-warm worker ------------------------------------------------
+  // On game day, keep the lineup-relevant reads (rosters, projections, free agents, league settings,
+  // schedule) for active users' leagues WARM in the shared cache during the morning→kickoff window,
+  // so both the Sunday-morning lineup-checkers AND the kickoff crowd hit warm cache instead of a cold
+  // fan-out. It runs at LOW priority (never delays a real user request) and re-warms on a cadence
+  // matched to the roster TTL, so nothing served is more than one TTL stale (waivers process Sunday
+  // morning — a 7-hour-old roster/FAAB would be wrong, so we DON'T just extend the TTL). Every read
+  // it primes is a cache HIT if natural traffic already refreshed it, so it self-throttles to zero
+  // work on busy leagues. On by default in production; the worker also self-gates on live (non-demo)
+  // mode at startup. Force with MFL_WARM_ENABLED=true (local live testing) or false (disable).
+  warmEnabled: bool(process.env.MFL_WARM_ENABLED, process.env.NODE_ENV === 'production'),
+  // The game-day window, in America/New_York hours [start, end). Default 6am–2pm ET: covers the
+  // morning lineup check through the 1pm kickoff. Extend the end hour to cover later slates.
+  warmStartHourEt: int(process.env.MFL_WARM_START_HOUR_ET, 6),
+  warmEndHourEt: int(process.env.MFL_WARM_END_HOUR_ET, 14),
+  // Day-of-week to warm (0=Sun). Sunday only by default.
+  warmDayEt: int(process.env.MFL_WARM_DAY_ET, 0),
+  // How often to re-warm during the window. Default 5min = the roster TTL, so rosters are never more
+  // than one cycle stale and a league already refreshed by real traffic is a no-op cache hit.
+  warmIntervalMs: int(process.env.MFL_WARM_INTERVAL_MS, 5 * 60 * 1000),
+
+  // Operational metrics endpoint (GET /api/_metrics): MFL call volume, cache hit-rate, throttle
+  // state, warm-loop stats. It exposes no user data, but it IS operational, so it's gated by a
+  // secret. Set METRICS_TOKEN and pass it as `?token=` or the `x-metrics-token` header. When unset,
+  // the endpoint is open in non-production (local/demo) and DISABLED (404) in production — so you
+  // can't accidentally expose it by forgetting to set the token.
+  metricsToken: process.env.METRICS_TOKEN || null,
 };
 
 module.exports = config;
