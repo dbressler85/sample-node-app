@@ -35,7 +35,7 @@ function countdown(iso) {
   return new Date(iso).toLocaleString(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' });
 }
 
-export default function OnDeckScreen({ onBack, onOpenLineup, onOpenDraft, onOpenWaivers, onOpenTradeInbox, onOpenRoster }) {
+export default function OnDeckScreen({ covered = false, onBack, onOpenLineup, onOpenDraft, onOpenWaivers, onOpenTradeInbox, onOpenRoster }) {
   // Stale-while-revalidate: paint the last On Deck snapshot from disk instantly,
   // then refetch in the background (and on the 60s poll). Countdowns recompute from
   // each item's timestamp client-side, so a briefly-stale paint is fine.
@@ -63,7 +63,7 @@ export default function OnDeckScreen({ onBack, onOpenLineup, onOpenDraft, onOpen
   }, [hasCountdown]);
   // Re-fetch every minute so a newly-on-the-clock draft or a new deadline appears
   // (usePoll pauses this while the app is backgrounded).
-  usePoll(reload, 60000, true);
+  usePoll(reload, 60000, !covered);
 
   function act(item) {
     const league = { leagueId: item.leagueId, name: item.leagueName };

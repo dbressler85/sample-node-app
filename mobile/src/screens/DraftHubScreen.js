@@ -27,7 +27,7 @@ const ordinal = (n) => {
   return `${n}${s[(v - 20) % 10] || s[v] || s[0]}`;
 };
 
-export default function DraftHubScreen({ onBack, onOpenDraft, onOpenPicks }) {
+export default function DraftHubScreen({ covered = false, onBack, onOpenDraft, onOpenPicks }) {
   // Stale-while-revalidate: Home already fetched `api.drafts()` and wrote it to this same
   // 'drafts' cache key, so opening the hub from Home paints instantly, then revalidates.
   const { data, error, refreshing, loading, reload } = useCachedResource('drafts', () => api.drafts());
@@ -37,7 +37,7 @@ export default function DraftHubScreen({ onBack, onOpenDraft, onOpenPicks }) {
   const drafts = (data && data.drafts) || [];
   // Poll while any draft is live or on the clock, so a new "your turn" appears
   // across leagues without a manual refresh.
-  usePoll(reload, 15000, drafts.some((d) => d.myOnClock || d.status === 'in_progress'));
+  usePoll(reload, 15000, drafts.some((d) => d.myOnClock || d.status === 'in_progress') && !covered);
   const onClock = drafts.filter((d) => d.myOnClock);
   const live = drafts.filter((d) => !d.myOnClock && d.status === 'in_progress');
   const scheduled = drafts.filter((d) => d.status === 'scheduled')
