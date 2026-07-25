@@ -23,6 +23,14 @@ assert(mfl.num('N/A', 0) === 0, 'non-numeric → given fallback');
 assert(mfl.num({ $t: '3.5' }) === 3.5, 'wrapped decimal');
 console.log('✓ text()/num() collapse plain, {$t}, number, and blank forms');
 
+// 2b) fid(): the canonical 4-digit franchise id. Short ids pad; already-wide ids pass; $t-wrapped
+// and numeric forms collapse; blank/absent → '' (so a caller's `x ? mfl.fid(x) : null` guard holds).
+assert(mfl.fid('5') === '0005' && mfl.fid(5) === '0005', 'short id padded to 4 digits');
+assert(mfl.fid('0005') === '0005', 'already-padded id unchanged');
+assert(mfl.fid({ $t: '12' }) === '0012', '$t-wrapped id unwrapped then padded');
+assert(mfl.fid('') === '' && mfl.fid(null) === '' && mfl.fid(undefined) === '', 'blank/absent → "" (keeps caller null-guard)');
+console.log('✓ fid() normalizes franchise ids to MFL\'s 4-digit width');
+
 // 3) cleanName(): strip HTML an owner put in a team/league name, decode common entities.
 assert(mfl.cleanName("<font color='green'>Kellen</font>") === 'Kellen', 'strips <font> styling');
 assert(mfl.cleanName('<b>Team</b> Legend') === 'Team Legend', 'strips <b> and keeps text');

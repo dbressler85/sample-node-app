@@ -190,7 +190,7 @@ function parseLiveTransactions(list) {
     const base = { id: `${t.timestamp || 't'}:${i}`, type, at: num(t.timestamp), franchiseId: String(t.franchise || '') };
     if (type === 'TRADE') {
       const p = payload.split('|');
-      return { ...base, withFranchiseId: p[2] ? String(p[2]).padStart(4, '0') : null, droppedIds: toks(p[0]), addedIds: toks(p[1]) };
+      return { ...base, withFranchiseId: p[2] ? mfl.fid(p[2]) : null, droppedIds: toks(p[0]), addedIds: toks(p[1]) };
     }
     const [added, dropped] = payload.split('|');
     return { ...base, addedIds: toks(added), droppedIds: toks(dropped) };
