@@ -23,12 +23,14 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   let tradeState = { offers: [] };
   let deckState = { items: [] };
   let watchState = { alerts: [] };
+  let waiverState = { results: [] };
   const deps = {
     sessions,
     draftOverview: async () => draftState,
     tradeOverview: async () => tradeState,
     onDeck: async () => deckState,
     watchAlerts: async () => watchState,
+    waiverResults: async () => waiverState,
     sender: async (msgs) => { sent.push(...msgs); },
   };
 
@@ -112,6 +114,27 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   await notifications.tick(deps3);
   assert(sent.length === b5, 'watchlist=false suppresses watch notifications');
   console.log('✓ watchlist channel can be muted');
+
+  // 10) A NEW won waiver claim fires once with the FAAB bid in the body, dedups, and mutes on pref.
+  const b6 = sent.length;
+  waiverState = { results: [{ leagueId: 'L2', leagueName: 'League Two', add: 'Jaylen Wright', addId: 'w1', bid: 34, at: 1730000000 }] };
+  await notifications.tick(deps3);
+  const w = sent.slice(b6);
+  assert(w.length === 1 && w[0].data.type === 'waiver_result' && w[0].data.leagueId === 'L2', `won waiver claim notifies once, got ${w.length}`);
+  assert(/\$34/.test(w[0].body) && /Jaylen Wright/.test(w[0].body), `body carries the player + FAAB bid, got "${w[0].body}"`);
+  console.log('✓ won waiver claim notifies once with the FAAB bid');
+
+  const b7 = sent.length;
+  await notifications.tick(deps3);
+  assert(sent.length === b7, 'the same waiver result does not repeat (dedup)');
+  console.log('✓ waiver-result dedup holds');
+
+  notifications.registerToken('tok2', 'ExpoPushTok2', { waiverResult: false });
+  waiverState = { results: [{ leagueId: 'L2', leagueName: 'League Two', add: 'Another Guy', addId: 'w2', bid: 5, at: 1730000100 }] };
+  const b8 = sent.length;
+  await notifications.tick(deps3);
+  assert(sent.length === b8, 'waiverResult=false suppresses waiver notifications');
+  console.log('✓ waiver-result channel can be muted');
 
   fs.rmSync(DIR, { recursive: true, force: true });
   console.log('\nNOTIFICATIONS HARNESS PASSED');

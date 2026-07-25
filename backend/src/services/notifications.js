@@ -22,6 +22,7 @@ const draftService = require('./draft');
 const tradesService = require('./trades');
 const ondeckService = require('./ondeck');
 const watchlistService = require('./watchlist');
+const waiversService = require('./waivers');
 
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 const db = () => persist.ns('push'); // token -> { expoPushToken, prefs, primed, clockLeagues[], offerIds[] }
@@ -29,7 +30,7 @@ const db = () => persist.ns('push'); // token -> { expoPushToken, prefs, primed,
 // The push channels the owner can toggle, all on by default. The keys are the source of
 // truth for both the register merge and the prefs GET/POST, so a new channel is added in
 // exactly one place.
-const DEFAULT_PREFS = { draftClock: true, tradeOffer: true, lineupAttention: true, watchlist: true };
+const DEFAULT_PREFS = { draftClock: true, tradeOffer: true, lineupAttention: true, watchlist: true, waiverResult: true };
 const CHANNELS = Object.keys(DEFAULT_PREFS);
 
 function registerToken(token, expoPushToken, prefs) {
@@ -50,6 +51,7 @@ function registerToken(token, expoPushToken, prefs) {
     offerIds: existing.offerIds || [],
     lineupKeys: existing.lineupKeys || [],
     watchKeys: existing.watchKeys || [],
+    waiverKeys: existing.waiverKeys || [],
   };
   persist.touch();
   return { ok: true, prefs: d[token].prefs };
@@ -102,7 +104,7 @@ function _setSender(fn) { sender = fn; }
 // Compute the messages to send for one device given fresh draft + trade state,
 // plus the new "seen" sets to store. Only *newly* on-the-clock leagues and
 // *newly* seen offers fire.
-function buildFor(state, draftOv, tradeOv, deck = { items: [] }, watchAlerts = { alerts: [] }) {
+function buildFor(state, draftOv, tradeOv, deck = { items: [] }, watchAlerts = { alerts: [] }, waiverRes = { results: [] }) {
   const prefs = state.prefs || {};
   const msgs = [];
 
@@ -124,6 +126,13 @@ function buildFor(state, draftOv, tradeOv, deck = { items: [] }, watchAlerts = {
   const curWatch = watchAlerts.alerts || [];
   const watchKeys = curWatch.map((a) => `${a.type}:${a.playerId}:${a.leagueId}`);
   const prevWatch = new Set(state.watchKeys || []);
+
+  // Waiver RESULTS: a claim of yours processed — you won a player (with the winning FAAB bid). Keyed by
+  // league + player + processed-time so each won claim fires exactly once (the transactions log keeps
+  // showing it on later ticks).
+  const curWaivers = waiverRes.results || [];
+  const waiverKeys = curWaivers.map((r) => `${r.leagueId}:${r.addId || r.add}:${r.at}`);
+  const prevWaivers = new Set(state.waiverKeys || []);
 
   // First tick after (re)registration primes the seen-sets without notifying, so
   // a freshly-enabled device isn't spammed with its already-existing state.
@@ -162,9 +171,22 @@ function buildFor(state, draftOv, tradeOv, deck = { items: [] }, watchAlerts = {
         }
       }
     }
+    if (prefs.waiverResult !== false) {
+      for (const r of curWaivers) {
+        if (!prevWaivers.has(`${r.leagueId}:${r.addId || r.add}:${r.at}`)) {
+          const cost = r.bid != null ? ` for $${r.bid}` : '';
+          msgs.push({
+            to: state.expoPushToken,
+            title: 'Waiver won ✅',
+            body: `${r.leagueName} — added ${r.add}${cost}`,
+            data: { type: 'waiver_result', leagueId: r.leagueId, playerId: r.addId || null },
+          });
+        }
+      }
+    }
   }
 
-  return { msgs, clockLeagues, offerIds, lineupKeys, watchKeys };
+  return { msgs, clockLeagues, offerIds, lineupKeys, watchKeys, waiverKeys };
 }
 
 // One scheduler pass over every registered device.
@@ -174,6 +196,7 @@ async function tick(deps = {}) {
   const tradeOverview = deps.tradeOverview || tradesService.getOverview;
   const onDeck = deps.onDeck || ondeckService.getOnDeck;
   const watchAlerts = deps.watchAlerts || watchlistService.alerts;
+  const waiverResults = deps.waiverResults || waiversService.recentResults;
   const send = deps.sender || sender;
 
   const d = db();
@@ -191,18 +214,20 @@ async function tick(deps = {}) {
     if (!session) continue; // login expired — can't poll their MFL, skip (keep the registration)
     const prefs = state.prefs || {};
     try {
-      const [draftOv, tradeOv, deck, watch] = await Promise.all([
+      const [draftOv, tradeOv, deck, watch, waiverRes] = await Promise.all([
         Promise.resolve(draftOverview(session.cookie, token)).catch(() => ({ drafts: [] })),
         Promise.resolve(tradeOverview(session.cookie, token)).catch(() => ({ offers: [] })),
         // Only pay for the extra reads when the device wants that channel.
         prefs.lineupAttention !== false ? Promise.resolve(onDeck(session.cookie, token)).catch(() => ({ items: [] })) : Promise.resolve({ items: [] }),
         prefs.watchlist !== false ? Promise.resolve(watchAlerts(session.cookie, token)).catch(() => ({ alerts: [] })) : Promise.resolve({ alerts: [] }),
+        prefs.waiverResult !== false ? Promise.resolve(waiverResults(session.cookie, token)).catch(() => ({ results: [] })) : Promise.resolve({ results: [] }),
       ]);
-      const { msgs, clockLeagues, offerIds, lineupKeys, watchKeys } = buildFor(state, draftOv, tradeOv, deck, watch);
+      const { msgs, clockLeagues, offerIds, lineupKeys, watchKeys, waiverKeys } = buildFor(state, draftOv, tradeOv, deck, watch, waiverRes);
       state.clockLeagues = clockLeagues;
       state.offerIds = offerIds;
       state.lineupKeys = lineupKeys;
       state.watchKeys = watchKeys;
+      state.waiverKeys = waiverKeys;
       state.primed = true;
       persist.touch();
       if (msgs.length) {
