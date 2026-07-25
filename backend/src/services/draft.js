@@ -220,9 +220,12 @@ async function findLeague(cookie, leagueId) {
 function statusOf(draft, slots) {
   const anyMade = slots.some((s) => s.playerId);
   const anyOpen = slots.some((s) => !s.playerId);
-  // A future start time means the draft hasn't begun — never on the clock yet (defense in depth
-  // alongside loadDraft, which already forces 'scheduled' for a future start).
-  if (draft.startTime && Date.parse(draft.startTime) > Date.now() && !anyMade) return 'scheduled';
+  // A future start time means the draft hasn't begun — never on the clock yet. This is authoritative
+  // even when the grid already carries picks: keeper leagues (and some MFL setups) pre-load picks
+  // into the board before the scheduled start, and those must NOT flip a not-yet-started draft to
+  // "in progress → you're on the clock". (The `&& !anyMade` qualifier used to let exactly that
+  // happen for a keeper draft that starts tomorrow.)
+  if (draft.startTime && Date.parse(draft.startTime) > Date.now()) return 'scheduled';
   // Respect an explicit "scheduled" until the first pick is made...
   if (draft.status === 'scheduled' && !anyMade) return 'scheduled';
   // ...otherwise derive from the board so it flips to complete when full.

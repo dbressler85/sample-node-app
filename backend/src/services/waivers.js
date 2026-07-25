@@ -919,8 +919,14 @@ async function getBestAvailable(cookie, token) {
 
   // Read every league's settings + free agents in parallel, then merge the (sync)
   // results in order — sequential per-league awaits were the bottleneck here.
+  const draftService = require('./draft'); // lazy require — avoids a waivers↔draft load cycle
   const perLeague = await Promise.all(
     leagues.map(async (league) => {
+      // A league whose draft hasn't been HELD yet (startup / scheduled or mid rookie draft) has no
+      // true free agents — its entire pool reads as unrostered. Exclude it so pre-draft leagues don't
+      // flood the Free Agents tab with every undrafted player.
+      const open = await draftService.freeAgencyOpen(cookie, token, league).catch(() => true);
+      if (!open) return { league, settings: null, fas: [] };
       // Settings (league export) and free agents (freeAgents export) are independent MFL reads —
       // fetch together so each league costs one throttle round-trip, not two in sequence.
       const [settings, ids] = await Promise.all([loadSettings(league, cookie), freeAgentIds(cookie, league)]);

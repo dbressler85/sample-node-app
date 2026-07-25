@@ -92,25 +92,30 @@ function computeRanks(byId, enr) {
 // bounds staleness of the "mine / free" badges to seconds otherwise.
 const gatherMemo = createMemo({ ttlMs: config.mflCacheTtlMs });
 
-async function gatherUncached(cookie) {
+async function gatherUncached(cookie, token) {
+  const draftService = require('./draft'); // lazy require — avoids a playerhub↔draft load cycle
   const leagues = await leaguesService.listLeagues(cookie);
   const data = await Promise.all(
     leagues.map(async (league) => {
       // A LIGHT roster read — just my player ids by bucket. gather's consumers only test
       // which bucket a player is in; they never touch value/age/strength, so the full
       // (all-franchise, enriched, strength-scored) getRoster build would be wasted here.
-      const [roster, faIds] = await Promise.all([
+      const [roster, faIds, draftOpen] = await Promise.all([
         rosterService.myRosterLight(cookie, league.leagueId).catch(() => null),
         waiversService.freeAgentIds(cookie, league).catch(() => []),
+        // A league whose draft hasn't been HELD has no true free agents yet — its whole pool reads as
+        // "unrostered". We keep the raw set (the profile still uses it to label a player "draftable")
+        // and expose `draftOpen` so the free-agent COUNT below can exclude pre-draft leagues.
+        draftService.freeAgencyOpen(cookie, token, league).catch(() => true),
       ]);
-      return { league, roster, faSet: new Set(faIds) };
+      return { league, roster, faSet: new Set(faIds), draftOpen };
     })
   );
   return { leagues, data: data.filter((d) => d.roster) };
 }
 
-function gather(cookie) {
-  return gatherMemo.get(cookie || '', () => gatherUncached(cookie));
+function gather(cookie, token) {
+  return gatherMemo.get(cookie || '', () => gatherUncached(cookie, token));
 }
 
 // Drop the cross-league sets after a write that changes a roster / free-agent pool, so the
@@ -154,8 +159,8 @@ function annotate(player, byId, ranks, myRostered, mineBy, freeBy, enr, ctx, tag
   };
 }
 
-async function buildSets(cookie) {
-  const { data } = await gather(cookie);
+async function buildSets(cookie, token) {
+  const { data } = await gather(cookie, token);
   const myRostered = new Set();
   const mineBy = new Map(); // playerId -> [leagueId] of my leagues where I roster them
   const freeBy = new Map();
@@ -165,6 +170,9 @@ async function buildSets(cookie) {
       if (!mineBy.has(p.id)) mineBy.set(p.id, []);
       mineBy.get(p.id).push(d.league.leagueId);
     }
+    // Only count a player as "free" in leagues that have actually DRAFTED — a pre-draft league's
+    // whole pool reads as unrostered, which would inflate every player's "free in N leagues".
+    if (!d.draftOpen) continue;
     for (const id of d.faSet) {
       if (!freeBy.has(id)) freeBy.set(id, []);
       freeBy.get(id).push(d.league.leagueId);
@@ -177,7 +185,7 @@ async function buildSets(cookie) {
 async function search(cookie, token, { q, position, status, format } = {}) {
   const [byId, enr, ctx] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(lensFormat(format), cookie), ctxFor(cookie)]);
   const ranks = computeRanks(byId, enr);
-  const { myRostered, mineBy, freeBy, leagueCount, league0 } = await buildSets(cookie);
+  const { myRostered, mineBy, freeBy, leagueCount, league0 } = await buildSets(cookie, token);
   const points = await pointsMaps.maps(cookie, league0, ctx.week);
   const tags = playerTags.all(token);
   const watchSet = new Set(watchStore.list(token).map(String));
@@ -205,7 +213,7 @@ async function search(cookie, token, { q, position, status, format } = {}) {
 async function rankings(cookie, token, { type = 'value', position, format, offset = 0, limit = 40 } = {}) {
   const [byId, enr, ctx] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(lensFormat(format), cookie), ctxFor(cookie)]);
   const ranks = computeRanks(byId, enr);
-  const { myRostered, mineBy, freeBy, leagueCount, league0 } = await buildSets(cookie);
+  const { myRostered, mineBy, freeBy, leagueCount, league0 } = await buildSets(cookie, token);
   const points = await pointsMaps.maps(cookie, league0, ctx.week);
 
   // Filter + sort on cheap enr lookups over lightweight rows, then annotate only
@@ -426,7 +434,7 @@ async function profile(cookie, token, playerId) {
     // D) Cross-league ownership + per-league projection.
     (async () => {
       const draftService = require('./draft'); // lazy require — avoids any load-order cycle
-      const { data } = await gather(cookie);
+      const { data } = await gather(cookie, token);
       return Promise.all(
         data.map(async ({ league, roster, faSet }) => {
           // The profile's labels over the shared canonical standing: a player I've dropped
@@ -583,7 +591,7 @@ async function submitAdd(cookie, token, playerId, selections) {
 
 // Drop a player across the chosen leagues (must be rostered there).
 async function submitDrop(cookie, token, playerId, leagueIds) {
-  const { data } = await gather(cookie);
+  const { data } = await gather(cookie, token);
   const owns = new Map(data.map((d) => [d.league.leagueId, d]));
   const results = await Promise.all(
     (leagueIds || []).map(async (leagueId) => {

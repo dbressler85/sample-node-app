@@ -203,12 +203,16 @@ function assert(cond, msg) {
     assert(!canceled.board.pending.some((c) => c.id === sub.submitted.id), 'canceled claim removed from pending');
     console.log('✓ cancel: claim withdrawn');
 
-    // Cross-league best available.
+    // Cross-league best available. Free agents come ONLY from leagues whose draft is complete —
+    // a scheduled/in-progress-draft league has no true free agents (its whole pool is undrafted),
+    // so those are excluded. In demo only Keeper Kings (19622) has drafted, so every FA is free in
+    // exactly that one league (leagueCount 1), and season points + this week's projection ride along.
     const ba = (await j(await fetch(`${base}/api/waivers/best-available`, authed))).body;
-    assert(ba.players.length > 0, 'best-available has players');
-    const multi = ba.players.find((p) => p.leagueCount > 1);
-    assert(multi, 'a free agent is available in multiple leagues');
-    console.log(`✓ best available: ${multi.name} is free in ${multi.leagueCount} of your leagues`);
+    assert(ba.players.length > 0, 'best-available has players (from drafted leagues only)');
+    assert(ba.players.every((p) => p.leagueCount >= 1), 'every best-available player is free in at least one drafted league');
+    const withPts = ba.players.find((p) => p.weekProjection != null || p.seasonPoints != null);
+    assert(withPts, 'best-available carries week projection / season points for streaming');
+    console.log(`✓ best available: ${ba.players.length} FAs from drafted leagues (e.g. ${withPts.name}: proj ${withPts.weekProjection}, ${withPts.seasonPoints} yr)`);
 
     // Pending across leagues + triage deep-link.
     const pend = (await j(await fetch(`${base}/api/waivers/pending`, authed))).body;
