@@ -153,12 +153,13 @@ async function loadDraft(cookie, token, league) {
     const unitStartMs = unit.startTime != null && unit.startTime !== '' ? Number(unit.startTime) * 1000 : NaN;
     const startMs = calStartMs != null ? calStartMs : (Number.isFinite(unitStartMs) ? unitStartMs : null);
     const startTime = startMs != null ? new Date(startMs).toISOString() : null;
-    const notStarted = startMs != null && startMs > Date.now();
-    const startedByTime = startMs != null && startMs <= Date.now();
-    // Started = the clock is running: a past start time (even before pick 1), or any REAL (non-keeper)
-    // pick already in. A future start beats everything (grid laid out ≠ begun); a keeper-only grid is
-    // NOT started (that was the "on the clock / overdue before a keeper draft begins" bug).
+    // A REAL (non-keeper) pick means the draft has actually begun — that ALWAYS wins over the nominal
+    // scheduled start. A future start only means "not begun yet" while no real pick has been made (so a
+    // laid-out grid / keeper pre-fill doesn't read as live); but once a pick is in, a future/nominal
+    // calendar time must not drag a live draft back to "scheduled" (that hid in-progress drafts).
     const anyRealPick = picks.some((p) => !p.keeper);
+    const notStarted = startMs != null && startMs > Date.now() && !anyRealPick;
+    const startedByTime = startMs != null && startMs <= Date.now();
     const nowStarted = !notStarted && (startedByTime || anyRealPick);
     const allMade = !notStarted && withOrder.length > 0 && withOrder.every(hasPlayer);
     const status = allMade ? 'complete' : nowStarted ? 'in_progress' : 'scheduled';
@@ -267,12 +268,12 @@ function statusOf(draft, slots) {
   // before the draft starts; counting those as made picks flipped an un-started draft to "in progress".
   const anyMade = slots.some((s) => s.playerId && !s.keeper);
   const anyOpen = slots.some((s) => !s.playerId);
-  // A future start time means the draft hasn't begun — never on the clock yet. This is authoritative
-  // even when the grid already carries picks: keeper leagues (and some MFL setups) pre-load picks
-  // into the board before the scheduled start, and those must NOT flip a not-yet-started draft to
-  // "in progress → you're on the clock". (The `&& !anyMade` qualifier used to let exactly that
-  // happen for a keeper draft that starts tomorrow.)
-  if (draft.startTime && Date.parse(draft.startTime) > Date.now()) return 'scheduled';
+  // A future start time means the draft hasn't begun — never on the clock yet — as long as no REAL
+  // pick has been made. Keeper leagues pre-load kept players (and MFL lays out the grid) before the
+  // scheduled start, and those must NOT flip a not-yet-started draft to "in progress". But a real
+  // (non-keeper) pick means it HAS begun, so a future/nominal start must not drag a live draft back to
+  // "scheduled" (that mislabeled in-progress drafts and hid them from Home).
+  if (draft.startTime && Date.parse(draft.startTime) > Date.now() && !anyMade) return 'scheduled';
   // Respect an explicit "scheduled" until the first pick is made...
   if (draft.status === 'scheduled' && !anyMade) return 'scheduled';
   // ...otherwise derive from the board so it flips to complete when full.
@@ -318,22 +319,30 @@ function buildPickClock(draft, status, clockConfig) {
   };
 }
 
-// Is a league's free agency / waiver pool live yet? A player isn't truly a free agent
-// until the draft has been HELD — before that (a startup league, or an offseason rookie
-// draft that's scheduled or mid-way), the whole player universe reads as "unrostered",
-// which would falsely surface watched players as claimable. Open only once the draft is
-// complete; a league with no draft on file is an established/in-season league where FA is
-// already open. Best-effort: a draft-read failure defaults to open so we don't hide real
-// alerts for the common (already-drafted) case.
+// Is a league's free agency / waiver pool live yet? A player isn't truly a free agent until the draft
+// has been HELD — before that (a startup league, or an offseason rookie draft that's scheduled or
+// mid-way) the whole player universe reads as "unrostered", which would falsely surface watched players
+// as claimable. The calendar's DRAFT_START is a direct signal a draft exists for this league, so we
+// consult it too — a FUTURE draft closes FA even if MFL hasn't laid out the grid yet (that was the bug:
+// a pre-draft league falsely highlighting watched free agents). Open only once a draft is complete, or
+// when there's no draft on file at all (an established in-season league). A known but unreadable draft
+// stays CLOSED (erring toward "not open" only delays a real alert — the 5-min memo self-heals — vs. the
+// worse failure of flagging the whole pre/mid-draft pool as claimable).
 function freeAgencyOpen(cookie, token, league) {
   return draftOpenMemo.get(`${cookie || ''}:${league.leagueId}`, async () => {
-    try {
-      const draft = await loadDraft(cookie, token, league);
-      if (!draft) return true;
-      return statusOf(draft, slotsFor(draft)) === 'complete';
-    } catch (e) {
-      return true;
+    const draft = await loadDraft(cookie, token, league).catch(() => null);
+    // Prefer the loaded draft's resolved start; if the grid didn't load at all, read the calendar
+    // directly so a future draft still closes FA.
+    const startMs = draft && draft.startTime ? Date.parse(draft.startTime)
+      : await draftStartMs(cookie, league).catch(() => null);
+    if (startMs != null && startMs > Date.now()) return false; // a scheduled (future) draft → not open
+    if (draft) {
+      const st = statusOf(draft, slotsFor(draft));
+      if (st === 'complete') return true; // draft held → FA/waivers open
+      if (st === 'scheduled' || st === 'in_progress') return false; // pending / underway → not open
     }
+    if (startMs != null) return false; // a known (past) draft we couldn't confirm complete → stay closed
+    return true; // no draft on file anywhere → established in-season league → FA open
   });
 }
 
