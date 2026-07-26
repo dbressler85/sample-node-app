@@ -96,5 +96,17 @@ const L = { leagueId: 'L1', host: 'www10.myfantasyleague.com' };
   assert(JSON.stringify(gdev.players.map((p) => p.id)) === JSON.stringify(gget.players.map((p) => p.id)), 'device best-available has the same players in the same order as the backend');
   console.log(`✓ device-origin best-available: app-supplied freeAgents → identical board, zero backend freeAgents reads (${gdev.players.length} players)`);
 
+  // Same freeAgents injection for the waiver OVERVIEW (landing summary): faCount comes from the pool.
+  // Use a COLD cookie for the device call (freeAgentIds memoizes per cookie, and the block above warmed
+  // CK's) so "zero freeAgents reads" genuinely proves the injection rather than a memo hit.
+  const ovGet = await waivers.getOverview(CK, TK);
+  const ovBefore = faReads;
+  const ovDev = await waivers.getOverview('ck-ov-cold', TK, { deviceReads: { L1: units } });
+  assert(faReads === ovBefore, `overview device path issues NO backend freeAgents read (cold cookie), got ${faReads - ovBefore} extra`);
+  const dl = ovDev.leagues.find((l) => l.leagueId === 'L1');
+  const gl = ovGet.leagues.find((l) => l.leagueId === 'L1');
+  assert(dl && gl && dl.faCount === gl.faCount && dl.faCount > 0, `overview device faCount matches the backend (${gl && gl.faCount}), got ${dl && dl.faCount}`);
+  console.log(`✓ device-origin waivers overview: app-supplied freeAgents → identical faCount (${dl.faCount}), zero backend freeAgents reads`);
+
   console.log('\nPLAYERS POINTS HARNESS PASSED');
 })().catch((e) => { console.error(e.message); process.exit(1); });

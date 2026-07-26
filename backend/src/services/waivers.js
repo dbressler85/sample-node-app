@@ -242,12 +242,14 @@ async function buildFreeAgents(cookie, league, settings) {
 // only shows those, so it doesn't need the full board build — no projectedScores fetch and
 // no per-player makeFreeAgent (availability bands, etc.). Just the memoized id list + names
 // + dynasty values. The heavy build stays for the board / wizard, which actually use it.
-async function freeAgentSummary(cookie, league) {
+async function freeAgentSummary(cookie, league, deviceFreeAgents = null) {
   const [byId, enr] = await Promise.all([
     playersLib.load(cookie),
     enrichmentLib.snapshot(await leagueFormat.format(cookie, league), cookie),
   ]);
-  const ids = await freeAgentIds(cookie, league);
+  // When the device supplied this league's freeAgents units (device-origin overview), flatten those
+  // instead of fetching the pool from MFL (docs/DEVICE_ORIGIN_MFL.md).
+  const ids = deviceFreeAgents ? freeAgentIdsFromUnits(deviceFreeAgents) : await freeAgentIds(cookie, league);
   const valid = [];
   for (const id of ids) {
     const p = playersLib.resolve(byId, id);
@@ -1096,7 +1098,10 @@ async function waiverPosture(cookie, token, league, settings, waiverRun) {
   return { waiverState, lockReason: waiverState === 'locked' ? calLock : null };
 }
 
-async function getOverview(cookie, token) {
+// `deviceReads` (optional) maps leagueId -> the raw `freeAgents` units the DEVICE fetched — when present,
+// the per-league free-agent-pool read (the heaviest here) is served from it (docs/DEVICE_ORIGIN_MFL.md).
+// The light reads (settings/roster/calendar/pending) stay on the backend.
+async function getOverview(cookie, token, { deviceReads = null } = {}) {
   const leagues = await leaguesService.orderedLeagues(cookie, token);
   const byId = await playersLib.load(cookie); // cached; used to resolve reconciled pending names
   const [locks, out] = await Promise.all([
@@ -1109,10 +1114,11 @@ async function getOverview(cookie, token) {
         // (no projections / per-player build) instead of the full getRoster + board build.
         // Settings, roster, FA summary, and the next waiver-process time are independent reads —
         // fetch them all together so the league costs one throttle round-trip, not four in sequence.
+        const dr = deviceReads ? deviceReads[String(league.leagueId)] : null;
         const [settings, roster, fa, waiverRun, pending] = await Promise.all([
           loadSettings(league, cookie),
           rosterService.myRosterLight(cookie, league.leagueId),
-          freeAgentSummary(cookie, league),
+          freeAgentSummary(cookie, league, dr),
           config.demoMode ? Promise.resolve(null) : nextWaiverRun(cookie, league),
           // Reconcile with MFL's queue so the count reflects claims placed on the site too, not just
           // in-app ones (byId is cached from the reads above).

@@ -1,6 +1,7 @@
 import { getEntry, setValue } from './cache';
 import { primeResource } from './useCachedResource';
 import { api } from './api';
+import { waiversOverviewPreferDevice } from './mflDevice';
 
 // Idle prefetch. While the user sits on one tab, quietly warm the on-device caches for
 // the OTHER tabs so switching to them paints instantly from disk instead of showing a
@@ -10,7 +11,7 @@ import { api } from './api';
 const RESOURCES = [
   { tab: 'trades', key: 'trades:overview', fetch: () => api.trades() },
   { tab: 'players', key: 'players:rankings:value:all:1qb', fetch: () => api.playerRankings('value', null, '1qb') },
-  { tab: 'waivers', key: 'waivers:overview', fetch: () => api.waiversOverview() },
+  { tab: 'waivers', key: 'waivers:overview', fetch: () => waiversOverviewPreferDevice() },
   { tab: 'lineups', key: 'lineups:auto', fetch: () => api.lineups('auto') },
   { tab: 'scores', key: 'scores:overview', fetch: () => api.scoreboard() },
 ];

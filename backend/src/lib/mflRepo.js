@@ -219,9 +219,14 @@ function normFranchiseAssets(fr) {
 // `assets` export -> every franchise's tradable assets (players, FAAB $, future/current draft
 // picks) in ONE read, normalized. The single authoritative source for trade construction (vs.
 // composing rosters + futureDraftPicks + FAAB separately).
+// Normalize the raw `assets` franchise array — split out so it works on franchises the backend read OR
+// the DEVICE fetched (docs/DEVICE_ORIGIN_MFL.md).
+function assetsFromRaw(rawFranchises) {
+  return mfl.toArray(rawFranchises).map(normFranchiseAssets);
+}
 async function assets(league, cookie, params = {}) {
   const res = await read('assets', league, cookie, params);
-  return mfl.toArray(res && res.assets && res.assets.franchise).map(normFranchiseAssets);
+  return assetsFromRaw(mflRead.reads.assets.parse(res));
 }
 
 // One player's profile bio -> { id, name, dob, age, height, weight, adp }. `adp` is null when
@@ -282,6 +287,7 @@ module.exports = {
   addEligibility,
   pendingWaivers,
   assets,
+  assetsFromRaw,
   parsePickToken,
   playerProfiles,
 };

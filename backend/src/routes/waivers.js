@@ -17,6 +17,17 @@ router.get('/waivers/overview', async (req, res, next) => {
   }
 });
 
+// POST /api/waivers/overview — same summary, but each league's freeAgents pool is supplied by the DEVICE
+// (fetched straight from MFL on-device). Body: { deviceReads: { [leagueId]: <freeAgents units> } }.
+router.post('/waivers/overview', async (req, res, next) => {
+  try {
+    const { deviceReads } = req.body || {};
+    res.json(checkResponse(schemas.WaiversOverview, await waivers.getOverview(req.mflCookie, req.account, { deviceReads: deviceReads || null }), 'POST /waivers/overview'));
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/waivers/suggestions — league-by-league pickup suggestions (wizard).
 router.get('/waivers/suggestions', async (req, res, next) => {
   try {

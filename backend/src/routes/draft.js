@@ -38,6 +38,17 @@ router.get('/picks', async (req, res, next) => {
   }
 });
 
+// POST /api/picks — same inventory, but the per-league assets/futureDraftPicks/draftResults reads are
+// supplied by the DEVICE. Body: { deviceReads: { [leagueId]: { assets, futureDraftPicks, draftResults } } }.
+router.post('/picks', async (req, res, next) => {
+  try {
+    const { deviceReads } = req.body || {};
+    res.json(checkResponse(schemas.PickInventory, await draft.getPickInventory(req.mflCookie, req.account, { deviceReads: deviceReads || null }), 'POST /picks'));
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/leagues/:leagueId/draft?position= — one league's board + available pool.
 router.get('/leagues/:leagueId/draft', async (req, res, next) => {
   try {

@@ -228,3 +228,42 @@ export async function deviceBestAvailable() {
 export function bestAvailablePreferDevice() {
   return preferDevice('bestAvailable', () => deviceBestAvailable(), () => api.bestAvailable());
 }
+
+// Waivers overview ("landing" list), device-first: each league's freeAgents pool is the one heavy read
+// here (roster/settings/calendar are light/cached and stay backend), so fetch it on-device and hand it to
+// the backend to summarize + merge.
+export async function deviceWaiversOverview() {
+  const { leagues } = await api.leaguesList();
+  const list = (leagues || []).filter((l) => l && l.leagueId);
+  if (!list.length) return api.waiversOverview();
+  const entries = await Promise.all(
+    list.map(async (l) => [l.leagueId, await runDeviceRead(mflRead.reads.freeAgents, l.leagueId)])
+  );
+  return api.waiversOverviewDevice(Object.fromEntries(entries));
+}
+export function waiversOverviewPreferDevice() {
+  return preferDevice('waiversOverview', () => deviceWaiversOverview(), () => api.waiversOverview());
+}
+
+// Cross-league pick inventory, device-first: fetch each league's assets + futureDraftPicks + draftResults
+// (the pick fan-out) on-device, then hand them to the backend to value/label/group (the pick-value model
+// and franchise names stay backend). All-or-nothing: any per-league read failure falls back to the backend.
+export async function devicePickInventory() {
+  const { leagues } = await api.leaguesList();
+  const list = (leagues || []).filter((l) => l && l.leagueId);
+  if (!list.length) return api.pickInventory();
+  const entries = await Promise.all(
+    list.map(async (l) => {
+      const [assets, futureDraftPicks, draftResults] = await Promise.all([
+        runDeviceRead(mflRead.reads.assets, l.leagueId),
+        runDeviceRead(mflRead.reads.futureDraftPicks, l.leagueId),
+        runDeviceRead(mflRead.reads.draftResults, l.leagueId),
+      ]);
+      return [l.leagueId, { assets, futureDraftPicks, draftResults }];
+    })
+  );
+  return api.pickInventoryDevice(Object.fromEntries(entries));
+}
+export function pickInventoryPreferDevice() {
+  return preferDevice('pickInventory', () => devicePickInventory(), () => api.pickInventory());
+}

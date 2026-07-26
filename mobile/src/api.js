@@ -170,6 +170,8 @@ export const api = {
   // reads it fetched straight from MFL on-device so the fan-out leaves the shared backend IP.
   draftsDevice: (deviceReads) => request('/api/drafts', { method: 'POST', body: { deviceReads } }),
   pickInventory: () => request('/api/picks'),
+  // Device-origin: the app supplies each league's assets/futureDraftPicks/draftResults it fetched on-device.
+  pickInventoryDevice: (deviceReads) => request('/api/picks', { method: 'POST', body: { deviceReads } }),
   leagueDraft: (leagueId, position) =>
     request(`/api/leagues/${leagueId}/draft${position ? `?position=${position}` : ''}`),
   draftList: (leagueId, position) =>
@@ -210,6 +212,8 @@ export const api = {
   removeBait: (leagueId, playerId) => request(`/api/leagues/${leagueId}/tradebait/${playerId}`, { method: 'DELETE' }),
 
   waiversOverview: () => request('/api/waivers/overview'),
+  // Device-origin: the app supplies each league's freeAgents pool (overview) it fetched from MFL on-device.
+  waiversOverviewDevice: (deviceReads) => request('/api/waivers/overview', { method: 'POST', body: { deviceReads } }),
   waiverSuggestions: () => request('/api/waivers/suggestions'),
   bestAvailable: () => request('/api/waivers/best-available'),
   // Device-origin best-available: the app supplies the per-league freeAgents pools it fetched straight
