@@ -21,7 +21,11 @@ const byType = new Map(); // type -> fetches
 // Device-origin reads: how often each read was served BY THE DEVICE (fetched straight from MFL) vs.
 // fell back to the BACKEND. The whole point of device-origin is moving per-user fan-outs off the
 // shared IP, so this is the number that says whether it's working (high device %, per read).
-const deviceReads = new Map(); // read -> { device, backend }
+// Per read: served counts (device vs backend), rolling avg latency of each path, and — when the device
+// was ATTEMPTED but fell back — how many times and WHY (429, no creds, incomplete, network). Together
+// these answer not just "is device-origin working" (devicePct) but "is it worth it" (deviceAvgMs vs
+// backendAvgMs) and "when does it break" (fallback reasons).
+const deviceReads = new Map(); // read -> { device, backend, deviceMsSum, deviceMsN, backendMsSum, backendMsN, fallbacks, reasons }
 // Fetch timestamps within the last window, for a rolling calls/min figure.
 const recent = [];
 const WINDOW_MS = 5 * 60 * 1000;
@@ -45,11 +49,23 @@ function recordHit(shared) {
   else counters.privateHits += 1;
 }
 // A device reported that it served `read` from the `device` path or fell back to the `backend`.
-function recordDeviceRead(read, source) {
+// `meta.ms` is the latency of whichever path served; `meta.reason` is set ONLY when the device was
+// attempted and fell back (so a bare backend read with device off carries no reason — that's not a
+// fallback). Both are best-effort — a beacon without them still counts toward device/backend.
+function recordDeviceRead(read, source, meta = {}) {
   const key = String(read || 'unknown');
-  const e = deviceReads.get(key) || { device: 0, backend: 0 };
-  if (source === 'device') e.device += 1;
-  else e.backend += 1;
+  const e = deviceReads.get(key) || { device: 0, backend: 0, deviceMsSum: 0, deviceMsN: 0, backendMsSum: 0, backendMsN: 0, fallbacks: 0, reasons: {} };
+  const ms = Number(meta.ms);
+  const hasMs = Number.isFinite(ms) && ms >= 0;
+  if (source === 'device') {
+    e.device += 1;
+    if (hasMs) { e.deviceMsSum += ms; e.deviceMsN += 1; }
+  } else {
+    e.backend += 1;
+    if (hasMs) { e.backendMsSum += ms; e.backendMsN += 1; }
+    const reason = meta.reason ? String(meta.reason).slice(0, 24) : null;
+    if (reason) { e.fallbacks += 1; e.reasons[reason] = (e.reasons[reason] || 0) + 1; }
+  }
   deviceReads.set(key, e);
 }
 const recordMiss = () => { counters.cacheMisses += 1; };
@@ -76,7 +92,16 @@ function snapshot() {
     callsPerMin: callsPerMin(),
     callsLast5Min: recent.length,
     topTypes: top,
-    deviceReads: [...deviceReads.entries()].map(([read, c]) => ({ read, device: c.device, backend: c.backend, devicePct: pct(c.device, c.device + c.backend) })),
+    deviceReads: [...deviceReads.entries()].map(([read, c]) => ({
+      read,
+      device: c.device,
+      backend: c.backend,
+      devicePct: pct(c.device, c.device + c.backend), // is it working (load actually moved off the shared IP)
+      deviceAvgMs: c.deviceMsN ? Math.round(c.deviceMsSum / c.deviceMsN) : null, // is it worth it (device latency…
+      backendAvgMs: c.backendMsN ? Math.round(c.backendMsSum / c.backendMsN) : null, // …vs the backend it replaced)
+      fallbacks: c.fallbacks, // times the device was tried but fell back
+      reasons: c.reasons, // why it fell back — { rate_limited, no_creds, incomplete, network, … }
+    })),
   };
 }
 

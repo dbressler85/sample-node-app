@@ -72,14 +72,18 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
     }
     console.log('✓ /api/players/exposure-enrich: auth-gated; per-id exposure enrichment (age/value/availability/points/tag/watched)');
 
-    // Device-read beacon → /_metrics deviceReads split (the device-origin payoff, measured).
-    await fetch(`${base}/api/metrics/device-read`, { method: 'POST', headers: auth, body: JSON.stringify({ read: 'rosters', source: 'device' }) });
-    await fetch(`${base}/api/metrics/device-read`, { method: 'POST', headers: auth, body: JSON.stringify({ read: 'rosters', source: 'backend' }) });
+    // Device-read beacon → /_metrics deviceReads (the device-origin payoff, measured). The enriched
+    // beacon also carries per-path LATENCY (is device-origin worth it) and, on a fallback, the REASON
+    // (when does it break) — so /_metrics answers more than "is it working".
+    await fetch(`${base}/api/metrics/device-read`, { method: 'POST', headers: auth, body: JSON.stringify({ read: 'rosters', source: 'device', ms: 120 }) });
+    await fetch(`${base}/api/metrics/device-read`, { method: 'POST', headers: auth, body: JSON.stringify({ read: 'rosters', source: 'backend', ms: 300, reason: 'rate_limited' }) });
     const mx = await (await fetch(`${base}/api/_metrics`)).json();
     const dr = ((mx.mfl && mx.mfl.deviceReads) || []).find((x) => x.read === 'rosters');
     assert(dr && dr.device >= 1 && dr.backend >= 1, `beacon feeds /_metrics deviceReads, got ${JSON.stringify(dr)}`);
+    assert(dr.deviceAvgMs === 120 && dr.backendAvgMs === 300, `beacon records per-path latency, got ${JSON.stringify({ d: dr.deviceAvgMs, b: dr.backendAvgMs })}`);
+    assert(dr.fallbacks >= 1 && dr.reasons && dr.reasons.rate_limited >= 1, `beacon records the fallback reason, got ${JSON.stringify({ f: dr.fallbacks, r: dr.reasons })}`);
     assert(mx.client && mx.client.deviceReadsEnabled === false, 'client.deviceReadsEnabled surfaced on /_metrics');
-    console.log('✓ device-read beacon → /_metrics deviceReads split + client.deviceReadsEnabled');
+    console.log('✓ device-read beacon → /_metrics deviceReads split + latency + fallback reasons');
   } finally {
     server.close();
   }

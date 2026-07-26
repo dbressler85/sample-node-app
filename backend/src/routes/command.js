@@ -28,8 +28,8 @@ router.get('/session/mfl-cookie', (req, res) => {
 // read, so /_metrics can show how often each read was served ON-DEVICE vs. fell back to the backend
 // (the device-origin payoff, measured — docs/DEVICE_ORIGIN_MFL.md). Fire-and-forget; never errors.
 router.post('/metrics/device-read', (req, res) => {
-  const { read, source } = req.body || {};
-  if (read && (source === 'device' || source === 'backend')) metrics.recordDeviceRead(read, source);
+  const { read, source, ms, reason } = req.body || {};
+  if (read && (source === 'device' || source === 'backend')) metrics.recordDeviceRead(read, source, { ms, reason });
   res.json({ ok: true });
 });
 
