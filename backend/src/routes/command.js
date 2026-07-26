@@ -70,6 +70,28 @@ router.get('/home', async (req, res, next) => {
   }
 });
 
+// POST /api/home — same roll-up, but the per-league rosters are supplied by the DEVICE.
+// Body: { deviceReads: { [leagueId]: <rosters> } }.
+router.post('/home', async (req, res, next) => {
+  try {
+    const { deviceReads } = req.body || {};
+    res.json(checkResponse(schemas.Home, await portfolio.getHome(req.mflCookie, req.account, { deviceReads: deviceReads || null }), 'POST /home'));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/home/league/:leagueId — one league's triage, roster supplied by the DEVICE.
+// Body: { deviceRosters: <rosters> }.
+router.post('/home/league/:leagueId', async (req, res, next) => {
+  try {
+    const { deviceRosters } = req.body || {};
+    res.json(checkResponse(schemas.HomeLeague, await portfolio.getLeagueTriage(req.mflCookie, req.account, req.params.leagueId, { deviceRosters: deviceRosters || null }), 'POST /home/league/:leagueId'));
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/home/league/:leagueId — one league's triage, for progressive loading.
 router.get('/home/league/:leagueId', async (req, res, next) => {
   try {

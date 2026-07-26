@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, FlatList, StyleSheet, Pressable, RefreshControl, ActivityIndicator } from 'react-native';
 import { api } from '../api';
-import { draftsPreferDevice } from '../mflDevice';
+import { draftsPreferDevice, leagueTriagePreferDevice } from '../mflDevice';
 import { getValue, setValue, onCacheInvalidate } from '../cache';
 import { colors } from '../theme';
 import { ScreenTitle } from '../components/Brand';
@@ -211,7 +211,7 @@ export default function HomeScreen({ active = true, demoMode, onOpenLineup, onOp
       const collected = {};
       await runPool(list, CONCURRENCY, async (lg) => {
         try {
-          const t = await api.leagueTriage(lg.leagueId);
+          const t = await leagueTriagePreferDevice(lg.leagueId);
           collected[lg.leagueId] = { name: t.name, status: t.status, items: t.items, phase: t.phase, dynasty: t.dynasty, tradeDeadline: t.tradeDeadline };
         } catch (e) {
           collected[lg.leagueId] = { name: lg.name, status: 'error', items: [] };

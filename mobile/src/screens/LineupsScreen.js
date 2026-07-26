@@ -10,6 +10,7 @@ import {
   Alert,
 } from 'react-native';
 import { api } from '../api';
+import { lineupsPreferDevice } from '../mflDevice';
 import { colors } from '../theme';
 import AvailabilityBadge from '../components/AvailabilityBadge';
 import MatchupLine from '../components/MatchupLine';
@@ -42,7 +43,7 @@ export default function LineupsScreen({ active = true, onOpenLineup, onStartWiza
 
   // Stale-while-revalidate: paint the last lineups for this mode instantly, refetch
   // in the background. Keyed by mode so switching modes paints that mode's cache.
-  const { data, error, refreshing, loading, reload } = useCachedResource(`lineups:${mode}`, () => api.lineups(mode), { active });
+  const { data, error, refreshing, loading, reload } = useCachedResource(`lineups:${mode}`, () => lineupsPreferDevice(mode), { active });
 
   // Back closes the review sheet first.
   useAndroidBack(useCallback(() => {

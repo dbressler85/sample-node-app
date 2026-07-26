@@ -267,3 +267,30 @@ export async function devicePickInventory() {
 export function pickInventoryPreferDevice() {
   return preferDevice('pickInventory', () => devicePickInventory(), () => api.pickInventory());
 }
+
+// Home per-league triage, device-first: the roster (in-season lineup status / offseason dynasty summary)
+// is the heavy per-user read; fetch it on-device and hand it to the backend, which keeps the trade/waiver/
+// calendar items + the lineup engine. Per-league — matches the app's progressive Home load. The
+// all-franchise rosters read shares its device-cache entry with Portfolio + the Rosters tab.
+export async function deviceLeagueTriage(leagueId) {
+  const franchises = await runDeviceRead(mflRead.reads.rosters, leagueId);
+  return api.leagueTriageDevice(leagueId, franchises);
+}
+export function leagueTriagePreferDevice(leagueId) {
+  return preferDevice('homeTriage', () => deviceLeagueTriage(leagueId), () => api.leagueTriage(leagueId));
+}
+
+// Lineups overview, device-first: each league's rosters (my roster + strength) is the per-user read;
+// fetch on-device, the backend runs the optimizer (the projection + matchup reads stay backend).
+export async function deviceLineups(mode) {
+  const { leagues } = await api.leaguesList();
+  const list = (leagues || []).filter((l) => l && l.leagueId);
+  if (!list.length) return api.lineups(mode);
+  const entries = await Promise.all(
+    list.map(async (l) => [l.leagueId, await runDeviceRead(mflRead.reads.rosters, l.leagueId)])
+  );
+  return api.lineupsDevice(mode, Object.fromEntries(entries));
+}
+export function lineupsPreferDevice(mode) {
+  return preferDevice('lineups', () => deviceLineups(mode), () => api.lineups(mode));
+}

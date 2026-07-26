@@ -18,6 +18,17 @@ router.get('/lineups', async (req, res, next) => {
   }
 });
 
+// POST /api/lineups — same overview, but each league's rosters are supplied by the DEVICE (my roster
+// fan-out moved on-device; projections/matchup stay backend). Body: { mode?, deviceReads: { [leagueId]: <rosters> } }.
+router.post('/lineups', async (req, res, next) => {
+  try {
+    const { mode, deviceReads } = req.body || {};
+    res.json(checkResponse(schemas.Lineups, await lineups.getOverview(req.mflCookie, req.account, mode, { deviceReads: deviceReads || null }), 'POST /lineups'));
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/lineups/plan?mode=... — preview "Set All" as per-league diffs, no writes.
 router.get('/lineups/plan', async (req, res, next) => {
   try {
