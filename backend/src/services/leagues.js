@@ -74,7 +74,11 @@ async function franchiseNames(cookie, league) {
     const fr = await mflRepo.leagueFranchises(league, cookie);
     // MFL team names can contain HTML (an owner styling their name) — strip it to plain text.
     const names = new Map(fr.map((f) => [String(f.id), mfl.cleanName(f.name) || `Team ${f.id}`]));
-    setEntry(namesCache, key, names);
+    // Only cache a POPULATED map. A throttled/failed `league` export can come back EMPTY without
+    // throwing (a 429 body isn't valid JSON → no franchises), and caching that on the long static TTL
+    // would blank EVERY team name (→ "Team 0041") for the whole window — even across refreshes, since
+    // they'd read the poisoned empty entry. Returning it uncached lets the next read recover the names.
+    if (names.size) setEntry(namesCache, key, names);
     return names;
   } catch (e) {
     return new Map();
