@@ -83,7 +83,14 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
     assert(dr.deviceAvgMs === 120 && dr.backendAvgMs === 300, `beacon records per-path latency, got ${JSON.stringify({ d: dr.deviceAvgMs, b: dr.backendAvgMs })}`);
     assert(dr.fallbacks >= 1 && dr.reasons && dr.reasons.rate_limited >= 1, `beacon records the fallback reason, got ${JSON.stringify({ f: dr.fallbacks, r: dr.reasons })}`);
     assert(mx.client && mx.client.deviceReadsEnabled === false, 'client.deviceReadsEnabled surfaced on /_metrics');
-    console.log('✓ device-read beacon → /_metrics deviceReads split + latency + fallback reasons');
+    // A-4: the beacon's `read` is client-supplied, so an unknown/arbitrary name must NOT mint its own
+    // /_metrics key (an authenticated memory-growth vector) — it's bucketed to '(other)'.
+    await fetch(`${base}/api/metrics/device-read`, { method: 'POST', headers: auth, body: JSON.stringify({ read: 'x'.repeat(500) + '-bogus', source: 'device', ms: 10 }) });
+    const mx2 = await (await fetch(`${base}/api/_metrics`)).json();
+    const rows = (mx2.mfl && mx2.mfl.deviceReads) || [];
+    assert(!rows.some((x) => /bogus/.test(x.read)), 'an unknown device-read name does not mint its own /_metrics key (A-4)');
+    assert(rows.some((x) => x.read === '(other)' && x.device >= 1), 'unknown device-read names are bucketed to (other) (A-4)');
+    console.log('✓ device-read beacon → /_metrics deviceReads split + latency + fallback reasons; unknown names bucketed (A-4)');
   } finally {
     server.close();
   }

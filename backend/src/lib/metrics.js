@@ -52,8 +52,17 @@ function recordHit(shared) {
 // `meta.ms` is the latency of whichever path served; `meta.reason` is set ONLY when the device was
 // attempted and fell back (so a bare backend read with device off carries no reason — that's not a
 // fallback). Both are best-effort — a beacon without them still counts toward device/backend.
+// The known device-read names (the `preferDevice` labels in mobile/src/mflDevice.js). The beacon's `read`
+// is client-supplied, so an authenticated client could otherwise grow the `deviceReads` map without bound
+// with arbitrary strings (A-4). Normalize any unknown name to '(other)' so the map stays bounded to a
+// fixed, known key set. Keep in sync with the preferDevice call sites.
+const DEVICE_READ_NAMES = new Set([
+  'rosters', 'standings', 'transactions', 'exposure', 'portfolio', 'drafts',
+  'bestAvailable', 'waiversOverview', 'pickInventory', 'homeTriage', 'lineups',
+]);
 function recordDeviceRead(read, source, meta = {}) {
-  const key = String(read || 'unknown');
+  const name = String(read || 'unknown');
+  const key = DEVICE_READ_NAMES.has(name) ? name : '(other)';
   const e = deviceReads.get(key) || { device: 0, backend: 0, deviceMsSum: 0, deviceMsN: 0, backendMsSum: 0, backendMsN: 0, fallbacks: 0, reasons: {} };
   const ms = Number(meta.ms);
   const hasMs = Number.isFinite(ms) && ms >= 0;

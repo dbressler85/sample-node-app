@@ -138,12 +138,14 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   assert(dD.status === 'in_progress' && dD.myOnClock === true, `device-supplied reads parse identically (in_progress, on the clock), got ${dD.status}/${dD.myOnClock}`);
   const dB = (await draft.getOverview('ck', 'tk')).drafts.find((x) => x.leagueId === '9001');
   assert(dB.status === dD.status && dB.myOnClock === dD.myOnClock, 'device and backend overview agree for the same reads');
-  // A league missing from a supplied device map reads as 'none', never a surprise backend read.
+  // A-8: a league in the account but ABSENT from the supplied device map must NOT silently read as 'none'
+  // (that hid a just-joined league's scheduled/live draft → missed clock). It now falls back to a one-off
+  // backend read for JUST that league, so the draft still surfaces; every present league stays device-served.
   const mark = backendReads;
   const ovM = await draft.getOverview('ck', 'tk', { deviceReads: {} });
-  assert(backendReads === mark, 'device mode with a missing league still issues no backend read');
-  assert(ovM.drafts.find((x) => x.leagueId === '9001').status === 'none', 'a league missing from the device map reads as none');
-  console.log('✓ device-origin: app-supplied draftResults+calendar → identical overview, zero backend reads');
+  assert(backendReads > mark, 'a league missing from the device map falls back to a backend read (A-8), not silent none');
+  assert(ovM.drafts.find((x) => x.leagueId === '9001').status === 'in_progress', 'the missing league surfaces its real draft status via fallback, not none');
+  console.log('✓ device-origin: app-supplied reads → identical overview + zero backend reads; a missing league falls back (A-8)');
 
   console.log('\nDRAFT SCHEDULED HARNESS PASSED');
 })().catch((e) => { console.error(e.message); process.exit(1); });

@@ -121,26 +121,38 @@ Legend — severity **High / Med / Low**; effort **S** ~hours · **M** ~days · 
 
 ### Before you flip the flag (high-value, corroborated across all five agents)
 
-- **A-1 · Device omits the request discipline it was specified to mirror · Med · S.** The device fires
-  `Promise.all` across 15–20 leagues with **no stagger, no concurrency cap, no 429 backoff** — only
-  no-retry is ported (`mflRead.js:197-205`). `pickInventory` = 3 reads × 20 leagues ≈ 45–60 simultaneous
-  MFL requests (`mflDevice.js:255-265`). Directly contradicts `DEVICE_ORIGIN_MFL.md:83-87`. Can't ban
-  *other* users (own IP), but it self-429s exactly on the big accounts device-origin is meant to help.
-  Fix: an on-device limiter (3–4 in-flight + minimal stagger) — trade a little first-paint latency for
-  politeness parity with the backend.
+> **Status (2026-07-26):** ✅ done — **A-1** (device fan-out limiter), **A-3** (registered UA), **A-4**
+> (beacon key allowlist), **A-8** (draft missing-league fallback). Remaining: **A-2** (partial-tolerant
+> aggregates — pair with the U-1 "complete/partial" affordance so a fallback can't paint a half-empty
+> screen), **A-6** (device parser-version + sampled shadow-compare), **A-9** (covered-overlay poll gating),
+> **A-10** (heavy free-agent pool on cellular — keep backend-only or trim, don't wifi-gate), **A-12** (a
+> `preferDevice` fallback-path test; the new fan-out logic is covered by `poolMap.test.js`). Accept-with-doc:
+> **A-5** (cache erosion), **A-7** (cold-start), **A-11** (self-scoped trust).
+
+- **A-1 · Device omits the request discipline it was specified to mirror · Med · S · ✅ FIXED.** The device
+  fired `Promise.all` across 15–20 leagues with **no stagger, no concurrency cap, no 429 backoff** —
+  `pickInventory` = 3 reads × 20 leagues ≈ 45–60 simultaneous MFL requests. **Fixed:** every cross-league
+  device fan-out now runs through `mobile/src/poolMap.js` — a bounded-concurrency (≤4) + lightly-staggered
+  (~150 ms) map that mirrors the backend's own throttle shape **without** a per-call ~1s sleep (the PO's
+  explicit warning — keeps first paint fast). Unit-tested (`test/poolMap.test.js`: cap never exceeded, order
+  preserved, first-error rejects so callers keep backend fallback). (Adaptive 429 *penalty state* across
+  fan-outs is still not ported — folded into A-6/deferred.)
 - **A-2 · All-or-nothing aggregates re-concentrate load under stress (~2N amplification) · Med · M.** One
   league's 429 rejects the whole device `Promise.all`, discards up to 60 *successful* device reads, and
   re-runs the full N-league fan-out on the backend FIFO (`mflDevice.js:71-91`). On a Sunday MFL
   rate-limit, many devices fall back at once — handing the backend the very herd device-origin was meant
   to offload, *plus* the wasted device attempts. Fix: **partial-tolerant aggregates** — fall back only the
   leagues that failed.
-- **A-3 · One registered UA bursting from hundreds of uncoordinated IPs · Med · S.** `DynastyCentral/1.0`
-  is hardcoded (`mflDevice.js:44`) rather than sourced from the registered `config.userAgent`. MFL sees
-  one client identity bursting from every device on Sunday — a global client-reputation risk the single-IP
-  model structurally prevented.
-- **A-4 · Beacon has an unbounded client-supplied map key · Low · S.** `recordDeviceRead` keys on the
-  client `read` string with no allowlist/cap (`metrics.js:55-70`); authed, so not open abuse, but a
-  memory-growth vector into a process-global map. Allowlist the known read names.
+- **A-3 · Device sends a hardcoded UA, not the registered one · Med · S · ✅ FIXED.** `DynastyCentral/1.0`
+  was hardcoded rather than sourced from the registered `config.userAgent`. **Fixed:** the cookie handoff
+  (`GET /api/session/mfl-cookie`) now returns `userAgent: config.userAgent`, the device stores it in
+  SecureStore with the creds, and `runDeviceRead` sends it (falling back to the default only for an older
+  handoff). So on-device reads carry the same validated client identity the backend does.
+- **A-4 · Beacon has an unbounded client-supplied map key · Low · S · ✅ FIXED.** `recordDeviceRead` keyed
+  on the client `read` string with no allowlist/cap — an authenticated memory-growth vector. **Fixed:**
+  the key is normalized against a fixed allowlist of the 11 known device-read names; anything else buckets
+  to `(other)`, so the map stays bounded. Tested (`player-lookup-test.js`: a 500-char bogus name lands
+  under `(other)`, never its own key).
 - **A-5 · Backend cross-user cache erosion · Low · —.** Device data bypasses `exportRequest`
   (`portfolio.js:358`), so shared-cache hit rate falls and fallbacks trend cold. No correctness bug
   (invalidation intact both sides); a hit-rate/latency regression that makes A-2's fallback colder.
@@ -152,11 +164,12 @@ Legend — severity **High / Med / Low**; effort **S** ~hours · **M** ~days · 
   (`deviceReadCache.js:31`), so every cold launch re-fans-out with no server-warm entry to lean on
   (freshness-neutral, latency cost). Reverses the prior review's central mitigation (warm loop + shared
   cache).
-- **A-8 · Draft's missing-league branch silently returns `none` · Med · S.** `draft.getOverview` refuses
-  a backend read for a league absent from the device map (`draft.js:370`), so a newly-joined league one
-  step ahead of the device's cached list **vanishes** from the draft overview — the owner could miss a
-  clock. A test currently *locks in* this behavior (`draft-scheduled-test.js:141-145`). Give it the
-  portfolio treatment (marked placeholder / per-league fallback, `portfolio.js:358-363`).
+- **A-8 · Draft's missing-league branch silently returned `none` · Med · S · ✅ FIXED** (PO-elevated to
+  must-fix — missed-clock risk). `draft.getOverview` refused a backend read for a league absent from the
+  device map, so a newly-joined league one step ahead of the device's cached list vanished from the draft
+  overview. **Fixed:** a league missing from the device map now falls back to a one-off backend read for
+  just that league (every present league stays device-served); the test now asserts the fallback + real
+  status instead of the old silent `none`.
 - **A-9 · #11 (covered-overlay polling) upgrades in urgency · Med · M.** A covered screen that keeps
   polling now spends the user's own IP/battery/cellular and risks a self-429, where before it was a cheap
   backend hit. Its prior slot should move earlier. Guardrail unchanged: gate background screens only,
