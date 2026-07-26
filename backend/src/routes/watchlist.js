@@ -9,9 +9,10 @@ const router = express.Router();
 router.use(requireSession);
 
 // GET /api/watchlist — starred players with their cross-league standing.
+// `?format=1qb|sf` re-prices the list through that value lens (matches the Players screen toggle).
 router.get('/watchlist', async (req, res, next) => {
   try {
-    res.json(checkResponse(schemas.Watchlist, await watchlist.getWatchlist(req.mflCookie, req.account), 'GET /watchlist'));
+    res.json(checkResponse(schemas.Watchlist, await watchlist.getWatchlist(req.mflCookie, req.account, { format: req.query.format || null }), 'GET /watchlist'));
   } catch (err) {
     next(err);
   }

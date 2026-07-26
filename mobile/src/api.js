@@ -157,8 +157,8 @@ export const api = {
   // Scan MFL playoff history across your leagues and add every championship found (source auto).
   detectTrophies: () => request('/api/trophies/detect', { method: 'POST', body: {} }),
 
-  // Cross-league watchlist
-  watchlist: () => request('/api/watchlist'),
+  // Cross-league watchlist. `format` ('1qb'|'sf') re-prices the list through that value lens.
+  watchlist: (format) => request(`/api/watchlist${format ? `?format=${format}` : ''}`),
   watchlistAlerts: () => request('/api/watchlist/alerts'),
   // Target / Avoid personal tags (±10% personal-value overlay). tag: 'target'|'avoid'|null.
   tags: () => request('/api/tags'),
@@ -217,10 +217,11 @@ export const api = {
   // Device-origin: the app supplies each league's freeAgents pool (overview) it fetched from MFL on-device.
   waiversOverviewDevice: (deviceReads) => request('/api/waivers/overview', { method: 'POST', body: { deviceReads } }),
   waiverSuggestions: () => request('/api/waivers/suggestions'),
-  bestAvailable: () => request('/api/waivers/best-available'),
+  // `format` ('1qb'|'sf') re-prices the board through that value lens (matches the Players toggle).
+  bestAvailable: (format) => request(`/api/waivers/best-available${format ? `?format=${format}` : ''}`),
   // Device-origin best-available: the app supplies the per-league freeAgents pools it fetched straight
   // from MFL on-device (the heaviest waiver fan-out) so the backend only enriches + merges.
-  bestAvailableDevice: (deviceReads) => request('/api/waivers/best-available', { method: 'POST', body: { deviceReads } }),
+  bestAvailableDevice: (deviceReads, format) => request(`/api/waivers/best-available${format ? `?format=${format}` : ''}`, { method: 'POST', body: { deviceReads } }),
   waiverPending: () => request('/api/waivers/pending'),
   previewClaim: (leagueId, body) => request(`/api/leagues/${leagueId}/waivers/preview`, { method: 'POST', body }),
   submitClaim: (leagueId, body) => request(`/api/leagues/${leagueId}/waivers`, { method: 'POST', body }),

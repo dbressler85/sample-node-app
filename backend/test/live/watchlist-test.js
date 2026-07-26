@@ -83,7 +83,23 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   const notStarred = await playerhub.profile(CK, TK, '2');
   assert(starred.watched === true, 'profile.watched true for a starred player');
   assert(notStarred.watched === false, 'profile.watched false for an unstarred player');
-  console.log('✓ profile.watched reflects the store');
+  // The profile carries BOTH value lenses (Q3): no single league to pick, so show 1QB and SF side by side.
+  assert(starred.values && ('1qb' in starred.values) && ('sf' in starred.values), 'profile exposes both value lenses (1qb + sf)');
+  console.log('✓ profile.watched reflects the store; profile carries both value lenses');
+
+  // Value lens (Q3): the Watch tab's SF↔1QB toggle re-prices the list through that format. Requesting
+  // the superflex lens must build the roll-up off the superflex value board (numQbs=2). Spy on the
+  // enrichment snapshot the service asks for — robust vs. the process-global FantasyCalc value cache,
+  // which a fetch-URL probe would miss once numQbs=2 was already primed by the profile's SF lens above.
+  const enrichmentLib = require('../../src/lib/enrichment');
+  const origSnapshot = enrichmentLib.snapshot;
+  let askedFmt;
+  enrichmentLib.snapshot = async (fmt, ck) => { askedFmt = fmt; return origSnapshot(fmt, ck); };
+  const wlSf = await watchlist.getWatchlist(CK, TK, { format: 'sf' });
+  enrichmentLib.snapshot = origSnapshot;
+  assert(askedFmt && askedFmt.numQbs === 2, `SF lens prices the watchlist off the superflex value board (numQbs=2), got ${JSON.stringify(askedFmt)}`);
+  assert(wlSf.players.length === 3, 'SF-lens watchlist still returns the watched players');
+  console.log('✓ value lens: SF toggle re-prices the watchlist through the superflex value board');
 
   // Unstar removes it.
   watchlist.remove(TK, '99');

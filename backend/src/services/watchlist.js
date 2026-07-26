@@ -20,6 +20,7 @@ const draftService = require('./draft');
 const tradesService = require('./trades');
 const standingLib = require('../lib/standing');
 const pointsMaps = require('../lib/pointsMaps');
+const leagueFormat = require('../lib/leagueformat');
 const watchStore = require('../store/watchlist');
 
 async function ctxFor(cookie) {
@@ -64,13 +65,15 @@ function relationIn(roster, faSet, id, draftOpen) {
   return { relation: 'rostered', bucket: null }; // on another team → trade target
 }
 
-async function getWatchlist(cookie, token) {
+// `format` (optional) re-prices the watchlist through a single value lens ('1qb' | 'sf') so the
+// Watch tab tracks the Players screen's SF↔1QB toggle; null uses the neutral market (docs/DATA_SOURCES.md Q3).
+async function getWatchlist(cookie, token, { format = null } = {}) {
   const ids = watchStore.list(token);
   if (!ids.length) return { players: [], totalLeagues: 0 };
 
   const [byId, enr, ctx] = await Promise.all([
     playersLib.load(cookie),
-    enrichmentLib.snapshot(undefined, cookie),
+    enrichmentLib.snapshot(leagueFormat.lensFormat(format), cookie),
     ctxFor(cookie),
   ]);
   const [data, rawNews] = await Promise.all([

@@ -216,17 +216,17 @@ export function draftsPreferDevice() {
 // heaviest waiver read (up to thousands of players per league) — straight from MFL on-device, then hand
 // the pools to the backend to check open/closed, apply settings, enrich, and merge across leagues (all of
 // which read backend format/settings). All-or-nothing: any per-league read failure falls back to the backend.
-export async function deviceBestAvailable() {
+export async function deviceBestAvailable(format) {
   const { leagues } = await api.leaguesList();
   const list = (leagues || []).filter((l) => l && l.leagueId);
-  if (!list.length) return api.bestAvailable();
+  if (!list.length) return api.bestAvailable(format);
   const entries = await Promise.all(
     list.map(async (l) => [l.leagueId, await runDeviceRead(mflRead.reads.freeAgents, l.leagueId)])
   );
-  return api.bestAvailableDevice(Object.fromEntries(entries));
+  return api.bestAvailableDevice(Object.fromEntries(entries), format);
 }
-export function bestAvailablePreferDevice() {
-  return preferDevice('bestAvailable', () => deviceBestAvailable(), () => api.bestAvailable());
+export function bestAvailablePreferDevice(format) {
+  return preferDevice('bestAvailable', () => deviceBestAvailable(format), () => api.bestAvailable(format));
 }
 
 // Waivers overview ("landing" list), device-first: each league's freeAgents pool is the one heavy read

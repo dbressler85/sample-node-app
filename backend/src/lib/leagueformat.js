@@ -255,4 +255,16 @@ function label(fmt) {
   return `${qb} · ${pprLabel}${te}`;
 }
 
-module.exports = { requirements, startersSpec, format, numQbs, scoringRules, label, draftClockConfig, parseDraftClock };
+// Map a value-LENS keyword ('1qb' | 'sf') to a format for the enrichment snapshot, so a global list
+// screen (no single league to key on) can re-price its values through a chosen lens. Only numQbs varies
+// (PPR stays the dynasty-norm full PPR); an unrecognized lens returns undefined = enrichment's neutral
+// default snapshot. Shared so every list surface prices the same way (docs/DATA_SOURCES.md Q3).
+function lensFormat(lens) {
+  const f = String(lens || '').toLowerCase();
+  if (f === 'sf' || f === 'superflex' || f === '2qb') return { numQbs: 2, ppr: 1, tePpr: 1 };
+  if (f === '1qb' || f === 'single') return { numQbs: 1, ppr: 1, tePpr: 1 };
+  return undefined;
+}
+const lensKey = (lens) => (lensFormat(lens) && lensFormat(lens).numQbs === 2 ? 'sf' : '1qb');
+
+module.exports = { requirements, startersSpec, format, numQbs, scoringRules, label, draftClockConfig, parseDraftClock, lensFormat, lensKey };

@@ -18,6 +18,7 @@ const demo = require('../demo/fixtures');
 const leaguesService = require('./leagues');
 const rosterService = require('./roster');
 const leagueContext = require('../lib/leagueContext');
+const leagueFormat = require('../lib/leagueformat');
 const baitStore = require('../store/tradebait');
 const playerTags = require('../store/playerTags');
 const watchlist = require('../store/watchlist');
@@ -157,9 +158,8 @@ async function getBlock(cookie, token) {
   if (config.demoMode) return getBlockDemo(cookie, token);
 
   const allLeagues = await leaguesService.listLeagues(cookie);
-  const [byId, enr, ctx] = await Promise.all([
+  const [byId, ctx] = await Promise.all([
     playersLib.load(cookie),
-    enrichmentLib.snapshot(undefined, cookie),
     ctxFor(cookie),
   ]);
 
@@ -178,10 +178,14 @@ async function getBlock(cookie, token) {
   // Phase 2 (parallel): only leagues with bait pay for a roster + franchise read.
   const leagues = await Promise.all(
     active.map(async ({ league, tokens, note, localEntries }) => {
-      const [roster, franchises, context] = await Promise.all([
+      // Price this league's bait through ITS OWN format — a superflex QB you're shopping is worth far
+      // more than the same QB in a 1QB league, so each block shows the value that league would pay
+      // (docs/DATA_SOURCES.md Q3). Snapshots memoize per format, so repeated formats are cheap.
+      const [roster, franchises, context, enr] = await Promise.all([
         rosterService.getRoster(cookie, league.leagueId).catch(() => null),
         rosterService.leagueFranchises(cookie, league.leagueId).catch(() => []),
         leagueContext.build(cookie, league).catch(() => null),
+        enrichmentLib.snapshot(await leagueFormat.format(cookie, league), cookie),
       ]);
       const noteById = new Map(localEntries.map((e) => [String(e.playerId), e.note]));
       const players = tokens
@@ -279,14 +283,17 @@ async function getBlockDemo(cookie, token) {
 async function getMarket(cookie, token) {
   if (config.demoMode) return { leagues: [], totals: { teams: 0, assets: 0, leagues: 0 } };
   const leagues = await leaguesService.orderedLeagues(cookie, token);
-  const [byId, enr, ctx] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(undefined, cookie), ctxFor(cookie)]);
+  const [byId, ctx] = await Promise.all([playersLib.load(cookie), ctxFor(cookie)]);
 
   const out = await Promise.all(
     leagues.map(async (league) => {
-      const [baits, names, context] = await Promise.all([
+      // Price each league's market through ITS OWN format (docs/DATA_SOURCES.md Q3), so a rival's
+      // superflex QB is valued as this league would pay — not at the neutral 1QB market.
+      const [baits, names, context, enr] = await Promise.all([
         mflRepo.tradeBaits(league, cookie, { INCLUDE_DRAFT_PICKS: 1 }).catch(() => []),
         leaguesService.franchiseNames(cookie, league).catch(() => new Map()),
         leagueContext.build(cookie, league).catch(() => null),
+        enrichmentLib.snapshot(await leagueFormat.format(cookie, league), cookie),
       ]);
       const teams = baits
         .filter((b) => mfl.text(mfl.attr(b, 'franchise_id', 'franchiseId')) !== String(league.franchiseId))

@@ -96,6 +96,20 @@ const L = { leagueId: 'L1', host: 'www10.myfantasyleague.com' };
   assert(JSON.stringify(gdev.players.map((p) => p.id)) === JSON.stringify(gget.players.map((p) => p.id)), 'device best-available has the same players in the same order as the backend');
   console.log(`✓ device-origin best-available: app-supplied freeAgents → identical board, zero backend freeAgents reads (${gdev.players.length} players)`);
 
+  // Value lens (Q3): the Free Agents tab's SF↔1QB toggle re-prices the board through that format. The SF
+  // lens must build the board off the superflex value board (numQbs=2). Spy on the enrichment snapshot the
+  // service asks for — robust vs. the process-global FantasyCalc value cache, which a fetch-URL probe would
+  // miss once numQbs=2 was already primed elsewhere.
+  const enrichmentLib = require('../../src/lib/enrichment');
+  const origSnapshot = enrichmentLib.snapshot;
+  let askedFmt;
+  enrichmentLib.snapshot = async (fmt, ck) => { askedFmt = fmt; return origSnapshot(fmt, ck); };
+  const gsf = await waivers.getBestAvailable(CK, TK, { format: 'sf' });
+  enrichmentLib.snapshot = origSnapshot;
+  assert(askedFmt && askedFmt.numQbs === 2, `SF lens prices best-available off the superflex value board (numQbs=2), got ${JSON.stringify(askedFmt)}`);
+  assert(gsf.players.length === gget.players.length, `SF-lens best-available returns the same player set (${gget.players.length}), got ${gsf.players.length}`);
+  console.log('✓ value lens: SF toggle re-prices best-available through the superflex value board');
+
   // Same freeAgents injection for the waiver OVERVIEW (landing summary): faCount comes from the pool.
   // Use a COLD cookie for the device call (freeAgentIds memoizes per cookie, and the block above warmed
   // CK's) so "zero freeAgents reads" genuinely proves the injection rather than a memo hit.
