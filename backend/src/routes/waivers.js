@@ -35,6 +35,18 @@ router.get('/waivers/best-available', async (req, res, next) => {
   }
 });
 
+// POST /api/waivers/best-available — same board, but the per-league freeAgents pools are supplied by the
+// DEVICE (fetched straight from MFL on-device) so the heaviest fan-out leaves the shared IP. Body:
+// { deviceReads: { [leagueId]: <freeAgents units> } }. Settings/enrichment/merge stay on the backend.
+router.post('/waivers/best-available', async (req, res, next) => {
+  try {
+    const { deviceReads } = req.body || {};
+    res.json(checkResponse(schemas.WaiversBest, await waivers.getBestAvailable(req.mflCookie, req.account, { deviceReads: deviceReads || null }), 'POST /waivers/best-available'));
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/waivers/pending — pending claims + recent results across leagues.
 router.get('/waivers/pending', async (req, res, next) => {
   try {

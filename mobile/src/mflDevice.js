@@ -211,3 +211,20 @@ export async function deviceDrafts() {
 export function draftsPreferDevice() {
   return preferDevice('drafts', () => deviceDrafts(), () => api.drafts());
 }
+
+// Cross-league best-available free agents, device-first: fetch every league's freeAgents pool — the
+// heaviest waiver read (up to thousands of players per league) — straight from MFL on-device, then hand
+// the pools to the backend to check open/closed, apply settings, enrich, and merge across leagues (all of
+// which read backend format/settings). All-or-nothing: any per-league read failure falls back to the backend.
+export async function deviceBestAvailable() {
+  const { leagues } = await api.leaguesList();
+  const list = (leagues || []).filter((l) => l && l.leagueId);
+  if (!list.length) return api.bestAvailable();
+  const entries = await Promise.all(
+    list.map(async (l) => [l.leagueId, await runDeviceRead(mflRead.reads.freeAgents, l.leagueId)])
+  );
+  return api.bestAvailableDevice(Object.fromEntries(entries));
+}
+export function bestAvailablePreferDevice() {
+  return preferDevice('bestAvailable', () => deviceBestAvailable(), () => api.bestAvailable());
+}

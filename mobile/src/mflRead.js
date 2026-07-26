@@ -128,6 +128,17 @@ const reads = {
       return toArray(res && res.transactions && res.transactions.transaction);
     },
   },
+  // `freeAgents` -> the league unit(s); each nests player[]. The waivers service flattens to ids.
+  freeAgents: {
+    type: 'freeAgents',
+    needsAuth: true,
+    request({ host, year, league, params = {} }) {
+      return { url: buildExportUrl({ host, year, type: 'freeAgents', league, params }), needsAuth: true };
+    },
+    parse(res) {
+      return toArray(res && res.freeAgents && res.freeAgents.leagueUnit);
+    },
+  },
   // `draftResults` -> the draft unit(s) (each nests draftPick[]); the draft service parses order/status.
   draftResults: {
     type: 'draftResults',

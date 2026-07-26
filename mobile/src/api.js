@@ -212,6 +212,9 @@ export const api = {
   waiversOverview: () => request('/api/waivers/overview'),
   waiverSuggestions: () => request('/api/waivers/suggestions'),
   bestAvailable: () => request('/api/waivers/best-available'),
+  // Device-origin best-available: the app supplies the per-league freeAgents pools it fetched straight
+  // from MFL on-device (the heaviest waiver fan-out) so the backend only enriches + merges.
+  bestAvailableDevice: (deviceReads) => request('/api/waivers/best-available', { method: 'POST', body: { deviceReads } }),
   waiverPending: () => request('/api/waivers/pending'),
   previewClaim: (leagueId, body) => request(`/api/leagues/${leagueId}/waivers/preview`, { method: 'POST', body }),
   submitClaim: (leagueId, body) => request(`/api/leagues/${leagueId}/waivers`, { method: 'POST', body }),
