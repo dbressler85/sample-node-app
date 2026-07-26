@@ -59,12 +59,31 @@ export async function deviceRosters(leagueId) {
 // (readConcurrency / readStaggerMs — 8 / 75ms with the registered API key); we mirror it so the device's
 // own IP paces exactly like the registered backend, and a re-tune follows without an app rebuild. Falls back
 // to poolMap's own defaults (the backend's unregistered 4 / 150ms floor) when an older handoff omitted them.
-async function devicePool(list, fn) {
+async function poolOpts() {
   const creds = await loadMflCreds();
-  return poolMap(list, fn, {
+  return {
     concurrency: creds && creds.readConcurrency ? creds.readConcurrency : undefined,
     staggerMs: creds && creds.readStaggerMs != null ? creds.readStaggerMs : undefined,
-  });
+  };
+}
+async function devicePool(list, fn) {
+  return poolMap(list, fn, await poolOpts());
+}
+
+// A-2 (partial-tolerant aggregates): run a cross-league fan-out that NEVER rejects on a single league's
+// failure. Returns { fulfilled: successful fn() values, rejected: [{ item, error }] }. A single 429 then
+// drops just that league (successes kept) instead of the old all-or-nothing Promise.all, which discarded
+// every already-succeeded read AND made preferDevice re-run the FULL N-league backend fan-out (~2N reads
+// on the shared IP, precisely under MFL stress). The caller sends only the fulfilled leagues; the backend
+// aggregate fills or placeholders the dropped ones per its own policy (portfolio → marked placeholder +
+// `partial` flag for U-1; drafts/lineups/picks → per-league backend read). Same concurrency/stagger as
+// devicePool. If EVERYTHING fails, the caller throws so preferDevice does a clean whole-backend fallback.
+async function settlePool(list, fn) {
+  const outcomes = await poolMap(list, fn, { ...(await poolOpts()), settle: true });
+  return {
+    fulfilled: outcomes.filter((o) => o.ok).map((o) => o.value),
+    rejected: outcomes.filter((o) => !o.ok).map((o) => ({ item: o.item, error: o.error })),
+  };
 }
 
 // Categorize WHY a device read fell back, so the /_metrics beacon can show "when does it break" (not
@@ -193,9 +212,11 @@ export async function devicePortfolio() {
   const { leagues } = await api.leaguesList();
   const list = (leagues || []).filter((l) => l && l.leagueId);
   if (!list.length) return api.portfolio();
-  const entries = await devicePool(list, async (l) => [l.leagueId, await runDeviceRead(mflRead.reads.rosters, l.leagueId)]);
-  const deviceRosters = Object.fromEntries(entries);
-  return api.portfolioDevice(deviceRosters);
+  // Partial-tolerant (A-2): send only the leagues that succeeded; the backend marks the rest as placeholders
+  // and flags the total `partial` (surfaced by U-1). Only a TOTAL device failure falls back to the backend.
+  const { fulfilled } = await settlePool(list, async (l) => [l.leagueId, await runDeviceRead(mflRead.reads.rosters, l.leagueId)]);
+  if (!fulfilled.length) throw new Error('device portfolio: all leagues failed');
+  return api.portfolioDevice(Object.fromEntries(fulfilled));
 }
 export function portfolioPreferDevice() {
   return preferDevice('portfolio', () => devicePortfolio(), () => api.portfolio());
@@ -209,14 +230,17 @@ export async function deviceDrafts() {
   const { leagues } = await api.leaguesList();
   const list = (leagues || []).filter((l) => l && l.leagueId);
   if (!list.length) return api.drafts();
-  const entries = await devicePool(list, async (l) => {
+  // Partial-tolerant (A-2): a league that fails on-device is simply not sent; the backend reads just that
+  // league itself (per-league fallback), so the overview stays complete without discarding the successes.
+  const { fulfilled } = await settlePool(list, async (l) => {
     const [draftResults, calendar] = await Promise.all([
       runDeviceRead(mflRead.reads.draftResults, l.leagueId),
       runDeviceRead(mflRead.reads.calendar, l.leagueId),
     ]);
     return [l.leagueId, { draftResults, calendar }];
   });
-  return api.draftsDevice(Object.fromEntries(entries));
+  if (!fulfilled.length) throw new Error('device drafts: all leagues failed');
+  return api.draftsDevice(Object.fromEntries(fulfilled));
 }
 export function draftsPreferDevice() {
   return preferDevice('drafts', () => deviceDrafts(), () => api.drafts());
@@ -246,7 +270,8 @@ export async function devicePickInventory() {
   const { leagues } = await api.leaguesList();
   const list = (leagues || []).filter((l) => l && l.leagueId);
   if (!list.length) return api.pickInventory();
-  const entries = await devicePool(list, async (l) => {
+  // Partial-tolerant (A-2): failed leagues are omitted; the backend reads just those itself (per-league fallback).
+  const { fulfilled } = await settlePool(list, async (l) => {
     const [assets, futureDraftPicks, draftResults] = await Promise.all([
       runDeviceRead(mflRead.reads.assets, l.leagueId),
       runDeviceRead(mflRead.reads.futureDraftPicks, l.leagueId),
@@ -254,7 +279,8 @@ export async function devicePickInventory() {
     ]);
     return [l.leagueId, { assets, futureDraftPicks, draftResults }];
   });
-  return api.pickInventoryDevice(Object.fromEntries(entries));
+  if (!fulfilled.length) throw new Error('device pick inventory: all leagues failed');
+  return api.pickInventoryDevice(Object.fromEntries(fulfilled));
 }
 export function pickInventoryPreferDevice() {
   return preferDevice('pickInventory', () => devicePickInventory(), () => api.pickInventory());
@@ -278,8 +304,10 @@ export async function deviceLineups(mode) {
   const { leagues } = await api.leaguesList();
   const list = (leagues || []).filter((l) => l && l.leagueId);
   if (!list.length) return api.lineups(mode);
-  const entries = await devicePool(list, async (l) => [l.leagueId, await runDeviceRead(mflRead.reads.rosters, l.leagueId)]);
-  return api.lineupsDevice(mode, Object.fromEntries(entries));
+  // Partial-tolerant (A-2): failed leagues are omitted; the backend reads just those itself (per-league fallback).
+  const { fulfilled } = await settlePool(list, async (l) => [l.leagueId, await runDeviceRead(mflRead.reads.rosters, l.leagueId)]);
+  if (!fulfilled.length) throw new Error('device lineups: all leagues failed');
+  return api.lineupsDevice(mode, Object.fromEntries(fulfilled));
 }
 export function lineupsPreferDevice(mode) {
   return preferDevice('lineups', () => deviceLineups(mode), () => api.lineups(mode));

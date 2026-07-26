@@ -124,11 +124,13 @@ Legend — severity **High / Med / Low**; effort **S** ~hours · **M** ~days · 
 > **Status (2026-07-26):** ✅ done — **A-1** (device fan-out limiter, paced to the backend's registered
 > 8/75 envelope via the handoff), **A-3** (registered UA), **A-4** (beacon key allowlist), **A-8** (draft
 > missing-league fallback), **A-9** (covered-overlay polling — verified already gated by the keep-alive nav),
-> **A-10** (heavy free-agent pool kept backend-only). Remaining: **A-2** (partial-tolerant aggregates — pair
-> with the U-1 "complete/partial" affordance so a fallback can't paint a half-empty screen), **A-6** (device
-> parser-version + sampled shadow-compare), **A-12** (a `preferDevice` fallback-path test; the new fan-out
-> logic is covered by `poolMap.test.js`). Accept-with-doc: **A-5** (cache erosion), **A-7** (cold-start),
-> **A-11** (self-scoped trust).
+> **A-10** (heavy free-agent pool kept backend-only), **A-2** (partial-tolerant aggregates via `settlePool`),
+> **U-1** ("complete/partial" affordance — already present on Portfolio, now reachable). Remaining: **A-6**
+> (device parser-version + sampled shadow-compare), **A-12** (a `preferDevice` fallback-path test; the new
+> fan-out logic is covered by `poolMap.test.js`). Accept-with-doc: **A-5** (cache erosion), **A-7**
+> (cold-start), **A-11** (self-scoped trust). U-series remaining: **U-2** (Sunday battery/data budget),
+> **U-3** (fast offline fail), **U-4** (backend-independent reads during an outage), **U-5** (device-faster
+> headline), **U-6** (shadow-compare — pairs with A-6), **U-7** (calm expired-cookie re-login).
 
 - **A-1 · Device omits the request discipline it was specified to mirror · Med · S · ✅ FIXED.** The device
   fired `Promise.all` across 15–20 leagues with **no stagger, no concurrency cap, no 429 backoff** —
@@ -144,12 +146,23 @@ Legend — severity **High / Med / Low**; effort **S** ~hours · **M** ~days · 
   A-6. A single device-wide limiter across *concurrent* fan-outs — the exact mirror of the backend's one
   global queue — is a possible further refinement; per-fan-out pooling is sufficient given the app rarely
   runs two big fan-outs at once.)
-- **A-2 · All-or-nothing aggregates re-concentrate load under stress (~2N amplification) · Med · M.** One
-  league's 429 rejects the whole device `Promise.all`, discards up to 60 *successful* device reads, and
-  re-runs the full N-league fan-out on the backend FIFO (`mflDevice.js:71-91`). On a Sunday MFL
-  rate-limit, many devices fall back at once — handing the backend the very herd device-origin was meant
-  to offload, *plus* the wasted device attempts. Fix: **partial-tolerant aggregates** — fall back only the
-  leagues that failed.
+- **A-2 · All-or-nothing aggregates re-concentrate load under stress (~2N amplification) · Med · M · ✅ FIXED.**
+  One league's 429 rejected the whole device `Promise.all`, discarded every *successful* device read, and
+  re-ran the full N-league fan-out on the backend FIFO (~2N reads under MFL stress). **Fixed:** the four
+  aggregate fan-outs (portfolio, drafts, pick-inventory, lineups) now use a **settle** variant of `poolMap`
+  (`settle: true` → per-item outcomes, never rejects) via `settlePool` (`mflDevice.js`): a failed league is
+  dropped from the device map (successes kept), and only a *total* device failure throws for a clean
+  whole-backend fallback. The backend aggregates already tolerate a partial map — portfolio marks missing
+  leagues as placeholders and flags `totals.partial` (**U-1**); drafts/lineups/picks read just the missing
+  league from the backend (per-league fallback, complete data). Amplification drops from ~2N to N (or
+  N + the few failed). Settle-mode unit-tested (`poolMap.test.js`); the backend partial contract is already
+  covered (`portfolio-dashboard-test.js:145-148`). (Exposure stays all-or-nothing — a Shape-A device-
+  *assembled* view where a partial cross-league roll-up would be silently lossy.)
+- **U-1 · "complete vs partial" freshness signal · ✅ ALREADY PRESENT (now reachable).** Portfolio already
+  renders "⚠ N of M leagues couldn't load — this total is partial. Pull to refresh." from
+  `totals.partial`/`failedCount` (`PortfolioScreen.js:164-168`), plus the `⚡ … · M leagues` device note.
+  A-2 is what makes it *reachable* via the device path (before, the device only ever sent a complete map or
+  fell back wholesale). Drafts/lineups/picks backend-fill missing leagues, so they have no partial state.
 - **A-3 · Device sends a hardcoded UA, not the registered one · Med · S · ✅ FIXED.** `DynastyCentral/1.0`
   was hardcoded rather than sourced from the registered `config.userAgent`. **Fixed:** the cookie handoff
   (`GET /api/session/mfl-cookie`) now returns `userAgent: config.userAgent`, the device stores it in

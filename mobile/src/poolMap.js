@@ -8,13 +8,15 @@
 // Sunday fan-out feel slower — the PO's explicit warning): a small concurrency cap keeps first paint fast
 // while staying polite.
 //
-// Preserves input order in the result. Rejects on the first error, so callers keep their existing
-// all-or-nothing → backend-fallback semantics (partial-tolerance is a separate item, A-2). Pure and
-// dependency-free (injectable `sleep`) so the concurrency/stagger logic is unit-tested off-device.
+// Preserves input order in the result. By default rejects on the first error (all-or-nothing → the caller
+// falls back to the backend). With `settle: true` it never rejects on a per-item failure: each result is an
+// outcome `{ ok, value | error, item }`, so a single failure drops just that item instead of discarding the
+// whole fan-out — the partial-tolerance A-2 needs. Pure and dependency-free (injectable `sleep`) so the
+// concurrency/stagger/settle logic is unit-tested off-device.
 
 const realSleep = (ms) => (ms > 0 ? new Promise((r) => setTimeout(r, ms)) : Promise.resolve());
 
-async function poolMap(items, fn, { concurrency = 4, staggerMs = 150, sleep = realSleep } = {}) {
+async function poolMap(items, fn, { concurrency = 4, staggerMs = 150, sleep = realSleep, settle = false } = {}) {
   const list = items || [];
   const results = new Array(list.length);
   let next = 0;
@@ -30,7 +32,15 @@ async function poolMap(items, fn, { concurrency = 4, staggerMs = 150, sleep = re
       next += 1;
       if (i >= list.length) return;
       if (i >= workerCount) await sleep(staggerMs);
-      results[i] = await fn(list[i], i);
+      if (settle) {
+        try {
+          results[i] = { ok: true, value: await fn(list[i], i), item: list[i] };
+        } catch (error) {
+          results[i] = { ok: false, error, item: list[i] };
+        }
+      } else {
+        results[i] = await fn(list[i], i);
+      }
     }
   }
 

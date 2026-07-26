@@ -47,6 +47,21 @@ test('empty list is a no-op', async () => {
   assert.deepEqual(await poolMap([], async () => 1, { sleep: noSleep }), []);
 });
 
+test('settle mode: never rejects; per-item outcomes keep successes + isolate failures (A-2)', async () => {
+  const out = await poolMap([1, 2, 3, 4], async (n) => { if (n === 2) throw new Error('boom-2'); return n * 10; }, { concurrency: 2, staggerMs: 0, sleep: noSleep, settle: true });
+  assert.equal(out.length, 4, 'one outcome per item, in order');
+  assert.deepEqual(out.map((o) => o.ok), [true, false, true, true], 'only the failing item is not ok');
+  assert.deepEqual(out.filter((o) => o.ok).map((o) => o.value), [10, 30, 40], 'successes carry their value');
+  const failed = out.find((o) => !o.ok);
+  assert.equal(failed.item, 2, 'the failed outcome carries its source item');
+  assert.match(failed.error.message, /boom-2/, 'the failed outcome carries its error');
+});
+
+test('settle mode: all-failing still resolves (caller decides to whole-fallback)', async () => {
+  const out = await poolMap([1, 2], async () => { throw new Error('nope'); }, { staggerMs: 0, sleep: noSleep, settle: true });
+  assert.equal(out.filter((o) => o.ok).length, 0, 'zero fulfilled → the caller throws for a clean backend fallback');
+});
+
 test('staggers via the injected sleep (spacing requested, not a per-call 1s block)', async () => {
   const sleeps = [];
   const sleep = (ms) => { sleeps.push(ms); return Promise.resolve(); };
