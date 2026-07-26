@@ -20,6 +20,7 @@ const enrichmentLib = require('../lib/enrichment');
 const seasonStatsLib = require('../lib/seasonStats');
 const pointsMaps = require('../lib/pointsMaps');
 const leagueFormat = require('../lib/leagueformat');
+const adpLib = require('../lib/adp');
 const standingLib = require('../lib/standing');
 const leaguesService = require('./leagues');
 const rosterService = require('./roster');
@@ -510,17 +511,21 @@ async function profile(cookie, token, playerId) {
     median = projs.length ? Math.max(...projs) : null;
   }
   const outlook = median != null ? scoringLib.band(median, base.position) : null;
+  // Canonical ADP = the market `adp` export (same source that orders the draft board), NOT
+  // playerProfile.adp — so a player's profile ADP and his board position agree (docs/DATA_SOURCES.md Q2).
+  const adp = config.demoMode ? null : await adpLib.adpMap(cookie).then((m) => m.get(String(playerId)) ?? null).catch(() => null);
 
   return {
     id: base.id,
     name: base.name,
     position: base.position,
     team: base.team,
-    // Prefer MFL's authoritative age; fall back to the enrichment's approximate one.
-    age: (bio && bio.age) || enr.age(playerId),
-    // Authoritative bio for the profile header (DOB / height / weight / ADP). Null in demo or
-    // when the profile read failed — the app falls back to what it already shows.
-    bio: bio ? { dob: bio.dob, age: bio.age, height: bio.height, weight: bio.weight, adp: bio.adp } : null,
+    // Canonical age = the enrichment (FantasyCalc) age, used on every list — so the profile header and
+    // the lists never show two different ages for one player (docs/DATA_SOURCES.md Q1).
+    age: enr.age(playerId),
+    // Bio header (DOB / height / weight from MFL playerProfile; ADP from the market export). Null in demo
+    // or when both reads failed.
+    bio: bio || adp != null ? { dob: bio && bio.dob, height: bio && bio.height, weight: bio && bio.weight, adp } : null,
     byeWeek: byeMap[base.team] || null,
     // Headshot from the Sleeper CDN (via the FantasyCalc mfl→sleeper crosswalk); null falls
     // back to the position badge in the app.

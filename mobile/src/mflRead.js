@@ -251,11 +251,14 @@ function enrichRoster(franchises, dict) {
   });
 }
 
-// MFL roster status → the screen's slot bucket (drives the IR/TAXI tag). Mirrors the backend's slotOf.
+// MFL roster status → the screen's scouting slot (drives the IR/TAXI tag; starter folds to active).
+// EXACT-token match against the same vocabularies as the backend's rosterStatus.rosterSlot (long forms
+// from the rosters export AND the short codes IR/TAXI/TS) — never a substring test, so a status that
+// merely contains "TS"/"IR" can't false-positive, and the short taxi code `TS` correctly reads as taxi.
 function rosterSlot(status) {
-  const s = String(status || '').toUpperCase();
-  if (s.includes('INJUR') || s === 'IR') return 'ir';
-  if (s.includes('TAXI')) return 'taxi';
+  const s = String(status || '').trim().toUpperCase();
+  if (s === 'INJURED_RESERVE' || s === 'IR') return 'ir';
+  if (s === 'TAXI_SQUAD' || s === 'TAXI' || s === 'TS') return 'taxi';
   return 'active';
 }
 

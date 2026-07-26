@@ -379,9 +379,13 @@ const SLOW_TYPES = new Set(['projectedScores', 'playerScores']);
 const LEAGUE_GLOBAL_TYPES = new Set([
   'rosters', 'freeAgents', 'liveScoring', 'projectedScores', 'playerScores',
   'leagueStandings', 'schedule', 'calendar', 'playoffBrackets', 'league', 'rules',
-  'draftResults', 'assets', 'tradeBait', 'transactions',
-  'players', 'nflSchedule', 'topOwns', 'topAdds', 'playerProfile', 'injuries',
+  'draftResults', 'assets', 'tradeBait', 'transactions', 'futureDraftPicks',
+  'players', 'nflSchedule', 'topOwns', 'topAdds', 'playerProfile', 'injuries', 'adp',
 ]);
+// `futureDraftPicks` (a league's future picks) and `adp` (site-wide market ADP) are member/account
+// invariant — same response for everyone — so they share one cached copy like `assets`/`players` rather
+// than re-fetching per user (docs/DATA_SOURCES.md Q7). The FETCH still authenticates with the caller's
+// cookie; the cache KEY just drops it.
 // NOTE on `injuries`: it's a site-wide NFL feed (keyed only by week `W`, not by league or user), read
 // on EVERY roster and lineup build (availability). Keeping it per-cookie meant each user re-fetched
 // the identical list every 5 min on the Sunday hot path; sharing it (cookie dropped from the key) makes

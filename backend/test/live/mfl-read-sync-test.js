@@ -157,6 +157,9 @@ console.log('✓ shapeRoster applies fid padding + $t-safe fields');
   // 12. exposureBucket: full status vocabulary, starter kept DISTINCT from bench (unlike rosterSlot).
   assert(mflRead.exposureBucket('STARTER') === 'starter' && mflRead.rosterSlot('STARTER') === 'active', 'exposureBucket keeps STARTER distinct where rosterSlot folds it to active');
   assert(mflRead.exposureBucket('INJURED_RESERVE') === 'ir' && mflRead.exposureBucket('TS') === 'taxi' && mflRead.exposureBucket('nonstarter') === 'bench', 'ir/taxi/bench tokens bucket correctly');
+  // rosterSlot (scouting fold) matches the backend vocabulary via EXACT tokens — incl. the short taxi
+  // code TS → taxi (a substring test used to mislabel it 'active'); starter still folds to active.
+  assert(mflRead.rosterSlot('TS') === 'taxi' && mflRead.rosterSlot('TAXI_SQUAD') === 'taxi' && mflRead.rosterSlot('IR') === 'ir' && mflRead.rosterSlot('INJURED_RESERVE') === 'ir', 'rosterSlot exact-token: TS/TAXI_SQUAD→taxi, IR/INJURED_RESERVE→ir');
 
   // 13. assembleExposure: device per-league rosters + enrichment dict → the cross-league exposure feed.
   const exRosters = [
