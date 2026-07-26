@@ -5,7 +5,7 @@ import { colors, positionColors } from '../theme';
 import ErrorView from '../components/ErrorView';
 import useAndroidBack from '../useAndroidBack';
 import useCachedResource from '../useCachedResource';
-import { leagueTeamsPreferDevice } from '../mflDevice';
+import { leagueTeamsPreferDevice, standingsPreferDevice } from '../mflDevice';
 
 // The league hub: the ordinary league views the app was missing — Standings,
 // Rosters (browse every team = opponent scouting), and a Transactions feed. Reached
@@ -55,7 +55,9 @@ export default function LeagueScreen({ league, onBack, onOpenPlayer, onOpenPlayo
 
 // --- Standings ----------------------------------------------------------------
 function StandingsTab({ leagueId }) {
-  const { data, error, refreshing, reload } = useCachedResource(`league:standings:${leagueId}`, () => api.leagueStandings(leagueId));
+  // Device-first: the leagueStandings export straight from MFL on-device + the backend directory
+  // (names + playoff line); silently falls back to the backend on any device-read failure.
+  const { data, error, refreshing, reload } = useCachedResource(`league:standings:${leagueId}`, () => standingsPreferDevice(leagueId));
   if (error && !data) return <ErrorView message={error} onRetry={reload} onRefresh={reload} refreshing={refreshing} />;
   if (!data) return <Center><ActivityIndicator color={colors.accent} size="large" /></Center>;
 
@@ -66,11 +68,14 @@ function StandingsTab({ leagueId }) {
       contentContainerStyle={styles.list}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={reload} tintColor={colors.accent} />}
       ListHeaderComponent={
-        <View style={styles.stHead}>
-          <Text style={[styles.stRank, styles.stHeadText]}>#</Text>
-          <Text style={[styles.stTeam, styles.stHeadText]}>Team</Text>
-          <Text style={[styles.stRec, styles.stHeadText]}>W-L</Text>
-          <Text style={[styles.stPf, styles.stHeadText]}>PF</Text>
+        <View>
+          {data._source === 'device' ? <Text style={styles.deviceNote}>⚡ Standings live from MFL on-device</Text> : null}
+          <View style={styles.stHead}>
+            <Text style={[styles.stRank, styles.stHeadText]}>#</Text>
+            <Text style={[styles.stTeam, styles.stHeadText]}>Team</Text>
+            <Text style={[styles.stRec, styles.stHeadText]}>W-L</Text>
+            <Text style={[styles.stPf, styles.stHeadText]}>PF</Text>
+          </View>
         </View>
       }
       renderItem={({ item }) => (

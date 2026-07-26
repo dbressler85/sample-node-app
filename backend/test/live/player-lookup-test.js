@@ -46,8 +46,8 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
     const fr = await fetch(`${base}/api/leagues/${leagueId}/franchises`, { headers: { Authorization: `Bearer ${token}` } });
     assert(fr.status === 200, `franchises endpoint → 200, got ${fr.status}`);
     const fb = await fr.json();
-    assert(fb && typeof fb.franchises === 'object' && 'mine' in fb, 'franchise directory has { franchises, mine }');
-    console.log('✓ /api/leagues/:id/franchises: returns { franchises, mine }');
+    assert(fb && typeof fb.franchises === 'object' && 'mine' in fb && 'playoffSpots' in fb, 'franchise directory has { franchises, mine, playoffSpots }');
+    console.log('✓ /api/leagues/:id/franchises: returns { franchises, mine, playoffSpots }');
 
     // Device-read beacon → /_metrics deviceReads split (the device-origin payoff, measured).
     await fetch(`${base}/api/metrics/device-read`, { method: 'POST', headers: auth, body: JSON.stringify({ read: 'rosters', source: 'device' }) });
