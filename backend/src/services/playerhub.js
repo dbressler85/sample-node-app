@@ -25,6 +25,7 @@ const standingLib = require('../lib/standing');
 const leaguesService = require('./leagues');
 const rosterService = require('./roster');
 const waiversService = require('./waivers');
+const { withRetry } = require('../lib/retry');
 const draftService = require('./draft');
 const dropStore = require('../store/drops');
 const watchStore = require('../store/watchlist');
@@ -97,7 +98,10 @@ async function gatherUncached(cookie, token) {
       // which bucket a player is in; they never touch value/age/strength, so the full
       // (all-franchise, enriched, strength-scored) getRoster build would be wasted here.
       const [roster, faIds, draftOpen] = await Promise.all([
-        rosterService.myRosterLight(cookie, league.leagueId).catch(() => null),
+        // Retry a transient throttle: a dropped roster here removes the whole league from every
+        // cross-league count, and the partial result gets memoized — the root of "owned in 8/8
+        // leagues" when you're in 15 (8 = the leagues that happened to load).
+        withRetry(() => rosterService.myRosterLight(cookie, league.leagueId)).catch(() => null),
         waiversService.freeAgentIds(cookie, league).catch(() => []),
         // A league whose draft hasn't been HELD has no true free agents yet — its whole pool reads as
         // "unrostered". We keep the raw set (the profile still uses it to label a player "draftable")
@@ -107,11 +111,27 @@ async function gatherUncached(cookie, token) {
       return { league, roster, faSet: new Set(faIds), draftOpen };
     })
   );
-  return { leagues, data: data.filter((d) => d.roster) };
+  const loaded = data.filter((d) => d.roster);
+  // Carry the TRUE league total + a partial flag, so cross-league counts can be honest instead of
+  // presenting a subset as complete. `leagueCount` (below, = loaded) stays the denominator for a
+  // per-player fraction (we only know ownership in leagues we could read), but the screen can now say
+  // "8 of 15 leagues loaded" instead of a confident "8/8".
+  return {
+    leagues,
+    data: loaded,
+    leaguesTotal: leagues.length,
+    leaguesLoaded: loaded.length,
+    partial: loaded.length < leagues.length,
+  };
 }
 
-function gather(cookie, token) {
-  return gatherMemo.get(cookie || '', () => gatherUncached(cookie, token));
+async function gather(cookie, token) {
+  const res = await gatherMemo.get(cookie || '', () => gatherUncached(cookie, token));
+  // Never let a PARTIAL cross-league gather stick for the TTL — that's what pins "8/8" on screen long
+  // after the throttle passed. Drop it so the next read re-fetches and self-heals to the full set
+  // (with the per-league retry above, it almost always gets there).
+  if (res.partial) gatherMemo.invalidate(cookie || '');
+  return res;
 }
 
 // Drop the cross-league sets after a write that changes a roster / free-agent pool, so the
@@ -156,7 +176,8 @@ function annotate(player, byId, ranks, myRostered, mineBy, freeBy, enr, ctx, tag
 }
 
 async function buildSets(cookie, token) {
-  const { data } = await gather(cookie, token);
+  const g = await gather(cookie, token);
+  const { data } = g;
   const myRostered = new Set();
   const mineBy = new Map(); // playerId -> [leagueId] of my leagues where I roster them
   const freeBy = new Map();
@@ -175,13 +196,21 @@ async function buildSets(cookie, token) {
     }
   }
   // The owner's primary league — the representative scoring for the season/projection numbers.
-  return { data, myRostered, mineBy, freeBy, leagueCount: data.length, league0: data[0] ? data[0].league : null };
+  // leaguesTotal/leaguesLoaded/partial let callers surface an honest "8 of 15 leagues" instead of "8/8".
+  return {
+    data, myRostered, mineBy, freeBy,
+    leagueCount: data.length,
+    leaguesTotal: g.leaguesTotal,
+    leaguesLoaded: g.leaguesLoaded,
+    partial: g.partial,
+    league0: data[0] ? data[0].league : null,
+  };
 }
 
 async function search(cookie, token, { q, position, status, format } = {}) {
   const [byId, enr, ctx] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(lensFormat(format), cookie), ctxFor(cookie)]);
   const ranks = computeRanks(byId, enr);
-  const { myRostered, mineBy, freeBy, leagueCount, league0 } = await buildSets(cookie, token);
+  const { myRostered, mineBy, freeBy, leagueCount, leaguesTotal, leaguesLoaded, partial, league0 } = await buildSets(cookie, token);
   const points = await pointsMaps.maps(cookie, league0, ctx.week);
   const tags = playerTags.all(token);
   const watchSet = new Set(watchStore.list(token).map(String));
@@ -203,13 +232,13 @@ async function search(cookie, token, { q, position, status, format } = {}) {
 
   light.sort((a, b) => b.value - a.value);
   const players2 = light.slice(0, 60).map((x) => annotate(x.p, byId, ranks, myRostered, mineBy, freeBy, enr, ctx, tags, watchSet, leagueCount, points));
-  return { total: light.length, format: lensFormat(format) && lensFormat(format).numQbs === 2 ? 'sf' : '1qb', players: players2 };
+  return { total: light.length, format: lensFormat(format) && lensFormat(format).numQbs === 2 ? 'sf' : '1qb', players: players2, partial, leaguesTotal, leaguesLoaded };
 }
 
 async function rankings(cookie, token, { type = 'value', position, format, offset = 0, limit = 40 } = {}) {
   const [byId, enr, ctx] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(lensFormat(format), cookie), ctxFor(cookie)]);
   const ranks = computeRanks(byId, enr);
-  const { myRostered, mineBy, freeBy, leagueCount, league0 } = await buildSets(cookie, token);
+  const { myRostered, mineBy, freeBy, leagueCount, leaguesTotal, leaguesLoaded, partial, league0 } = await buildSets(cookie, token);
   const points = await pointsMaps.maps(cookie, league0, ctx.week);
 
   // Filter + sort on cheap enr lookups over lightweight rows, then annotate only
@@ -275,6 +304,11 @@ async function rankings(cookie, token, { type = 'value', position, format, offse
     offset: start,
     total,
     hasMore: start + list.length < total,
+    // Honesty flags: when partial, every "owned in N leagues" count is over leaguesLoaded, not the
+    // true leaguesTotal — the client shows "N of {leaguesTotal} leagues loaded" instead of a false "N/N".
+    partial,
+    leaguesTotal,
+    leaguesLoaded,
   };
 }
 
