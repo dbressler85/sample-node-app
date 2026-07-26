@@ -748,5 +748,21 @@ module.exports = {
   draftClass: () => DRAFT_CLASS.slice(),
   adp: () => ({ ...ADP }),
   draft: (leagueId) => (DRAFTS[leagueId] ? JSON.parse(JSON.stringify(DRAFTS[leagueId])) : null),
+  // franchiseId -> team name for a demo league's draft board. `franchiseNames` is empty in demo, so
+  // the draft "Board" tab would otherwise show "Team 0004" for every opponent. Assign real names from
+  // FRANCHISE_POOL deterministically (my franchise keeps its own name), so the demo board reads like a
+  // real one. Derived from the draft order (the set of franchises actually on the board).
+  draftFranchiseNames: (leagueId) => {
+    const d = DRAFTS[leagueId];
+    const lg = LEAGUES.find((l) => l.leagueId === leagueId);
+    const names = new Map();
+    if (!d || !lg) return names;
+    let pool = 0;
+    for (const fid of d.order || []) {
+      if (fid === lg.franchiseId) names.set(fid, lg.franchiseName);
+      else names.set(fid, FRANCHISE_POOL[pool++ % FRANCHISE_POOL.length]);
+    }
+    return names;
+  },
   week: () => WEEK,
 };

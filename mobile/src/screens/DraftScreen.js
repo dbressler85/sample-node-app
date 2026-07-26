@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, FlatList, ActivityIndicator, Alert, Modal, TextInput } from 'react-native';
+import { View, Text, StyleSheet, Pressable, FlatList, SectionList, ActivityIndicator, Alert, Modal, TextInput } from 'react-native';
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import PressableScale from '../components/PressableScale';
@@ -66,6 +66,40 @@ const PoolRow = React.memo(function PoolRow({ p, rank, myTurn, canPick, isPickin
         ) : null}
       </View>
     </Reveal>
+  );
+});
+
+// One row on the full Board (results) tab: overall #, round·pick, pick owner, and either the
+// drafted player or the slot's status (on the clock / upcoming). My picks and the on-clock slot are
+// highlighted. Memoized — a poll tick only re-renders the slots whose props actually change. Tapping a
+// made pick opens the player's profile to scout it.
+const BoardRow = React.memo(function BoardRow({ s, isClock, onScout }) {
+  const player = s.player;
+  return (
+    <Pressable
+      style={[styles.bRow, s.mine && styles.bRowMine, isClock && styles.bRowClock]}
+      onPress={player && onScout ? () => onScout(player.id) : undefined}
+      disabled={!player || !onScout}
+    >
+      <View style={styles.bNums}>
+        <Text style={[styles.bOverall, s.mine && styles.bOverallMine]}>#{s.overall}</Text>
+        <Text style={styles.bSlot}>{s.round}.{String(s.pick).padStart(2, '0')}</Text>
+      </View>
+      <View style={styles.bMain}>
+        <Text style={[styles.bOwner, s.mine && styles.bOwnerMine]} numberOfLines={1}>
+          {s.franchiseName || `Team ${s.franchiseId}`}{s.mine ? ' · You' : ''}
+        </Text>
+        {player ? (
+          <View style={styles.bPlayerRow}>
+            <View style={[styles.dot, { backgroundColor: positionColors[player.position] || colors.textDim }]} />
+            <Text style={styles.bPlayer} numberOfLines={1}>{player.name}</Text>
+            <Text style={styles.bPlayerMeta}>{player.position}{player.value != null ? ` · ${player.value}` : ''}</Text>
+          </View>
+        ) : (
+          <Text style={[styles.bStatus, isClock && styles.bStatusClock]}>{isClock ? '⏱ On the clock' : 'Upcoming'}</Text>
+        )}
+      </View>
+    </Pressable>
   );
 });
 
@@ -139,6 +173,7 @@ export default function DraftScreen({ league, demoMode, covered = false, onBack,
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(() => !peekResource(boardKey));
   const [position, setPosition] = useState(null);
+  const [tab, setTab] = useState('pick'); // 'pick' = value-ranked pool + my picks; 'board' = full results grid
   const [picking, setPicking] = useState(null); // playerId being drafted
   const [confirming, setConfirming] = useState(null); // player pending the draft-confirm sheet
   const [note, setNote] = useState(''); // optional pick comment (email drafts)
@@ -178,6 +213,27 @@ export default function DraftScreen({ league, demoMode, covered = false, onBack,
     if (!data || !data.available) return [];
     return position ? data.available.filter((p) => p.position === position) : data.available;
   }, [data, position]);
+
+  // The full board (results) tab, grouped by round for the SectionList. Each section is a round of
+  // slots in pick order — made picks and the upcoming ones alike, so you can see every pick and who
+  // owns it. Overall pick number lives on each slot.
+  const boardSections = useMemo(() => {
+    if (!data || !data.board) return [];
+    const byRound = new Map();
+    for (const s of data.board) {
+      if (!byRound.has(s.round)) byRound.set(s.round, []);
+      byRound.get(s.round).push(s);
+    }
+    return [...byRound.entries()]
+      .sort((a, b) => a[0] - b[0])
+      .map(([round, picks]) => ({
+        round,
+        made: picks.filter((s) => s.player).length,
+        total: picks.length,
+        data: picks.slice().sort((a, b) => a.pick - b.pick),
+      }));
+  }, [data]);
+  const clockOverall = data && data.onClock ? data.onClock.overall : null;
 
   // A draft pick is irreversible, so confirm before committing (the pool rows now open
   // a profile on tap, and the explicit Draft button routes through here).
@@ -252,6 +308,46 @@ export default function DraftScreen({ league, demoMode, covered = false, onBack,
       {data && data.status === 'none' ? (
         <View style={styles.center}><Text style={styles.empty}>No draft in this league.</Text></View>
       ) : (
+        <>
+        <View style={styles.tabRow}>
+          <Pressable style={[styles.tab, tab === 'pick' && styles.tabActive]} onPress={() => setTab('pick')}>
+            <Text style={[styles.tabText, tab === 'pick' && styles.tabTextActive]}>Pick</Text>
+          </Pressable>
+          <Pressable style={[styles.tab, tab === 'board' && styles.tabActive]} onPress={() => setTab('board')}>
+            <Text style={[styles.tabText, tab === 'board' && styles.tabTextActive]}>Board</Text>
+          </Pressable>
+        </View>
+        {tab === 'board' ? (
+        <SectionList
+          sections={boardSections}
+          keyExtractor={(s) => String(s.overall)}
+          contentContainerStyle={styles.list}
+          initialNumToRender={20}
+          maxToRenderPerBatch={20}
+          windowSize={11}
+          removeClippedSubviews
+          stickySectionHeadersEnabled={false}
+          renderItem={({ item }) => (
+            <BoardRow s={item} isClock={clockOverall != null && item.overall === clockOverall} onScout={onOpenPlayer} />
+          )}
+          renderSectionHeader={({ section }) => (
+            <View style={styles.bSectionHead}>
+              <Text style={styles.bSectionTitle}>Round {section.round}</Text>
+              <Text style={styles.bSectionCount}>{section.made}/{section.total} picked</Text>
+            </View>
+          )}
+          ListHeaderComponent={
+            <View style={styles.headerRow}>
+              <Text style={styles.dtype}>Draft board</Text>
+              <View style={[styles.badge, { borderColor: st.color }]}>
+                <Text style={[styles.badgeText, { color: st.color }]}>{st.label}</Text>
+              </View>
+            </View>
+          }
+          ListEmptyComponent={<Text style={styles.empty}>The draft order isn’t available yet.</Text>}
+          ListFooterComponent={<View style={{ height: 24 }} />}
+        />
+        ) : (
         <FlatList
           data={pool}
           keyExtractor={(p) => String(p.id)}
@@ -360,6 +456,8 @@ export default function DraftScreen({ league, demoMode, covered = false, onBack,
             ) : <View style={{ height: 24 }} />
           }
         />
+        )}
+        </>
       )}
 
       <Modal visible={!!confirming} transparent animationType="fade" onRequestClose={() => setConfirming(null)}>
@@ -424,6 +522,29 @@ const styles = StyleSheet.create({
   tradesLink: { color: colors.accent, fontSize: 14, fontWeight: '800', width: 60, textAlign: 'right' },
   title: { color: colors.text, fontSize: 17, fontWeight: '800', flex: 1, textAlign: 'center' },
   list: { padding: 16 },
+  tabRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },
+  tab: { flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
+  tabActive: { backgroundColor: colors.cardAlt, borderColor: colors.accent },
+  tabText: { color: colors.textDim, fontSize: 14, fontWeight: '800' },
+  tabTextActive: { color: colors.text },
+  bSectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 16, marginBottom: 8 },
+  bSectionTitle: { color: colors.text, fontSize: 15, fontWeight: '900' },
+  bSectionCount: { color: colors.textDim, fontSize: 12, fontWeight: '700' },
+  bRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 8 },
+  bRowMine: { borderColor: colors.gold, backgroundColor: colors.gold + '14' },
+  bRowClock: { borderColor: colors.good, backgroundColor: colors.good + '12' },
+  bNums: { width: 58, marginRight: 10 },
+  bOverall: { color: colors.text, fontSize: 15, fontWeight: '900', fontVariant: ['tabular-nums'] },
+  bOverallMine: { color: colors.gold },
+  bSlot: { color: colors.textDim, fontSize: 12, fontWeight: '700', marginTop: 1, fontVariant: ['tabular-nums'] },
+  bMain: { flex: 1 },
+  bOwner: { color: colors.textDim, fontSize: 12, fontWeight: '800' },
+  bOwnerMine: { color: colors.gold },
+  bPlayerRow: { flexDirection: 'row', alignItems: 'center', marginTop: 3 },
+  bPlayer: { color: colors.text, fontSize: 15, fontWeight: '700', flex: 1 },
+  bPlayerMeta: { color: colors.textDim, fontSize: 12, marginLeft: 8 },
+  bStatus: { color: colors.textDim, fontSize: 13, fontStyle: 'italic', marginTop: 3 },
+  bStatusClock: { color: colors.good, fontStyle: 'normal', fontWeight: '800' },
   error: { color: colors.bad, textAlign: 'center', marginTop: 12, marginHorizontal: 24 },
   retry: { marginTop: 16, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingHorizontal: 24, paddingVertical: 10 },
   retryText: { color: colors.accent, fontWeight: '700' },

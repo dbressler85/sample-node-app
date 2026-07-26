@@ -451,7 +451,19 @@ async function getLeague(cookie, token, leagueId, { position } = {}) {
   // team's dynasty read (win-now/ascending, core age, strength) — the situational info that changes a
   // draft decision.
   const { byId, enr, context, teamSummary } = await loadDraftContext(cookie, league);
-  const slots = slotsFor(draft).map((s) => ({ ...s, player: s.playerId ? resolvePlayer(byId, s.playerId, enr) : null }));
+  // Owner names for the board's "Board" tab — every slot needs a real team name, not just the id.
+  // Static-TTL cached; demo synthesizes pool names off the draft order so opponents aren't all "Team <id>".
+  const names = config.demoMode
+    ? demo.draftFranchiseNames(league.leagueId)
+    : await leaguesService.franchiseNames(cookie, league).catch(() => new Map());
+  const ownerName = (fid) =>
+    names.get(fid) || (fid === league.franchiseId ? league.franchiseName : null) || `Team ${fid}`;
+  const slots = slotsFor(draft).map((s) => ({
+    ...s,
+    franchiseName: ownerName(s.franchiseId),
+    mine: s.franchiseId === league.franchiseId,
+    player: s.playerId ? resolvePlayer(byId, s.playerId, enr) : null,
+  }));
   const status = statusOf(draft, slots);
   const clock = onClockSlot(status, slots);
   const drafted = new Set(slots.filter((s) => s.playerId).map((s) => s.playerId));

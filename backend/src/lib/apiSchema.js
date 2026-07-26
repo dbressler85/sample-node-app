@@ -342,7 +342,16 @@ const DraftList = z.object({
 const DraftBoard = z.object({
   leagueId: z.string(),
   name: z.string(),
-  board: z.array(z.object({ overall: z.number(), round: z.number(), pick: z.number() })),
+  board: z.array(
+    z.object({
+      overall: z.number(),
+      round: z.number(),
+      pick: z.number(),
+      franchiseId: z.string(),
+      franchiseName: z.string().nullable().optional(),
+      mine: z.boolean().optional(),
+    })
+  ),
 });
 
 // GET /api/leagues/:leagueId/teams — every franchise's roster (opponent scouting).
