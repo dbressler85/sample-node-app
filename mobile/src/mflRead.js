@@ -319,4 +319,75 @@ function assembleTransactions(rawRows, assetDict, directory, limit = 40) {
   return { transactions };
 }
 
-module.exports = { toArray, text, num, fid, round1, isMflHost, buildExportUrl, reads, readWith, shapeRoster, enrichRoster, rosterSlot, assembleTeams, assembleStandings, parseTransactions, assembleTransactions };
+// Full roster-slot bucket for EXPOSURE: starter kept DISTINCT from bench (unlike rosterSlot's scouting
+// fold, which lumps starter into active). Mirrors the backend rosterStatus.rosterSlot vocabulary + the
+// standing BUCKETS labels ('starter'|'bench'|'ir'|'taxi'), matching EXACT tokens (never a substring) so
+// a normal status can't false-positive into a reserve slot.
+function exposureBucket(status) {
+  const s = String(status || '').trim().toUpperCase();
+  if (s === 'INJURED_RESERVE' || s === 'IR') return 'ir';
+  if (s === 'TAXI_SQUAD' || s === 'TAXI' || s === 'TS') return 'taxi';
+  if (s === 'STARTER') return 'starter';
+  return 'bench';
+}
+
+// Assemble the cross-league exposure payload (same shape as the backend getExposure) from device-origin
+// per-league rosters + a per-player enrichment dictionary. This is the device-origin half of the moat
+// feature (docs/DEVICE_ORIGIN_MFL.md): the device fetches MY roster in every league straight from MFL
+// (its own IP — the fan-out that trips the shared limiter), and this pure function groups a player across
+// those leagues while the GLOBAL enrichment (name/pos/team/age/value/availability + season/proj points,
+// tag, watched — served by POST /api/players/exposure-enrich) stays backend-cached.
+//   perLeagueRosters: [{ leagueId, name, players:[{ id, status }] }]  (device: reads.rosters FRANCHISE=me → shapeRoster)
+//   enrichDict:       { [id]: { name, position, team, age, value, availability, seasonPoints, weekProjection, tag, watched } }
+//   totalLeagues:     the account's league count (exposurePct denominator; NOT just the leagues that returned a roster)
+// THROWS if there are rostered ids but an empty enrichment dictionary (a failed fetch) so the caller
+// falls back to the backend rather than rendering nameless rows.
+function assembleExposure(perLeagueRosters, enrichDict, totalLeagues) {
+  const dict = enrichDict || {};
+  const rosters = perLeagueRosters || [];
+  const total = totalLeagues != null ? totalLeagues : rosters.length;
+  const map = new Map();
+  for (const lg of rosters) {
+    for (const p of lg.players || []) {
+      const id = text(p && p.id);
+      if (!id) continue;
+      const bucket = exposureBucket(p && p.status);
+      if (!map.has(id)) {
+        const info = dict[id] || {};
+        map.set(id, {
+          id,
+          name: info.name || null,
+          position: info.position || null,
+          team: info.team || null,
+          age: info.age != null ? info.age : null,
+          value: info.value != null ? info.value : null,
+          availability: info.availability || null,
+          leagues: [],
+          seasonPoints: info.seasonPoints != null ? info.seasonPoints : null,
+          weekProjection: info.weekProjection != null ? info.weekProjection : null,
+          tag: info.tag || null,
+          watched: !!info.watched,
+        });
+      }
+      map.get(id).leagues.push({ leagueId: String(lg.leagueId), name: lg.name, starting: bucket === 'starter', bucket });
+    }
+  }
+  if (map.size && Object.keys(dict).length === 0) {
+    throw new Error('device exposure: empty enrichment dictionary — falling back to the backend');
+  }
+  const players = [...map.values()]
+    .map((p) => ({
+      ...p,
+      count: p.leagues.length,
+      startingCount: p.leagues.filter((l) => l.starting).length,
+      exposurePct: total ? Math.round((p.leagues.length / total) * 100) : 0,
+    }))
+    .sort((a, b) => b.count - a.count || (b.value || 0) - (a.value || 0));
+  return {
+    totalLeagues: total,
+    players,
+    summary: { uniquePlayers: players.length, multiLeague: players.filter((p) => p.count > 1).length },
+  };
+}
+
+module.exports = { toArray, text, num, fid, round1, isMflHost, buildExportUrl, reads, readWith, shapeRoster, enrichRoster, rosterSlot, assembleTeams, assembleStandings, parseTransactions, assembleTransactions, exposureBucket, assembleExposure };

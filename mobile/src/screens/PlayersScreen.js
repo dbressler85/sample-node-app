@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, FlatList, StyleSheet, Pressable, TextInput, ActivityIndicator, Linking } from 'react-native';
 import { api } from '../api';
+import { exposurePreferDevice } from '../mflDevice';
 import { colors, positionColors } from '../theme';
 import AvailabilityBadge from '../components/AvailabilityBadge';
 import AddAcrossSheet from '../components/AddAcrossSheet';
@@ -196,7 +197,9 @@ export default function PlayersScreen({ onOpenPlayer }) {
   }, [tab, rankKey, loadRankings]);
 
   useEffect(() => {
-    if (tab === 'mine' && !mine) api.exposure().then(setMine).catch((e) => setError(e.message));
+    // My Players is device-first: the roster fan-out across all leagues runs on-device (its own IP),
+    // enriched + grouped via the backend; silently falls back to the backend on any device-read failure.
+    if (tab === 'mine' && !mine) exposurePreferDevice().then(setMine).catch((e) => setError(e.message));
     if (tab === 'news' && !news) api.news().then(setNews).catch((e) => setError(e.message));
     // Watchlist changes as you star players elsewhere, so refetch each time the
     // tab is opened rather than caching it.
@@ -390,6 +393,9 @@ export default function PlayersScreen({ onOpenPlayer }) {
             </>
           ) : tab === 'mine' ? (
             <>
+              {mine && mine._source === 'device' ? (
+                <Text style={styles.deviceNote}>⚡ Your rosters live from MFL on-device · {mine.totalLeagues} league{mine.totalLeagues === 1 ? '' : 's'}</Text>
+              ) : null}
               <PosFilter pos={pos} setPos={setPos} />
               <SortRow value={listSort} onChange={setListSort} />
               <FlatList
@@ -736,6 +742,7 @@ const styles = StyleSheet.create({
   newsSortChipActive: { backgroundColor: colors.cardAlt, borderColor: colors.accent },
   newsSortText: { color: colors.textDim, fontSize: 12, fontWeight: '700' },
   newsSearch: { flex: 1, color: colors.text, fontSize: 14, paddingVertical: 9 },
+  deviceNote: { color: colors.accent, fontSize: 11, fontWeight: '700', textAlign: 'center', paddingBottom: 4, paddingTop: 2 },
   freeIntro: { paddingHorizontal: 16, paddingBottom: 4, paddingTop: 2 },
   freeIntroText: { color: colors.textDim, fontSize: 12, lineHeight: 17 },
   list: { paddingHorizontal: 16, paddingBottom: 32, paddingTop: 4 },

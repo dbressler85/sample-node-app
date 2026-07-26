@@ -18,7 +18,7 @@ export async function deviceReadsReady() {
 
 // Run one shared read descriptor straight from MFL on-device (creds from SecureStore). Throws if the
 // flag/creds are missing or the fetch fails — every caller wraps this in a backend fallback.
-async function runDeviceRead(descriptor, leagueId) {
+async function runDeviceRead(descriptor, leagueId, params = {}) {
   const creds = await loadMflCreds();
   if (!DEVICE_READS || !creds || !creds.cookie || !creds.host || !creds.season) {
     throw new Error('device reads unavailable');
@@ -28,6 +28,7 @@ async function runDeviceRead(descriptor, leagueId) {
     host: creds.host,
     year: String(creds.season),
     league: leagueId,
+    params,
     cookie: creds.cookie,
     userAgent: 'DynastyCentral/1.0',
   });
@@ -102,4 +103,30 @@ export async function deviceTransactions(leagueId) {
 }
 export function transactionsPreferDevice(leagueId) {
   return preferDevice('transactions', () => deviceTransactions(leagueId), () => api.leagueTransactions(leagueId));
+}
+
+// Cross-league exposure ("My Players"), device-first: fetch MY roster in EVERY league straight from MFL
+// on-device — the per-user fan-out that trips the shared backend's per-IP limiter, here on the device's
+// own IP — then enrich (name/value/age/availability/points/tag/watched) + group with the backend. Each
+// league uses reads.rosters with FRANCHISE=me, the same LIGHT single-franchise read the backend uses; the
+// shared assembleExposure does the cross-league grouping and throws on an empty enrichment dict → fallback.
+export async function deviceExposure() {
+  const { leagues } = await api.leaguesList();
+  const list = (leagues || []).filter((l) => l && l.leagueId);
+  if (!list.length) return { totalLeagues: 0, players: [], summary: { uniquePlayers: 0, multiLeague: 0 } };
+  // FRANCHISE=me needs each league's franchise id; if any is missing we can't do the light read → fall back.
+  if (list.some((l) => !l.franchiseId)) throw new Error('device exposure: a league is missing its franchise id');
+  const perLeagueRosters = await Promise.all(
+    list.map(async (l) => {
+      const franchises = (await runDeviceRead(mflRead.reads.rosters, l.leagueId, { FRANCHISE: l.franchiseId })).map(mflRead.shapeRoster);
+      const mine = franchises.find((f) => String(f.franchiseId) === mflRead.fid(l.franchiseId)) || franchises[0] || { players: [] };
+      return { leagueId: l.leagueId, name: l.name, players: mine.players };
+    })
+  );
+  const ids = [...new Set(perLeagueRosters.flatMap((r) => r.players.map((p) => p.id)))];
+  const dict = await api.exposureEnrich(ids, list[0].leagueId);
+  return mflRead.assembleExposure(perLeagueRosters, (dict && dict.players) || {}, list.length);
+}
+export function exposurePreferDevice() {
+  return preferDevice('exposure', () => deviceExposure(), () => api.exposure());
 }

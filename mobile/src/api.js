@@ -86,6 +86,10 @@ export const api = {
   // enrich a rosters read the device fetched straight from MFL.
   franchiseDirectory: (leagueId) => request(`/api/leagues/${leagueId}/franchises`),
   playerLookup: (ids, leagueId) => request('/api/players/lookup', { method: 'POST', body: { ids, leagueId } }),
+  // Device-origin exposure: the per-player enrichment (name/pos/team/age/value/availability + season/proj
+  // points, tag, watched) for a set of rostered ids, so the device can assemble the cross-league grouping
+  // on-device after fetching my roster in every league straight from MFL.
+  exposureEnrich: (ids, primaryLeagueId) => request('/api/players/exposure-enrich', { method: 'POST', body: { ids, primaryLeagueId } }),
   // Best-effort beacon: report whether a read was served on-device or fell back, so /_metrics can show
   // the device-origin split. Never throws — measurement must not affect the read.
   reportDeviceRead: (read, source) => request('/api/metrics/device-read', { method: 'POST', body: { read, source } }).catch(() => {}),

@@ -57,6 +57,21 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
     assert(fb && typeof fb.franchises === 'object' && 'mine' in fb && 'playoffSpots' in fb, 'franchise directory has { franchises, mine, playoffSpots }');
     console.log('✓ /api/leagues/:id/franchises: returns { franchises, mine, playoffSpots }');
 
+    // Exposure enrichment (the backend half of a device-origin cross-league exposure read): the device
+    // fetches MY roster in every league on-device and calls this for the per-player fields it groups —
+    // name/pos/team/age/value/availability + season/proj points + tag/watched.
+    const exUn = await fetch(`${base}/api/players/exposure-enrich`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: ['1'] }) });
+    assert(exUn.status === 401, `exposure-enrich requires auth, got ${exUn.status}`);
+    const ex = await fetch(`${base}/api/players/exposure-enrich`, { method: 'POST', headers: auth, body: JSON.stringify({ ids: ['1', '2', '2'], primaryLeagueId: leagueId }) });
+    assert(ex.status === 200, `exposure-enrich → 200, got ${ex.status}`);
+    const exb = await ex.json();
+    assert(exb.players && typeof exb.players === 'object', 'exposure-enrich returns a players dictionary');
+    for (const id of ['1', '2']) {
+      const p = exb.players[id];
+      assert(p && 'name' in p && 'age' in p && 'value' in p && 'availability' in p && 'seasonPoints' in p && 'weekProjection' in p && 'tag' in p && 'watched' in p, `id ${id} carries the exposure enrichment fields`);
+    }
+    console.log('✓ /api/players/exposure-enrich: auth-gated; per-id exposure enrichment (age/value/availability/points/tag/watched)');
+
     // Device-read beacon → /_metrics deviceReads split (the device-origin payoff, measured).
     await fetch(`${base}/api/metrics/device-read`, { method: 'POST', headers: auth, body: JSON.stringify({ read: 'rosters', source: 'device' }) });
     await fetch(`${base}/api/metrics/device-read`, { method: 'POST', headers: auth, body: JSON.stringify({ read: 'rosters', source: 'backend' }) });

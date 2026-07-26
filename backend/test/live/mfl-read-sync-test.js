@@ -154,5 +154,28 @@ console.log('✓ shapeRoster applies fid padding + $t-safe fields');
   assert(tthrew, 'an empty franchise directory THROWS → the caller falls back to the backend');
   console.log('✓ assembleTransactions: names + pick tokens + type labels; empty directory → throws');
 
+  // 12. exposureBucket: full status vocabulary, starter kept DISTINCT from bench (unlike rosterSlot).
+  assert(mflRead.exposureBucket('STARTER') === 'starter' && mflRead.rosterSlot('STARTER') === 'active', 'exposureBucket keeps STARTER distinct where rosterSlot folds it to active');
+  assert(mflRead.exposureBucket('INJURED_RESERVE') === 'ir' && mflRead.exposureBucket('TS') === 'taxi' && mflRead.exposureBucket('nonstarter') === 'bench', 'ir/taxi/bench tokens bucket correctly');
+
+  // 13. assembleExposure: device per-league rosters + enrichment dict → the cross-league exposure feed.
+  const exRosters = [
+    { leagueId: 'A', name: 'Alpha', players: [{ id: '30', status: 'STARTER' }, { id: '20', status: 'INJURED_RESERVE' }] },
+    { leagueId: 'B', name: 'Beta', players: [{ id: '30', status: 'nonstarter' }] },
+  ];
+  const exDict = {
+    30: { name: 'Star, Guy', position: 'RB', team: 'X', age: 24, value: 90, availability: null, seasonPoints: 120.5, weekProjection: 15.2, tag: 'target', watched: true },
+    20: { name: 'Hurt, Guy', position: 'WR', team: 'Y', age: 29, value: 20, availability: { kind: 'out' }, seasonPoints: null, weekProjection: null, tag: null, watched: false },
+  };
+  const ex = mflRead.assembleExposure(exRosters, exDict, 3);
+  assert(ex.players[0].id === '30' && ex.players[0].count === 2 && ex.players[0].startingCount === 1, 'a player is grouped across leagues (count=2, startingCount=1)');
+  assert(ex.players[0].exposurePct === 67 && ex.players[0].leagues[0].bucket === 'starter' && ex.players[0].leagues[1].starting === false, 'exposurePct over totalLeagues; per-league bucket + starting flag');
+  assert(ex.players[0].value === 90 && ex.players[0].seasonPoints === 120.5 && ex.players[0].tag === 'target' && ex.players[0].watched === true, 'enrichment (value/points/tag/watched) attached from the dict');
+  assert(ex.summary.uniquePlayers === 2 && ex.summary.multiLeague === 1, 'summary counts unique + multi-league players');
+  let exthrew = false;
+  try { mflRead.assembleExposure(exRosters, {}, 3); } catch (e) { exthrew = true; }
+  assert(exthrew, 'a non-empty roster with an empty enrichment dictionary THROWS → backend fallback');
+  console.log('✓ assembleExposure: cross-league grouping + enrichment + summary; empty dict → throws');
+
   console.log('\nMFL-READ SHARED-CORE HARNESS PASSED');
 })().catch((e) => { console.error(e.message); process.exit(1); });
