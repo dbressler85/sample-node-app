@@ -92,7 +92,7 @@ export const api = {
   exposureEnrich: (ids, primaryLeagueId) => request('/api/players/exposure-enrich', { method: 'POST', body: { ids, primaryLeagueId } }),
   // Best-effort beacon: report whether a read was served on-device or fell back, so /_metrics can show
   // the device-origin split. Never throws — measurement must not affect the read.
-  reportDeviceRead: (read, source) => request('/api/metrics/device-read', { method: 'POST', body: { read, source } }).catch(() => {}),
+  reportDeviceRead: (read, source, meta) => request('/api/metrics/device-read', { method: 'POST', body: { read, source, ...(meta || {}) } }).catch(() => {}),
   leagueTransactions: (leagueId) => request(`/api/leagues/${leagueId}/transactions`),
   leaguePlayoffs: (leagueId) => request(`/api/leagues/${leagueId}/playoffs`),
   // Pin a league to the top of every cross-league view. `on` toggles: POST sets, DELETE clears.

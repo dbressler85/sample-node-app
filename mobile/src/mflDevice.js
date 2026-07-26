@@ -39,16 +39,42 @@ export async function deviceRosters(leagueId) {
   return (await runDeviceRead(mflRead.reads.rosters, leagueId)).map(mflRead.shapeRoster);
 }
 
+// Categorize WHY a device read fell back, so the /_metrics beacon can show "when does it break" (not
+// just how often). Coarse buckets, matched against the errors the device path actually throws.
+function fallbackReason(e) {
+  if (!e) return 'error';
+  if (e.status === 429) return 'rate_limited';
+  const m = String(e.message || '').toLowerCase();
+  if (/unavailable|cred|cookie/.test(m)) return 'no_creds'; // flag off or no cached cookie
+  if (/empty|incomplete|directory|falling back/.test(m)) return 'incomplete'; // an assemble threw
+  if (/reach|network|timeout|fetch/.test(m)) return 'network';
+  if (Number.isFinite(e.status) && e.status >= 400) return `http_${e.status}`;
+  return 'error';
+}
+
 // Generic device-first fetcher: try the device path, fall back to the backend on any failure, tag the
-// result with `_source`, and (when device reads are on) beacon the served path for /_metrics. DRYs the
-// per-read wiring.
+// result with `_source`, and (when device reads are on) beacon the served path + its LATENCY + the
+// fallback REASON for /_metrics. Latency (device vs backend) says whether device-origin is worth it;
+// the reason says why it fell back when it did. DRYs the per-read wiring.
 async function preferDevice(readName, deviceFn, backendFn) {
   let payload = null;
+  let reason = null;
+  let ms = null;
   if (await deviceReadsReady()) {
-    try { payload = { ...(await deviceFn()), _source: 'device' }; } catch (e) { /* fall back */ }
+    const t0 = Date.now();
+    try {
+      payload = { ...(await deviceFn()), _source: 'device' };
+      ms = Date.now() - t0;
+    } catch (e) {
+      reason = fallbackReason(e); // device attempted → record why we're falling back
+    }
   }
-  if (!payload) payload = { ...(await backendFn()), _source: 'backend' };
-  if (DEVICE_READS) api.reportDeviceRead(readName, payload._source);
+  if (!payload) {
+    const t0 = Date.now();
+    payload = { ...(await backendFn()), _source: 'backend' };
+    ms = Date.now() - t0;
+  }
+  if (DEVICE_READS) api.reportDeviceRead(readName, payload._source, { ms, reason });
   return payload;
 }
 
