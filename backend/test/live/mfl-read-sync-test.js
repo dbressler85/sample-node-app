@@ -93,5 +93,22 @@ console.log('✓ shapeRoster applies fid padding + $t-safe fields');
   assert(missing[0].players[0].name === null && missing[0].players[0].value === null, 'a player missing from the dict → null fields, not a crash');
   console.log('✓ enrichRoster: joins device rosters + player dict, value-sorted, missing-safe');
 
+  // 8. assembleTeams(): device franchises + player dict + franchise directory → the full teams payload.
+  const dir = { franchises: { '0001': 'Team Alpha', '0002': 'Team Beta' }, mine: '0002' };
+  const dev = [
+    { franchiseId: '0001', players: [{ id: '30', status: 'STARTER' }, { id: '20', status: 'INJURED_RESERVE' }] },
+    { franchiseId: '0002', players: [{ id: '31', status: 'TAXI_SQUAD' }] },
+  ];
+  const dict2 = { 30: { name: 'A', position: 'RB', team: 'X', value: 90 }, 20: { name: 'B', position: 'WR', team: 'Y', value: 30 }, 31: { name: 'C', position: 'QB', team: 'Z', value: 50 } };
+  const asm = mflRead.assembleTeams(dev, dict2, dir);
+  assert(asm.teams.length === 2 && asm.teams[0].franchiseId === '0001', 'teams sorted by value desc (0001=120 > 0002=50)');
+  assert(asm.teams[0].name === 'Team Alpha' && asm.teams[1].mine === true, 'team names + mine come from the directory');
+  assert(asm.teams[0].players[0].slot === 'active' && asm.teams[0].players[1].slot === 'ir', 'slot from status (STARTER→active, INJURED_RESERVE→ir)');
+  assert(asm.teams[1].players[0].slot === 'taxi', 'TAXI_SQUAD → taxi');
+  let athrew = false;
+  try { mflRead.assembleTeams(dev, dict2, { franchises: { '0001': 'Team Alpha' }, mine: '0002' }); } catch (e) { athrew = true; }
+  assert(athrew, 'a team missing its name THROWS → the caller falls back to the backend (never a broken render)');
+  console.log('✓ assembleTeams: names/mine/slot + value sort; incomplete → throws for fallback');
+
   console.log('\nMFL-READ SHARED-CORE HARNESS PASSED');
 })().catch((e) => { console.error(e.message); process.exit(1); });

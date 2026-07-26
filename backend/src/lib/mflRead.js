@@ -162,4 +162,38 @@ function enrichRoster(franchises, dict) {
   });
 }
 
-module.exports = { toArray, text, num, fid, isMflHost, buildExportUrl, reads, readWith, shapeRoster, enrichRoster };
+// MFL roster status → the screen's slot bucket (drives the IR/TAXI tag). Mirrors the backend's slotOf.
+function rosterSlot(status) {
+  const s = String(status || '').toUpperCase();
+  if (s.includes('INJUR') || s === 'IR') return 'ir';
+  if (s.includes('TAXI')) return 'taxi';
+  return 'active';
+}
+
+// Assemble the FULL league-teams payload a roster screen renders — from device-origin franchises + the
+// backend player dictionary + the franchise directory ({ franchises:{id:name}, mine }). Adds each team's
+// name and `mine`, the per-player roster slot, and sorts teams by value. THROWS if the result is
+// incomplete (any team missing its name, or no players anywhere) so the caller falls back to the backend
+// instead of rendering a broken/partial screen — the render path is device-first but never degraded.
+// Pure; matches the backend getTeams shape ({ teams:[{ franchiseId, name, mine, count, totalValue,
+// players:[{ id, name, position, team, value, slot }] }] }).
+function assembleTeams(franchises, playerDict, directory) {
+  const dir = directory || {};
+  const names = dir.franchises || {};
+  const teams = enrichRoster(franchises, playerDict)
+    .map((t) => ({
+      franchiseId: t.franchiseId,
+      name: names[t.franchiseId] || names[String(t.franchiseId)] || null,
+      mine: String(t.franchiseId) === String(dir.mine),
+      count: t.count,
+      totalValue: t.totalValue,
+      players: t.players.map((p) => ({ id: p.id, name: p.name, position: p.position, team: p.team, value: p.value, slot: rosterSlot(p.status) })),
+    }))
+    .sort((a, b) => b.totalValue - a.totalValue);
+  if (!teams.length || teams.some((t) => !t.name) || !teams.some((t) => t.players.length)) {
+    throw new Error('device league-teams payload incomplete — falling back to the backend');
+  }
+  return { teams };
+}
+
+module.exports = { toArray, text, num, fid, isMflHost, buildExportUrl, reads, readWith, shapeRoster, enrichRoster, rosterSlot, assembleTeams };

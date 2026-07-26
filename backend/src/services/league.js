@@ -264,4 +264,16 @@ async function getPlayerLookup(cookie, ids, leagueId) {
   return { players };
 }
 
-module.exports = { getStandings, getTeams, getTransactions, findLeague, getPlayerLookup };
+// Franchise directory for a league: { franchises: { id: name }, mine }. The lightweight name half of a
+// device-origin roster render (docs/DEVICE_ORIGIN_MFL.md) — names come from the (cached) `league` export,
+// not the heavy rosters fan-out, so the device can label teams while the per-user rosters come from MFL
+// on-device. Empty franchises in demo (no live `league` export) → the device path falls back.
+async function getFranchiseDirectory(cookie, leagueId) {
+  const league = await findLeague(cookie, leagueId);
+  const names = await leaguesService.franchiseNames(cookie, league);
+  const franchises = {};
+  for (const [id, name] of names) franchises[id] = name;
+  return { franchises, mine: league.franchiseId || null };
+}
+
+module.exports = { getStandings, getTeams, getTransactions, findLeague, getPlayerLookup, getFranchiseDirectory };

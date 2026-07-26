@@ -82,6 +82,10 @@ export const api = {
   // League hub (M5): standings, every team's roster (scouting), and a transaction feed.
   leagueStandings: (leagueId) => request(`/api/leagues/${leagueId}/standings`),
   leagueTeams: (leagueId) => request(`/api/leagues/${leagueId}/teams`),
+  // Device-origin support: the franchise directory (names) and the global player dictionary, used to
+  // enrich a rosters read the device fetched straight from MFL.
+  franchiseDirectory: (leagueId) => request(`/api/leagues/${leagueId}/franchises`),
+  playerLookup: (ids, leagueId) => request('/api/players/lookup', { method: 'POST', body: { ids, leagueId } }),
   leagueTransactions: (leagueId) => request(`/api/leagues/${leagueId}/transactions`),
   leaguePlayoffs: (leagueId) => request(`/api/leagues/${leagueId}/playoffs`),
   // Pin a league to the top of every cross-league view. `on` toggles: POST sets, DELETE clears.

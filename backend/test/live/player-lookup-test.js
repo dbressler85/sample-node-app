@@ -38,6 +38,16 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
     const eb = await empty.json();
     assert(empty.status === 200 && eb.players && Object.keys(eb.players).length === 0, 'no ids → empty dictionary, not an error');
     console.log('✓ /api/players/lookup: empty ids → empty dictionary');
+
+    // Franchise directory (the name half of a device-origin roster render).
+    const lg = await (await fetch(`${base}/api/leagues`, { headers: { Authorization: `Bearer ${token}` } })).json();
+    const leagueId = lg && lg.leagues && lg.leagues[0] && lg.leagues[0].leagueId;
+    assert(leagueId, 'have a demo league to query');
+    const fr = await fetch(`${base}/api/leagues/${leagueId}/franchises`, { headers: { Authorization: `Bearer ${token}` } });
+    assert(fr.status === 200, `franchises endpoint → 200, got ${fr.status}`);
+    const fb = await fr.json();
+    assert(fb && typeof fb.franchises === 'object' && 'mine' in fb, 'franchise directory has { franchises, mine }');
+    console.log('✓ /api/leagues/:id/franchises: returns { franchises, mine }');
   } finally {
     server.close();
   }

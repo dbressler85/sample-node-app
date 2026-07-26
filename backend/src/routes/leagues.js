@@ -89,6 +89,16 @@ router.get('/leagues/:leagueId/teams', async (req, res, next) => {
   }
 });
 
+// GET /api/leagues/:leagueId/franchises — { franchises:{id:name}, mine }. The lightweight name half of a
+// device-origin roster render (names from the cached `league` export, not the rosters fan-out).
+router.get('/leagues/:leagueId/franchises', async (req, res, next) => {
+  try {
+    res.json(await leagueService.getFranchiseDirectory(req.mflCookie, req.params.leagueId));
+  } catch (err) {
+    next(err);
+  }
+});
+
 // POST /api/players/lookup { ids:[…], leagueId? } — the GLOBAL player dictionary (name/pos/team/value)
 // for a set of ids, so a device-origin roster read can be enriched on-device without the per-user MFL
 // fan-out touching the server (docs/DEVICE_ORIGIN_MFL.md). leagueId picks the value format.
