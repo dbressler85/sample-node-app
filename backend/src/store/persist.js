@@ -12,12 +12,42 @@
 const fs = require('fs');
 const path = require('path');
 const config = require('../config');
+const secretBox = require('../lib/secretBox');
 
 const FILE = path.join(config.dataDir, 'state.json');
 const TMP = `${FILE}.tmp`;
 let root = {};
 let writable = true;
 let timer = null;
+
+// Encryption at rest for PERSONAL namespaces (tags, watchlist, value/portfolio history, trophies, pins,
+// deadlines, push, and the per-account activity mirrors). The in-memory `root` is always plaintext; only
+// the on-disk form is encrypted, so stores need no changes. Gated on SESSION_SECRET (same as sessions);
+// without it, state is plaintext (the safe dev default). Domain-salted separately from sessions.
+//   - `players`  = the public MFL player-DB cache (not personal, and large) → plaintext.
+//   - `sessions` = self-encrypted per-record by store/sessions.js → left as-is (no double-encrypt).
+//   - `meta`     = id counters → plaintext.
+// Everything else (personal/account data) is encrypted as a whole namespace: { __enc: { iv, tag, ct } }.
+const _box = config.sessionSecret ? secretBox(config.sessionSecret, 'dynasty-central/persist') : null;
+const PLAINTEXT_NS = new Set(['players', 'sessions', 'meta']);
+const isEncNs = (v) => v != null && typeof v === 'object' && v.__enc != null;
+// Encrypt personal namespaces for disk; leave plaintext ones and (when no secret) everything.
+function forDisk(state) {
+  if (!_box) return state;
+  const out = {};
+  for (const [name, val] of Object.entries(state)) out[name] = PLAINTEXT_NS.has(name) ? val : { __enc: _box.enc(val) };
+  return out;
+}
+// Reverse forDisk on load: decrypt any encrypted namespace back to plaintext. An encrypted namespace we
+// can't decrypt (secret removed/rotated, or tampered) becomes empty rather than corrupt garbage.
+function fromDisk(parsed) {
+  const out = {};
+  for (const [name, val] of Object.entries(parsed)) {
+    if (isEncNs(val)) out[name] = (_box && _box.dec(val.__enc)) || {};
+    else out[name] = val; // plaintext (players/sessions/meta, or a pre-encryption file → encrypted on next write)
+  }
+  return out;
+}
 
 // The state root must be a plain object (a map of namespaces). Guard against a file that parses to
 // an array/null/scalar — otherwise ns() would set keys on the wrong shape and every store silently
@@ -29,7 +59,7 @@ function isPlainObject(v) {
 function readState(file) {
   const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
   if (!isPlainObject(parsed)) throw new Error('state root is not a plain object');
-  return parsed;
+  return fromDisk(parsed);
 }
 
 // Never silently destroy an unreadable state file. The old code reset to empty and LEFT the corrupt
@@ -92,7 +122,7 @@ function checkSize(len) {
 // durability for every other write, instead of disabling persistence forever. Returns null on failure.
 function serialize() {
   try {
-    const data = JSON.stringify(root);
+    const data = JSON.stringify(forDisk(root));
     checkSize(data.length);
     return data;
   } catch (e) {
