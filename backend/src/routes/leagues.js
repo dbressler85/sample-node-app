@@ -6,6 +6,7 @@ const leaguesService = require('../services/leagues');
 const dashboardService = require('../services/dashboard');
 const rosterService = require('../services/roster');
 const leagueService = require('../services/league');
+const exposureService = require('../services/exposure');
 const playoffsService = require('../services/playoffs');
 const leaguePrefs = require('../store/leaguePrefs');
 const { schemas, checkResponse } = require('../lib/apiSchema');
@@ -106,6 +107,20 @@ router.post('/players/lookup', async (req, res, next) => {
   try {
     const { ids, leagueId } = req.body || {};
     res.json(await leagueService.getPlayerLookup(req.mflCookie, Array.isArray(ids) ? ids : [], leagueId || null));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/players/exposure-enrich { ids:[…], primaryLeagueId? } — the per-player enrichment the
+// cross-league exposure feed layers on (name/pos/team/age/value/availability + season/proj points, tag,
+// watched). The GLOBAL/backend half of a device-origin exposure read: the device fetches MY roster in
+// every league straight from MFL and assembles the grouping on-device (docs/DEVICE_ORIGIN_MFL.md).
+// primaryLeagueId selects the scoring/value format, matching /players/exposure.
+router.post('/players/exposure-enrich', async (req, res, next) => {
+  try {
+    const { ids, primaryLeagueId } = req.body || {};
+    res.json(await exposureService.enrichForExposure(req.mflCookie, req.account, Array.isArray(ids) ? ids : [], primaryLeagueId || null));
   } catch (err) {
     next(err);
   }

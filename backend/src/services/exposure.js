@@ -15,6 +15,10 @@ const standingLib = require('../lib/standing');
 const pointsMaps = require('../lib/pointsMaps');
 const playerTags = require('../store/playerTags');
 const watchStore = require('../store/watchlist');
+const playersLib = require('../lib/players');
+const availabilityLib = require('../lib/availability');
+const enrichmentLib = require('../lib/enrichment');
+const leagueFormat = require('../lib/leagueformat');
 
 // Current NFL week (demo fixture or live), for the season/projection numbers below.
 async function currentWeek(cookie) {
@@ -99,6 +103,47 @@ async function getExposure(cookie, token) {
   };
 }
 
+// The per-player enrichment the exposure feed layers onto a set of rostered ids — the GLOBAL/backend
+// half of a DEVICE-ORIGIN exposure read (docs/DEVICE_ORIGIN_MFL.md). The device fetches MY roster in
+// every league straight from MFL (its own IP — the fan-out that trips the shared limiter), sends the
+// union of ids here, and assembles the cross-league grouping on-device with the shared assembleExposure.
+// This serves exactly the fields that loop attaches: name/pos/team/age/value/availability, plus this
+// league's season/projection points, the personal tag, and the watched flag. `primaryLeagueId` selects
+// the scoring/value FORMAT — matching getExposure, which prices every row against the owner's primary
+// league. Auth-gated; a subset (only the requested ids). Fail-soft, never throws for a bad id.
+async function enrichForExposure(cookie, token, ids, primaryLeagueId) {
+  const wanted = [...new Set((ids || []).map((id) => String(id)).filter(Boolean))].slice(0, 4000);
+  const leagues = await leaguesService.listLeagues(cookie).catch(() => []);
+  const league = leagues.find((l) => l.leagueId === String(primaryLeagueId)) || leagues[0] || null;
+  const week = await currentWeek(cookie);
+  const [byId, statusMap, byeMap, enr, points] = await Promise.all([
+    playersLib.load(cookie),
+    config.demoMode ? Promise.resolve(demo.playerStatus()) : nflLib.injuryMap(cookie, week),
+    config.demoMode ? Promise.resolve(demo.byes()) : nflLib.byeMap(cookie, week),
+    (league ? leagueFormat.format(cookie, league) : Promise.resolve(null)).then((fmt) => enrichmentLib.snapshot(fmt, cookie)),
+    pointsMaps.maps(cookie, league, week),
+  ]);
+  const tags = playerTags.all(token);
+  const watchSet = new Set(watchStore.list(token).map(String));
+  const players = {};
+  for (const id of wanted) {
+    const b = playersLib.resolve(byId, id);
+    players[id] = {
+      name: b.name,
+      position: b.position,
+      team: b.team,
+      age: enr.age(id),
+      value: enr.value(id),
+      availability: availabilityLib.resolve(b, statusMap, byeMap, week),
+      seasonPoints: points.season.get(String(id)) ?? null,
+      weekProjection: points.proj.get(String(id)) ?? null,
+      tag: tags[String(id)] || null,
+      watched: watchSet.has(String(id)),
+    };
+  }
+  return { players };
+}
+
 // News mapped to impact: which of your teams each item affects, and where you're
 // starting the player. One glance instead of eight message boards.
 async function getNews(cookie, token) {
@@ -153,4 +198,4 @@ async function getNews(cookie, token) {
   return { news };
 }
 
-module.exports = { getExposure, getNews };
+module.exports = { getExposure, getNews, enrichForExposure };
