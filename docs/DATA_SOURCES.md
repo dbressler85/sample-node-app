@@ -262,11 +262,13 @@ Not bugs, but worth confirming the app should keep behaving this way:
 - **News→player** matching is by name; namesakes (two "Mike Williams") are silently dropped.
 - **SoS/opponent difficulty** is unwired (`null`).
 
-### Q9 — Personal data retention / location — UNDER DISCUSSION
-Today: logout destroys only the session; personal stores (tags, watchlist, value/portfolio history,
-trophies, pins, deadlines, push) persist on **server** disk, keyed by MFL account, unencrypted (only
-sessions are encrypted). Owner is weighing **moving these to on-device storage** (SecureStore/
-AsyncStorage) so personal data lives on the phone, not the server. Trade-offs and options are in the
-chat discussion; this section will record the decision once made. Candidates split into device-friendly
-(tags, watchlist, pins, trophies, deadlines — small, single-device) vs. server-needed (push token +
-prefs, which the server's notification worker must read to poll on the user's behalf).
+### Q9 — Personal data at rest — RESOLVED (encrypted server-side, option 1)
+Decision: keep personal data server-side (account-durable, survives reinstall, still usable by
+server-side computation like the tag→value overlay) but **encrypt it at rest**. Implemented in
+`store/persist.js`: with `SESSION_SECRET` set, every personal namespace (tags, watchlist, value/
+portfolio history, trophies, pins, deadlines, push, per-account activity mirrors) is AES-256-GCM
+encrypted in `state.json` as a `{ __enc }` envelope (domain-salted via `lib/secretBox`, shared with the
+session crypto). The public MFL player-DB cache, the self-encrypted `sessions` namespace, and `meta` id
+counters stay plaintext. In-memory state is unchanged, so no store needed touching. Round-trip + at-rest
+assertions in `persist-encryption-test.js`. ✅ (Logout still only destroys the session — retention is
+intentional; the data is now encrypted rather than plaintext.)

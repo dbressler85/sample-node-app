@@ -13,6 +13,7 @@
 const crypto = require('crypto');
 const config = require('../config');
 const persist = require('./persist');
+const secretBox = require('../lib/secretBox');
 
 // Sliding idle timeout: a session stays valid as long as it's used at least once
 // every IDLE_TTL_MS. Active users effectively never get logged out; only a truly
@@ -25,25 +26,12 @@ const PERSIST_REFRESH_MS = 60 * 60 * 1000; // 1h
 const mem = new Map(); // token -> { cookie, username, createdAt, lastSeen }
 
 const PERSIST = !!config.sessionSecret;
-const key = PERSIST ? crypto.scryptSync(config.sessionSecret, 'dynasty-central/sessions', 32) : null;
+// Per-record AES-256-GCM (domain-salted, shared with store/persist.js via lib/secretBox). Sessions are
+// self-encrypted per record; persist.js leaves the `sessions` namespace as-is (it's already ciphertext).
+const _box = PERSIST ? secretBox(config.sessionSecret, 'dynasty-central/sessions') : null;
 const box = () => persist.ns('sessions'); // token -> { iv, tag, ct } (encrypted)
-
-function enc(obj) {
-  const iv = crypto.randomBytes(12);
-  const c = crypto.createCipheriv('aes-256-gcm', key, iv);
-  const ct = Buffer.concat([c.update(JSON.stringify(obj), 'utf8'), c.final()]);
-  return { iv: iv.toString('base64'), tag: c.getAuthTag().toString('base64'), ct: ct.toString('base64') };
-}
-
-function dec(rec) {
-  try {
-    const d = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(rec.iv, 'base64'));
-    d.setAuthTag(Buffer.from(rec.tag, 'base64'));
-    return JSON.parse(Buffer.concat([d.update(Buffer.from(rec.ct, 'base64')), d.final()]).toString('utf8'));
-  } catch (e) {
-    return null; // wrong secret / tampered / corrupt — treat as no session
-  }
-}
+const enc = (obj) => _box.enc(obj);
+const dec = (rec) => _box.dec(rec);
 
 // On boot, hydrate memory from any persisted (encrypted) sessions, dropping
 // expired or undecryptable ones.
