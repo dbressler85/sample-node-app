@@ -1,10 +1,12 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, FlatList, ScrollView, ActivityIndicator, RefreshControl } from 'react-native';
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import ErrorView from '../components/ErrorView';
 import useAndroidBack from '../useAndroidBack';
 import useCachedResource from '../useCachedResource';
+import { DEVICE_READS } from '../config';
+import { deviceRosters } from '../mflDevice';
 
 // The league hub: the ordinary league views the app was missing — Standings,
 // Rosters (browse every team = opponent scouting), and a Transactions feed. Reached
@@ -93,6 +95,18 @@ function StandingsTab({ leagueId }) {
 function RostersTab({ leagueId, onOpenPlayer }) {
   const { data, error, refreshing, reload } = useCachedResource(`league:teams:${leagueId}`, () => api.leagueTeams(leagueId));
   const [sel, setSel] = useState(null);
+  // Device-origin proof (flag-gated, OFF by default): fetch this league's rosters straight from MFL on
+  // the device and, on success, show a subtle indicator. The backend `leagueTeams` above stays the
+  // source of truth for what's rendered — this only proves the device→MFL→parse path works end to end.
+  const [deviceProbe, setDeviceProbe] = useState(null);
+  useEffect(() => {
+    if (!DEVICE_READS) return undefined;
+    let alive = true;
+    deviceRosters(leagueId)
+      .then((rosters) => { if (alive) setDeviceProbe({ ok: true, teams: rosters.length }); })
+      .catch(() => { if (alive) setDeviceProbe({ ok: false }); });
+    return () => { alive = false; };
+  }, [leagueId]);
   if (error && !data) return <ErrorView message={error} onRetry={reload} onRefresh={reload} refreshing={refreshing} />;
   if (!data) return <Center><ActivityIndicator color={colors.accent} size="large" /></Center>;
 
@@ -101,6 +115,9 @@ function RostersTab({ leagueId, onOpenPlayer }) {
 
   return (
     <View style={{ flex: 1 }}>
+      {DEVICE_READS && deviceProbe && deviceProbe.ok ? (
+        <Text style={styles.deviceNote}>⚡ Rosters read live from MFL on-device · {deviceProbe.teams} teams</Text>
+      ) : null}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
         {teams.map((t) => {
           const on = active && t.franchiseId === active.franchiseId;
@@ -217,6 +234,7 @@ const styles = StyleSheet.create({
 
   // rosters
   chipRow: { paddingHorizontal: 16, gap: 8, paddingVertical: 6 },
+  deviceNote: { color: colors.accent, fontSize: 11, fontWeight: '700', textAlign: 'center', paddingTop: 6 },
   teamChip: { backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 7, maxWidth: 170 },
   teamChipOn: { backgroundColor: colors.cardAlt, borderColor: colors.accent },
   teamChipName: { color: colors.textDim, fontSize: 13, fontWeight: '700' },

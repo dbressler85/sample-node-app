@@ -71,6 +71,9 @@ export const api = {
     request('/api/auth/login', { method: 'POST', body: { username, password } }),
   logout: () => request('/api/auth/logout', { method: 'POST' }),
   health: () => request('/api/health'),
+  // Device-origin: fetch THIS session's MFL cookie (+ host/season) so the app can read straight from
+  // MFL. Throws (404) when the backend hasn't enabled device reads — callers treat that as "off".
+  mflCreds: () => request('/api/session/mfl-cookie'),
   me: () => request('/api/me'),
   leaguesList: () => request('/api/leagues'),
   roster: (leagueId) => request(`/api/leagues/${leagueId}/roster`),
