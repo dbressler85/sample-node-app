@@ -1,12 +1,11 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, FlatList, ScrollView, ActivityIndicator, RefreshControl } from 'react-native';
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import ErrorView from '../components/ErrorView';
 import useAndroidBack from '../useAndroidBack';
 import useCachedResource from '../useCachedResource';
-import { DEVICE_READS } from '../config';
-import { deviceRosters } from '../mflDevice';
+import { leagueTeamsPreferDevice } from '../mflDevice';
 
 // The league hub: the ordinary league views the app was missing — Standings,
 // Rosters (browse every team = opponent scouting), and a Transactions feed. Reached
@@ -93,20 +92,11 @@ function StandingsTab({ leagueId }) {
 
 // --- Rosters (opponent scouting) ----------------------------------------------
 function RostersTab({ leagueId, onOpenPlayer }) {
-  const { data, error, refreshing, reload } = useCachedResource(`league:teams:${leagueId}`, () => api.leagueTeams(leagueId));
+  // Device-first: when device reads are enabled + ready, this league's rosters are fetched straight from
+  // MFL on-device and enriched with the backend's player dictionary + franchise names; otherwise (or on
+  // any device-read failure) it silently falls back to the backend. `_source` says which path served it.
+  const { data, error, refreshing, reload } = useCachedResource(`league:teams:${leagueId}`, () => leagueTeamsPreferDevice(leagueId));
   const [sel, setSel] = useState(null);
-  // Device-origin proof (flag-gated, OFF by default): fetch this league's rosters straight from MFL on
-  // the device and, on success, show a subtle indicator. The backend `leagueTeams` above stays the
-  // source of truth for what's rendered — this only proves the device→MFL→parse path works end to end.
-  const [deviceProbe, setDeviceProbe] = useState(null);
-  useEffect(() => {
-    if (!DEVICE_READS) return undefined;
-    let alive = true;
-    deviceRosters(leagueId)
-      .then((rosters) => { if (alive) setDeviceProbe({ ok: true, teams: rosters.length }); })
-      .catch(() => { if (alive) setDeviceProbe({ ok: false }); });
-    return () => { alive = false; };
-  }, [leagueId]);
   if (error && !data) return <ErrorView message={error} onRetry={reload} onRefresh={reload} refreshing={refreshing} />;
   if (!data) return <Center><ActivityIndicator color={colors.accent} size="large" /></Center>;
 
@@ -115,8 +105,8 @@ function RostersTab({ leagueId, onOpenPlayer }) {
 
   return (
     <View style={{ flex: 1 }}>
-      {DEVICE_READS && deviceProbe && deviceProbe.ok ? (
-        <Text style={styles.deviceNote}>⚡ Rosters read live from MFL on-device · {deviceProbe.teams} teams</Text>
+      {data._source === 'device' ? (
+        <Text style={styles.deviceNote}>⚡ Rosters live from MFL on-device · {teams.length} teams</Text>
       ) : null}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
         {teams.map((t) => {

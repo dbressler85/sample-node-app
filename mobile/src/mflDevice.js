@@ -7,6 +7,7 @@
 import mflRead from './mflRead';
 import { DEVICE_READS } from './config';
 import { loadMflCreds } from './auth';
+import { api } from './api';
 
 // Can we even attempt a device read right now? (flag on + a backend that handed us the cookie)
 export async function deviceReadsReady() {
@@ -42,4 +43,28 @@ export async function withDeviceFallback(deviceFn, backendFn) {
   } catch (e) {
     return { data: await backendFn(), source: 'backend' };
   }
+}
+
+// The full league-teams payload (same shape as api.leagueTeams) built device-first: rosters straight
+// from MFL on-device, enriched with the backend's global player dictionary + franchise directory. The
+// heavy per-user rosters fan-out leaves the server; only the small, cached name/value data stays backend.
+// assembleTeams throws if the result is incomplete, so a partial device read never renders.
+export async function deviceLeagueTeams(leagueId) {
+  const franchises = await deviceRosters(leagueId); // [{ franchiseId, players:[{id,status}] }]
+  const ids = [...new Set(franchises.flatMap((f) => f.players.map((p) => p.id)))];
+  const [dir, dict] = await Promise.all([api.franchiseDirectory(leagueId), api.playerLookup(ids, leagueId)]);
+  return mflRead.assembleTeams(franchises, (dict && dict.players) || {}, dir);
+}
+
+// The fetcher a screen uses: device-first when device reads are ready, else the backend — tagged with
+// `_source` so the UI can show where it came from. A device failure/incomplete read silently falls back.
+export async function leagueTeamsPreferDevice(leagueId) {
+  if (await deviceReadsReady()) {
+    try {
+      return { ...(await deviceLeagueTeams(leagueId)), _source: 'device' };
+    } catch (e) {
+      /* fall through to backend */
+    }
+  }
+  return { ...(await api.leagueTeams(leagueId)), _source: 'backend' };
 }
