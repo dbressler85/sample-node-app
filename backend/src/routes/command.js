@@ -2,6 +2,7 @@
 
 const express = require('express');
 const config = require('../config');
+const metrics = require('../lib/metrics');
 const requireSession = require('../middleware/auth');
 const portfolio = require('../services/portfolio');
 const scoreboard = require('../services/scoreboard');
@@ -21,6 +22,15 @@ router.use(requireSession);
 router.get('/session/mfl-cookie', (req, res) => {
   if (!config.deviceReadsEnabled) return res.status(404).json({ error: 'Not found' });
   res.json({ cookie: req.mflCookie, season: config.season, host: config.apiHost });
+});
+
+// POST /api/metrics/device-read { read, source } — a best-effort beacon the app fires after serving a
+// read, so /_metrics can show how often each read was served ON-DEVICE vs. fell back to the backend
+// (the device-origin payoff, measured — docs/DEVICE_ORIGIN_MFL.md). Fire-and-forget; never errors.
+router.post('/metrics/device-read', (req, res) => {
+  const { read, source } = req.body || {};
+  if (read && (source === 'device' || source === 'backend')) metrics.recordDeviceRead(read, source);
+  res.json({ ok: true });
 });
 
 // GET /api/me — the signed-in manager's identity + league count, for the Profile screen.

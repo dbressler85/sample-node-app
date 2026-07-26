@@ -48,6 +48,15 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
     const fb = await fr.json();
     assert(fb && typeof fb.franchises === 'object' && 'mine' in fb, 'franchise directory has { franchises, mine }');
     console.log('✓ /api/leagues/:id/franchises: returns { franchises, mine }');
+
+    // Device-read beacon → /_metrics deviceReads split (the device-origin payoff, measured).
+    await fetch(`${base}/api/metrics/device-read`, { method: 'POST', headers: auth, body: JSON.stringify({ read: 'rosters', source: 'device' }) });
+    await fetch(`${base}/api/metrics/device-read`, { method: 'POST', headers: auth, body: JSON.stringify({ read: 'rosters', source: 'backend' }) });
+    const mx = await (await fetch(`${base}/api/_metrics`)).json();
+    const dr = ((mx.mfl && mx.mfl.deviceReads) || []).find((x) => x.read === 'rosters');
+    assert(dr && dr.device >= 1 && dr.backend >= 1, `beacon feeds /_metrics deviceReads, got ${JSON.stringify(dr)}`);
+    assert(mx.client && mx.client.deviceReadsEnabled === false, 'client.deviceReadsEnabled surfaced on /_metrics');
+    console.log('✓ device-read beacon → /_metrics deviceReads split + client.deviceReadsEnabled');
   } finally {
     server.close();
   }

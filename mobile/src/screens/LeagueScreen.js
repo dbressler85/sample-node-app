@@ -100,7 +100,9 @@ function RostersTab({ leagueId, onOpenPlayer }) {
   if (error && !data) return <ErrorView message={error} onRetry={reload} onRefresh={reload} refreshing={refreshing} />;
   if (!data) return <Center><ActivityIndicator color={colors.accent} size="large" /></Center>;
 
-  const teams = data.teams || [];
+  // Your team pinned first in the chip bar (then value-sorted) so it's visible on open — otherwise a
+  // value-sorted bar buries "you" off-screen to the right. The default selection is still your team.
+  const teams = (data.teams || []).slice().sort((a, b) => (b.mine ? 1 : 0) - (a.mine ? 1 : 0) || (b.totalValue || 0) - (a.totalValue || 0));
   const active = teams.find((t) => t.franchiseId === sel) || teams.find((t) => t.mine) || teams[0];
 
   return (
