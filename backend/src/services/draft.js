@@ -197,6 +197,25 @@ async function loadDraft(cookie, token, league, deviceRead = null) {
   }
 }
 
+// loadDraft re-throws a transient MFL read failure (a throttle/403) rather than returning null,
+// precisely so a rate-limit isn't mistaken for "no draft." In the Home/overview fan-out that read
+// races every other league's reads (+ the triage fan-out), so a single league can get throttled and,
+// swallowed as 'none', its live draft would silently disappear from Home. Retry the transient failure
+// a couple times (the backend queue re-serves it) before giving up — the single-league board doesn't
+// need this (it keeps its last-good board and surfaces the error).
+async function loadDraftResilient(cookie, token, league, dr, attempts = 3) {
+  let lastErr = null;
+  for (let i = 0; i < attempts; i += 1) {
+    try {
+      return await loadDraft(cookie, token, league, dr);
+    } catch (e) {
+      lastErr = e;
+      if (i < attempts - 1) await new Promise((r) => setTimeout(r, 300 * (i + 1)));
+    }
+  }
+  throw lastErr;
+}
+
 // Round-1 franchise sequence from a full pick grid (if present).
 function deriveOrder(rawWithOrder) {
   const r1 = rawWithOrder.filter((p) => Number(p.round) === 1).sort((a, b) => Number(a.pick) - Number(b.pick));
@@ -371,7 +390,7 @@ async function getOverview(cookie, token, { deviceReads = null } = {}) {
         // cached league list one step behind) must NOT silently read as 'none' — that hid a scheduled/live
         // draft and could cause a missed clock (docs/ARCHITECTURE_REVIEW_2026-07-device-origin.md A-8). Fall
         // back to a one-off backend read for just that league; every other league still comes from the device.
-        const draft = await loadDraft(cookie, token, league, dr);
+        const draft = await loadDraftResilient(cookie, token, league, dr);
         if (!draft) return { leagueId: league.leagueId, name: league.name, status: 'none' };
         const slots = slotsFor(draft);
         const status = statusOf(draft, slots);
