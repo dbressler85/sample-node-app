@@ -217,7 +217,10 @@ async function readWith(fetchImpl, { descriptor, host, year, league = null, para
 function shapeRoster(franchise) {
   return {
     franchiseId: fid(franchise && franchise.id),
-    players: toArray(franchise && franchise.player).map((p) => ({ id: text(p && p.id), status: text(p && p.status) })),
+    // Read `status` OR `roster_status` — MFL emits the reserve marker (IR/TAXI) under either key depending
+    // on the export, and the backend's getTeams reads `p.status || p.roster_status` (services/league.js).
+    // Taking only `status` mis-tagged an IR/taxi player as active on the device Rosters tab (M-2).
+    players: toArray(franchise && franchise.player).map((p) => ({ id: text(p && p.id), status: text(p && p.status) || text(p && p.roster_status) })),
   };
 }
 
@@ -285,7 +288,10 @@ function assembleTeams(franchises, playerDict, directory) {
   if (!teams.length || teams.some((t) => !t.name) || !teams.some((t) => t.players.length)) {
     throw new Error('device league-teams payload incomplete — falling back to the backend');
   }
-  return { teams };
+  // Carry the same top-level fields as the backend getTeams ({ leagueId, name, format, teams }) so the
+  // device and fallback payloads are identical — a consumer reading `data.format`/`data.name` can't break
+  // only on the device path (M-2). Sourced from the franchise directory the device already fetches.
+  return { leagueId: dir.leagueId != null ? String(dir.leagueId) : null, name: dir.name || null, format: dir.format || null, teams };
 }
 
 // Assemble the standings payload (same shape as the backend getStandings) from device-origin
@@ -323,7 +329,9 @@ function assembleStandings(rows, directory) {
   if (!standings.length || standings.some((s) => !s.name)) {
     throw new Error('device standings incomplete — falling back to the backend');
   }
-  return { standings, me: standings.find((s) => s.mine) || null, playoffSpots: spots };
+  // Same top-level shape/order as the backend getStandings ({ leagueId, name, playoffSpots, me, standings })
+  // so device and fallback are identical (M-2). leagueId/name come from the directory.
+  return { leagueId: dir.leagueId != null ? String(dir.leagueId) : null, name: dir.name || null, playoffSpots: spots, me: standings.find((s) => s.mine) || null, standings };
 }
 
 // Human labels for MFL transaction types (matches the backend TXN_LABEL).
@@ -375,7 +383,9 @@ function assembleTransactions(rawRows, assetDict, directory, limit = 40) {
     added: (t.addedIds || []).map(asset),
     dropped: (t.droppedIds || []).map(asset),
   }));
-  return { transactions };
+  // Same top-level shape as the backend getTransactions ({ leagueId, name, transactions }) so device and
+  // fallback are identical (M-2). leagueId/name come from the directory.
+  return { leagueId: dir.leagueId != null ? String(dir.leagueId) : null, name: dir.name || null, transactions };
 }
 
 // Full roster-slot bucket for EXPOSURE: starter kept DISTINCT from bench (unlike rosterSlot's scouting

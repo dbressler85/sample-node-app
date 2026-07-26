@@ -252,19 +252,23 @@ async function getPlayerLookup(cookie, ids, leagueId) {
   return { players };
 }
 
-// Franchise directory for a league: { franchises: { id: name }, mine }. The lightweight name half of a
-// device-origin roster render (docs/DEVICE_ORIGIN_MFL.md) — names come from the (cached) `league` export,
-// not the heavy rosters fan-out, so the device can label teams while the per-user rosters come from MFL
-// on-device. Empty franchises in demo (no live `league` export) → the device path falls back.
+// Franchise directory for a league: { leagueId, name, format, franchises: { id: name }, mine, playoffSpots }.
+// The lightweight metadata half of a device-origin roster render (docs/DEVICE_ORIGIN_MFL.md) — names come
+// from the (cached) `league` export, not the heavy rosters fan-out, so the device can label teams while the
+// per-user rosters come from MFL on-device. `leagueId`/`name`/`format` let the device-side assemblers carry
+// the SAME top-level fields the backend getTeams/getStandings/getTransactions return, so the device and
+// fallback payloads are identical (M-2). `format` is on the static memo, so it's near-free here. Empty
+// franchises in demo (no live `league` export) → the device path falls back.
 async function getFranchiseDirectory(cookie, leagueId) {
   const league = await findLeague(cookie, leagueId);
-  const [names, playoffSpots] = await Promise.all([
+  const [names, playoffSpots, fmt] = await Promise.all([
     leaguesService.franchiseNames(cookie, league),
     playoffSpotsFor(cookie, league), // from the same (cached) `league` export franchiseNames reads
+    leagueFormat.format(cookie, league).catch(() => null), // memoized (static TTL); best-effort for the label
   ]);
   const franchises = {};
   for (const [id, name] of names) franchises[id] = name;
-  return { franchises, mine: league.franchiseId || null, playoffSpots };
+  return { leagueId: String(league.leagueId), name: league.name, format: fmt ? leagueFormat.label(fmt) : null, franchises, mine: league.franchiseId || null, playoffSpots };
 }
 
 module.exports = { getStandings, getTeams, getTransactions, findLeague, getPlayerLookup, getFranchiseDirectory };
