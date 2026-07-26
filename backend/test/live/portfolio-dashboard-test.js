@@ -20,6 +20,7 @@ const PLAYERS = [
   { id: '3', name: 'Hurt, WR', position: 'WR', team: 'CCC' },
 ];
 
+let rostersReads = 0; // counts backend-issued `rosters` fan-out reads (device-origin must issue zero)
 mfl.exportRequest = async (type) => {
   switch (type) {
     case 'myleagues':
@@ -27,6 +28,7 @@ mfl.exportRequest = async (type) => {
     case 'players':
       return { players: { player: PLAYERS } };
     case 'rosters':
+      rostersReads += 1;
       return { rosters: { franchise: [{ id: '0001', player: ['1', '2', '3'].map((id) => ({ id, status: 'starter' })) }] } };
     case 'league':
       return { league: { starters: { position: [{ name: 'QB', limit: '1' }, { name: 'RB', limit: '1' }, { name: 'WR', limit: '2' }] }, franchises: { franchise: [{ id: '0001', name: 'My Team' }] } } };
@@ -126,6 +128,24 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   assert(Array.isArray(d.history) && d.history.length >= 1, `history has at least today's point, got ${d.history.length}`);
   assert(d.history[d.history.length - 1].value === 175, `today's point is the current total (175), got ${d.history[d.history.length - 1].value}`);
   console.log('✓ value-over-time records the current total');
+
+  // Device-origin (docs/DEVICE_ORIGIN_MFL.md): when the app supplies the per-league rosters it fetched
+  // straight from MFL on-device, the SAME dashboard is assembled with ZERO backend rosters reads — the
+  // heavy fan-out that trips MFL's shared per-IP limiter has left the server.
+  const deviceRosters = { 1000: [{ id: '0001', player: ['1', '2', '3'].map((id) => ({ id, status: 'starter' })) }] };
+  const before = rostersReads;
+  const dd = await portfolio.getDashboard('ck', 'tk', { deviceRosters });
+  assert(rostersReads === before, `device path issues NO backend rosters read, got ${rostersReads - before} extra`);
+  assert(dd.totals.rosterValue === 175 && dd.totals.playerCount === 3 && dd.totals.partial === false, `device totals match the backend (175/3, not partial), got ${JSON.stringify(dd.totals)}`);
+  assert(dd.atRisk.totalValue === 75 && dd.atRisk.top.length === 2, `device at-risk matches the backend (75, 2 rows), got ${dd.atRisk.totalValue}/${dd.atRisk.top.length}`);
+  assert(JSON.stringify(dd.allocation) === JSON.stringify(d.allocation), 'device allocation matches the backend');
+  assert(dd.holdings.length === 3 && dd.holdings[0].id === '1' && dd.holdings[0].rel === 100, `device holdings match the backend, got ${JSON.stringify(dd.holdings[0])}`);
+  console.log('✓ device-origin: rosters supplied by the app → identical dashboard, zero backend rosters reads');
+
+  // A league missing from the device map is kept as a MARKED placeholder (honest partial), never dropped.
+  const partial = await portfolio.getDashboard('ck', 'tk', { deviceRosters: {} });
+  assert(partial.totals.partial === true && partial.totals.failedCount === 1 && partial.byLeague[0].loadFailed === true, `an empty device map → league marked loadFailed, got ${JSON.stringify(partial.totals)}`);
+  console.log('✓ device-origin: a league missing from the device map is marked partial, not silently dropped');
 
   console.log('\nPORTFOLIO DASHBOARD HARNESS PASSED');
 })().catch((e) => { console.error(e.message); process.exit(1); });
