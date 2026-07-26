@@ -80,7 +80,7 @@ export default function TradeInboxScreen({ active = true, onBack, onOpenLeague, 
     return () => { alive = false; };
   }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function respond(offer, action) {
+  async function doRespond(offer, action) {
     const k = `${offer.leagueId}:${offer.id}`;
     setBusy(k);
     try {
@@ -92,6 +92,23 @@ export default function TradeInboxScreen({ active = true, onBack, onOpenLeague, 
     } finally {
       setBusy(null);
     }
+  }
+
+  // Accept COMMITS the trade on MFL and can't be undone from the app, so it double-confirms and
+  // echoes the deal (partner + market net) before firing. Reject/counter stay immediate.
+  function respond(offer, action) {
+    if (action !== 'accept') return doRespond(offer, action);
+    const net = offer.analysis && typeof offer.analysis.net === 'number' ? offer.analysis.net : null;
+    const netStr = net != null ? ` · market net ${net > 0 ? '+' : ''}${net}` : '';
+    Alert.alert(
+      'Accept this trade?',
+      `Complete the deal with ${offer.withName || 'this team'}${netStr}. This is final on MyFantasyLeague — it can’t be undone from the app.`,
+      [
+        { text: 'Not yet', style: 'cancel' },
+        { text: 'Accept', onPress: () => doRespond(offer, 'accept') },
+      ]
+    );
+    return undefined;
   }
 
   // Best deals first: favorable → fair → unfavorable, then by net value. Memoized
