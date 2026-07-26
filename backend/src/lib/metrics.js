@@ -18,6 +18,10 @@ const counters = {
 
 // Per-export-type fetch counts, so you can see WHAT is driving MFL volume (rosters vs projections …).
 const byType = new Map(); // type -> fetches
+// Device-origin reads: how often each read was served BY THE DEVICE (fetched straight from MFL) vs.
+// fell back to the BACKEND. The whole point of device-origin is moving per-user fan-outs off the
+// shared IP, so this is the number that says whether it's working (high device %, per read).
+const deviceReads = new Map(); // read -> { device, backend }
 // Fetch timestamps within the last window, for a rolling calls/min figure.
 const recent = [];
 const WINDOW_MS = 5 * 60 * 1000;
@@ -39,6 +43,14 @@ function recordHit(shared) {
   counters.cacheHits += 1;
   if (shared) counters.sharedHits += 1;
   else counters.privateHits += 1;
+}
+// A device reported that it served `read` from the `device` path or fell back to the `backend`.
+function recordDeviceRead(read, source) {
+  const key = String(read || 'unknown');
+  const e = deviceReads.get(key) || { device: 0, backend: 0 };
+  if (source === 'device') e.device += 1;
+  else e.backend += 1;
+  deviceReads.set(key, e);
 }
 const recordMiss = () => { counters.cacheMisses += 1; };
 const record429 = () => { counters.http429 += 1; };
@@ -64,6 +76,7 @@ function snapshot() {
     callsPerMin: callsPerMin(),
     callsLast5Min: recent.length,
     topTypes: top,
+    deviceReads: [...deviceReads.entries()].map(([read, c]) => ({ read, device: c.device, backend: c.backend, devicePct: pct(c.device, c.device + c.backend) })),
   };
 }
 
@@ -71,7 +84,8 @@ function snapshot() {
 function _reset() {
   for (const k of Object.keys(counters)) counters[k] = 0;
   byType.clear();
+  deviceReads.clear();
   recent.length = 0;
 }
 
-module.exports = { recordFetch, recordHit, recordMiss, record429, record503, recordError, fetchCount, snapshot, _reset };
+module.exports = { recordFetch, recordHit, recordMiss, record429, record503, recordError, recordDeviceRead, fetchCount, snapshot, _reset };

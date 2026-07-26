@@ -58,13 +58,18 @@ export async function deviceLeagueTeams(leagueId) {
 
 // The fetcher a screen uses: device-first when device reads are ready, else the backend — tagged with
 // `_source` so the UI can show where it came from. A device failure/incomplete read silently falls back.
+// When device reads are on, a best-effort beacon reports the served path so /_metrics can measure the
+// device-vs-fallback split.
 export async function leagueTeamsPreferDevice(leagueId) {
+  let payload = null;
   if (await deviceReadsReady()) {
     try {
-      return { ...(await deviceLeagueTeams(leagueId)), _source: 'device' };
+      payload = { ...(await deviceLeagueTeams(leagueId)), _source: 'device' };
     } catch (e) {
       /* fall through to backend */
     }
   }
-  return { ...(await api.leagueTeams(leagueId)), _source: 'backend' };
+  if (!payload) payload = { ...(await api.leagueTeams(leagueId)), _source: 'backend' };
+  if (DEVICE_READS) api.reportDeviceRead('rosters', payload._source);
+  return payload;
 }

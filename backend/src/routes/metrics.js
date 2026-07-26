@@ -47,7 +47,7 @@ router.get('/_metrics', (req, res) => {
     activeSessions: sessions.active().length,
     // MFL client identity — verify prod is sending the exact User-Agent you registered (a mismatch
     // silently forfeits the ~2.5x validated-client limit). No secrets here; the UA is sent on every call.
-    client: { userAgent: config.userAgent, registered: config.mflClientRegistered, apiKeyConfigured: !!config.apiKey },
+    client: { userAgent: config.userAgent, registered: config.mflClientRegistered, apiKeyConfigured: !!config.apiKey, deviceReadsEnabled: config.deviceReadsEnabled },
     // The headline: MFL call volume + how many reads were served from cache (and how much of that
     // was cross-user sharing). A high hitRatePct with a healthy sharedHitPct is the caching working.
     mfl: metrics.snapshot(),
