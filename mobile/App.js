@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, StatusBar, ActivityIndicator, SafeAreaView, Platform, Dimensions, Animated, Easing } from 'react-native';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import useAndroidBack from './src/useAndroidBack';
+import useReducedMotion from './src/useReducedMotion';
 import { api, setAuthLostHandler } from './src/api';
 import { registerForPush, unregisterPush } from './src/push';
 import { clearAll as clearCache } from './src/cache';
@@ -79,7 +80,9 @@ export default function App() {
   // Overlays form a stack so back returns to the previous screen (e.g. Trades or
   // Draft opened from a roster returns to that roster, not Home).
   const [overlayStack, setOverlayStack] = useState([]);
+  const [closing, setClosing] = useState(false); // the top overlay is playing its exit animation (Traversal)
   const [waiversTarget, setWaiversTarget] = useState(null); // {leagueId, position, sort}
+  const reduced = useReducedMotion(); // OS "reduce motion" — snap transitions to settled state when on
   // Keep-alive tabs: each tab is MOUNTED the first time it's visited and kept mounted (hidden)
   // afterward, so switching tabs preserves scroll + in-progress state (UX_GUARDRAILS C7) — not just
   // returning from an overlay. Lazy so we never eagerly mount all six (and their fetches) at once.
@@ -111,6 +114,7 @@ export default function App() {
     const to = order.indexOf(tab);
     prevTabRef.current = tab;
     if (from === -1 || to === -1 || from === to) return;
+    if (reduced) { tabSlide.setValue(0); tabFade.setValue(1); tabScale.setValue(1); return; } // reduce-motion: snap, don't slide
     const dir = to > from ? 1 : -1; // right in the bar → enter from the right
     // A little longer + a touch of slide and scale so the switch is felt, not just seen.
     tabSlide.setValue(dir * 80);
@@ -121,7 +125,7 @@ export default function App() {
       Animated.timing(tabFade, { toValue: 1, duration: 430, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
       Animated.spring(tabScale, { toValue: 1, useNativeDriver: true, friction: 7, tension: 60 }),
     ]).start();
-  }, [tab, tabSlide, tabFade, tabScale]);
+  }, [tab, tabSlide, tabFade, tabScale, reduced]);
 
   function handleLoggedIn(info) {
     if (info && typeof info.demoMode === 'boolean') setDemoMode(info.demoMode);
@@ -138,8 +142,14 @@ export default function App() {
   }
 
   const overlay = overlayStack[overlayStack.length - 1] || null;
-  const pushOverlay = (o) => setOverlayStack((s) => [...s, o]);
-  const popOverlay = () => setOverlayStack((s) => s.slice(0, -1));
+  // Pushing clears any pending close flag so a newly-opened overlay never inherits an exit.
+  const pushOverlay = (o) => { setClosing(false); setOverlayStack((s) => [...s, o]); };
+  // Traversal (docs/MOTION_AND_NEON_ROADMAP.md §2.2): popOverlay now REQUESTS a close — it flips the
+  // `closing` flag so the top OverlayLayer plays its exit; finishPop removes it once that completes.
+  // Every existing onBack / Android-back / onExit call site uses popOverlay unchanged, so they now
+  // animate out instead of vanishing.
+  const finishPop = useCallback(() => { setOverlayStack((s) => s.slice(0, -1)); setClosing(false); }, []);
+  const popOverlay = useCallback(() => { if (overlayStack.length) setClosing(true); }, [overlayStack.length]);
 
   useEffect(() => {
     (async () => {
@@ -470,13 +480,15 @@ export default function App() {
           <TabBar tab={tab} onChange={setTab} />
         </View>
         {overlayStack.map((o, i) => (
-          <View key={i} style={StyleSheet.absoluteFill}>
+          // Each overlay is its own animated layer: it lifts in on open and drops out on back
+          // (OverlayLayer). isTop + closing drive the exit; finishPop removes it once that completes.
+          <OverlayLayer key={i} isTop={i === overlayStack.length - 1} closing={closing} onClosed={finishPop}>
             <ErrorBoundary silent>
               <FieldBackdrop />
             </ErrorBoundary>
             {/* covered = another overlay sits on top of this one (it isn't the visible top). */}
             <View style={styles.flex}>{renderOverlay(o, i < overlayStack.length - 1)}</View>
-          </View>
+          </OverlayLayer>
         ))}
       </View>
     );
@@ -529,6 +541,43 @@ export default function App() {
       </ErrorBoundary>
     </View>
   );
+}
+
+// One overlay in the stack, as an animated layer (Traversal). It lifts in on mount — rising a touch,
+// scaling up from 0.96, fading in — so a drill-in reads as coming forward from the screen below; on
+// back (isTop && closing) it plays the reverse, then calls onClosed so App removes it from the stack.
+// The exit is cancelable, so pushing a new overlay mid-close never mis-fires. Respects reduce-motion
+// (snaps to the settled/removed state) and always rests at the identity transform, so a layer can
+// never strand off-screen or blank (UX_GUARDRAILS).
+function OverlayLayer({ isTop, closing, onClosed, children }) {
+  const reduced = useReducedMotion();
+  const t = useRef(new Animated.Value(0)).current;
+  // Enter on mount; settle back to rest whenever we're a non-closing layer (also recovers a layer
+  // that becomes the top again after a cancelled close).
+  useEffect(() => {
+    if (isTop && closing) return undefined; // the exit effect owns this state
+    if (reduced) { t.setValue(1); return undefined; }
+    const anim = Animated.spring(t, { toValue: 1, useNativeDriver: true, friction: 9, tension: 70 });
+    anim.start();
+    return () => anim.stop();
+  }, [isTop, closing, reduced, t]);
+  // Play the exit, then remove. Cancelable so a new push (isTop→false) doesn't fire onClosed.
+  useEffect(() => {
+    if (!(isTop && closing)) return undefined;
+    if (reduced) { onClosed(); return undefined; }
+    let cancelled = false;
+    const anim = Animated.timing(t, { toValue: 0, duration: 200, easing: Easing.in(Easing.cubic), useNativeDriver: true });
+    anim.start(({ finished }) => { if (finished && !cancelled) onClosed(); });
+    return () => { cancelled = true; anim.stop(); };
+  }, [isTop, closing, reduced, onClosed, t]);
+  const animStyle = {
+    opacity: t,
+    transform: [
+      { translateY: t.interpolate({ inputRange: [0, 1], outputRange: [26, 0] }) },
+      { scale: t.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] }) },
+    ],
+  };
+  return <Animated.View style={[StyleSheet.absoluteFill, animStyle]}>{children}</Animated.View>;
 }
 
 function TabBar({ tab, onChange }) {
