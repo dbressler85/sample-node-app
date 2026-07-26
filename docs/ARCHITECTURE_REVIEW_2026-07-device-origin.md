@@ -131,8 +131,10 @@ Legend — severity **High / Med / Low**; effort **S** ~hours · **M** ~days · 
 > **A-7** (cold-start), **A-11** (self-scoped trust). ✅ also done: **U-3** (fast offline fail + no
 > beacon-storm), **U-4** (backend-independent Shape-A reads during a backend outage, via `deviceEnrichCache`),
 > **U-5** (device-faster headline on `/_metrics mfl.deviceLatency`), **U-7** (expired-cookie → refresh, not
-> silent fallback). **Every A-item is now resolved or accept-with-doc.** U-series remaining: only **U-2**
-> (Sunday battery/data budget — larger).
+> silent fallback), **U-2 (partial)** — the highest-leverage slice: idle prefetch is now cellular-frugal
+> (skips speculatively warming the heavy device-fan-out tab on cellular). **Every A-item is resolved or
+> accept-with-doc; every U-item is done except the deferred U-2 remainder** (an explicit session read/byte
+> budget — larger, diffuse payoff).
 
 - **A-1 · Device omits the request discipline it was specified to mirror · Med · S · ✅ FIXED.** The device
   fired `Promise.all` across 15–20 leagues with **no stagger, no concurrency cap, no 429 backoff** —
@@ -349,9 +351,18 @@ Everything else (A-1/A-7/A-10) is tunable post-flip and should not hold the gate
 - **U-1 · "Complete vs partial" freshness signal on aggregate screens · M.** A tiny "15/15 leagues" (or
   "13/15 · 2 retrying") header turns A-2's per-league fallback from a silent gap into an honest calm state.
   The single most valuable thing to *tell* the user now that fallback is per-league.
-- **U-2 · Battery/data budget awareness for a full Sunday session · M.** 1–8pm, in and out 40× across 15
-  leagues, every foreground fan-out is now the user's battery + LTE. Add an idle-prefetch session budget +
-  reuse the covered-overlay gating (A-9) so background tabs stop fanning out.
+- **U-2 · Battery/data budget awareness for a full Sunday session · M · ◑ PARTIAL (highest-leverage slice
+  done).** 1–8pm, in and out 40× across 15 leagues, every foreground fan-out is now the user's battery + LTE.
+  Much of the cost was already trimmed (A-1 concurrency cap, A-9 no covered-screen polling, A-10 heavy FA
+  pool kept backend, `deviceReadCache` 5-min coalescing). **Done now:** the idle prefetch
+  (`prefetchOtherTabs`) no longer speculatively warms the heavy **device-fan-out** tab (lineups: rosters ×
+  all leagues) **on cellular** — it's marked `device: true` and skipped when a device fan-out would run
+  (flag on + creds) AND the link is cellular (`net.js`/`netClassify.js`, best-effort via `expo-network`; a
+  lightweight backend prefetch on wifi/unknown is never skipped, and no *user-requested* content is ever
+  gated on network type — the PO's rule). Adds a native dep (`expo-network@~6.0.1`) → takes effect on the
+  next EAS build. Unit-tested (`netClassify.test.js`). **Deferred (the "M" remainder):** an explicit
+  session-wide read/byte budget that lengthens TTLs / suppresses prefetch late in a long session — larger,
+  diffuse payoff; the sharp contributors are handled.
 - **U-3 · Offline / subway graceful state · S · ✅ FIXED.** Post-shift a read could fail *twice* (device then
   backend), slower to give up. **Fixed:** every on-device fetch is bounded by an 8s timeout
   (`fetchWithTimeout` in `mflDevice.js`) so a dead network fails fast (C4 keeps last data promptly instead of
