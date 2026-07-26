@@ -1,0 +1,45 @@
+'use strict';
+// POST /api/players/lookup — the GLOBAL player dictionary (name/pos/team/value) for a set of ids, the
+// backend-cached half of a device-origin roster read (docs/DEVICE_ORIGIN_MFL.md). The device fetches a
+// league's rosters straight from MFL and calls this to enrich the ids it got, so the per-user fan-out
+// leaves the server while shared player/value data stays cached here. Auth-gated; returns a subset.
+process.env.MFL_DEMO_MODE = 'true';
+
+const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
+
+(async () => {
+  const app = require('../../src/app');
+  const server = app.listen(0);
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const lr = await fetch(`${base}/api/auth/login`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'u', password: 'p' }),
+    });
+    const { token } = await lr.json();
+    const auth = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+
+    // Auth-gated.
+    const un = await fetch(`${base}/api/players/lookup`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: ['1'] }) });
+    assert(un.status === 401, `lookup requires auth, got ${un.status}`);
+
+    // Returns an entry (name/position/team/value keys) for every requested id, deduped.
+    const r = await fetch(`${base}/api/players/lookup`, { method: 'POST', headers: auth, body: JSON.stringify({ ids: ['1', '2', '2'] }) });
+    assert(r.status === 200, `authed lookup → 200, got ${r.status}`);
+    const body = await r.json();
+    assert(body.players && typeof body.players === 'object', 'response has a players dictionary');
+    for (const id of ['1', '2']) {
+      const p = body.players[id];
+      assert(p && 'name' in p && 'position' in p && 'team' in p && 'value' in p, `id ${id} has name/position/team/value`);
+    }
+    console.log('✓ /api/players/lookup: auth-gated; returns name/position/team/value per id');
+
+    // Empty / non-array ids → empty dictionary, never an error.
+    const empty = await fetch(`${base}/api/players/lookup`, { method: 'POST', headers: auth, body: JSON.stringify({}) });
+    const eb = await empty.json();
+    assert(empty.status === 200 && eb.players && Object.keys(eb.players).length === 0, 'no ids → empty dictionary, not an error');
+    console.log('✓ /api/players/lookup: empty ids → empty dictionary');
+  } finally {
+    server.close();
+  }
+  console.log('\nPLAYER LOOKUP HARNESS PASSED');
+})().catch((e) => { console.error(e.message); process.exit(1); });
