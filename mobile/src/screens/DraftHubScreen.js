@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, RefreshControl, ActivityIndicator } from 'react-native';
-import { api } from '../api';
 import { colors } from '../theme';
+import { draftsPreferDevice } from '../mflDevice';
 import ErrorView from '../components/ErrorView';
 import useAndroidBack from '../useAndroidBack';
 import useCachedResource from '../useCachedResource';
@@ -28,9 +28,10 @@ const ordinal = (n) => {
 };
 
 export default function DraftHubScreen({ covered = false, onBack, onOpenDraft, onOpenPicks }) {
-  // Stale-while-revalidate: Home already fetched `api.drafts()` and wrote it to this same
-  // 'drafts' cache key, so opening the hub from Home paints instantly, then revalidates.
-  const { data, error, refreshing, loading, reload } = useCachedResource('drafts', () => api.drafts());
+  // Stale-while-revalidate: Home already fetched the drafts overview and wrote it to this same
+  // 'drafts' cache key, so opening the hub from Home paints instantly, then revalidates. Device-first:
+  // the per-league draftResults+calendar fan-out runs on-device, falling back to the backend.
+  const { data, error, refreshing, loading, reload } = useCachedResource('drafts', () => draftsPreferDevice());
 
   useAndroidBack(useCallback(() => { onBack(); return true; }, [onBack]));
 

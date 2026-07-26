@@ -75,7 +75,7 @@ async function freeAgentUnits(league, cookie, params = {}) {
 // `draftResults` export -> the draft unit(s); the caller picks the LEAGUE unit and reads draftPick[].
 async function draftResults(league, cookie, params = {}) {
   const res = await read('draftResults', league, cookie, params);
-  return mfl.toArray(res && res.draftResults && res.draftResults.draftUnit);
+  return mflRead.reads.draftResults.parse(res);
 }
 
 // `playerScores` export -> per-player fantasy scores (league-scoped; pass W and PLAYERS).
@@ -99,7 +99,7 @@ async function schedule(league, cookie, params = {}) {
 // `calendar` export -> league calendar events (waiver/lock windows, etc.).
 async function calendar(league, cookie, params = {}) {
   const res = await read('calendar', league, cookie, params);
-  return mfl.toArray(res && res.calendar && res.calendar.event);
+  return mflRead.reads.calendar.parse(res);
 }
 
 // `tradeBait` export -> the trade-bait board (note the envelope pluralizes: tradeBaits.tradeBait).

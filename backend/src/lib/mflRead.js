@@ -124,6 +124,28 @@ const reads = {
       return toArray(res && res.transactions && res.transactions.transaction);
     },
   },
+  // `draftResults` -> the draft unit(s) (each nests draftPick[]); the draft service parses order/status.
+  draftResults: {
+    type: 'draftResults',
+    needsAuth: true,
+    request({ host, year, league, params = {} }) {
+      return { url: buildExportUrl({ host, year, type: 'draftResults', league, params }), needsAuth: true };
+    },
+    parse(res) {
+      return toArray(res && res.draftResults && res.draftResults.draftUnit);
+    },
+  },
+  // `calendar` -> league calendar events (DRAFT_START, waiver/lock windows).
+  calendar: {
+    type: 'calendar',
+    needsAuth: true,
+    request({ host, year, league, params = {} }) {
+      return { url: buildExportUrl({ host, year, type: 'calendar', league, params }), needsAuth: true };
+    },
+    parse(res) {
+      return toArray(res && res.calendar && res.calendar.event);
+    },
+  },
 };
 
 // Perform a full read from the device side: build the URL from a descriptor, fetch it with the user's
