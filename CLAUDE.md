@@ -25,6 +25,11 @@ config; `mobile/` is the Expo app.
   preview, scroll survival, live animations, logout wipe, …). Any PR touching navigation, the
   cache/data layer, lists, animations, or error surfaces must satisfy these and the pre-merge
   checklist. Treat them as enforceable, not advisory.
+- [`docs/DESIGN_SYSTEM.md`](docs/DESIGN_SYSTEM.md) — **the visual source of truth**: the color law
+  (gold = value; neon tier = state/action), the glow recipe, spacing/radius/type/motion scales,
+  Oswald usage, touch-target + reduce-motion standards, and the shared state/component patterns.
+  Any PR touching color, typography, spacing, or a shared component must conform; `mobile/src/theme.js`
+  implements it as tokens (screens consume tokens, not raw literals).
 
 ## Hard-won rules
 
