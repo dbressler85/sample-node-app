@@ -214,14 +214,13 @@ export const api = {
   removeBait: (leagueId, playerId) => request(`/api/leagues/${leagueId}/tradebait/${playerId}`, { method: 'DELETE' }),
 
   waiversOverview: () => request('/api/waivers/overview'),
-  // Device-origin: the app supplies each league's freeAgents pool (overview) it fetched from MFL on-device.
-  waiversOverviewDevice: (deviceReads) => request('/api/waivers/overview', { method: 'POST', body: { deviceReads } }),
   waiverSuggestions: () => request('/api/waivers/suggestions'),
   // `format` ('1qb'|'sf') re-prices the board through that value lens (matches the Players toggle).
+  // NOTE (A-10): the free-agent POOL is fetched here on the BACKEND, not on-device — it's the one heavy
+  // read (thousands/league) and is league-shareable, so the backend's cross-user cache serves it more
+  // cheaply than every device re-downloading it on cellular. (The backend still exposes POST variants of
+  // these two that accept device-supplied pools; the app no longer uses them.)
   bestAvailable: (format) => request(`/api/waivers/best-available${format ? `?format=${format}` : ''}`),
-  // Device-origin best-available: the app supplies the per-league freeAgents pools it fetched straight
-  // from MFL on-device (the heaviest waiver fan-out) so the backend only enriches + merges.
-  bestAvailableDevice: (deviceReads, format) => request(`/api/waivers/best-available${format ? `?format=${format}` : ''}`, { method: 'POST', body: { deviceReads } }),
   waiverPending: () => request('/api/waivers/pending'),
   previewClaim: (leagueId, body) => request(`/api/leagues/${leagueId}/waivers/preview`, { method: 'POST', body }),
   submitClaim: (leagueId, body) => request(`/api/leagues/${leagueId}/waivers`, { method: 'POST', body }),

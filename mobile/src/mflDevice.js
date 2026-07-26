@@ -222,33 +222,21 @@ export function draftsPreferDevice() {
   return preferDevice('drafts', () => deviceDrafts(), () => api.drafts());
 }
 
-// Cross-league best-available free agents, device-first: fetch every league's freeAgents pool — the
-// heaviest waiver read (up to thousands of players per league) — straight from MFL on-device, then hand
-// the pools to the backend to check open/closed, apply settings, enrich, and merge across leagues (all of
-// which read backend format/settings). All-or-nothing: any per-league read failure falls back to the backend.
-export async function deviceBestAvailable(format) {
-  const { leagues } = await api.leaguesList();
-  const list = (leagues || []).filter((l) => l && l.leagueId);
-  if (!list.length) return api.bestAvailable(format);
-  const entries = await devicePool(list, async (l) => [l.leagueId, await runDeviceRead(mflRead.reads.freeAgents, l.leagueId)]);
-  return api.bestAvailableDevice(Object.fromEntries(entries), format);
-}
+// Cross-league best-available free agents + the waivers overview: these are the only device reads that
+// would fetch the FULL free-agent POOL (up to thousands of players PER league) straight from MFL. That's
+// the one genuinely heavy device read — a real cellular-data + battery cost on a Sunday scramble — and,
+// unlike the private per-user rosters/assets we do move, the free-agent pool is LEAGUE-shareable, so the
+// backend's cross-user cache already serves it efficiently across a league's members. So we keep the pool
+// BACKEND-only (docs/ARCHITECTURE_REVIEW_2026-07-device-origin.md A-10): fix the cost, don't gate the
+// feature behind wifi (the PO's call — "check waivers from the parking lot" must work on cellular). The
+// lighter per-user device reads (rosters/assets/draft) stay device-origin; only the heavy pool reverts.
+// The wrappers keep their names + `format` passthrough so the screens/prefetch are unchanged; they simply
+// resolve to the backend GET, which the value lens (?format=) still flows through.
 export function bestAvailablePreferDevice(format) {
-  return preferDevice('bestAvailable', () => deviceBestAvailable(format), () => api.bestAvailable(format));
-}
-
-// Waivers overview ("landing" list), device-first: each league's freeAgents pool is the one heavy read
-// here (roster/settings/calendar are light/cached and stay backend), so fetch it on-device and hand it to
-// the backend to summarize + merge.
-export async function deviceWaiversOverview() {
-  const { leagues } = await api.leaguesList();
-  const list = (leagues || []).filter((l) => l && l.leagueId);
-  if (!list.length) return api.waiversOverview();
-  const entries = await devicePool(list, async (l) => [l.leagueId, await runDeviceRead(mflRead.reads.freeAgents, l.leagueId)]);
-  return api.waiversOverviewDevice(Object.fromEntries(entries));
+  return api.bestAvailable(format);
 }
 export function waiversOverviewPreferDevice() {
-  return preferDevice('waiversOverview', () => deviceWaiversOverview(), () => api.waiversOverview());
+  return api.waiversOverview();
 }
 
 // Cross-league pick inventory, device-first: fetch each league's assets + futureDraftPicks + draftResults
