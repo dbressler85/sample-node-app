@@ -9,6 +9,7 @@ import { prefetchOtherTabs } from './src/prefetch';
 import LoginScreen from './src/screens/LoginScreen';
 import HomeScreen, { resetHomeCache } from './src/screens/HomeScreen';
 import { clearResourceCache } from './src/useCachedResource';
+import deviceReadCache from './src/deviceReadCache';
 import LeaguesScreen from './src/screens/LeaguesScreen';
 import LeagueScreen from './src/screens/LeagueScreen';
 import PortfolioScreen from './src/screens/PortfolioScreen';
@@ -181,6 +182,7 @@ export default function App() {
       await clearCache();
       resetHomeCache();
       clearResourceCache();
+      deviceReadCache.clear(); // device-origin reads hold parsed rosters/etc per account — wipe on auth loss (UX_GUARDRAILS C11)
       setAuthed(false);
       setTab('home');
       setOverlayStack([]);
@@ -211,6 +213,7 @@ export default function App() {
     await clearCache();
     resetHomeCache();
     clearResourceCache();
+    deviceReadCache.clear(); // device-origin reads hold parsed rosters/etc per account — wipe on logout (UX_GUARDRAILS C11)
     setAuthed(false);
     setTab('home');
     setOverlayStack([]);

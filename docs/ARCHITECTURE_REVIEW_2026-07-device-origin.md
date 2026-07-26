@@ -100,24 +100,24 @@ Legend — severity **High / Med / Low**; effort **S** ~hours · **M** ~days · 
 
 ### 🔴 Two must-fix items before the flag is ever flipped
 
-- **M-1 · C11 privacy gap — `deviceReadCache` is not wired into logout / auth-lost wipe · High · S.**
-  Both wipe paths (`App.js:180-188` auth-lost, `:208-217` logout) clear disk, `homeCache`, the mem store,
-  and SecureStore — but **not** `deviceReadCache`, which only clears on *writes* (`mflDevice.js:17`). In a
-  single process, a second account logging in before restart can get a **cache hit on the first account's
-  parsed rosters** (up to the 5-min TTL, `deviceReadCache.js:19-29`). `UX_GUARDRAILS.md:111` C11 explicitly
-  forbids adding a store without wiring the wipe. One-line fix: `deviceReadCache.clear()` in both paths.
-- **M-2 · Shape-A divergence, unguarded — and one case is a live bug · High · M.** The four "device
-  assembles" surfaces build the final object on-device while the backend fallback builds a *different* one
-  via separate services. Present-today divergences:
-  - `assembleTeams`/`Standings`/`Transactions` drop top-level fields the backend returns
-    (`format`, `name`, `leagueId` — `mflRead.js:284,322,374` vs `league.js:175,102-108,224`). *Latent* —
-    UI-masked today because `LeagueScreen` sources `leagueId` from nav and renders neither.
-  - **`shapeRoster` reads only `status`, not `status || roster_status`** (`mflRead.js:216` vs
-    `league.js:152`). If MFL emits `roster_status`, an IR/taxi player mis-tags as `active` on the device
-    Rosters tab but is correct on fallback — **a live silent bug.**
-  - **Zero parity tests cover any Shape-A surface** (all Shape-B surfaces have cold-cookie parity tests).
-  - Fix: converge the backend fallback onto the shared `mflRead.assemble*` (or mirror the fields), fix the
-    `roster_status` read, and add device-vs-backend output parity tests for all four Shape-A surfaces.
+- **M-1 · C11 privacy gap — `deviceReadCache` is not wired into logout / auth-lost wipe · High · S · ✅ FIXED.**
+  Both wipe paths (`App.js:180-188` auth-lost, `:208-217` logout) cleared disk, `homeCache`, the mem store,
+  and SecureStore — but **not** `deviceReadCache`, which only cleared on *writes* (`mflDevice.js:17`). In a
+  single process, a second account logging in before restart could get a **cache hit on the first account's
+  parsed rosters** (up to the 5-min TTL, `deviceReadCache.js:19-29`). `UX_GUARDRAILS.md:111` C11 forbids
+  adding a store without wiring the wipe. **Fixed:** `deviceReadCache.clear()` added to both wipe paths.
+- **M-2 · Shape-A divergence, unguarded — and one case is a live bug · High · M · ✅ FIXED.** The four "device
+  assembles" surfaces built the final object on-device while the backend fallback built a *different* one
+  via separate services. Divergences, now closed:
+  - `assembleTeams`/`Standings`/`Transactions` dropped top-level fields the backend returns
+    (`format`, `name`, `leagueId`). **Fixed:** the assemblers now carry the same top-level fields, sourced
+    from the franchise directory (`getFranchiseDirectory` now returns `leagueId`/`name`/`format`).
+  - **`shapeRoster` read only `status`, not `status || roster_status`** — an IR/taxi player carried under
+    `roster_status` mis-tagged as `active` on the device Rosters tab (a live silent bug). **Fixed:**
+    `shapeRoster` now reads `status || roster_status`, matching the backend.
+  - **Zero parity tests covered any Shape-A surface.** **Fixed:** `test/live/device-parity-shape-a-test.js`
+    drives leagueTeams / standings / transactions through BOTH paths from one stubbed source and asserts
+    byte-identical output (incl. a `roster_status` IR player pinning the slot fix).
 
 ### Before you flip the flag (high-value, corroborated across all five agents)
 
