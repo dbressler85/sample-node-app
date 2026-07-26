@@ -110,5 +110,22 @@ console.log('✓ shapeRoster applies fid padding + $t-safe fields');
   assert(athrew, 'a team missing its name THROWS → the caller falls back to the backend (never a broken render)');
   console.log('✓ assembleTeams: names/mine/slot + value sort; incomplete → throws for fallback');
 
+  // 9. assembleStandings(): device leagueStandings rows (rank order) + directory → standings payload.
+  const sdir = { franchises: { '0001': 'Alpha', '0002': 'Beta', '0003': 'Gamma' }, mine: '0002', playoffSpots: 1 };
+  const srows = [
+    { id: '0001', h2hw: '2', h2hl: '0', h2ht: '0', pf: '250.5', pa: '200' },
+    { id: '0002', h2hw: '1', h2hl: '1', pf: '210', pa: '215.4' },
+    { id: '0003', h2hw: '0', h2hl: '2', pf: '190', pa: '235' },
+  ];
+  const st = mflRead.assembleStandings(srows, sdir);
+  assert(st.standings.length === 3 && st.standings[0].rank === 1 && st.standings[0].name === 'Alpha', 'rank = export order; names from directory');
+  assert(st.standings[0].record === '2-0' && st.standings[0].pointsFor === 250.5, 'record built + pf rounded');
+  assert(st.standings[1].mine === true && st.me && st.me.franchiseId === '0002', 'mine flagged + me resolved');
+  assert(st.standings[0].inPlayoffs === true && st.standings[1].inPlayoffs === false, 'playoff line from playoffSpots=1');
+  let sthrew = false;
+  try { mflRead.assembleStandings([{ id: '9999', h2hw: '1' }], sdir); } catch (e) { sthrew = true; }
+  assert(sthrew, 'a row missing its name THROWS → backend fallback');
+  console.log('✓ assembleStandings: rank/record/pf + mine + playoff line; incomplete → throws');
+
   console.log('\nMFL-READ SHARED-CORE HARNESS PASSED');
 })().catch((e) => { console.error(e.message); process.exit(1); });

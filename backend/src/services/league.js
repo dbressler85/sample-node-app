@@ -270,10 +270,13 @@ async function getPlayerLookup(cookie, ids, leagueId) {
 // on-device. Empty franchises in demo (no live `league` export) → the device path falls back.
 async function getFranchiseDirectory(cookie, leagueId) {
   const league = await findLeague(cookie, leagueId);
-  const names = await leaguesService.franchiseNames(cookie, league);
+  const [names, playoffSpots] = await Promise.all([
+    leaguesService.franchiseNames(cookie, league),
+    playoffSpotsFor(cookie, league), // from the same (cached) `league` export franchiseNames reads
+  ]);
   const franchises = {};
   for (const [id, name] of names) franchises[id] = name;
-  return { franchises, mine: league.franchiseId || null };
+  return { franchises, mine: league.franchiseId || null, playoffSpots };
 }
 
 module.exports = { getStandings, getTeams, getTransactions, findLeague, getPlayerLookup, getFranchiseDirectory };

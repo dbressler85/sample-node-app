@@ -35,7 +35,7 @@ async function rosters(league, cookie, params = {}) {
 // `leagueStandings` export -> per-franchise standings rows.
 async function standings(league, cookie, params = {}) {
   const res = await read('leagueStandings', league, cookie, params);
-  return mfl.toArray(res && res.leagueStandings && res.leagueStandings.franchise);
+  return mflRead.reads.standings.parse(res);
 }
 
 // `playoffBrackets` export -> the league's playoff bracket(s) (thin: returns the raw bracket array;

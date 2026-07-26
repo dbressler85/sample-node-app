@@ -45,6 +45,11 @@ function num(value, fallback = null) {
   return Number.isFinite(n) ? n : fallback;
 }
 
+// Round to one decimal (points for/against, potential points). Matches the backend's round1.
+function round1(v) {
+  return Math.round((num(v, 0) || 0) * 10) / 10;
+}
+
 // The canonical 4-digit zero-padded franchise id ("0005", never "5"). Unpadded ids 500 the write API
 // and miss id-keyed lookups. $t-tolerant; blank/absent → '' so callers keep their own null-guard.
 function fid(value) {
@@ -93,6 +98,18 @@ const reads = {
     },
     parse(res) {
       return toArray(res && res.rosters && res.rosters.franchise);
+    },
+  },
+  // `leagueStandings` -> per-franchise standings rows (returned in rank order). `parse` matches
+  // mflRepo.standings' unwrap; assembleStandings maps the columns + adds names/rank/playoff line.
+  standings: {
+    type: 'leagueStandings',
+    needsAuth: true,
+    request({ host, year, league, params = {} }) {
+      return { url: buildExportUrl({ host, year, type: 'leagueStandings', league, params }), needsAuth: true };
+    },
+    parse(res) {
+      return toArray(res && res.leagueStandings && res.leagueStandings.franchise);
     },
   },
 };
@@ -196,4 +213,42 @@ function assembleTeams(franchises, playerDict, directory) {
   return { teams };
 }
 
-module.exports = { toArray, text, num, fid, isMflHost, buildExportUrl, reads, readWith, shapeRoster, enrichRoster, rosterSlot, assembleTeams };
+// Assemble the standings payload (same shape as the backend getStandings) from device-origin
+// leagueStandings rows (already in rank order) + the franchise directory ({ franchises:{id:name}, mine,
+// playoffSpots }). Maps MFL's column ids (h2hw/pf/pa/strk/…) and flags the playoff line. THROWS if
+// incomplete (any row missing its name) so the caller falls back to the backend.
+function assembleStandings(rows, directory) {
+  const dir = directory || {};
+  const names = dir.franchises || {};
+  const spots = dir.playoffSpots || null;
+  const standings = (rows || []).map((f, i) => {
+    const id = String((f && f.id) != null ? f.id : '');
+    const w = num(f && f.h2hw) || 0;
+    const l = num(f && f.h2hl) || 0;
+    const t = num(f && f.h2ht) || 0;
+    const numf = (k) => (f && f[k] != null && f[k] !== '' ? parseFloat(f[k]) : null);
+    return {
+      rank: i + 1,
+      franchiseId: id,
+      name: names[id] || null,
+      mine: id === String(dir.mine),
+      wins: w,
+      losses: l,
+      ties: t,
+      record: `${w}-${l}${t > 0 ? `-${t}` : ''}`,
+      pointsFor: round1(f && f.pf),
+      pointsAgainst: round1(f && f.pa),
+      streak: f && f.strk && String(f.strk) !== '-' ? String(f.strk) : null,
+      allPlayPct: numf('all_play_pct'),
+      winPct: numf('h2hpct'),
+      potentialPoints: f && f.pp != null && f.pp !== '' ? round1(f.pp) : null,
+      inPlayoffs: spots ? i < spots : null,
+    };
+  });
+  if (!standings.length || standings.some((s) => !s.name)) {
+    throw new Error('device standings incomplete — falling back to the backend');
+  }
+  return { standings, me: standings.find((s) => s.mine) || null, playoffSpots: spots };
+}
+
+module.exports = { toArray, text, num, fid, round1, isMflHost, buildExportUrl, reads, readWith, shapeRoster, enrichRoster, rosterSlot, assembleTeams, assembleStandings };

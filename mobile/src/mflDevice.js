@@ -16,22 +16,39 @@ export async function deviceReadsReady() {
   return !!(creds && creds.cookie && creds.host && creds.season);
 }
 
-// Raw device-origin rosters for a league → shaped franchises ({ franchiseId, players:[{id,status}] }).
-// Throws if the flag/creds are missing or the fetch fails — the caller falls back to the backend.
-export async function deviceRosters(leagueId) {
+// Run one shared read descriptor straight from MFL on-device (creds from SecureStore). Throws if the
+// flag/creds are missing or the fetch fails — every caller wraps this in a backend fallback.
+async function runDeviceRead(descriptor, leagueId) {
   const creds = await loadMflCreds();
   if (!DEVICE_READS || !creds || !creds.cookie || !creds.host || !creds.season) {
     throw new Error('device reads unavailable');
   }
-  const franchises = await mflRead.readWith(fetch, {
-    descriptor: mflRead.reads.rosters,
+  return mflRead.readWith(fetch, {
+    descriptor,
     host: creds.host,
     year: String(creds.season),
     league: leagueId,
     cookie: creds.cookie,
     userAgent: 'DynastyCentral/1.0',
   });
-  return franchises.map(mflRead.shapeRoster);
+}
+
+// Raw device-origin rosters for a league → shaped franchises ({ franchiseId, players:[{id,status}] }).
+export async function deviceRosters(leagueId) {
+  return (await runDeviceRead(mflRead.reads.rosters, leagueId)).map(mflRead.shapeRoster);
+}
+
+// Generic device-first fetcher: try the device path, fall back to the backend on any failure, tag the
+// result with `_source`, and (when device reads are on) beacon the served path for /_metrics. DRYs the
+// per-read wiring.
+async function preferDevice(readName, deviceFn, backendFn) {
+  let payload = null;
+  if (await deviceReadsReady()) {
+    try { payload = { ...(await deviceFn()), _source: 'device' }; } catch (e) { /* fall back */ }
+  }
+  if (!payload) payload = { ...(await backendFn()), _source: 'backend' };
+  if (DEVICE_READS) api.reportDeviceRead(readName, payload._source);
+  return payload;
 }
 
 // Try the device path; on ANY failure fall back to the backend fn. Returns { data, source } so a
@@ -56,20 +73,17 @@ export async function deviceLeagueTeams(leagueId) {
   return mflRead.assembleTeams(franchises, (dict && dict.players) || {}, dir);
 }
 
-// The fetcher a screen uses: device-first when device reads are ready, else the backend — tagged with
-// `_source` so the UI can show where it came from. A device failure/incomplete read silently falls back.
-// When device reads are on, a best-effort beacon reports the served path so /_metrics can measure the
-// device-vs-fallback split.
-export async function leagueTeamsPreferDevice(leagueId) {
-  let payload = null;
-  if (await deviceReadsReady()) {
-    try {
-      payload = { ...(await deviceLeagueTeams(leagueId)), _source: 'device' };
-    } catch (e) {
-      /* fall through to backend */
-    }
-  }
-  if (!payload) payload = { ...(await api.leagueTeams(leagueId)), _source: 'backend' };
-  if (DEVICE_READS) api.reportDeviceRead('rosters', payload._source);
-  return payload;
+// League Rosters, device-first (with the backend leagueTeams as fallback).
+export function leagueTeamsPreferDevice(leagueId) {
+  return preferDevice('rosters', () => deviceLeagueTeams(leagueId), () => api.leagueTeams(leagueId));
+}
+
+// League Standings, device-first: the leagueStandings export straight from MFL on-device + the backend
+// franchise directory (names + playoff spots). assembleStandings throws if incomplete → backend fallback.
+export async function deviceStandings(leagueId) {
+  const [rows, dir] = await Promise.all([runDeviceRead(mflRead.reads.standings, leagueId), api.franchiseDirectory(leagueId)]);
+  return mflRead.assembleStandings(rows, dir);
+}
+export function standingsPreferDevice(leagueId) {
+  return preferDevice('standings', () => deviceStandings(leagueId), () => api.leagueStandings(leagueId));
 }
