@@ -33,6 +33,14 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
     }
     console.log('✓ /api/players/lookup: auth-gated; returns name/position/team/value per id');
 
+    // Draft-pick tokens (FP_/DP_) resolve to a readable pick label with position PICK — so a
+    // device-origin transactions read can enrich traded picks through the same lookup as players.
+    const pk = await fetch(`${base}/api/players/lookup`, { method: 'POST', headers: auth, body: JSON.stringify({ ids: ['FP_0005_2027_1'] }) });
+    const pb = await pk.json();
+    const pick = pb.players && pb.players['FP_0005_2027_1'];
+    assert(pick && pick.position === 'PICK' && pick.name && pick.name !== 'FP_0005_2027_1', `pick token → { position:'PICK', readable name }, got ${JSON.stringify(pick)}`);
+    console.log('✓ /api/players/lookup: draft-pick tokens resolve to a pick label (position PICK)');
+
     // Empty / non-array ids → empty dictionary, never an error.
     const empty = await fetch(`${base}/api/players/lookup`, { method: 'POST', headers: auth, body: JSON.stringify({}) });
     const eb = await empty.json();

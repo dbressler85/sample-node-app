@@ -7,6 +7,7 @@
 const config = require('../config');
 const demo = require('../demo/fixtures');
 const mfl = require('../lib/mfl');
+const mflRead = require('../lib/mflRead'); // shared read core: owns transaction parsing (device + backend)
 const mflRepo = require('../lib/mflRepo');
 const { logDegrade } = require('../lib/safe');
 const leaguesService = require('./leagues');
@@ -178,25 +179,6 @@ const TXN_LABEL = {
   TRADE: 'Trade', WAIVER: 'Waiver', BBID_WAIVER: 'Waiver (FAAB)', FREE_AGENT: 'Free agent',
   IR: 'IR move', TAXI: 'Taxi move', AUCTION_WON: 'Auction', AUCTION_INIT: 'Auction',
 };
-const toks = (s) => String(s || '').split(',').map((x) => x.trim()).filter(Boolean);
-
-// Best-effort parse of MFL's transactions export into the raw shape getTransactions
-// resolves. Add/drop types carry "added,|dropped,"; a TRADE carries the two sides'
-// assets and the other franchise. Anything we can't parse still yields a typed row.
-function parseLiveTransactions(list) {
-  return (list || []).map((t, i) => {
-    const type = String(t.type || '').toUpperCase();
-    const payload = String(t.transaction || '');
-    const base = { id: `${t.timestamp || 't'}:${i}`, type, at: num(t.timestamp), franchiseId: String(t.franchise || '') };
-    if (type === 'TRADE') {
-      const p = payload.split('|');
-      return { ...base, withFranchiseId: p[2] ? mfl.fid(p[2]) : null, droppedIds: toks(p[0]), addedIds: toks(p[1]) };
-    }
-    const [added, dropped] = payload.split('|');
-    return { ...base, addedIds: toks(added), droppedIds: toks(dropped) };
-  });
-}
-
 // One recent-transactions feed for a league (newest first). Resolves player ids AND
 // draft-pick tokens to readable names, and franchise ids to team names.
 async function getTransactions(cookie, leagueId, { limit = 40 } = {}) {
@@ -216,7 +198,7 @@ async function getTransactions(cookie, leagueId, { limit = 40 } = {}) {
       mflRepo.transactions(league, cookie, { COUNT: limit }).catch(() => []),
       leaguesService.franchiseNames(cookie, league).catch(() => new Map()),
     ]);
-    raw = parseLiveTransactions(txns);
+    raw = mflRead.parseTransactions(txns);
     names = nm;
   }
 
@@ -258,6 +240,12 @@ async function getPlayerLookup(cookie, ids, leagueId) {
   const enr = await enrichmentLib.snapshot(fmt, cookie);
   const players = {};
   for (const id of wanted) {
+    // Draft-pick tokens (FP_/DP_) resolve to a readable pick label, not the player table — so a
+    // device-origin transactions read can enrich traded picks through the same lookup as players.
+    if (/^(FP_|DP_)/.test(id)) {
+      players[id] = { name: picksLib.labelForToken(id), position: 'PICK', team: null, value: null };
+      continue;
+    }
     const b = playersLib.resolve(byId, id);
     players[id] = { name: b.name, position: b.position, team: b.team, value: enr.value(id) };
   }

@@ -127,5 +127,32 @@ console.log('✓ shapeRoster applies fid padding + $t-safe fields');
   assert(sthrew, 'a row missing its name THROWS → backend fallback');
   console.log('✓ assembleStandings: rank/record/pf + mine + playoff line; incomplete → throws');
 
+  // 10. parseTransactions(): split each raw row's payload into structured ids (add/drop + TRADE).
+  const traw = [
+    { type: 'FREE_AGENT', timestamp: '1700000000', franchise: '0001', transaction: '30,|20,' },
+    { type: 'TRADE', timestamp: '1700000100', franchise: '0001', transaction: '20,FP_0003_2027_1,|31,|3' },
+  ];
+  const tparsed = mflRead.parseTransactions(traw);
+  assert(tparsed[0].type === 'FREE_AGENT' && tparsed[0].addedIds[0] === '30' && tparsed[0].droppedIds[0] === '20', 'add/drop payload split into added|dropped');
+  assert(tparsed[1].type === 'TRADE' && tparsed[1].withFranchiseId === '0003' && tparsed[1].droppedIds.join(',') === '20,FP_0003_2027_1' && tparsed[1].addedIds[0] === '31', 'TRADE payload → gave|received|withFranchise (fid-padded)');
+  console.log('✓ parseTransactions: add/drop + TRADE payloads split into structured ids');
+
+  // 11. assembleTransactions(): raw rows + asset dict (players AND pick tokens) + directory → feed.
+  const tdir = { franchises: { '0001': 'Alpha', '0003': 'Gamma' }, mine: '0001' };
+  const tdict = {
+    30: { name: 'Add, Guy', position: 'RB' }, 20: { name: 'Drop, Guy', position: 'WR' },
+    31: { name: 'Trade, Guy', position: 'QB' }, FP_0003_2027_1: { name: '2027 1st (Gamma)', position: 'PICK' },
+  };
+  const tasm = mflRead.assembleTransactions(traw, tdict, tdir);
+  assert(tasm.transactions.length === 2, 'one row per raw transaction');
+  assert(tasm.transactions[0].typeLabel === 'Free agent' && tasm.transactions[0].franchise.name === 'Alpha', 'type labeled + franchise named from directory');
+  assert(tasm.transactions[1].withFranchise.name === 'Gamma' && tasm.transactions[1].dropped[1].name === '2027 1st (Gamma)', 'TRADE names both sides + resolves pick token via the asset dict');
+  const tmissing = mflRead.assembleTransactions(traw, {}, tdir); // unresolved asset → id fallback, not a throw
+  assert(tmissing.transactions[0].added[0].name === '30', 'an unresolved asset falls back to its id (feed, not a scoreboard)');
+  let tthrew = false;
+  try { mflRead.assembleTransactions(traw, tdict, { franchises: {} }); } catch (e) { tthrew = true; }
+  assert(tthrew, 'an empty franchise directory THROWS → the caller falls back to the backend');
+  console.log('✓ assembleTransactions: names + pick tokens + type labels; empty directory → throws');
+
   console.log('\nMFL-READ SHARED-CORE HARNESS PASSED');
 })().catch((e) => { console.error(e.message); process.exit(1); });
