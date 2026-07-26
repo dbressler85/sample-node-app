@@ -22,10 +22,10 @@ values + ages), **Sleeper** (trending adds + headshots), **ESPN** (news), **app 
 | Name / position / team | **MFL `players` DB** (`mapLivePlayer`) | `lib/players.js:64`; resolve `players.resolve` | The MFL id space; everything crosswalks *to* this. FantasyCalc `position` is used only as an internal value-multiplier hint (`enrichment.js:276`), never displayed. Miss → stub `Player <id>`. |
 | Dynasty **value** (0–100) | **FantasyCalc** via the enrichment snapshot `enr.value()` | `lib/enrichment.js:288`; snapshot `:329` | **Format-aware** — value depends on the league format passed to `snapshot(fmt)`. Single function, but see [Q3](#q3--value-is-format-dependent-across-screens). |
 | Overall **rank** | FantasyCalc `overallRank` → `enr.rank()` | `lib/enrichment.js:293` | |
-| Player **age** | see [Q1](#q1--player-age-has-two-sources) | — | **Two sources**: FantasyCalc `maybeAge` (`enr.age()`, all lists) vs MFL `playerProfile.age` (profile header). |
+| Player **age** | **FantasyCalc** `maybeAge` → `enr.age()` (everywhere, incl. the profile) | `lib/enrichment.js:289`; `playerhub.js:520` | Resolved ([Q1](#q1--player-age--resolved-fantasycalc)): the profile header no longer uses `playerProfile.age`. |
 | **Ownership %** | MFL `topOwns` → `enr.ownership()` | `lib/enrichment.js:291` | Single source (FantasyCalc has no ownership field). |
 | **Trend** (48h add heat) | **Blend**: Sleeper trending adds **+** MFL `topAdds` (summed) → `enr.trend()` | `lib/enrichment.js:279-285,290` | Intentional additive blend; mixes two add-count units into one number. |
-| **ADP** | see [Q2](#q2--adp-has-two-sources) | — | **Two sources**: MFL `adp` export (board order) vs MFL `playerProfile.adp` (profile bio). |
+| **ADP** | **MFL `adp` export** (board order AND profile bio) | `lib/adp.js:43`; `draft.js:245`; `playerhub.js` | Resolved ([Q2](#q2--adp--resolved-adp-export)): the profile bio now reads the `adp` export, not `playerProfile.adp`. |
 | **News** + severity | ESPN news feed | `lib/news.js:97`; crosswalk `:82-93` | Player match is **by name** over the DB index; namesake collisions are skipped, not guessed (`news.js:109`). Severity is regex-derived from the headline. |
 | **Headshot** | Sleeper id via FantasyCalc crosswalk | `services/playerhub.js:527`; `lib/enrichment.js:133` | |
 | Bio (DOB/height/weight) | MFL `playerProfile` | `lib/mflRepo.js:234-246`; `playerhub.js:484` | Global export; fetched only on the single-player profile screen. |
@@ -37,7 +37,7 @@ values + ages), **Sleeper** (trending adds + headshots), **ESPN** (news), **app 
 | Datum | Canonical source | Site | Notes |
 |---|---|---|---|
 | My league list | MFL `myleagues` | `services/leagues.js:13-23,56` | The only source of `league.host`, `franchiseId` (my franchise), `franchiseName`. Per-cookie, static 1h. |
-| Franchise **names** / directory | **MFL `league`** `franchises.franchise[].name` → `franchiseNames` (HTML-stripped) | `lib/mflRepo.js:52`; `services/leagues.js:66` | Consumers fall back to `Team <id>`. But **my** name also comes from `myleagues.franchise_name` — see [Q4](#q4--my-franchise-name-has-two-authorities). |
+| Franchise **names** / directory | **MFL `league`** `franchises.franchise[].name` → `franchiseNames` (HTML-stripped) — canonical for all franchises incl. mine | `lib/mflRepo.js:52`; `services/leagues.js:66` | Resolved ([Q4](#q4--my-franchise-name--resolved-league-directory)): where the directory is loaded it wins; `myleagues.franchise_name` is the fallback only when it isn't (cheap paths — my own roster). |
 | Rosters (players + slot status) | MFL `rosters` `player[].{id,status}` | `lib/mflRead.reads.rosters`; `services/roster.js:104` | Read all-franchise (strength) or `FRANCHISE=me` (light) — two cache entries for overlapping data. Slot vocab → §8. |
 | Standings / records / PF·PA | MFL `leagueStandings` | `services/league.js:64`; `mflRead.js:288` | Also the **playoff-seed order** (seed = position in standings order, `playoffs.js:195`). |
 | Lineup requirements (starters spec) | MFL `league` `starters.position[]` | `lib/leagueformat.js:43` | |
@@ -204,51 +204,56 @@ The cases where a datum has **more than one plausible source** and the intended 
 self-evident. These are under discussion with the owner; this section records the current behavior +
 the pending decision.
 
-### Q1 — Player age has two sources
-Profile header shows MFL `playerProfile.age` (whole number, `playerhub.js:520`); **every list/table**
-shows FantasyCalc `maybeAge` (rounded to 0.1, `enr.age()`). Same player can display two ages.
-**Decision needed:** one canonical age source, or accept the profile/list split.
+### Q1 — Player age — RESOLVED (FantasyCalc)
+FantasyCalc `enr.age()` is canonical **everywhere**, including the profile header (which no longer uses
+`playerProfile.age`). One age per player across all screens. ✅ `playerhub.js:520`.
 
-### Q2 — ADP has two sources
-Draft board orders by the MFL `adp` export (keeper+rookie flavor, `draft.js:245`); the player-profile
-bio shows `playerProfile.adp` (MFL's default flavor). Different periods/scales, never reconciled.
-**Decision needed:** unify to one flavor, or keep board vs profile separate.
+### Q2 — ADP — RESOLVED (adp export)
+The MFL `adp` export is canonical **everywhere** — the profile bio now reads it (via `adpLib.adpMap`)
+instead of `playerProfile.adp`, so a player's profile ADP and his draft-board position agree. ✅
 
-### Q3 — Value is format-dependent across screens
+### Q3 — Value is format-dependent across screens — DECIDED, implementation pending
+**Decision (owner):** on sortable/filterable list screens, add a value-lens toggle (1QB/SF) where it
+makes sense; on the player profile, show **both** values; **tradebait** prices each block by that
+league's own format (not the default). This is a UI + endpoint feature (build-gated) tracked separately
+from this backend round. Current behavior (below) stands until it lands.
+Detail: `enr.value()` is format-aware. League screens price against the league's format; **global**
+screens with no single league (playerhub list/search, tradebait, exposure-with-no-primary-league) price
+against a default 1QB/PPR format.
 `enr.value()` is format-aware. League screens price against the league's format; **global** screens
 with no single league (playerhub list/search, tradebait, exposure-with-no-primary-league) price
 against a **default 1QB/PPR** format. So a superflex QB's value differs between his league's roster
 screen and the global playerhub. By design (no league to key on), but a visible cross-screen
 inconsistency. **Decision needed:** pick a documented default (1QB vs SF vs a user-selectable lens).
 
-### Q4 — My franchise name has two authorities
-My team name comes from `myleagues.franchise_name` (cached at login) on some surfaces and from the
-`league` franchise directory on others; they disagree if the team was renamed after login.
-**Decision needed:** which is canonical for my own franchise name.
+### Q4 — My franchise name — RESOLVED (league directory)
+The `league` franchise directory is canonical for all franchise names including mine. Where it's already
+loaded (dashboard live matchup, getTeams, getStandings) it wins; `myleagues.franchise_name` is a fallback
+only on cheap paths that don't load the directory (my own roster/lineup), where it refreshes at login.
+✅ `dashboard.js:45`. Fully canonicalizing those remaining cheap paths would add a per-league directory
+read there — left as the deliberate cost trade-off.
 
-### Q5 — FAAB has a dormant second source
+### Q5 — FAAB dormant second source — RESOLVED (guarded)
 Canonical FAAB budget = `league.bbidAvailableBalance` (60s fresh read). `assets.blindBiddingDollars`
-is also parsed into `mflRepo.normFranchiseAssets` as `faab` but **currently unused**. If a future
-caller reads it, it would be on the 5m shared TTL and could disagree with the waiver budget.
-**Recommendation:** keep `league` canonical; add a guard/comment so `assets.faab` is never used for
-budget math. (Low doubt — flagging so the decision is explicit.)
+(`mflRepo.normFranchiseAssets.faab`) is on the 5m shared TTL and is now explicitly commented **do not
+use for budget math**, so it can't silently become a second source. ✅ `mflRepo.js:209`.
 
-### Q6 — Append-only draft overlay
+### Q6 — Append-only draft overlay — OPEN (code-health)
 The `draft` store records optimistic just-made picks and **never prunes** reconciled ones; it relies
 on fill-empty-slot + dedup-by-playerId to avoid conflicting with confirmed `draftResults`. Safe today,
-but the store grows unbounded per (account, league) and has no active reconciliation delete.
-**Recommendation:** prune entries once `draftResults` confirms them. (Code-health, not a source
-conflict.)
+but the store grows unbounded per (account, league). Recommendation: prune entries once `draftResults`
+confirms them. (Not a source conflict; deferred.)
 
-### Q7 — Consolidation / code-health (not blocking)
-Same datum computed by more than one rule; canonical is clear, but the copies risk drift:
-- **Roster slot:** `mflRead.rosterSlot` uses substring matching and returns `active` for the short
-  code `TS` where the backend (`rosterStatus.rosterSlot`) returns `taxi`. Latent bug (the `rosters`
-  export uses long forms, so it rarely fires). **Recommend fixing** to exact-token matching.
-- **Pick-token grammar** encoded in 3 places (`parsePickToken`, `labelForToken`, `draft.js:548`).
-- **Won-waiver bid parsing** not shared with `parseTransactions`.
-- **Current week** read from `liveScoring.week` in `dashboard.liveMatchup` instead of `nfl.currentWeek`.
-- **`futureDraftPicks`/`adp` cache tier** is private though the data is league/account-invariant.
+### Q7 — Consolidation / code-health
+- **Roster slot:** ✅ FIXED — `mflRead.rosterSlot` now uses exact-token matching (short code `TS` →
+  taxi), matching `rosterStatus.rosterSlot`; pinned by `mfl-read-sync-test.js`.
+- **`futureDraftPicks`/`adp` cache tier:** ✅ FIXED — both moved to the SHARED cross-user cache (they're
+  league/account-invariant), `mfl.js` `LEAGUE_GLOBAL_TYPES`.
+- **Current week** in `dashboard.liveMatchup`: reads `liveScoring.week` — kept, since the live scores
+  belong to *that* week (self-consistent for the live matchup); documented as intentional, not a bug.
+- **Pick-token grammar** encoded in 3 places (`parsePickToken`, `labelForToken`, `draft.js:548`) and
+  **won-waiver bid parsing** not shared with `parseTransactions`: OPEN — refactors deferred (each is a
+  genuine second implementation kept equivalent by tests; consolidating risks more than it fixes today).
 
 ### Q8 — Documented-as-is limitations
 Not bugs, but worth confirming the app should keep behaving this way:
@@ -257,8 +262,11 @@ Not bugs, but worth confirming the app should keep behaving this way:
 - **News→player** matching is by name; namesakes (two "Mike Williams") are silently dropped.
 - **SoS/opponent difficulty** is unwired (`null`).
 
-### Q9 — Personal data retention on logout
-Logout destroys only the session; personal stores (tags, watchlist, history, trophies, …) persist on
-server disk **keyed by MFL account**, unencrypted (only sessions are encrypted at rest). Intentional
-(durable across re-login), but a privacy posture decision. **Decision needed:** keep account-durable,
-or wipe personal data on logout.
+### Q9 — Personal data retention / location — UNDER DISCUSSION
+Today: logout destroys only the session; personal stores (tags, watchlist, value/portfolio history,
+trophies, pins, deadlines, push) persist on **server** disk, keyed by MFL account, unencrypted (only
+sessions are encrypted). Owner is weighing **moving these to on-device storage** (SecureStore/
+AsyncStorage) so personal data lives on the phone, not the server. Trade-offs and options are in the
+chat discussion; this section will record the decision once made. Candidates split into device-friendly
+(tags, watchlist, pins, trophies, deadlines — small, single-device) vs. server-needed (push token +
+prefs, which the server's notification worker must read to poll on the user's behalf).

@@ -42,7 +42,9 @@ async function liveMatchup(league, cookie) {
   const names = await leaguesService.franchiseNames(cookie, league);
   return {
     week,
-    me: { name: league.franchiseName || names.get(league.franchiseId) || `Team ${league.franchiseId}`, score: scoreById.get(league.franchiseId) || 0 },
+    // Canonical franchise name = the `league` directory (refreshes daily); the login-list name is a
+    // fallback for a rename that hasn't propagated (docs/DATA_SOURCES.md Q4).
+    me: { name: names.get(league.franchiseId) || league.franchiseName || `Team ${league.franchiseId}`, score: scoreById.get(league.franchiseId) || 0 },
     opponent: opponentId
       ? { name: names.get(opponentId) || `Team ${opponentId}`, score: scoreById.get(opponentId) || 0 }
       : null,

@@ -208,6 +208,10 @@ function readAssetPicks(node) {
 }
 function normFranchiseAssets(fr) {
   const playerIds = mfl.toArray(fr && fr.players && fr.players.player).map((p) => mfl.text(p.id));
+  // NOTE: `faab` here is on the 5m/shared `assets` TTL and is NOT the canonical waiver budget — the
+  // budget MUST come from the `league` export's bbidAvailableBalance read with the 60s fresh maxAge
+  // (services/waivers.js), so a bid can't exceed an already-spent balance (docs/DATA_SOURCES.md Q5).
+  // Kept only for completeness of the assets shape; do not use it for bid/budget math.
   const faab = fr && fr.blindBiddingDollars ? mfl.num(fr.blindBiddingDollars.amount) : null;
   const picks = [
     ...readAssetPicks(fr && fr.currentYearDraftPicks),
