@@ -34,6 +34,14 @@ export async function loadMflCreds() {
   }
 }
 
+// U-7: when a device read is rejected with an EXPIRED MFL cookie, re-pull this session's cookie from the
+// backend — if the backend has since re-authed (a fresh cookie), the device catches up instead of silently
+// falling back forever on a stale cookie. If the backend's cookie is ALSO expired, its own reads fail and
+// the normal session-expiry → re-login flow takes over. Best-effort; never throws.
+export async function refreshMflCreds() {
+  await fetchAndStoreMflCreds();
+}
+
 export async function saveSession(token) {
   setToken(token);
   await SecureStore.setItemAsync(KEY, token);
