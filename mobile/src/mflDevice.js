@@ -13,6 +13,7 @@ import deviceEnrichCache from './deviceEnrichCache';
 import { onCacheInvalidate } from './cache';
 import poolMap from './poolMap';
 import deviceHealth from './deviceHealth';
+import createPreferDevice from './preferDevice';
 
 // Bound every on-device MFL fetch so a dead network (subway, U-3) fails FAST instead of hanging — the
 // screen keeps its last cached data (C4) promptly rather than spinning. A timeout aborts to a plain error
@@ -116,35 +117,17 @@ function onCookieExpired() {
 }
 
 // Generic device-first fetcher: try the device path, fall back to the backend on any failure, tag the
-// result with `_source`, and (when device reads are on) beacon the served path + its LATENCY + the
-// fallback REASON for /_metrics. On a network failure it opens the offline cooldown (so the next reads skip
-// the device — U-3) and suppresses the beacon (don't POST to a dead network); an expired cookie triggers a
-// throttled cred refresh (U-7). DRYs the per-read wiring.
-async function preferDevice(readName, deviceFn, backendFn) {
-  let payload = null;
-  let reason = null;
-  let ms = null;
-  if (await deviceReadsReady()) {
-    const t0 = Date.now();
-    try {
-      payload = { ...(await deviceFn()), _source: 'device' };
-      ms = Date.now() - t0;
-    } catch (e) {
-      reason = deviceHealth.classifyError(e); // device attempted → record why we're falling back
-      if (reason === 'cookie_expired') onCookieExpired();
-    }
-  }
-  deviceHealth.noteResult(payload ? null : reason); // a network failure opens the offline cooldown; a success clears it
-  if (!payload) {
-    const t0 = Date.now();
-    payload = { ...(await backendFn()), _source: 'backend' };
-    ms = Date.now() - t0;
-  }
-  // Beacon the served path + latency + reason + this build's shared-core (mflRead) VERSION (A-6) — but not
-  // while we believe the network is down (it would just POST to a dead backend, U-3).
-  if (DEVICE_READS && deviceHealth.shouldBeacon()) api.reportDeviceRead(readName, payload._source, { ms, reason, ver: mflRead.VERSION });
-  return payload;
-}
+// result with `_source`, and (when device reads are on) beacon the served path + its LATENCY + the fallback
+// REASON for /_metrics. On a network failure it opens the offline cooldown (U-3) and suppresses the beacon;
+// an expired cookie triggers a throttled cred refresh (U-7). The orchestration lives in the injectable
+// preferDevice module (unit-tested, A-12); here we just wire the real collaborators.
+const preferDevice = createPreferDevice({
+  ready: deviceReadsReady,
+  health: deviceHealth,
+  beacon: DEVICE_READS ? (name, source, meta) => api.reportDeviceRead(name, source, meta) : null,
+  onCookieExpired,
+  version: mflRead.VERSION,
+});
 
 // Try the device path; on ANY failure fall back to the backend fn. Returns { data, source } so a
 // caller can (optionally) show where the data came from. Never throws for a device-read failure alone.
