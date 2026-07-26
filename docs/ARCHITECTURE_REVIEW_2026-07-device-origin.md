@@ -121,13 +121,14 @@ Legend — severity **High / Med / Low**; effort **S** ~hours · **M** ~days · 
 
 ### Before you flip the flag (high-value, corroborated across all five agents)
 
-> **Status (2026-07-26):** ✅ done — **A-1** (device fan-out limiter), **A-3** (registered UA), **A-4**
-> (beacon key allowlist), **A-8** (draft missing-league fallback). Remaining: **A-2** (partial-tolerant
-> aggregates — pair with the U-1 "complete/partial" affordance so a fallback can't paint a half-empty
-> screen), **A-6** (device parser-version + sampled shadow-compare), **A-9** (covered-overlay poll gating),
-> **A-10** (heavy free-agent pool on cellular — keep backend-only or trim, don't wifi-gate), **A-12** (a
-> `preferDevice` fallback-path test; the new fan-out logic is covered by `poolMap.test.js`). Accept-with-doc:
-> **A-5** (cache erosion), **A-7** (cold-start), **A-11** (self-scoped trust).
+> **Status (2026-07-26):** ✅ done — **A-1** (device fan-out limiter, paced to the backend's registered
+> 8/75 envelope via the handoff), **A-3** (registered UA), **A-4** (beacon key allowlist), **A-8** (draft
+> missing-league fallback), **A-9** (covered-overlay polling — verified already gated by the keep-alive nav),
+> **A-10** (heavy free-agent pool kept backend-only). Remaining: **A-2** (partial-tolerant aggregates — pair
+> with the U-1 "complete/partial" affordance so a fallback can't paint a half-empty screen), **A-6** (device
+> parser-version + sampled shadow-compare), **A-12** (a `preferDevice` fallback-path test; the new fan-out
+> logic is covered by `poolMap.test.js`). Accept-with-doc: **A-5** (cache erosion), **A-7** (cold-start),
+> **A-11** (self-scoped trust).
 
 - **A-1 · Device omits the request discipline it was specified to mirror · Med · S · ✅ FIXED.** The device
   fired `Promise.all` across 15–20 leagues with **no stagger, no concurrency cap, no 429 backoff** —
@@ -176,13 +177,25 @@ Legend — severity **High / Med / Low**; effort **S** ~hours · **M** ~days · 
   overview. **Fixed:** a league missing from the device map now falls back to a one-off backend read for
   just that league (every present league stays device-served); the test now asserts the fallback + real
   status instead of the old silent `none`.
-- **A-9 · #11 (covered-overlay polling) upgrades in urgency · Med · M.** A covered screen that keeps
-  polling now spends the user's own IP/battery/cellular and risks a self-429, where before it was a cheap
-  backend hit. Its prior slot should move earlier. Guardrail unchanged: gate background screens only,
-  never freeze the visibly-live draft board/scoreboard (C8).
-- **A-10 · Heavy `freeAgents` pool fetched on-device, no wifi-gate · Low · S.** best-available / waivers
-  overview download the full free-agent pool (thousands/league) for every league on cellular
-  (`mflDevice.js:219-243`). Consider wifi-gating the heavy pools or keeping `freeAgents` backend-only.
+- **A-9 · #11 (covered-overlay polling) · Med · M · ✅ ALREADY SATISFIED (verified).** The concern —
+  a covered screen polling a device fan-out on the user's IP/battery — is already handled by the keep-alive
+  nav: every poller gates on `covered`/`active` (`usePoll` also pauses when backgrounded), and the *only*
+  cross-league device fan-out on a timer, DraftHub's `draftsPreferDevice()`, is gated `&& !covered`
+  (`DraftHubScreen.js:41`); `covered` = "not the top of the overlay stack" (`App.js:475`), and the Scores
+  tab poll is gated on `overlayStack.length === 0` (`App.js:257`). The other pollers (OnDeck, DraftScreen,
+  Scores) are backend reads and gated too. C8 preserved — the *visible* top board keeps updating. No code
+  change needed. (Residual from #11: each overlay still mounts its own `FieldBackdrop` — a pure render nit,
+  not device-origin; left as a minor deferred perf item.)
+- **A-10 · Heavy `freeAgents` pool fetched on-device, no wifi-gate · Low · S · ✅ FIXED.** best-available /
+  waivers overview downloaded the full free-agent pool (thousands/league) for every league — a real
+  cellular/battery cost. **Fixed by keeping the pool backend-only** (the review's + PO's call: fix the
+  *cost*, not the *access* — never wifi-gate, "check waivers from the parking lot" must work on cellular).
+  `bestAvailablePreferDevice`/`waiversOverviewPreferDevice` now resolve straight to the backend GET (with
+  the `?format=` value lens intact); the device fetchers + the mobile POST helpers were removed. The pool is
+  *league-shareable*, so the backend's cross-user cache serves it more cheaply than every device
+  re-downloading it. The lighter per-user device reads (rosters/assets/draft) stay device-origin. (The
+  backend still exposes the device-accepting POST variants + their parity tests, unused by the app — the
+  capability is retained for a possible future trimmed-pool variant.)
 - **A-11 · Backend now trusts device-supplied export content · Low · —.** POST routes pass `deviceReads`/
   `deviceRosters` through with no shape validation (`routes/draft.js:25-26`); self-scoped (a user can only
   feed bad data into their own read-only view), so low risk — but the backend read layer is no longer the
