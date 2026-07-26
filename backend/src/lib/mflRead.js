@@ -112,6 +112,18 @@ const reads = {
       return toArray(res && res.leagueStandings && res.leagueStandings.franchise);
     },
   },
+  // `transactions` -> the recent-activity feed (raw rows). `parse` matches mflRepo.transactions'
+  // unwrap; parseTransactions splits each row's payload and assembleTransactions resolves the names.
+  transactions: {
+    type: 'transactions',
+    needsAuth: true,
+    request({ host, year, league, params = {} }) {
+      return { url: buildExportUrl({ host, year, type: 'transactions', league, params }), needsAuth: true };
+    },
+    parse(res) {
+      return toArray(res && res.transactions && res.transactions.transaction);
+    },
+  },
 };
 
 // Perform a full read from the device side: build the URL from a descriptor, fetch it with the user's
@@ -251,4 +263,56 @@ function assembleStandings(rows, directory) {
   return { standings, me: standings.find((s) => s.mine) || null, playoffSpots: spots };
 }
 
-module.exports = { toArray, text, num, fid, round1, isMflHost, buildExportUrl, reads, readWith, shapeRoster, enrichRoster, rosterSlot, assembleTeams, assembleStandings };
+// Human labels for MFL transaction types (matches the backend TXN_LABEL).
+const TXN_LABEL = {
+  TRADE: 'Trade', WAIVER: 'Waiver', BBID_WAIVER: 'Waiver (FAAB)', FREE_AGENT: 'Free agent',
+  IR: 'IR move', TAXI: 'Taxi move', AUCTION_WON: 'Auction', AUCTION_INIT: 'Auction',
+};
+const csvIds = (s) => String(s || '').split(',').map((x) => x.trim()).filter(Boolean);
+
+// Split each raw transaction row's `transaction` payload into structured ids (matches the backend's
+// parseLiveTransactions). TRADE payloads are gave|received|withFranchise; everything else is
+// added|dropped. Single-sourced here so the device and backend parse transactions identically.
+function parseTransactions(rows) {
+  return (rows || []).map((t, i) => {
+    const type = String((t && t.type) || '').toUpperCase();
+    const payload = String((t && t.transaction) || '');
+    const base = { id: `${(t && t.timestamp) || 't'}:${i}`, type, at: num(t && t.timestamp), franchiseId: String((t && t.franchise) || '') };
+    if (type === 'TRADE') {
+      const p = payload.split('|');
+      return { ...base, withFranchiseId: p[2] ? fid(p[2]) : null, droppedIds: csvIds(p[0]), addedIds: csvIds(p[1]) };
+    }
+    const [added, dropped] = payload.split('|');
+    return { ...base, addedIds: csvIds(added), droppedIds: csvIds(dropped) };
+  });
+}
+
+// Assemble the transactions payload (same shape as the backend getTransactions) from device-origin raw
+// rows + an ASSET dictionary ({ id: {name, position} } covering players AND draft-pick tokens, served by
+// /api/players/lookup) + the franchise directory. Best-effort like the backend: an unresolved asset/
+// franchise falls back to its id rather than throwing (transactions is a feed, not a scoreboard) — but
+// an entirely empty directory (a failed fetch) throws so the caller falls back instead of showing ids.
+function assembleTransactions(rawRows, assetDict, directory, limit = 40) {
+  const dir = directory || {};
+  const names = dir.franchises || {};
+  const dict = assetDict || {};
+  const asset = (id) => { const s = String(id); const info = dict[s] || {}; return { id: s, name: info.name || s, position: info.position || null }; };
+  const franchise = (id) => (id ? { id: String(id), name: names[String(id)] || `Team ${id}` } : null);
+  const parsed = parseTransactions(rawRows);
+  if (parsed.length && Object.keys(names).length === 0) {
+    throw new Error('device transactions: empty franchise directory — falling back to the backend');
+  }
+  const transactions = parsed.slice(0, limit).map((t) => ({
+    id: t.id,
+    type: t.type,
+    typeLabel: TXN_LABEL[t.type] || (t.type ? t.type.replace(/_/g, ' ').toLowerCase() : 'Move'),
+    at: t.at || null,
+    franchise: franchise(t.franchiseId),
+    withFranchise: franchise(t.withFranchiseId),
+    added: (t.addedIds || []).map(asset),
+    dropped: (t.droppedIds || []).map(asset),
+  }));
+  return { transactions };
+}
+
+module.exports = { toArray, text, num, fid, round1, isMflHost, buildExportUrl, reads, readWith, shapeRoster, enrichRoster, rosterSlot, assembleTeams, assembleStandings, parseTransactions, assembleTransactions };

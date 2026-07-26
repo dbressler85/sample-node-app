@@ -87,3 +87,19 @@ export async function deviceStandings(leagueId) {
 export function standingsPreferDevice(leagueId) {
   return preferDevice('standings', () => deviceStandings(leagueId), () => api.leagueStandings(leagueId));
 }
+
+// League Transactions, device-first: the transactions export straight from MFL on-device, enriched
+// with the backend franchise directory (team names) + the global asset dictionary (player names AND
+// draft-pick labels, resolved by /api/players/lookup for every id the feed references). The heavy
+// per-user transactions fan-out leaves the server; only the small, cached name data stays backend.
+// assembleTransactions throws on an empty directory (a failed fetch), so a nameless feed never renders.
+export async function deviceTransactions(leagueId) {
+  const rows = await runDeviceRead(mflRead.reads.transactions, leagueId);
+  const parsed = mflRead.parseTransactions(rows);
+  const ids = [...new Set(parsed.flatMap((t) => [...(t.addedIds || []), ...(t.droppedIds || [])]))];
+  const [dir, dict] = await Promise.all([api.franchiseDirectory(leagueId), api.playerLookup(ids, leagueId)]);
+  return mflRead.assembleTransactions(rows, (dict && dict.players) || {}, dir);
+}
+export function transactionsPreferDevice(leagueId) {
+  return preferDevice('transactions', () => deviceTransactions(leagueId), () => api.leagueTransactions(leagueId));
+}

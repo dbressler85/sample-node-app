@@ -1,11 +1,10 @@
 import React, { useCallback, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, FlatList, ScrollView, ActivityIndicator, RefreshControl } from 'react-native';
-import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import ErrorView from '../components/ErrorView';
 import useAndroidBack from '../useAndroidBack';
 import useCachedResource from '../useCachedResource';
-import { leagueTeamsPreferDevice, standingsPreferDevice } from '../mflDevice';
+import { leagueTeamsPreferDevice, standingsPreferDevice, transactionsPreferDevice } from '../mflDevice';
 
 // The league hub: the ordinary league views the app was missing — Standings,
 // Rosters (browse every team = opponent scouting), and a Transactions feed. Reached
@@ -159,7 +158,10 @@ function timeAgo(at) {
 }
 
 function TransactionsTab({ leagueId, onOpenPlayer }) {
-  const { data, error, refreshing, reload } = useCachedResource(`league:txns:${leagueId}`, () => api.leagueTransactions(leagueId));
+  // Device-first: the transactions export straight from MFL on-device, enriched with the backend
+  // franchise directory + asset dictionary (players AND pick tokens); falls back to the backend on
+  // any device-read failure. `_source` says which path served it.
+  const { data, error, refreshing, reload } = useCachedResource(`league:txns:${leagueId}`, () => transactionsPreferDevice(leagueId));
   if (error && !data) return <ErrorView message={error} onRetry={reload} onRefresh={reload} refreshing={refreshing} />;
   if (!data) return <Center><ActivityIndicator color={colors.accent} size="large" /></Center>;
 
@@ -169,6 +171,7 @@ function TransactionsTab({ leagueId, onOpenPlayer }) {
       keyExtractor={(t) => t.id}
       contentContainerStyle={styles.list}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={reload} tintColor={colors.accent} />}
+      ListHeaderComponent={data._source === 'device' ? <Text style={styles.deviceNote}>⚡ Transactions live from MFL on-device</Text> : null}
       renderItem={({ item }) => (
         <View style={styles.txn}>
           <View style={styles.txnTop}>

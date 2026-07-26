@@ -108,10 +108,12 @@ async function tradeBaits(league, cookie, params = {}) {
   return mfl.toArray(res && res.tradeBaits && res.tradeBaits.tradeBait);
 }
 
-// `transactions` export -> the raw transaction rows (add/drop/trade); caller parses each.
+// `transactions` export -> the raw transaction rows (add/drop/trade); caller parses each. The
+// envelope unwrap is single-sourced in the shared mflRead core so the device parses this read with
+// the SAME code the backend uses here (device-origin spike — docs/DEVICE_ORIGIN_MFL.md).
 async function transactions(league, cookie, params = {}) {
   const res = await read('transactions', league, cookie, params);
-  return mfl.toArray(res && res.transactions && res.transactions.transaction);
+  return mflRead.reads.transactions.parse(res);
 }
 
 const truthy = (v) => { const s = mfl.text(v).toLowerCase(); return s === '1' || s === 'true'; };
