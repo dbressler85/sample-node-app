@@ -42,6 +42,11 @@ const config = {
   // Whether that UA has been registered + SMS-validated with MFL. Informational: surfaced on
   // /_metrics and logged at boot so you can confirm prod is sending the registered client string.
   mflClientRegistered: bool(process.env.MFL_CLIENT_REGISTERED, false),
+  // Device-origin reads (docs/DEVICE_ORIGIN_MFL.md): when on, the backend will hand an authenticated
+  // device its own MFL session cookie (GET /api/session/mfl-cookie) so the app can fetch per-user reads
+  // straight from MFL (its own IP + rate budget). OFF by default — the endpoint 404s until we commit,
+  // and it never exposes the cookie to anyone but the session's own authenticated owner.
+  deviceReadsEnabled: bool(process.env.DEVICE_READS_ENABLED, false),
   // Legacy per-user APIKEY (export-only, per league) — unused by the registered-UA model, kept for
   // requests that opt into key auth. The UA registration above is the path to higher limits.
   apiKey: process.env.MFL_API_KEY || null,

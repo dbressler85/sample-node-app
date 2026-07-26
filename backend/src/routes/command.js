@@ -13,6 +13,16 @@ const { schemas, checkResponse } = require('../lib/apiSchema');
 const router = express.Router();
 router.use(requireSession);
 
+// GET /api/session/mfl-cookie — hand the authenticated device ITS OWN MFL session cookie so the app can
+// read per-user data straight from MFL (device-origin: its own IP + rate budget — docs/DEVICE_ORIGIN_MFL.md).
+// Gated behind config.deviceReadsEnabled (404 when off) and, of course, requireSession — so it only ever
+// returns the cookie to the session's own authenticated owner, never a third party. The device stores it
+// in SecureStore and wipes it on logout. `host`/`season` let the device build correctly-targeted reads.
+router.get('/session/mfl-cookie', (req, res) => {
+  if (!config.deviceReadsEnabled) return res.status(404).json({ error: 'Not found' });
+  res.json({ cookie: req.mflCookie, season: config.season, host: config.apiHost });
+});
+
 // GET /api/me — the signed-in manager's identity + league count, for the Profile screen.
 // Kept lightweight (identity + a cached league count); the profile composes value/outlook
 // from /api/portfolio and activity from /api/watchlist client-side.

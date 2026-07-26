@@ -97,6 +97,31 @@ const reads = {
   },
 };
 
+// Perform a full read from the device side: build the URL from a descriptor, fetch it with the user's
+// cookie + the registered User-Agent via the INJECTED `fetchImpl` (React Native's global fetch on the
+// device; a stub in tests), enforce MFL's rules — a 429 THROWS and is NOT retried ("that will make
+// things worse") — and parse with the descriptor. Runtime-agnostic: the only per-runtime inputs (the
+// fetch implementation and the SecureStore-held cookie) are injected, so this is the exact read the
+// backend could run too. Throws on any non-OK status; fail-soft (show cached/degraded) is the caller's
+// job, matching the backend's mflRepo behavior. The credential travels as a header, never in the URL.
+async function readWith(fetchImpl, { descriptor, host, year, league = null, params = {}, cookie = null, userAgent = 'DynastyCentral/1.0' }) {
+  const { url } = descriptor.request({ host, year, league, params });
+  const headers = { Accept: 'application/json', 'User-Agent': userAgent };
+  if (cookie) headers.Cookie = `MFL_USER_ID=${cookie}`;
+  const res = await fetchImpl(url, { headers });
+  if (res && res.status === 429) {
+    const err = new Error('MFL rate limited (429) — not retrying');
+    err.status = 429;
+    throw err;
+  }
+  if (!res || !res.ok) {
+    const err = new Error(`MFL read failed (${res ? res.status : 'no response'})`);
+    err.status = res ? res.status : 0;
+    throw err;
+  }
+  return descriptor.parse(await res.json());
+}
+
 // Shape one raw franchise roster into the normalized form a screen wants — demonstrates the id/text
 // primitives on the device side (franchise id padded, player id/status as $t-safe strings). The
 // backend's roster service does its own richer shaping; this is the minimal device-side shape.
@@ -107,4 +132,4 @@ function shapeRoster(franchise) {
   };
 }
 
-module.exports = { toArray, text, num, fid, isMflHost, buildExportUrl, reads, shapeRoster };
+module.exports = { toArray, text, num, fid, isMflHost, buildExportUrl, reads, readWith, shapeRoster };
