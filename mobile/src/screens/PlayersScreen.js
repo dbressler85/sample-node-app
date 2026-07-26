@@ -522,7 +522,7 @@ function PlayerRow({ p, rank, sub, tag, watched, showTrend, onTag, onWatch, onQu
               <AvoidIcon size={18} color={t === 'avoid' ? colors.bad : colors.textDim} />
             </Pressable>
             <Pressable hitSlop={6} onPress={() => onWatch(p.id, !w)} accessibilityLabel="Watch">
-              <WatchIcon size={18} color={w ? colors.gold : colors.textDim} filled={w} />
+              <WatchIcon size={18} color={w ? colors.watch : colors.textDim} filled={w} />
             </Pressable>
           </View>
         ) : null}
@@ -725,9 +725,9 @@ const styles = StyleSheet.create({
   lensLabel: { color: colors.textDim, fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
   lensToggle: { flexDirection: 'row', backgroundColor: colors.card, borderRadius: 8, borderWidth: 1, borderColor: colors.border, padding: 2 },
   lensSeg: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 6, borderWidth: 1, borderColor: 'transparent' },
-  lensSegActive: { backgroundColor: colors.gold + '22', borderColor: colors.gold },
+  lensSegActive: { backgroundColor: colors.accent + '22', borderColor: colors.accent },
   lensSegText: { color: colors.textDim, fontSize: 12, fontWeight: '800' },
-  lensSegTextActive: { color: colors.gold },
+  lensSegTextActive: { color: colors.accent },
   // Combined lens + sort strip: one row, thin divider between the two groups.
   // Height-constrain the horizontal controls strip (like typeScroll/posScroll) — without this
   // a horizontal ScrollView in the flex column balloons vertically and centers its chips,

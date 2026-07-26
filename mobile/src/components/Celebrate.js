@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Animated, Easing, Dimensions } from 'react-native';
 import { colors } from '../theme';
+import useReducedMotion from '../useReducedMotion';
 
 // The app's sense of humor, as an animation layer. A tiny global event bus lets any screen
 // fire a moment without threading context: `celebrate('offerSent')`. One <CelebrationHost/>
@@ -71,9 +72,17 @@ function Burst({ event, onDone }) {
     })
   ).current;
   const cap = useRef(new Animated.Value(0)).current;
+  const reduced = useReducedMotion();
 
   useEffect(() => {
-    Animated.parallel([
+    // Reduce-motion: skip the flying confetti entirely, but still deliver the message (shown
+    // statically) and auto-dismiss — the feedback survives, only the motion is dropped.
+    if (reduced) {
+      cap.setValue(1);
+      const id = setTimeout(() => onDone && onDone(), 1600);
+      return () => clearTimeout(id);
+    }
+    const anim = Animated.parallel([
       ...flecks.map((f) =>
         Animated.timing(f.p, {
           toValue: 1,
@@ -88,13 +97,15 @@ function Burst({ event, onDone }) {
         Animated.delay(1000),
         Animated.timing(cap, { toValue: 0, duration: 320, useNativeDriver: true }),
       ]),
-    ]).start(() => onDone && onDone());
+    ]);
+    anim.start(() => onDone && onDone());
+    return () => anim.stop();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      {flecks.map((f, i) => (
+      {!reduced && flecks.map((f, i) => (
         <Animated.View
           key={i}
           style={{

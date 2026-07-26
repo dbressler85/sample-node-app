@@ -16,7 +16,7 @@ function TagMarks({ tag, watched }) {
     <View style={styles.tagMarks}>
       {tag === 'target' ? <Text style={[styles.tagMark, { color: colors.good }]}>◎</Text> : null}
       {tag === 'avoid' ? <Text style={[styles.tagMark, { color: colors.bad }]}>⊘</Text> : null}
-      {watched ? <Text style={[styles.tagMark, { color: colors.gold }]}>★</Text> : null}
+      {watched ? <Text style={[styles.tagMark, { color: colors.watch }]}>★</Text> : null}
     </View>
   );
 }

@@ -724,9 +724,9 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
 function OfferCard({ offer, busy, onAccept, onReject, onWithdraw, onCounter, onOpenPlayer, onReviewRoster }) {
   const v = VERDICT[offer.analysis.verdict] || VERDICT.fair;
   const outgoing = offer.direction === 'outgoing';
-  // A colored left stripe + a direction pill so received-vs-sent reads instantly, even at a glance:
-  // gold = you SENT it, blue = it came TO you.
-  const dirColor = outgoing ? colors.gold : colors.accent;
+  // A colored left stripe + a direction pill so received-vs-sent reads instantly, even at a glance.
+  // Direction isn't VALUE, so it doesn't get gold (color law) — warn = you SENT it, blue = it came TO you.
+  const dirColor = outgoing ? colors.warn : colors.accent;
   return (
     <View style={[styles.card, { borderLeftWidth: 3, borderLeftColor: dirColor }]}>
       <View style={styles.cardTop}>
