@@ -150,3 +150,26 @@ export async function devicePortfolio() {
 export function portfolioPreferDevice() {
   return preferDevice('portfolio', () => devicePortfolio(), () => api.portfolio());
 }
+
+// Cross-league draft overview, device-first: fetch every league's draftResults + calendar straight from
+// MFL on-device (the fan-out behind "which drafts are live / scheduled / my turn"), then hand them to the
+// backend to parse status/order/clock (that logic reads backend format/clock config, so it stays server-
+// side). All-or-nothing: any per-league read failure rejects → preferDevice falls back to the backend.
+export async function deviceDrafts() {
+  const { leagues } = await api.leaguesList();
+  const list = (leagues || []).filter((l) => l && l.leagueId);
+  if (!list.length) return api.drafts();
+  const entries = await Promise.all(
+    list.map(async (l) => {
+      const [draftResults, calendar] = await Promise.all([
+        runDeviceRead(mflRead.reads.draftResults, l.leagueId),
+        runDeviceRead(mflRead.reads.calendar, l.leagueId),
+      ]);
+      return [l.leagueId, { draftResults, calendar }];
+    })
+  );
+  return api.draftsDevice(Object.fromEntries(entries));
+}
+export function draftsPreferDevice() {
+  return preferDevice('drafts', () => deviceDrafts(), () => api.drafts());
+}

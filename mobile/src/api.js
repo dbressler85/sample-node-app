@@ -166,6 +166,9 @@ export const api = {
 
   // Drafts (M6)
   drafts: () => request('/api/drafts'),
+  // Device-origin drafts: the same overview, but the app supplies the per-league draftResults+calendar
+  // reads it fetched straight from MFL on-device so the fan-out leaves the shared backend IP.
+  draftsDevice: (deviceReads) => request('/api/drafts', { method: 'POST', body: { deviceReads } }),
   pickInventory: () => request('/api/picks'),
   leagueDraft: (leagueId, position) =>
     request(`/api/leagues/${leagueId}/draft${position ? `?position=${position}` : ''}`),

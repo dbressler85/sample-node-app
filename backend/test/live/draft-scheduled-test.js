@@ -122,5 +122,28 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   assert((await draft.freeAgencyOpen('ck-fa2', 'tk', L)) === true, 'no draft on file → established league → FA open');
   console.log('✓ freeAgencyOpen: future draft closes FA even without a grid; no-draft league stays open');
 
+  // Device-origin (docs/DEVICE_ORIGIN_MFL.md): when the app supplies the per-league draftResults+calendar
+  // it fetched straight from MFL on-device, the overview is parsed with ZERO backend draftResults/calendar
+  // reads — the fan-out has left the shared IP — and the status/order logic is identical.
+  let backendReads = 0;
+  const liveGrid = grid.map((g, i) => (i === 0 ? { ...g } : g)); // 1.01 open → 0001 on the clock
+  const draftUnits = [{ unit: 'LEAGUE', draftType: 'SNAKE', draftPick: liveGrid }];
+  const calEvents = [{ type: 'DRAFT_START', start_time: String(Math.floor(Date.now() / 1000) - 600) }]; // started
+  mflRepo.draftResults = async () => { backendReads += 1; return draftUnits; };
+  mflRepo.calendar = async () => { backendReads += 1; return calEvents; };
+  const before = backendReads;
+  const ovD = await draft.getOverview('ck', 'tk', { deviceReads: { 9001: { draftResults: draftUnits, calendar: calEvents } } });
+  const dD = ovD.drafts.find((x) => x.leagueId === '9001');
+  assert(backendReads === before, `device path issues NO backend draftResults/calendar read, got ${backendReads - before} extra`);
+  assert(dD.status === 'in_progress' && dD.myOnClock === true, `device-supplied reads parse identically (in_progress, on the clock), got ${dD.status}/${dD.myOnClock}`);
+  const dB = (await draft.getOverview('ck', 'tk')).drafts.find((x) => x.leagueId === '9001');
+  assert(dB.status === dD.status && dB.myOnClock === dD.myOnClock, 'device and backend overview agree for the same reads');
+  // A league missing from a supplied device map reads as 'none', never a surprise backend read.
+  const mark = backendReads;
+  const ovM = await draft.getOverview('ck', 'tk', { deviceReads: {} });
+  assert(backendReads === mark, 'device mode with a missing league still issues no backend read');
+  assert(ovM.drafts.find((x) => x.leagueId === '9001').status === 'none', 'a league missing from the device map reads as none');
+  console.log('✓ device-origin: app-supplied draftResults+calendar → identical overview, zero backend reads');
+
   console.log('\nDRAFT SCHEDULED HARNESS PASSED');
 })().catch((e) => { console.error(e.message); process.exit(1); });

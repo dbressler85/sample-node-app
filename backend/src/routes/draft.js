@@ -17,6 +17,18 @@ router.get('/drafts', async (req, res, next) => {
   }
 });
 
+// POST /api/drafts — same overview, but the per-league draftResults+calendar reads are supplied by the
+// DEVICE (fetched straight from MFL on-device) so the fan-out leaves the shared IP. Body: { deviceReads:
+// { [leagueId]: { draftResults, calendar } } }. Status/order parsing is identical to the GET path.
+router.post('/drafts', async (req, res, next) => {
+  try {
+    const { deviceReads } = req.body || {};
+    res.json(checkResponse(schemas.Drafts, await draft.getOverview(req.mflCookie, req.account, { deviceReads: deviceReads || null }), 'POST /drafts'));
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/picks — every draft pick you own across all leagues (value-tagged, grouped by year).
 router.get('/picks', async (req, res, next) => {
   try {

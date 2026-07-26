@@ -92,19 +92,28 @@ const isKeeper = (p) => /keeper/i.test((p && p.comments) || '');
 // keeper/slow draft's `draftResults` often carries no startTime of its own, so without this the app
 // can't tell "hasn't started yet" from "on the clock". Returns epoch-ms or null. Best-effort + cached
 // (calendar is a shared, static-TTL read already used by waivers), so it adds ~no cost.
+// The scheduled DRAFT_START (epoch-ms) from a set of calendar events — split out so it works on events
+// the backend read OR events the DEVICE fetched (docs/DEVICE_ORIGIN_MFL.md). Null when there's no event.
+function calStartMsFromEvents(events) {
+  const ev = mfl.toArray(events).find((e) => mfl.text(e && e.type).toUpperCase() === 'DRAFT_START');
+  const sec = ev ? mfl.num(ev.start_time) : null;
+  return Number.isFinite(sec) && sec > 0 ? sec * 1000 : null;
+}
+
 async function draftStartMs(cookie, league) {
   if (config.demoMode) return null;
   try {
-    const events = await mflRepo.calendar(league, cookie);
-    const ev = mfl.toArray(events).find((e) => mfl.text(e && e.type).toUpperCase() === 'DRAFT_START');
-    const sec = ev ? mfl.num(ev.start_time) : null;
-    return Number.isFinite(sec) && sec > 0 ? sec * 1000 : null;
+    return calStartMsFromEvents(await mflRepo.calendar(league, cookie));
   } catch (e) {
     return null;
   }
 }
 
-async function loadDraft(cookie, token, league) {
+// `deviceRead` (optional): { draftResults: <parsed units array>, calendar: <parsed events array> } the
+// DEVICE fetched straight from MFL — when present, the draft is parsed from it instead of the backend
+// reading MFL (docs/DEVICE_ORIGIN_MFL.md). The heavy per-league draftResults+calendar fan-out leaves the
+// shared IP; the parsing/status logic below is identical either way.
+async function loadDraft(cookie, token, league, deviceRead = null) {
   if (config.demoMode) {
     const seed = demo.draft(league.leagueId);
     if (!seed) return null;
@@ -113,13 +122,16 @@ async function loadDraft(cookie, token, league) {
     const lastPickAt = seed.status === 'in_progress' ? Date.now() - 22 * 60 * 1000 : null;
     return { ...seed, picks: draftStore.list(token, league.leagueId, seed.picks), lastPickAt };
   }
-  // Live: MFL draftResults. Best-effort — shapes vary, so stay defensive. Fetch the calendar's
-  // scheduled DRAFT_START in parallel (authoritative start time; draftResults often omits it).
+  // Live: MFL draftResults. Best-effort — shapes vary, so stay defensive. The calendar's scheduled
+  // DRAFT_START is the authoritative start time (draftResults often omits it). Both come from the device
+  // when it supplied them, else the backend reads them in parallel.
   try {
-    const [units, calStartMs] = await Promise.all([
-      mflRepo.draftResults(league, cookie),
-      draftStartMs(cookie, league),
-    ]);
+    const [units, calStartMs] = deviceRead
+      ? [mfl.toArray(deviceRead.draftResults), calStartMsFromEvents(deviceRead.calendar)]
+      : await Promise.all([
+        mflRepo.draftResults(league, cookie),
+        draftStartMs(cookie, league),
+      ]);
     const unit = units.find((u) => String(u.unit || 'LEAGUE') === 'LEAGUE') || units[0];
     if (!unit) return null;
     const raw = mfl.toArray(unit.draftPick);
@@ -345,13 +357,17 @@ function freeAgencyOpen(cookie, token, league) {
   });
 }
 
-// All leagues' draft state — for "which drafts are scheduled / live / my turn".
-async function getOverview(cookie, token) {
+// All leagues' draft state — for "which drafts are scheduled / live / my turn". `deviceReads` (optional)
+// maps leagueId -> { draftResults, calendar } the DEVICE fetched straight from MFL, so the per-league
+// draftResults+calendar fan-out leaves the shared IP (docs/DEVICE_ORIGIN_MFL.md); the status/order logic
+// is identical. A league missing from a supplied map reads as 'none' rather than triggering a backend read.
+async function getOverview(cookie, token, { deviceReads = null } = {}) {
   const leagues = await leaguesService.listLeagues(cookie);
   const drafts = await Promise.all(
     leagues.map(async (league) => {
       try {
-        const draft = await loadDraft(cookie, token, league);
+        const dr = deviceReads ? deviceReads[String(league.leagueId)] : null;
+        const draft = deviceReads && !dr ? null : await loadDraft(cookie, token, league, dr);
         if (!draft) return { leagueId: league.leagueId, name: league.name, status: 'none' };
         const slots = slotsFor(draft);
         const status = statusOf(draft, slots);

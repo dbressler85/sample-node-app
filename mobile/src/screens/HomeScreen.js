@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, FlatList, StyleSheet, Pressable, RefreshControl, ActivityIndicator } from 'react-native';
 import { api } from '../api';
+import { draftsPreferDevice } from '../mflDevice';
 import { getValue, setValue, onCacheInvalidate } from '../cache';
 import { colors } from '../theme';
 import { ScreenTitle } from '../components/Brand';
@@ -197,7 +198,7 @@ export default function HomeScreen({ active = true, demoMode, onOpenLineup, onOp
       // off Home entirely — it's on the Players → News tab.
       // Write-through to the shared SWR cache keys so opening the Draft Hub / On Deck from
       // here paints Home's already-fetched data instantly instead of cold-loading.
-      api.drafts().then((d) => { const f = sortHomeDrafts((d.drafts || []).filter(isDraftActionable)); setDrafts(f); homeCache.drafts = f; setValue('drafts', d); }).catch(() => {});
+      draftsPreferDevice().then((d) => { const f = sortHomeDrafts((d.drafts || []).filter(isDraftActionable)); setDrafts(f); homeCache.drafts = f; setValue('drafts', d); }).catch(() => {});
 
       // On Deck — time-sorted deadlines across leagues (the proactive layer).
       api.onDeck().then((d) => { setOnDeck(d); homeCache.onDeck = d; setValue('ondeck', d); }).catch(() => {});
