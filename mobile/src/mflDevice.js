@@ -54,6 +54,19 @@ export async function deviceRosters(leagueId) {
   return (await runDeviceRead(mflRead.reads.rosters, leagueId)).map(mflRead.shapeRoster);
 }
 
+// Run a cross-league fan-out through the shared limiter (poolMap), paced to the SAME concurrency + stagger
+// the backend runs (A-1). The backend hands the device its throttle envelope in the cookie creds
+// (readConcurrency / readStaggerMs — 8 / 75ms with the registered API key); we mirror it so the device's
+// own IP paces exactly like the registered backend, and a re-tune follows without an app rebuild. Falls back
+// to poolMap's own defaults (the backend's unregistered 4 / 150ms floor) when an older handoff omitted them.
+async function devicePool(list, fn) {
+  const creds = await loadMflCreds();
+  return poolMap(list, fn, {
+    concurrency: creds && creds.readConcurrency ? creds.readConcurrency : undefined,
+    staggerMs: creds && creds.readStaggerMs != null ? creds.readStaggerMs : undefined,
+  });
+}
+
 // Categorize WHY a device read fell back, so the /_metrics beacon can show "when does it break" (not
 // just how often). Coarse buckets, matched against the errors the device path actually throws.
 function fallbackReason(e) {
@@ -157,7 +170,7 @@ export async function deviceExposure() {
   if (!list.length) return { totalLeagues: 0, players: [], summary: { uniquePlayers: 0, multiLeague: 0 } };
   // FRANCHISE=me needs each league's franchise id; if any is missing we can't do the light read → fall back.
   if (list.some((l) => !l.franchiseId)) throw new Error('device exposure: a league is missing its franchise id');
-  const perLeagueRosters = await poolMap(list, async (l) => {
+  const perLeagueRosters = await devicePool(list, async (l) => {
     const franchises = (await runDeviceRead(mflRead.reads.rosters, l.leagueId, { FRANCHISE: l.franchiseId })).map(mflRead.shapeRoster);
     const mine = franchises.find((f) => String(f.franchiseId) === mflRead.fid(l.franchiseId)) || franchises[0] || { players: [] };
     return { leagueId: l.leagueId, name: l.name, players: mine.players };
@@ -180,7 +193,7 @@ export async function devicePortfolio() {
   const { leagues } = await api.leaguesList();
   const list = (leagues || []).filter((l) => l && l.leagueId);
   if (!list.length) return api.portfolio();
-  const entries = await poolMap(list, async (l) => [l.leagueId, await runDeviceRead(mflRead.reads.rosters, l.leagueId)]);
+  const entries = await devicePool(list, async (l) => [l.leagueId, await runDeviceRead(mflRead.reads.rosters, l.leagueId)]);
   const deviceRosters = Object.fromEntries(entries);
   return api.portfolioDevice(deviceRosters);
 }
@@ -196,7 +209,7 @@ export async function deviceDrafts() {
   const { leagues } = await api.leaguesList();
   const list = (leagues || []).filter((l) => l && l.leagueId);
   if (!list.length) return api.drafts();
-  const entries = await poolMap(list, async (l) => {
+  const entries = await devicePool(list, async (l) => {
     const [draftResults, calendar] = await Promise.all([
       runDeviceRead(mflRead.reads.draftResults, l.leagueId),
       runDeviceRead(mflRead.reads.calendar, l.leagueId),
@@ -217,7 +230,7 @@ export async function deviceBestAvailable(format) {
   const { leagues } = await api.leaguesList();
   const list = (leagues || []).filter((l) => l && l.leagueId);
   if (!list.length) return api.bestAvailable(format);
-  const entries = await poolMap(list, async (l) => [l.leagueId, await runDeviceRead(mflRead.reads.freeAgents, l.leagueId)]);
+  const entries = await devicePool(list, async (l) => [l.leagueId, await runDeviceRead(mflRead.reads.freeAgents, l.leagueId)]);
   return api.bestAvailableDevice(Object.fromEntries(entries), format);
 }
 export function bestAvailablePreferDevice(format) {
@@ -231,7 +244,7 @@ export async function deviceWaiversOverview() {
   const { leagues } = await api.leaguesList();
   const list = (leagues || []).filter((l) => l && l.leagueId);
   if (!list.length) return api.waiversOverview();
-  const entries = await poolMap(list, async (l) => [l.leagueId, await runDeviceRead(mflRead.reads.freeAgents, l.leagueId)]);
+  const entries = await devicePool(list, async (l) => [l.leagueId, await runDeviceRead(mflRead.reads.freeAgents, l.leagueId)]);
   return api.waiversOverviewDevice(Object.fromEntries(entries));
 }
 export function waiversOverviewPreferDevice() {
@@ -245,7 +258,7 @@ export async function devicePickInventory() {
   const { leagues } = await api.leaguesList();
   const list = (leagues || []).filter((l) => l && l.leagueId);
   if (!list.length) return api.pickInventory();
-  const entries = await poolMap(list, async (l) => {
+  const entries = await devicePool(list, async (l) => {
     const [assets, futureDraftPicks, draftResults] = await Promise.all([
       runDeviceRead(mflRead.reads.assets, l.leagueId),
       runDeviceRead(mflRead.reads.futureDraftPicks, l.leagueId),
@@ -277,7 +290,7 @@ export async function deviceLineups(mode) {
   const { leagues } = await api.leaguesList();
   const list = (leagues || []).filter((l) => l && l.leagueId);
   if (!list.length) return api.lineups(mode);
-  const entries = await poolMap(list, async (l) => [l.leagueId, await runDeviceRead(mflRead.reads.rosters, l.leagueId)]);
+  const entries = await devicePool(list, async (l) => [l.leagueId, await runDeviceRead(mflRead.reads.rosters, l.leagueId)]);
   return api.lineupsDevice(mode, Object.fromEntries(entries));
 }
 export function lineupsPreferDevice(mode) {

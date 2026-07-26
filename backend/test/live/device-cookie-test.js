@@ -38,7 +38,11 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
     assert(body.cookie === 'demo-cookie', `returns the session cookie, got ${JSON.stringify(body)}`);
     assert(body.host && body.season, 'includes host + season so the device can build targeted reads');
     assert(body.userAgent, 'includes the registered User-Agent so device reads send the validated client id (A-3)');
-    console.log('✓ /api/session/mfl-cookie: 404 when off · 401 unauthenticated · 200 with the session cookie + UA when on');
+    // A-1: the device paces its fan-out to the SAME throttle envelope the backend runs (tuned to the
+    // registered per-IP ceiling), sourced here so a re-tune follows without an app rebuild.
+    assert(Number.isFinite(body.readConcurrency) && body.readConcurrency >= 1, `hands the device the read concurrency, got ${body.readConcurrency}`);
+    assert(Number.isFinite(body.readStaggerMs) && body.readStaggerMs >= 0, `hands the device the read stagger, got ${body.readStaggerMs}`);
+    console.log('✓ /api/session/mfl-cookie: 404 when off · 401 unauthenticated · 200 with cookie + UA + throttle envelope when on');
   } finally {
     server.close();
   }

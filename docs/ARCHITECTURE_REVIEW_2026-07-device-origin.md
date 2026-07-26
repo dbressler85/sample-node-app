@@ -132,11 +132,17 @@ Legend — severity **High / Med / Low**; effort **S** ~hours · **M** ~days · 
 - **A-1 · Device omits the request discipline it was specified to mirror · Med · S · ✅ FIXED.** The device
   fired `Promise.all` across 15–20 leagues with **no stagger, no concurrency cap, no 429 backoff** —
   `pickInventory` = 3 reads × 20 leagues ≈ 45–60 simultaneous MFL requests. **Fixed:** every cross-league
-  device fan-out now runs through `mobile/src/poolMap.js` — a bounded-concurrency (≤4) + lightly-staggered
-  (~150 ms) map that mirrors the backend's own throttle shape **without** a per-call ~1s sleep (the PO's
-  explicit warning — keeps first paint fast). Unit-tested (`test/poolMap.test.js`: cap never exceeded, order
-  preserved, first-error rejects so callers keep backend fallback). (Adaptive 429 *penalty state* across
-  fan-outs is still not ported — folded into A-6/deferred.)
+  device fan-out now runs through `mobile/src/poolMap.js` — a bounded-concurrency + lightly-staggered map
+  that mirrors the backend's own throttle shape **without** a per-call ~1s sleep (the PO's explicit warning
+  — keeps first paint fast). The concurrency + stagger are **sourced from the backend** via the cookie
+  handoff (`readConcurrency`/`readStaggerMs` = `config.mflMaxConcurrent`/`mflMinRequestIntervalMs`), so the
+  device paces to the SAME per-IP envelope the registered backend runs (8 / 75 ms with the API key, not the
+  unregistered 4 / 150 ms default) — and a re-tune or a higher registered limit follows with no app rebuild.
+  Unit-tested (`test/poolMap.test.js`: cap never exceeded, order preserved, first-error rejects so callers
+  keep backend fallback). (Adaptive 429 *penalty state* across fan-outs is still not ported — deferred with
+  A-6. A single device-wide limiter across *concurrent* fan-outs — the exact mirror of the backend's one
+  global queue — is a possible further refinement; per-fan-out pooling is sufficient given the app rarely
+  runs two big fan-outs at once.)
 - **A-2 · All-or-nothing aggregates re-concentrate load under stress (~2N amplification) · Med · M.** One
   league's 429 rejects the whole device `Promise.all`, discards up to 60 *successful* device reads, and
   re-runs the full N-league fan-out on the backend FIFO (`mflDevice.js:71-91`). On a Sunday MFL
