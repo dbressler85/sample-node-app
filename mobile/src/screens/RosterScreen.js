@@ -4,6 +4,7 @@ import { api } from '../api';
 import PlayerRow from '../components/PlayerRow';
 import Reveal from '../components/Reveal';
 import { colors } from '../theme';
+import { displayLg } from '../typography';
 import useCachedResource from '../useCachedResource';
 
 // Roster sort options. `null` (Slots) keeps the lineup-slot grouping; the rest flatten to one list.
@@ -151,7 +152,7 @@ export default function RosterScreen({ league, onBack, onOpenTrades, onOpenDraft
         </View>
       </View>
       <View style={styles.header}>
-        <Text style={styles.title} numberOfLines={1}>
+        <Text style={[styles.title, displayLg()]} numberOfLines={1}>
           {league.name}
         </Text>
         {roster && roster.franchiseName ? <Text style={styles.subtitle}>{roster.franchiseName}</Text> : null}

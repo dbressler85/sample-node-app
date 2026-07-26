@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, FlatList, SectionList, ActivityIndicator, Alert, Modal, TextInput } from 'react-native';
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
+import { displayLg } from '../typography';
 import PressableScale from '../components/PressableScale';
 import LeagueContext from '../components/LeagueContext';
 import Reveal from '../components/Reveal';
@@ -275,7 +276,7 @@ export default function DraftScreen({ league, demoMode, covered = false, onBack,
           <Pressable onPress={onBack} hitSlop={10}>
             <Text style={styles.back}>‹ Back</Text>
           </Pressable>
-          <Text style={styles.title} numberOfLines={1}>{league.name}</Text>
+          <Text style={[styles.title, displayLg()]} numberOfLines={1}>{league.name}</Text>
           {onOpenTrades ? (
             <Pressable onPress={() => onOpenTrades(league)} hitSlop={10}>
               <Text style={styles.tradesLink}>⇄ Trades</Text>
@@ -299,7 +300,7 @@ export default function DraftScreen({ league, demoMode, covered = false, onBack,
         <Pressable onPress={onBack} hitSlop={10}>
           <Text style={styles.back}>‹ Back</Text>
         </Pressable>
-        <Text style={styles.title} numberOfLines={1}>{league.name}</Text>
+        <Text style={[styles.title, displayLg()]} numberOfLines={1}>{league.name}</Text>
         <View style={{ width: 44 }} />
       </View>
 

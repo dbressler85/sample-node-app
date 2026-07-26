@@ -1,6 +1,7 @@
 import React, { useCallback } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { colors } from '../theme';
+import { displayLg } from '../typography';
 import { HELP } from '../help';
 import useAndroidBack from '../useAndroidBack';
 
@@ -14,7 +15,7 @@ export default function HelpScreen({ onBack }) {
     <View style={styles.container}>
       <View style={styles.topbar}>
         <Pressable onPress={onBack} hitSlop={10}><Text style={styles.back}>‹ Settings</Text></Pressable>
-        <Text style={styles.title}>How it works</Text>
+        <Text style={[styles.title, displayLg()]}>How it works</Text>
         <View style={{ width: 70 }} />
       </View>
 

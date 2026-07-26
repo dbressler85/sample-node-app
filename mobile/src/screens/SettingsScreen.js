@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, Switch, ActivityIndicator, ScrollView, Alert } from 'react-native';
 import { api } from '../api';
 import { colors } from '../theme';
+import { displayLg } from '../typography';
 import useAndroidBack from '../useAndroidBack';
 
 // The push channels, in display order. `key` matches the backend pref key.
@@ -51,7 +52,7 @@ export default function SettingsScreen({ onBack, onOpenHelp, onLogout }) {
     <View style={styles.container}>
       <View style={styles.topbar}>
         <Pressable onPress={onBack} hitSlop={10}><Text style={styles.back}>‹ Hub</Text></Pressable>
-        <Text style={styles.title}>Settings</Text>
+        <Text style={[styles.title, displayLg()]}>Settings</Text>
         <View style={{ width: 60 }} />
       </View>
 

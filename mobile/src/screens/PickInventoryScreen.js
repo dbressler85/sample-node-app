@@ -1,6 +1,7 @@
 import React, { useCallback } from 'react';
 import { View, Text, StyleSheet, Pressable, SectionList, RefreshControl, ActivityIndicator } from 'react-native';
 import { colors } from '../theme';
+import { displayLg } from '../typography';
 import { pickInventoryPreferDevice } from '../mflDevice';
 import ErrorView from '../components/ErrorView';
 import useAndroidBack from '../useAndroidBack';
@@ -31,7 +32,7 @@ export default function PickInventoryScreen({ onBack }) {
     <View style={styles.container}>
       <View style={styles.topbar}>
         <Pressable onPress={onBack} hitSlop={10}><Text style={styles.back}>‹ Hub</Text></Pressable>
-        <Text style={styles.title}>Pick Capital</Text>
+        <Text style={[styles.title, displayLg()]}>Pick Capital</Text>
         <View style={{ width: 54 }} />
       </View>
       {summary ? (

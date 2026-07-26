@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, ActivityIndicator, Alert } from 'react-native';
 import { api } from '../api';
 import { colors } from '../theme';
+import { displayLg } from '../typography';
 import SlotEditor from '../components/SlotEditor';
 import MatchupLine from '../components/MatchupLine';
 import { toast } from '../components/Toast';
@@ -117,7 +118,7 @@ export default function LineupEditorScreen({ league, onBack, onOpenWaivers }) {
       </View>
 
       <View style={styles.header}>
-        <Text style={styles.title} numberOfLines={1}>
+        <Text style={[styles.title, displayLg()]} numberOfLines={1}>
           {detail.name}
         </Text>
         <Text style={styles.subtitle}>

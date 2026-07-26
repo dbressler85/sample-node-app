@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, RefreshControl, ActivityIndicator, Alert, TextInput } from 'react-native';
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
+import { displayLg } from '../typography';
 import useAndroidBack from '../useAndroidBack';
 import AvailabilityBadge from '../components/AvailabilityBadge';
 import LeagueContext from '../components/LeagueContext';
@@ -171,7 +172,7 @@ export default function OnTheBlockScreen({ onBack, onOpenPlayer, onOpenInbox, on
     <View style={styles.container}>
       <View style={styles.topbar}>
         <Pressable onPress={onBack} hitSlop={10}><Text style={styles.back}>‹ Trades</Text></Pressable>
-        <Text style={styles.title}>On the Block</Text>
+        <Text style={[styles.title, displayLg()]}>On the Block</Text>
         {onOpenInbox ? <Pressable onPress={onOpenInbox} hitSlop={10}><Text style={styles.inboxLink}>Inbox ›</Text></Pressable> : <View style={{ width: 60 }} />}
       </View>
       <View style={styles.segment}>

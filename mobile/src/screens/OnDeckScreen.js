@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, FlatList, RefreshControl, ActivityIndicator } from 'react-native';
 import { api } from '../api';
 import { colors } from '../theme';
+import { displayLg } from '../typography';
 import useAndroidBack from '../useAndroidBack';
 import usePoll from '../usePoll';
 import useCachedResource from '../useCachedResource';
@@ -101,7 +102,7 @@ export default function OnDeckScreen({ covered = false, onBack, onOpenLineup, on
     <View style={styles.container}>
       <View style={styles.topbar}>
         <Pressable onPress={onBack} hitSlop={10}><Text style={styles.back}>‹ Hub</Text></Pressable>
-        <Text style={styles.title}>Under Center</Text>
+        <Text style={[styles.title, displayLg()]}>Under Center</Text>
         <View style={{ width: 54 }} />
       </View>
       {data ? (
