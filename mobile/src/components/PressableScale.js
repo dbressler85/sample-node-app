@@ -7,7 +7,7 @@ import { Animated, Pressable } from 'react-native';
 // `style` styles the animated inner view (so the whole visual scales on press).
 // `pressableStyle` styles the outer touch target — use it for layout props like `flex`
 // that must live on the Pressable itself (e.g. equal-width tab bar items).
-export default function PressableScale({ children, style, pressableStyle, onPress, disabled, hitSlop, accessibilityLabel, dip = 0.94 }) {
+export default function PressableScale({ children, style, pressableStyle, onPress, disabled, hitSlop, accessibilityLabel, accessibilityRole, accessibilityState, dip = 0.94 }) {
   const scale = useRef(new Animated.Value(1)).current;
   // Press in quick and firm; release with a springy pop that overshoots 1 and settles — the
   // little bounce is what makes a tap feel alive rather than a flat state flip.
@@ -22,6 +22,8 @@ export default function PressableScale({ children, style, pressableStyle, onPres
       disabled={disabled}
       hitSlop={hitSlop}
       accessibilityLabel={accessibilityLabel}
+      accessibilityRole={accessibilityRole}
+      accessibilityState={accessibilityState}
     >
       <Animated.View style={[style, { transform: [{ scale }] }]}>{children}</Animated.View>
     </Pressable>

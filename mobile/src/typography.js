@@ -39,7 +39,12 @@ export async function loadDisplayFont(timeoutMs = 2200) {
   }
 }
 
-// Style fragments — return {} when the display face isn't ready so callers can spread them
-// unconditionally. Numbers deliberately keep the system face (for tabular alignment).
-export const displayXL = () => (fonts.ready ? { fontFamily: 'Oswald_700Bold' } : null);
-export const displayLabel = () => (fonts.ready ? { fontFamily: 'Oswald_600SemiBold' } : null);
+// Style fragments — return null when the display face isn't ready so callers can spread them
+// unconditionally. Numbers keep tabular alignment via fontVariant even before the face loads.
+export const displayXL = () => (fonts.ready ? { fontFamily: 'Oswald_700Bold' } : null); // screen titles
+export const displayLg = () => (fonts.ready ? { fontFamily: 'Oswald_600SemiBold' } : null); // overlay topbar titles
+export const displayLabel = () => (fonts.ready ? { fontFamily: 'Oswald_600SemiBold' } : null); // section labels
+// Hero stat numbers: the condensed face + tabular figures so big values carry the broadcast identity
+// AND stay column-aligned. Tabular applies even before the face loads (never rely on the font for it).
+export const displayNumber = () =>
+  fonts.ready ? { fontFamily: 'Oswald_500Medium', fontVariant: ['tabular-nums'] } : { fontVariant: ['tabular-nums'] };

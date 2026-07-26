@@ -23,5 +23,6 @@ export default function AnimatedNumber({ value, style, duration = 780, format })
       v.removeListener(id);
     };
   }, [value, duration, v]);
-  return <Text style={style}>{fmt(display)}</Text>;
+  // Tabular figures so the width doesn't reflow as digits roll (the whole point of a counting number).
+  return <Text style={[{ fontVariant: ['tabular-nums'] }, style]}>{fmt(display)}</Text>;
 }
