@@ -9,6 +9,7 @@ import { DEVICE_READS } from './config';
 import { loadMflCreds, refreshMflCreds } from './auth';
 import { api } from './api';
 import deviceReadCache from './deviceReadCache';
+import deviceEnrichCache from './deviceEnrichCache';
 import { onCacheInvalidate } from './cache';
 import poolMap from './poolMap';
 import deviceHealth from './deviceHealth';
@@ -163,8 +164,15 @@ export async function withDeviceFallback(deviceFn, backendFn) {
 export async function deviceLeagueTeams(leagueId) {
   const franchises = await deviceRosters(leagueId); // [{ franchiseId, players:[{id,status}] }]
   const ids = [...new Set(franchises.flatMap((f) => f.players.map((p) => p.id)))];
-  const [dir, dict] = await Promise.all([api.franchiseDirectory(leagueId), api.playerLookup(ids, leagueId)]);
-  return mflRead.assembleTeams(franchises, (dict && dict.players) || {}, dir);
+  // The rosters came straight from MFL; the directory + player dict are the only backend calls — route them
+  // through the resilience cache so a backend OUTAGE serves last-known enrichment instead of failing (U-4).
+  const [dir, dict] = await Promise.all([
+    deviceEnrichCache.directory(leagueId, () => api.franchiseDirectory(leagueId)),
+    deviceEnrichCache.players(leagueId, () => api.playerLookup(ids, leagueId)),
+  ]);
+  const out = mflRead.assembleTeams(franchises, (dict && dict.players) || {}, dir);
+  if (dir._stale || dict._stale) out._offline = true; // enrichment served from cache — the backend was unreachable
+  return out;
 }
 
 // League Rosters, device-first (with the backend leagueTeams as fallback).
@@ -175,8 +183,13 @@ export function leagueTeamsPreferDevice(leagueId) {
 // League Standings, device-first: the leagueStandings export straight from MFL on-device + the backend
 // franchise directory (names + playoff spots). assembleStandings throws if incomplete → backend fallback.
 export async function deviceStandings(leagueId) {
-  const [rows, dir] = await Promise.all([runDeviceRead(mflRead.reads.standings, leagueId), api.franchiseDirectory(leagueId)]);
-  return mflRead.assembleStandings(rows, dir);
+  const [rows, dir] = await Promise.all([
+    runDeviceRead(mflRead.reads.standings, leagueId),
+    deviceEnrichCache.directory(leagueId, () => api.franchiseDirectory(leagueId)), // last-known on a backend outage (U-4)
+  ]);
+  const out = mflRead.assembleStandings(rows, dir);
+  if (dir._stale) out._offline = true;
+  return out;
 }
 export function standingsPreferDevice(leagueId) {
   return preferDevice('standings', () => deviceStandings(leagueId), () => api.leagueStandings(leagueId));
@@ -191,8 +204,13 @@ export async function deviceTransactions(leagueId) {
   const rows = await runDeviceRead(mflRead.reads.transactions, leagueId);
   const parsed = mflRead.parseTransactions(rows);
   const ids = [...new Set(parsed.flatMap((t) => [...(t.addedIds || []), ...(t.droppedIds || [])]))];
-  const [dir, dict] = await Promise.all([api.franchiseDirectory(leagueId), api.playerLookup(ids, leagueId)]);
-  return mflRead.assembleTransactions(rows, (dict && dict.players) || {}, dir);
+  const [dir, dict] = await Promise.all([
+    deviceEnrichCache.directory(leagueId, () => api.franchiseDirectory(leagueId)),
+    deviceEnrichCache.players(leagueId, () => api.playerLookup(ids, leagueId)),
+  ]);
+  const out = mflRead.assembleTransactions(rows, (dict && dict.players) || {}, dir);
+  if (dir._stale || dict._stale) out._offline = true; // last-known enrichment during a backend outage (U-4)
+  return out;
 }
 export function transactionsPreferDevice(leagueId) {
   return preferDevice('transactions', () => deviceTransactions(leagueId), () => api.leagueTransactions(leagueId));
@@ -215,8 +233,10 @@ export async function deviceExposure() {
     return { leagueId: l.leagueId, name: l.name, players: mine.players };
   });
   const ids = [...new Set(perLeagueRosters.flatMap((r) => r.players.map((p) => p.id)))];
-  const dict = await api.exposureEnrich(ids, list[0].leagueId);
-  return mflRead.assembleExposure(perLeagueRosters, (dict && dict.players) || {}, list.length);
+  const dict = await deviceEnrichCache.exposureEnrich(list[0].leagueId, () => api.exposureEnrich(ids, list[0].leagueId)); // last-known during a backend outage (U-4)
+  const out = mflRead.assembleExposure(perLeagueRosters, (dict && dict.players) || {}, list.length);
+  if (dict._stale) out._offline = true;
+  return out;
 }
 export function exposurePreferDevice() {
   return preferDevice('exposure', () => deviceExposure(), () => api.exposure());

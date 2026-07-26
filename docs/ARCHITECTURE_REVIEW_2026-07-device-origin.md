@@ -129,9 +129,9 @@ Legend — severity **High / Med / Low**; effort **S** ~hours · **M** ~days · 
 > (parser-version observability + sampled shadow-compare on `/_metrics mfl.deviceParity`). Remaining: **A-12**
 > (a `preferDevice` fallback-path test; the new fan-out logic is covered by `poolMap.test.js`). Accept-with-doc:
 > **A-5** (cache erosion), **A-7** (cold-start), **A-11** (self-scoped trust). ✅ also done: **U-3** (fast
-> offline fail + no beacon-storm), **U-7** (expired-cookie → refresh, not silent fallback). U-series
-> remaining: **U-2** (Sunday battery/data budget), **U-4** (backend-independent reads during an outage),
-> **U-5** (device-faster headline).
+> offline fail + no beacon-storm), **U-4** (backend-independent Shape-A reads during a backend outage, via
+> `deviceEnrichCache`), **U-7** (expired-cookie → refresh, not silent fallback). U-series remaining: **U-2**
+> (Sunday battery/data budget), **U-5** (device-faster headline).
 
 - **A-1 · Device omits the request discipline it was specified to mirror · Med · S · ✅ FIXED.** The device
   fired `Promise.all` across 15–20 leagues with **no stagger, no concurrency cap, no 429 backoff** —
@@ -363,12 +363,18 @@ Everything else (A-1/A-7/A-10) is tunable post-flip and should not hold the gate
   expired, its own reads fail and the app's existing session-expiry → re-login (C5) flow takes over. Residual
   (backend-side, larger): proactively turning an expired-MFL-cookie *backend* read into the re-login prompt
   even when the app session token is still valid — a pre-existing gap device-origin doesn't create.
-- **U-4 · "Working while the backend is down" — the device-origin UX win the eng review missed · M.** A
-  backend 502 at 11:50am *could* still serve rosters/standings/transactions/exposure straight from MFL —
-  except every Shape-A device path still calls the backend for the player dictionary/directory
-  (`mflDevice.js:111,123,139`), so an outage kills them anyway. Cache the (slow-changing, cross-user)
-  player dict + franchise directory on-device and device-origin delivers **true backend-independent reads**
-  during an outage — a genuine reliability feature the shift makes possible. Fast-follow after the flip.
+- **U-4 · "Working while the backend is down" — the device-origin reliability win · M · ✅ FIXED (core).** A
+  backend 502 at 11:50am used to kill the Shape-A reads because each still calls the backend for its
+  enrichment (franchise directory + player lookup + exposure enrich) — the *only* backend dependency left
+  once the rosters come straight from MFL. **Fixed:** those enrichment calls now route through
+  `deviceEnrichCache.js` — a cache-through that always tries the backend, remembers the last success, and on
+  a backend **failure serves the last-known value** tagged `_stale`. So rosters / standings / transactions /
+  exposure now assemble entirely from the device's own MFL reads + cached enrichment when the backend is
+  unreachable — **true backend-independent reads** — and the result carries an `_offline` flag a screen can
+  surface. In-memory (covers the warm mid-Sunday outage — the actual scenario) and wiped on logout/auth-loss
+  (C11 — the exposure enrich carries personal tag/watched). Unit-tested (`deviceEnrichCache.test.js`).
+  Residual (documented follow-up): **persist** the cache so a *cold launch during* an outage also works, and
+  render the `_offline` flag as a calm "last-known" note.
 - **U-5 · Faster-than-backend reads as an explicit, measured promise · S.** `preferDevice` already beacons
   device-vs-backend latency (`mflDevice.js:69`). If device p50 beats backend p50 on forgiving screens,
   *that's* the headline benefit to lead the rollout with — not just "quota safety." If it doesn't win on
