@@ -89,6 +89,18 @@ router.get('/leagues/:leagueId/teams', async (req, res, next) => {
   }
 });
 
+// POST /api/players/lookup { ids:[…], leagueId? } — the GLOBAL player dictionary (name/pos/team/value)
+// for a set of ids, so a device-origin roster read can be enriched on-device without the per-user MFL
+// fan-out touching the server (docs/DEVICE_ORIGIN_MFL.md). leagueId picks the value format.
+router.post('/players/lookup', async (req, res, next) => {
+  try {
+    const { ids, leagueId } = req.body || {};
+    res.json(await leagueService.getPlayerLookup(req.mflCookie, Array.isArray(ids) ? ids : [], leagueId || null));
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/leagues/:leagueId/transactions — recent league transaction feed.
 router.get('/leagues/:leagueId/transactions', async (req, res, next) => {
   try {

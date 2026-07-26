@@ -136,4 +136,34 @@ function shapeRoster(franchise) {
   };
 }
 
-module.exports = { toArray, text, num, fid, isMflHost, buildExportUrl, reads, readWith, shapeRoster };
+// Join device-origin franchises (from reads.rosters → shapeRoster: [{ franchiseId, players:[{id,status}] }])
+// with a player dictionary ({ id: { name, position, team, value } }, served by the backend from its
+// GLOBAL cache — POST /api/players/lookup) into the shape a roster screen renders. This is the hybrid
+// split (DEVICE_ORIGIN_MFL.md): per-user rosters come from the device (its own IP), the shared
+// player/value data stays backend-cached. Pure; players sorted by value desc, totalValue summed.
+function enrichRoster(franchises, dict) {
+  const d = dict || {};
+  return (franchises || []).map((f) => {
+    const players = (f.players || [])
+      .map((p) => {
+        const info = d[p.id] || {};
+        return {
+          id: p.id,
+          status: p.status,
+          name: info.name || null,
+          position: info.position || null,
+          team: info.team || null,
+          value: info.value != null ? info.value : null,
+        };
+      })
+      .sort((a, b) => (b.value || 0) - (a.value || 0));
+    return {
+      franchiseId: f.franchiseId,
+      count: players.length,
+      totalValue: Math.round(players.reduce((s, p) => s + (p.value || 0), 0)),
+      players,
+    };
+  });
+}
+
+module.exports = { toArray, text, num, fid, isMflHost, buildExportUrl, reads, readWith, shapeRoster, enrichRoster };

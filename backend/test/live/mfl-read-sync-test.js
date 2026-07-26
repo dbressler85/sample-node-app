@@ -79,5 +79,19 @@ console.log('✓ shapeRoster applies fid padding + $t-safe fields');
   assert(threw && n === 1, 'a 429 throws and is NOT retried (per MFL: retrying makes it worse)');
   console.log('✓ readWith: builds URL + sends cookie/UA + parses; 429 throws without retry');
 
+  // 7. enrichRoster(): join device franchises with the backend player dictionary → screen shape.
+  const franchises = [{ franchiseId: '0001', players: [{ id: '30', status: 'starter' }, { id: '20', status: 'nonstarter' }] }];
+  const dict = {
+    30: { name: 'Best, Available', position: 'RB', team: 'BBB', value: 95 },
+    20: { name: 'Drafted, Guy', position: 'WR', team: 'AAA', value: 40 },
+  };
+  const enriched = mflRead.enrichRoster(franchises, dict);
+  assert(enriched[0].players[0].id === '30' && enriched[0].players[0].name === 'Best, Available', 'joins names + sorts by value desc');
+  assert(enriched[0].players[0].position === 'RB' && enriched[0].players[0].status === 'starter', 'carries position + the device roster status');
+  assert(enriched[0].totalValue === 135 && enriched[0].count === 2, 'totalValue summed, count set');
+  const missing = mflRead.enrichRoster([{ franchiseId: '0002', players: [{ id: '999', status: 'x' }] }], dict);
+  assert(missing[0].players[0].name === null && missing[0].players[0].value === null, 'a player missing from the dict → null fields, not a crash');
+  console.log('✓ enrichRoster: joins device rosters + player dict, value-sorted, missing-safe');
+
   console.log('\nMFL-READ SHARED-CORE HARNESS PASSED');
 })().catch((e) => { console.error(e.message); process.exit(1); });

@@ -242,4 +242,26 @@ async function getTransactions(cookie, leagueId, { limit = 40 } = {}) {
   return { leagueId: String(league.leagueId), name: league.name, transactions };
 }
 
-module.exports = { getStandings, getTeams, getTransactions, findLeague };
+// Player dictionary for a set of ids: { [id]: { name, position, team, value } }. This is the GLOBAL,
+// backend-cached half of a device-origin read (docs/DEVICE_ORIGIN_MFL.md) — the device fetches a
+// league's rosters straight from MFL (per-user, its own IP) and calls this to enrich the player ids it
+// got, so the heavy per-user fan-out leaves the server while the shared player/value data stays cached
+// here. `leagueId` (optional) selects the value FORMAT; without it, values use the default format.
+async function getPlayerLookup(cookie, ids, leagueId) {
+  const wanted = [...new Set((ids || []).map((id) => String(id)).filter(Boolean))].slice(0, 2000);
+  const byId = await playersLib.load(cookie);
+  let fmt = null;
+  if (leagueId) {
+    const league = await findLeague(cookie, leagueId).catch(() => null);
+    if (league) fmt = await leagueFormat.format(cookie, league).catch(() => null);
+  }
+  const enr = await enrichmentLib.snapshot(fmt, cookie);
+  const players = {};
+  for (const id of wanted) {
+    const b = playersLib.resolve(byId, id);
+    players[id] = { name: b.name, position: b.position, team: b.team, value: enr.value(id) };
+  }
+  return { players };
+}
+
+module.exports = { getStandings, getTeams, getTransactions, findLeague, getPlayerLookup };
