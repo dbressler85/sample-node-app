@@ -73,6 +73,12 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   console.log('league:', JSON.stringify({ status: dl.status, onClock: dl.onClock, avail: dl.available.map((p) => `${p.name.split(',')[0]}:${p.value}`), board: dl.board.map((s) => `${s.round}.${s.pick}=${s.player ? s.player.name.split(',')[0] : '—'}`) }));
   assert(dl.onClock && dl.onClock.mine && dl.onClock.round === 1 && dl.onClock.pick === 2, 'on the clock at my slot 1.02');
   assert(dl.board.filter((s) => s.player).length === 1 && dl.board.filter((s) => !s.playerId).length === 3, 'board: 1 made + 3 upcoming');
+  // Every board slot carries the owner (id + name + mine) so the "Board" tab can show pick owner and
+  // highlight my picks. No `league` franchises in this stub → names fall back to my franchiseName / "Team <id>".
+  assert(dl.board.every((s) => s.franchiseId && s.franchiseName && typeof s.mine === 'boolean'), 'board slots carry franchiseId + franchiseName + mine');
+  assert(dl.board.filter((s) => s.mine).length === 2 && dl.board.filter((s) => s.mine).every((s) => s.franchiseName === 'My Team'), 'my slots flagged mine with my team name');
+  assert(dl.board.find((s) => s.franchiseId === '0002').franchiseName === 'Team 0002', 'an owner with no name entry falls back to Team <id>');
+  assert(dl.myPicks.length === 2 && dl.myPicks.every((s) => s.mine), 'myPicks = my two upcoming slots');
   assert(dl.available[0].id === '30' && dl.available[0].value === 95, 'pool ranked by dynasty value (Best Available on top)');
   assert(!dl.available.some((p) => p.id === '20'), 'already-drafted player excluded from pool');
   console.log('✓ league board + value-ranked available pool');
