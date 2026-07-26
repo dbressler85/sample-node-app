@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, ActivityIndicator, Alert } from 'react-native';
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
+import { displayLg } from '../typography';
 import AvailabilityBadge from '../components/AvailabilityBadge';
 import ValueDelta from '../components/ValueDelta';
 import useAndroidBack from '../useAndroidBack';
@@ -172,7 +173,7 @@ export default function WaiverWizardScreen({ leagues, onBack, onOpenPlayer }) {
       </View>
 
       <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
-        <Text style={styles.title} numberOfLines={1}>{current.name}</Text>
+        <Text style={[styles.title, displayLg()]} numberOfLines={1}>{current.name}</Text>
         <Text style={styles.subtitle}>
           <SystemBadge system={current.system} />
           {'  '}

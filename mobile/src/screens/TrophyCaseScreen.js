@@ -2,6 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, FlatList, ActivityIndicator, RefreshControl, Modal, TextInput, Alert } from 'react-native';
 import { api } from '../api';
 import { colors } from '../theme';
+import { displayLg } from '../typography';
 import ErrorView from '../components/ErrorView';
 import useAndroidBack from '../useAndroidBack';
 import useCachedResource, { primeResource } from '../useCachedResource';
@@ -102,7 +103,7 @@ export default function TrophyCaseScreen({ onBack }) {
     <View style={styles.container}>
       <View style={styles.topbar}>
         <Pressable onPress={onBack} hitSlop={10}><Text style={styles.back}>‹ Profile</Text></Pressable>
-        <Text style={styles.title}>Trophy Case</Text>
+        <Text style={[styles.title, displayLg()]}>Trophy Case</Text>
         <Pressable onPress={() => setAdding(true)} hitSlop={10} style={styles.addBtn}><Text style={styles.addBtnText}>＋ Add</Text></Pressable>
       </View>
 

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, FlatList, StyleSheet, Pressable, ActivityIndicator, RefreshControl } from 'react-native';
 import { api } from '../api';
 import { colors } from '../theme';
+import { displayLg } from '../typography';
 import Reveal from '../components/Reveal';
 import useAndroidBack from '../useAndroidBack';
 
@@ -75,7 +76,7 @@ export default function LeaguesScreen({ onBack, onOpenLeague, onOpenDraftHub }) 
     <View style={styles.container}>
       <View style={styles.topbar}>
         <Pressable onPress={onBack} hitSlop={10}><Text style={styles.back}>‹ Hub</Text></Pressable>
-        <Text style={styles.title}>Your Leagues</Text>
+        <Text style={[styles.title, displayLg()]}>Your Leagues</Text>
         <Pressable onPress={onOpenDraftHub} hitSlop={10}><Text style={styles.link}>Drafts ›</Text></Pressable>
       </View>
 

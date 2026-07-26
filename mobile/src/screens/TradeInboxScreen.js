@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Pressable, FlatList, RefreshControl, ActivityIn
 import { api } from '../api';
 import useCachedResource from '../useCachedResource';
 import { colors, positionColors } from '../theme';
+import { displayLg } from '../typography';
 import { celebrate } from '../components/Celebrate';
 import InfoDot from '../components/InfoDot';
 import ErrorView from '../components/ErrorView';
@@ -165,7 +166,7 @@ export default function TradeInboxScreen({ active = true, onBack, onOpenLeague, 
         ) : (
           <View style={{ width: 54 }} />
         )}
-        <Text style={styles.title}>Trades</Text>
+        <Text style={[styles.title, displayLg()]}>Trades</Text>
         {onOpenBlock ? (
           <Pressable onPress={onOpenBlock} hitSlop={10}>
             <Text style={styles.blockLink}>⇄ Block</Text>

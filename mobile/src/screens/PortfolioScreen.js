@@ -3,6 +3,7 @@ import { View, Text, ScrollView, FlatList, StyleSheet, Pressable, ActivityIndica
 import { api } from '../api';
 import { portfolioPreferDevice } from '../mflDevice';
 import { colors, positionColors } from '../theme';
+import { displayLg } from '../typography';
 import useAndroidBack from '../useAndroidBack';
 import useCachedResource from '../useCachedResource';
 import Sparkline from '../components/Sparkline';
@@ -138,7 +139,7 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
     <View style={styles.container}>
       <View style={styles.topbar}>
         <Pressable onPress={onBack} hitSlop={10}><Text style={styles.back}>‹ Hub</Text></Pressable>
-        <Text style={styles.title}>Portfolio</Text>
+        <Text style={[styles.title, displayLg()]}>Portfolio</Text>
         <View style={{ width: 60 }} />
       </View>
 

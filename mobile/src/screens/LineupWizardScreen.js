@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
 import { api } from '../api';
 import { colors } from '../theme';
+import { displayLg } from '../typography';
 import SlotEditor from '../components/SlotEditor';
 import useAndroidBack from '../useAndroidBack';
 
@@ -133,7 +134,7 @@ export default function LineupWizardScreen({ leagues, initialMode = 'auto', onBa
       ) : detail ? (
         <>
           <View style={styles.header}>
-            <Text style={styles.title} numberOfLines={1}>
+            <Text style={[styles.title, displayLg()]} numberOfLines={1}>
               {detail.name}
             </Text>
             <Text style={styles.subtitle}>

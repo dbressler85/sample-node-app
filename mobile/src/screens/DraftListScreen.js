@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
+import { displayLg } from '../typography';
 import ErrorView from '../components/ErrorView';
 import LeagueContext from '../components/LeagueContext';
 import useAndroidBack from '../useAndroidBack';
@@ -264,7 +265,7 @@ function Header({ league, onBack }) {
     <View style={styles.topbar}>
       <Pressable onPress={onBack} hitSlop={10}><Text style={styles.back}>‹ Back</Text></Pressable>
       <View style={styles.titleWrap}>
-        <Text style={styles.title} numberOfLines={1}>My Draft List</Text>
+        <Text style={[styles.title, displayLg()]} numberOfLines={1}>My Draft List</Text>
         <Text style={styles.sub} numberOfLines={1}>{league.name}</Text>
       </View>
       <View style={{ width: 54 }} />
