@@ -6,20 +6,36 @@
 // fallback, so a device-read hiccup is never user-visible.
 import mflRead from './mflRead';
 import { DEVICE_READS } from './config';
-import { loadMflCreds } from './auth';
+import { loadMflCreds, refreshMflCreds } from './auth';
 import { api } from './api';
 import deviceReadCache from './deviceReadCache';
 import { onCacheInvalidate } from './cache';
 import poolMap from './poolMap';
+import deviceHealth from './deviceHealth';
+
+// Bound every on-device MFL fetch so a dead network (subway, U-3) fails FAST instead of hanging — the
+// screen keeps its last cached data (C4) promptly rather than spinning. A timeout aborts to a plain error
+// that classifies as `network`, which then opens the offline cooldown (deviceHealth) so the NEXT reads skip
+// the device entirely and go straight to the backend.
+const DEVICE_FETCH_TIMEOUT_MS = 8000;
+function fetchWithTimeout(url, opts) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), DEVICE_FETCH_TIMEOUT_MS);
+  return fetch(url, { ...opts, signal: ctrl.signal })
+    .catch((e) => { throw e && e.name === 'AbortError' ? new Error('device read timeout') : e; })
+    .finally(() => clearTimeout(timer));
+}
 
 // A write (add/drop, lineup, claim, trade…) fires invalidateCaches; clear the device read cache too, so
 // the next fan-out re-fetches from MFL rather than serving pre-action rosters — mirrors the backend's
 // invalidate-on-write and the screen-cache's markAllStale.
 onCacheInvalidate(() => deviceReadCache.clear());
 
-// Can we even attempt a device read right now? (flag on + a backend that handed us the cookie)
+// Can we even attempt a device read right now? (flag on + not in the post-offline cooldown + a backend
+// that handed us the cookie). The cooldown check is first + sync, so during a network outage we skip the
+// device entirely — no SecureStore read, no doomed fetch — and go straight to the backend (U-3).
 export async function deviceReadsReady() {
-  if (!DEVICE_READS) return false;
+  if (!DEVICE_READS || deviceHealth.deviceSuppressed()) return false;
   const creds = await loadMflCreds();
   return !!(creds && creds.cookie && creds.host && creds.season);
 }
@@ -35,7 +51,7 @@ async function runDeviceRead(descriptor, leagueId, params = {}) {
   // consumers of the same read share one fetch, and a remount within the TTL is a no-op rather than
   // re-firing an N-league fan-out. Cleared on any write (see onCacheInvalidate above).
   return deviceReadCache.get(descriptor.type, leagueId, params, () =>
-    mflRead.readWith(fetch, {
+    mflRead.readWith(fetchWithTimeout, {
       descriptor,
       host: creds.host,
       year: String(creds.season),
@@ -86,23 +102,23 @@ async function settlePool(list, fn) {
   };
 }
 
-// Categorize WHY a device read fell back, so the /_metrics beacon can show "when does it break" (not
-// just how often). Coarse buckets, matched against the errors the device path actually throws.
-function fallbackReason(e) {
-  if (!e) return 'error';
-  if (e.status === 429) return 'rate_limited';
-  const m = String(e.message || '').toLowerCase();
-  if (/unavailable|cred|cookie/.test(m)) return 'no_creds'; // flag off or no cached cookie
-  if (/empty|incomplete|directory|falling back/.test(m)) return 'incomplete'; // an assemble threw
-  if (/reach|network|timeout|fetch/.test(m)) return 'network';
-  if (Number.isFinite(e.status) && e.status >= 400) return `http_${e.status}`;
-  return 'error';
+// Best-effort, throttled cred refresh after an EXPIRED-cookie device failure (U-7): if the backend has
+// since re-authed, the device catches up; if the backend's cookie is also dead, its reads fail and the app's
+// normal session-expiry → re-login flow fires. Throttled so a burst of expired reads triggers ONE refresh.
+let lastCredRefresh = 0;
+const CRED_REFRESH_THROTTLE_MS = 60 * 1000;
+function onCookieExpired() {
+  const now = Date.now();
+  if (now - lastCredRefresh < CRED_REFRESH_THROTTLE_MS) return;
+  lastCredRefresh = now;
+  refreshMflCreds().catch(() => {});
 }
 
 // Generic device-first fetcher: try the device path, fall back to the backend on any failure, tag the
 // result with `_source`, and (when device reads are on) beacon the served path + its LATENCY + the
-// fallback REASON for /_metrics. Latency (device vs backend) says whether device-origin is worth it;
-// the reason says why it fell back when it did. DRYs the per-read wiring.
+// fallback REASON for /_metrics. On a network failure it opens the offline cooldown (so the next reads skip
+// the device — U-3) and suppresses the beacon (don't POST to a dead network); an expired cookie triggers a
+// throttled cred refresh (U-7). DRYs the per-read wiring.
 async function preferDevice(readName, deviceFn, backendFn) {
   let payload = null;
   let reason = null;
@@ -113,17 +129,19 @@ async function preferDevice(readName, deviceFn, backendFn) {
       payload = { ...(await deviceFn()), _source: 'device' };
       ms = Date.now() - t0;
     } catch (e) {
-      reason = fallbackReason(e); // device attempted → record why we're falling back
+      reason = deviceHealth.classifyError(e); // device attempted → record why we're falling back
+      if (reason === 'cookie_expired') onCookieExpired();
     }
   }
+  deviceHealth.noteResult(payload ? null : reason); // a network failure opens the offline cooldown; a success clears it
   if (!payload) {
     const t0 = Date.now();
     payload = { ...(await backendFn()), _source: 'backend' };
     ms = Date.now() - t0;
   }
-  // `ver` = this build's shared-core (mflRead) version, so the backend can spot a stale-app population whose
-  // Shape-A screens it can't see or correct (A-6).
-  if (DEVICE_READS) api.reportDeviceRead(readName, payload._source, { ms, reason, ver: mflRead.VERSION });
+  // Beacon the served path + latency + reason + this build's shared-core (mflRead) VERSION (A-6) — but not
+  // while we believe the network is down (it would just POST to a dead backend, U-3).
+  if (DEVICE_READS && deviceHealth.shouldBeacon()) api.reportDeviceRead(readName, payload._source, { ms, reason, ver: mflRead.VERSION });
   return payload;
 }
 

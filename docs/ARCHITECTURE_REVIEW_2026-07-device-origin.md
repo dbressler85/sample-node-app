@@ -128,9 +128,10 @@ Legend — severity **High / Med / Low**; effort **S** ~hours · **M** ~days · 
 > **U-1** ("complete/partial" affordance — already present on Portfolio, now reachable), **A-6 + U-6**
 > (parser-version observability + sampled shadow-compare on `/_metrics mfl.deviceParity`). Remaining: **A-12**
 > (a `preferDevice` fallback-path test; the new fan-out logic is covered by `poolMap.test.js`). Accept-with-doc:
-> **A-5** (cache erosion), **A-7** (cold-start), **A-11** (self-scoped trust). U-series remaining: **U-2**
-> (Sunday battery/data budget), **U-3** (fast offline fail), **U-4** (backend-independent reads during an
-> outage), **U-5** (device-faster headline), **U-7** (calm expired-cookie re-login).
+> **A-5** (cache erosion), **A-7** (cold-start), **A-11** (self-scoped trust). ✅ also done: **U-3** (fast
+> offline fail + no beacon-storm), **U-7** (expired-cookie → refresh, not silent fallback). U-series
+> remaining: **U-2** (Sunday battery/data budget), **U-4** (backend-independent reads during an outage),
+> **U-5** (device-faster headline).
 
 - **A-1 · Device omits the request discipline it was specified to mirror · Med · S · ✅ FIXED.** The device
   fired `Promise.all` across 15–20 leagues with **no stagger, no concurrency cap, no 429 backoff** —
@@ -347,10 +348,21 @@ Everything else (A-1/A-7/A-10) is tunable post-flip and should not hold the gate
 - **U-2 · Battery/data budget awareness for a full Sunday session · M.** 1–8pm, in and out 40× across 15
   leagues, every foreground fan-out is now the user's battery + LTE. Add an idle-prefetch session budget +
   reuse the covered-overlay gating (A-9) so background tabs stop fanning out.
-- **U-3 · Offline / subway graceful state · S.** Post-shift a read can fail *twice* (device then backend),
-  slower to give up. Verify the device path fails **fast** when offline (short timeout) so C4's "keep last
-  data, no blank" still holds promptly, and don't beacon-storm on a dead network. Add an explicit offline
-  check before attempting device reads.
+- **U-3 · Offline / subway graceful state · S · ✅ FIXED.** Post-shift a read could fail *twice* (device then
+  backend), slower to give up. **Fixed:** every on-device fetch is bounded by an 8s timeout
+  (`fetchWithTimeout` in `mflDevice.js`) so a dead network fails fast (C4 keeps last data promptly instead of
+  spinning); a network failure opens a 15s **offline cooldown** (`deviceHealth.js`) so subsequent reads skip
+  the device entirely and go straight to the backend (no doomed device fetch, no SecureStore read); and the
+  metrics beacon is suppressed during that window (no POST-storm to a dead backend). A device success clears
+  the cooldown immediately. Unit-tested (`deviceHealth.test.js`).
+- **U-7 · Expired-cookie path stays a calm re-login, not a silent all-fallback · S · ✅ FIXED (core).** An
+  expired *device* MFL cookie used to fall back silently. **Fixed:** a 401/403 device read is now classified
+  as a distinct `cookie_expired` reason (observable on `/_metrics`, not lumped into "error"), and it triggers
+  a throttled `refreshMflCreds()` — the device re-pulls its cookie from the backend, so if the backend has
+  re-authed it catches up instead of failing forever on a stale cookie. If the backend's cookie is *also*
+  expired, its own reads fail and the app's existing session-expiry → re-login (C5) flow takes over. Residual
+  (backend-side, larger): proactively turning an expired-MFL-cookie *backend* read into the re-login prompt
+  even when the app session token is still valid — a pre-existing gap device-origin doesn't create.
 - **U-4 · "Working while the backend is down" — the device-origin UX win the eng review missed · M.** A
   backend 502 at 11:50am *could* still serve rosters/standings/transactions/exposure straight from MFL —
   except every Shape-A device path still calls the backend for the player dictionary/directory
