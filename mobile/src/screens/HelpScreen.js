@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { colors } from '../theme';
-import { displayLg } from '../typography';
+import { displayLg, displayLabel } from '../typography';
 import { HELP } from '../help';
 import useAndroidBack from '../useAndroidBack';
 
@@ -25,7 +25,7 @@ export default function HelpScreen({ onBack }) {
         </Text>
         {HELP.map((topic) => (
           <View key={topic.id} style={styles.card}>
-            <Text style={styles.cardTitle}>{topic.title}</Text>
+            <Text style={[styles.cardTitle, displayLabel()]}>{topic.title}</Text>
             {topic.body.map((p, i) => (
               <Text key={i} style={styles.para}>{p}</Text>
             ))}

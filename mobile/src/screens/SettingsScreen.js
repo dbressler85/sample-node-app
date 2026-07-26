@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, Switch, ActivityIndicator, ScrollView, Alert } from 'react-native';
 import { api } from '../api';
 import { colors } from '../theme';
-import { displayLg } from '../typography';
+import { displayLg, displayLabel } from '../typography';
 import useAndroidBack from '../useAndroidBack';
 
 // The push channels, in display order. `key` matches the backend pref key.
@@ -57,7 +57,7 @@ export default function SettingsScreen({ onBack, onOpenHelp, onLogout }) {
       </View>
 
       <ScrollView contentContainerStyle={styles.list}>
-        <Text style={styles.sectionLabel}>Push notifications</Text>
+        <Text style={[styles.sectionLabel, displayLabel()]}>Push notifications</Text>
         <Text style={styles.sectionHint}>
           Choose what reaches your phone. Notifications only fire while your MFL login is active.
         </Text>

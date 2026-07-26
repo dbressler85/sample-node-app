@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, FlatList, SectionList, ActivityIndicator, Alert, Modal, TextInput } from 'react-native';
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
-import { displayLg } from '../typography';
+import { displayLg, displayLabel } from '../typography';
 import PressableScale from '../components/PressableScale';
 import LeagueContext from '../components/LeagueContext';
 import Reveal from '../components/Reveal';
@@ -339,7 +339,7 @@ export default function DraftScreen({ league, demoMode, covered = false, onBack,
           )}
           ListHeaderComponent={
             <View style={styles.headerRow}>
-              <Text style={styles.dtype}>Draft board</Text>
+              <Text style={[styles.dtype, displayLg()]}>Draft board</Text>
               <View style={[styles.badge, { borderColor: st.color }]}>
                 <Text style={[styles.badgeText, { color: st.color }]}>{st.label}</Text>
               </View>
@@ -373,7 +373,7 @@ export default function DraftScreen({ league, demoMode, covered = false, onBack,
           ListHeaderComponent={
             <View>
               <View style={styles.headerRow}>
-                <Text style={styles.dtype}>{data.type || 'Draft'}</Text>
+                <Text style={[styles.dtype, displayLg()]}>{data.type || 'Draft'}</Text>
                 <View style={[styles.badge, { borderColor: st.color }]}>
                   <Text style={[styles.badgeText, { color: st.color }]}>{st.label}</Text>
                 </View>
@@ -409,7 +409,7 @@ export default function DraftScreen({ league, demoMode, covered = false, onBack,
 
               {data.myPicks && data.myPicks.length ? (
                 <>
-                  <Text style={styles.section}>My picks</Text>
+                  <Text style={[styles.section, displayLabel()]}>My picks</Text>
                   {data.myPicks.map((s) => (
                     <View key={s.overall} style={styles.pickRow}>
                       <Text style={styles.pickNo}>{s.round}.{String(s.pick).padStart(2, '0')}</Text>
@@ -427,7 +427,7 @@ export default function DraftScreen({ league, demoMode, covered = false, onBack,
                 </>
               ) : null}
 
-              <Text style={styles.section}>Available · by ADP{myTurn ? (canPickInApp ? ' · tap a name to scout, Draft to pick' : ' · tap a name to scout') : ''}</Text>
+              <Text style={[styles.section, displayLabel()]}>Available · by ADP{myTurn ? (canPickInApp ? ' · tap a name to scout, Draft to pick' : ' · tap a name to scout') : ''}</Text>
               <View style={styles.posRow}>
                 <Pressable style={[styles.posChip, !position && styles.posChipActive]} onPress={() => setPosition(null)}>
                   <Text style={[styles.posText, !position && { color: colors.text }]}>All</Text>
@@ -443,7 +443,7 @@ export default function DraftScreen({ league, demoMode, covered = false, onBack,
           ListFooterComponent={
             recent.length ? (
               <View>
-                <Text style={styles.section}>Recent picks</Text>
+                <Text style={[styles.section, displayLabel()]}>Recent picks</Text>
                 {recent.map((s) => (
                   <View key={s.overall} style={styles.pickRow}>
                     <Text style={styles.pickNo}>{s.round}.{String(s.pick).padStart(2, '0')}</Text>

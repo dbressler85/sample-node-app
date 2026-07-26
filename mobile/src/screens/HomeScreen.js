@@ -4,6 +4,7 @@ import { api } from '../api';
 import { draftsPreferDevice, leagueTriagePreferDevice } from '../mflDevice';
 import { getValue, setValue, onCacheInvalidate } from '../cache';
 import { colors } from '../theme';
+import { displayLabel } from '../typography';
 import { ScreenTitle } from '../components/Brand';
 import Pulse from '../components/Pulse';
 import PressableScale from '../components/PressableScale';
@@ -340,7 +341,7 @@ export default function HomeScreen({ active = true, demoMode, onOpenLineup, onOp
             {drafts.length ? (
               <View>
                 <Pressable style={styles.sectionRow} onPress={onOpenDraftHub}>
-                  <Text style={styles.section}>Drafts · {drafts.length}</Text>
+                  <Text style={[styles.section, displayLabel()]}>Drafts · {drafts.length}</Text>
                   <Text style={styles.sectionLink}>Hub ›</Text>
                 </Pressable>
                 {drafts.map((d) => (
@@ -368,7 +369,7 @@ export default function HomeScreen({ active = true, demoMode, onOpenLineup, onOp
             ) : null}
             {deadlineLeagues.length ? (
               <View>
-                <Text style={styles.section}>Trade deadlines · {deadlineLeagues.length}</Text>
+                <Text style={[styles.section, displayLabel()]}>Trade deadlines · {deadlineLeagues.length}</Text>
                 {deadlineLeagues.map((x) => {
                   const c = deadlineChip(x.dl.at);
                   return (
@@ -390,7 +391,7 @@ export default function HomeScreen({ active = true, demoMode, onOpenLineup, onOp
             ) : null}
             {watchGroups.length ? (
               <View>
-                <Text style={styles.section}>Watchlist · {watchGroups.length}</Text>
+                <Text style={[styles.section, displayLabel()]}>Watchlist · {watchGroups.length}</Text>
                 {(showAllWatch ? watchGroups : watchGroups.slice(0, 6)).map((g, i) => (
                   <Pressable
                     key={`${g.playerId}-${g.type}-${i}`}

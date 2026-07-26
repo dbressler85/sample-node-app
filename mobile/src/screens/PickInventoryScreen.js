@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react';
 import { View, Text, StyleSheet, Pressable, SectionList, RefreshControl, ActivityIndicator } from 'react-native';
 import { colors } from '../theme';
-import { displayLg } from '../typography';
+import { displayLg, displayLabel } from '../typography';
 import { pickInventoryPreferDevice } from '../mflDevice';
 import ErrorView from '../components/ErrorView';
 import useAndroidBack from '../useAndroidBack';
@@ -57,7 +57,7 @@ export default function PickInventoryScreen({ onBack }) {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={reload} tintColor={colors.accent} />}
           renderSectionHeader={({ section }) => (
             <View style={styles.sectionRow}>
-              <Text style={styles.section}>{section.title}</Text>
+              <Text style={[styles.section, displayLabel()]}>{section.title}</Text>
               <Text style={styles.sectionVal}>{section.value.toLocaleString()} value</Text>
             </View>
           )}
