@@ -82,11 +82,11 @@ const BoardRow = React.memo(function BoardRow({ s, isClock, onScout }) {
       disabled={!player || !onScout}
     >
       <View style={styles.bNums}>
-        <Text style={[styles.bOverall, s.mine && styles.bOverallMine]}>#{s.overall}</Text>
+        <Text style={[styles.bOverall, s.mine && styles.bOverallMine, isClock && styles.bOverallClock]}>#{s.overall}</Text>
         <Text style={styles.bSlot}>{s.round}.{String(s.pick).padStart(2, '0')}</Text>
       </View>
       <View style={styles.bMain}>
-        <Text style={[styles.bOwner, s.mine && styles.bOwnerMine]} numberOfLines={1}>
+        <Text style={[styles.bOwner, s.mine && styles.bOwnerMine, isClock && styles.bOwnerClock]} numberOfLines={1}>
           {s.franchiseName || `Team ${s.franchiseId}`}{s.mine ? ' · You' : ''}
         </Text>
         {player ? (
@@ -96,7 +96,7 @@ const BoardRow = React.memo(function BoardRow({ s, isClock, onScout }) {
             <Text style={styles.bPlayerMeta}>{player.position}{player.value != null ? ` · ${player.value}` : ''}</Text>
           </View>
         ) : (
-          <Text style={[styles.bStatus, isClock && styles.bStatusClock]}>{isClock ? '⏱ On the clock' : 'Upcoming'}</Text>
+          <Text style={[styles.bStatus, isClock && styles.bStatusClock]}>{isClock ? 'On the clock' : 'Upcoming'}</Text>
         )}
       </View>
     </Pressable>
@@ -531,20 +531,24 @@ const styles = StyleSheet.create({
   bSectionTitle: { color: colors.text, fontSize: 15, fontWeight: '900' },
   bSectionCount: { color: colors.textDim, fontSize: 12, fontWeight: '700' },
   bRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 8 },
-  bRowMine: { borderColor: colors.gold, backgroundColor: colors.gold + '14' },
-  bRowClock: { borderColor: colors.good, backgroundColor: colors.good + '12' },
+  // "Yours" is an identity cue → Signal Blue. "On the clock" is the reserved gold moment and must be
+  // the unmistakable hero, so it wins the row (border + fill + text) even when the slot is also mine.
+  bRowMine: { borderColor: colors.accent, backgroundColor: colors.accent + '14' },
+  bRowClock: { borderColor: colors.gold, backgroundColor: colors.gold + '1F' },
   bNums: { width: 58, marginRight: 10 },
   bOverall: { color: colors.text, fontSize: 15, fontWeight: '900', fontVariant: ['tabular-nums'] },
-  bOverallMine: { color: colors.gold },
+  bOverallMine: { color: colors.accent },
+  bOverallClock: { color: colors.gold },
   bSlot: { color: colors.textDim, fontSize: 12, fontWeight: '700', marginTop: 1, fontVariant: ['tabular-nums'] },
   bMain: { flex: 1 },
   bOwner: { color: colors.textDim, fontSize: 12, fontWeight: '800' },
-  bOwnerMine: { color: colors.gold },
+  bOwnerMine: { color: colors.accent },
+  bOwnerClock: { color: colors.gold },
   bPlayerRow: { flexDirection: 'row', alignItems: 'center', marginTop: 3 },
   bPlayer: { color: colors.text, fontSize: 15, fontWeight: '700', flex: 1 },
   bPlayerMeta: { color: colors.textDim, fontSize: 12, marginLeft: 8 },
   bStatus: { color: colors.textDim, fontSize: 13, fontStyle: 'italic', marginTop: 3 },
-  bStatusClock: { color: colors.good, fontStyle: 'normal', fontWeight: '800' },
+  bStatusClock: { color: colors.gold, fontStyle: 'normal', fontWeight: '800' },
   error: { color: colors.bad, textAlign: 'center', marginTop: 12, marginHorizontal: 24 },
   retry: { marginTop: 16, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingHorizontal: 24, paddingVertical: 10 },
   retryText: { color: colors.accent, fontWeight: '700' },

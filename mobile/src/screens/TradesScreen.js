@@ -200,6 +200,22 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
     ]);
   }
 
+  // Accept COMMITS the trade on MFL and can't be undone from the app — so, like withdraw/reject,
+  // it double-confirms and echoes the deal (partner + market net) so you re-read what you're agreeing
+  // to before it's final. Previously this fired on a single tap.
+  function accept(offer) {
+    const net = offer.analysis && typeof offer.analysis.net === 'number' ? offer.analysis.net : null;
+    const netStr = net != null ? ` · market net ${net > 0 ? '+' : ''}${net}` : '';
+    Alert.alert(
+      'Accept this trade?',
+      `Complete the deal with ${offer.withName || 'this team'}${netStr}. This is final on MyFantasyLeague — it can’t be undone from the app.`,
+      [
+        { text: 'Not yet', style: 'cancel' },
+        { text: 'Accept', onPress: () => respond(offer, 'accept') },
+      ]
+    );
+  }
+
   const partner = useMemo(() => (data && data.partners || []).find((p) => p.franchiseId === partnerId) || null, [data, partnerId]);
   const receiveOptions = useMemo(() => sortAssets(partner ? partner.players : [], sortKey), [partner, sortKey]);
   const sendOptions = useMemo(() => sortAssets([...((data && data.myPlayers) || []), ...((data && data.myPicks) || [])], sortKey), [data, sortKey]);
@@ -495,7 +511,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
           ) : (
             activeOffers.map((o, i) => (
               <Reveal key={o.id} delay={Math.min(i, 6) * 55}>
-                <OfferCard offer={o} busy={busy === o.id} onAccept={(off) => respond(off, 'accept')} onReject={openReject} onWithdraw={withdraw} onCounter={startCounter} onOpenPlayer={onOpenPlayer} onReviewRoster={onOpenRoster ? () => onOpenRoster(league) : null} />
+                <OfferCard offer={o} busy={busy === o.id} onAccept={accept} onReject={openReject} onWithdraw={withdraw} onCounter={startCounter} onOpenPlayer={onOpenPlayer} onReviewRoster={onOpenRoster ? () => onOpenRoster(league) : null} />
               </Reveal>
             ))
           )}
