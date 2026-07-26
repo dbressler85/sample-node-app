@@ -2,10 +2,18 @@ import React from 'react';
 import Svg, { Polyline, Polygon, Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { colors } from '../theme';
 
+// Unique gradient ids per instance — a static id makes two sparklines of different colors on one
+// screen collide (the second silhouette gets the first's fill). Module counter, stamped once per
+// mount via a ref (deterministic, no Date/random).
+let sparkUid = 0;
+
 // A compact value-over-time line with a soft area fill and an emphasized endpoint — the
 // "is my portfolio up or down" glance. Drawn 1:1 (viewBox matches pixel size) so the endpoint
 // dot stays round. Pass the numeric series; needs at least two points to render.
 export default function Sparkline({ data, width = 300, height = 64, color = colors.gold, strokeWidth = 2 }) {
+  const idRef = React.useRef(null);
+  if (idRef.current === null) idRef.current = `sparkFill-${sparkUid++}`;
+  const gid = idRef.current;
   const pts = (data || []).filter((v) => typeof v === 'number');
   if (pts.length < 2) return null;
 
@@ -25,12 +33,12 @@ export default function Sparkline({ data, width = 300, height = 64, color = colo
   return (
     <Svg width={width} height={height}>
       <Defs>
-        <LinearGradient id="sparkFill" x1="0" y1="0" x2="0" y2="1">
+        <LinearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
           <Stop offset="0" stopColor={color} stopOpacity="0.26" />
           <Stop offset="1" stopColor={color} stopOpacity="0" />
         </LinearGradient>
       </Defs>
-      <Polygon points={area} fill="url(#sparkFill)" />
+      <Polygon points={area} fill={`url(#${gid})`} />
       <Polyline points={line} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinejoin="round" strokeLinecap="round" />
       <Circle cx={lastX} cy={lastY} r={strokeWidth + 1.5} fill={color} />
     </Svg>

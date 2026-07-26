@@ -763,8 +763,10 @@ const styles = StyleSheet.create({
   faMeta: { color: colors.textDim, fontSize: 12, marginTop: 2 },
   faValue: { color: colors.gold, fontSize: 15, fontWeight: '900', marginHorizontal: 10 },
   faIdentity: { flex: 1, flexDirection: 'row', alignItems: 'center' },
-  faRowTarget: { borderColor: colors.good },
-  faRowAvoid: { opacity: 0.55 },
+  // Tag rows read via a color-law tint, not opacity — dimming the whole row killed the name's
+  // legibility and the "+ Claim" tap affordance. Target = good wash, avoid = bad wash (symmetric).
+  faRowTarget: { borderColor: colors.good, backgroundColor: colors.good + '12' },
+  faRowAvoid: { borderColor: colors.bad, backgroundColor: colors.bad + '12' },
   faTagMark: { fontSize: 13, fontWeight: '900', marginLeft: 6 },
   addBtnPill: { borderWidth: 1, borderColor: colors.good, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, marginLeft: 4 },
   addBtn: { color: colors.good, fontSize: 12, fontWeight: '800' },

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
 import { api } from '../api';
 import { colors } from '../theme';
@@ -10,6 +10,7 @@ import { colors } from '../theme';
 export default function TradeAcrossSheet({ player, onClose, onCraft, onStartWizard }) {
   const [preview, setPreview] = useState(null);
   const [selected, setSelected] = useState(new Set());
+  const [error, setError] = useState(null);
 
   const ctxFor = (l) => ({ leagueId: l.leagueId, name: l.name, targetPlayerId: player.id, partnerFranchiseId: l.partnerFranchiseId });
   function start() {
@@ -19,7 +20,11 @@ export default function TradeAcrossSheet({ player, onClose, onCraft, onStartWiza
     else onStartWizard(chosen);
   }
 
-  useEffect(() => {
+  // Track a load FAILURE distinct from "he isn't on another team anywhere" — a failed fetch must
+  // not read as "nothing to offer for" (which would wrongly say the trade is impossible).
+  const load = useCallback(() => {
+    setError(null);
+    setPreview(null);
     let alive = true;
     // The profile already classified every league; he's a trade target only where another team
     // owns him ('unavailable'). Send just those so the backend probes a handful of leagues, not
@@ -36,15 +41,25 @@ export default function TradeAcrossSheet({ player, onClose, onCraft, onStartWiza
         }
         setPreview(pv);
       })
-      .catch(() => { if (alive) setPreview({ leagues: [] }); });
+      .catch((e) => { if (alive) setError(e.message || 'Could not load availability.'); });
     return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [player.id]);
+
+  useEffect(() => load(), [load]);
 
   return (
     <Pressable style={styles.backdrop} onPress={onClose}>
       <Pressable style={styles.sheet} onPress={() => {}}>
         <Text style={styles.sheetTitle}>Trade for {player.name}</Text>
-        {!preview ? (
+        {error ? (
+          <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+            <Text style={styles.empty}>{error}</Text>
+            <Pressable style={({ pressed }) => [styles.retry, pressed && { opacity: 0.85 }]} onPress={load}>
+              <Text style={styles.retryText}>Retry</Text>
+            </Pressable>
+          </View>
+        ) : !preview ? (
           <ActivityIndicator color={colors.accent} style={{ paddingVertical: 24 }} />
         ) : preview.leagues.length === 0 ? (
           <Text style={styles.empty}>He isn't on another team in any of your leagues — nothing to offer for.</Text>
@@ -87,6 +102,8 @@ const styles = StyleSheet.create({
   sheetTitle: { color: colors.text, fontSize: 18, fontWeight: '900' },
   sub: { color: colors.textDim, fontSize: 12, marginTop: 4, marginBottom: 8, lineHeight: 17 },
   empty: { color: colors.textDim, fontSize: 14, paddingVertical: 20, textAlign: 'center', lineHeight: 20 },
+  retry: { marginTop: 12, backgroundColor: colors.accent, borderRadius: 10, paddingHorizontal: 24, paddingVertical: 11, minHeight: 44, justifyContent: 'center' },
+  retryText: { color: colors.onAccent, fontSize: 15, fontWeight: '800' },
   row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   league: { color: colors.text, fontSize: 15, fontWeight: '700' },
   owner: { color: colors.textDim, fontSize: 13, marginTop: 2 },

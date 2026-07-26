@@ -515,13 +515,13 @@ function PlayerRow({ p, rank, sub, tag, watched, showTrend, onTag, onWatch, onQu
         ) : p.value != null ? <Value size={16}>{p.value}</Value> : null}
         {acts ? (
           <View style={styles.actions}>
-            <Pressable hitSlop={6} onPress={() => onTag(p.id, t === 'target' ? null : 'target', t)} accessibilityLabel="Target">
+            <Pressable hitSlop={13} onPress={() => onTag(p.id, t === 'target' ? null : 'target', t)} accessibilityLabel="Target">
               <TargetIcon size={18} color={t === 'target' ? colors.good : colors.textDim} />
             </Pressable>
-            <Pressable hitSlop={6} onPress={() => onTag(p.id, t === 'avoid' ? null : 'avoid', t)} accessibilityLabel="Avoid">
+            <Pressable hitSlop={13} onPress={() => onTag(p.id, t === 'avoid' ? null : 'avoid', t)} accessibilityLabel="Avoid">
               <AvoidIcon size={18} color={t === 'avoid' ? colors.bad : colors.textDim} />
             </Pressable>
-            <Pressable hitSlop={6} onPress={() => onWatch(p.id, !w)} accessibilityLabel="Watch">
+            <Pressable hitSlop={13} onPress={() => onWatch(p.id, !w)} accessibilityLabel="Watch">
               <WatchIcon size={18} color={w ? colors.watch : colors.textDim} filled={w} />
             </Pressable>
           </View>

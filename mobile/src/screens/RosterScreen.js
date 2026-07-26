@@ -3,6 +3,7 @@ import { View, Text, SectionList, StyleSheet, Pressable, ActivityIndicator, Aler
 import { api } from '../api';
 import PlayerRow from '../components/PlayerRow';
 import Reveal from '../components/Reveal';
+import ErrorView from '../components/ErrorView';
 import { colors } from '../theme';
 import { displayLg } from '../typography';
 import useCachedResource from '../useCachedResource';
@@ -185,9 +186,7 @@ export default function RosterScreen({ league, onBack, onOpenTrades, onOpenDraft
           <ActivityIndicator color={colors.accent} size="large" />
         </View>
       ) : error && !roster ? (
-        <View style={styles.center}>
-          <Text style={styles.error}>{error}</Text>
-        </View>
+        <ErrorView message={typeof error === 'string' ? error : error && error.message} onRetry={reload} />
       ) : (
         <SectionList
           sections={sections}

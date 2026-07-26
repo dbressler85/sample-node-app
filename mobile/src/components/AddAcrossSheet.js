@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { api } from '../api';
 import { colors } from '../theme';
@@ -11,15 +11,22 @@ export default function AddAcrossSheet({ player, onClose, onDone }) {
   const [preview, setPreview] = useState(null);
   const [selected, setSelected] = useState(new Set());
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
 
-  useEffect(() => {
+  // Track a load FAILURE distinct from an empty result — a failed fetch must not read as
+  // "not available anywhere" (which would wrongly tell the user the action is impossible).
+  const load = useCallback(() => {
+    setError(null);
+    setPreview(null);
     api.playerAddPreview(player.id)
       .then((pv) => {
         setPreview(pv);
         setSelected(new Set(pv.leagues.map((l) => l.leagueId)));
       })
-      .catch(() => setPreview({ leagues: [] }));
+      .catch((e) => setError(e.message || 'Could not load availability.'));
   }, [player.id]);
+
+  useEffect(() => { load(); }, [load]);
 
   async function submit() {
     setBusy(true);
@@ -46,7 +53,14 @@ export default function AddAcrossSheet({ player, onClose, onDone }) {
     <Pressable style={styles.backdrop} onPress={onClose}>
       <Pressable style={styles.sheet} onPress={() => {}}>
         <Text style={styles.sheetTitle}>Add {player.name} across leagues</Text>
-        {!preview ? (
+        {error ? (
+          <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+            <Text style={styles.empty}>{error}</Text>
+            <Pressable style={({ pressed }) => [styles.retry, pressed && { opacity: 0.85 }]} onPress={load}>
+              <Text style={styles.retryText}>Retry</Text>
+            </Pressable>
+          </View>
+        ) : !preview ? (
           <ActivityIndicator color={colors.accent} style={{ paddingVertical: 24 }} />
         ) : preview.leagues.length === 0 ? (
           <Text style={styles.empty}>Not available in any of your leagues right now.</Text>
@@ -87,6 +101,8 @@ const styles = StyleSheet.create({
   sheet: { backgroundColor: colors.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, borderTopWidth: 1, borderColor: colors.border },
   sheetTitle: { color: colors.text, fontSize: 18, fontWeight: '900', marginBottom: 6 },
   empty: { color: colors.textDim, fontSize: 14, paddingVertical: 20, textAlign: 'center' },
+  retry: { marginTop: 12, backgroundColor: colors.accent, borderRadius: 10, paddingHorizontal: 24, paddingVertical: 11, minHeight: 44, justifyContent: 'center' },
+  retryText: { color: colors.onAccent, fontSize: 15, fontWeight: '800' },
   addRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   check: { width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: colors.border, marginRight: 12, alignItems: 'center', justifyContent: 'center' },
   checkOn: { backgroundColor: colors.accent, borderColor: colors.accent },
