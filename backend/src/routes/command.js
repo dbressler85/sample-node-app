@@ -21,7 +21,9 @@ router.use(requireSession);
 // in SecureStore and wipes it on logout. `host`/`season` let the device build correctly-targeted reads.
 router.get('/session/mfl-cookie', (req, res) => {
   if (!config.deviceReadsEnabled) return res.status(404).json({ error: 'Not found' });
-  res.json({ cookie: req.mflCookie, season: config.season, host: config.apiHost });
+  // Hand the device the REGISTERED User-Agent (A-4/A-3) so its on-device MFL reads send the same validated
+  // client identity the backend does — never a hardcoded string that forfeits the registered-client limit.
+  res.json({ cookie: req.mflCookie, season: config.season, host: config.apiHost, userAgent: config.userAgent });
 });
 
 // POST /api/metrics/device-read { read, source } — a best-effort beacon the app fires after serving a

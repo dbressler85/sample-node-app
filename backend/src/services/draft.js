@@ -367,7 +367,11 @@ async function getOverview(cookie, token, { deviceReads = null } = {}) {
     leagues.map(async (league) => {
       try {
         const dr = deviceReads ? deviceReads[String(league.leagueId)] : null;
-        const draft = deviceReads && !dr ? null : await loadDraft(cookie, token, league, dr);
+        // A league in the account but ABSENT from the device's supplied map (e.g. just-joined, the device's
+        // cached league list one step behind) must NOT silently read as 'none' — that hid a scheduled/live
+        // draft and could cause a missed clock (docs/ARCHITECTURE_REVIEW_2026-07-device-origin.md A-8). Fall
+        // back to a one-off backend read for just that league; every other league still comes from the device.
+        const draft = await loadDraft(cookie, token, league, dr);
         if (!draft) return { leagueId: league.leagueId, name: league.name, status: 'none' };
         const slots = slotsFor(draft);
         const status = statusOf(draft, slots);

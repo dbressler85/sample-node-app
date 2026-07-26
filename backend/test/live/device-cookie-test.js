@@ -37,7 +37,8 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
     const body = await r.json();
     assert(body.cookie === 'demo-cookie', `returns the session cookie, got ${JSON.stringify(body)}`);
     assert(body.host && body.season, 'includes host + season so the device can build targeted reads');
-    console.log('✓ /api/session/mfl-cookie: 404 when off · 401 unauthenticated · 200 with the session cookie when on');
+    assert(body.userAgent, 'includes the registered User-Agent so device reads send the validated client id (A-3)');
+    console.log('✓ /api/session/mfl-cookie: 404 when off · 401 unauthenticated · 200 with the session cookie + UA when on');
   } finally {
     server.close();
   }
