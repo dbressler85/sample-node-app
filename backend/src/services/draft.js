@@ -540,7 +540,7 @@ function throwBad(msg) {
 // as DP_<round-1>_<pick-1> (both zero-based) to match MFL's trade API and picksLib.labelForToken.
 // Live uses MFL's own per-slot round/pick/franchise (accurate even after pick trades); demo
 // derives from the seeded draft order. Returns { franchiseId: [{ token, label, round, pick }] }.
-async function upcomingPicksByFranchise(cookie, token, league) {
+async function upcomingPicksByFranchise(cookie, token, league, deviceDraft = null) {
   const group = (slots) => {
     const byFr = {};
     for (const s of slots) {
@@ -558,9 +558,10 @@ async function upcomingPicksByFranchise(cookie, token, league) {
     const open = buildSlots(draft).filter((s) => !s.playerId).map((s) => ({ round: s.round, pick: s.pick, franchiseId: s.franchiseId }));
     return group(open);
   }
-  // Live: read the draft grid; unpicked slots (empty player) carry their current owner.
+  // Live: read the draft grid; unpicked slots (empty player) carry their current owner. `deviceDraft`
+  // (optional) is the draftResults units the device fetched — used instead of a backend read.
   try {
-    const units = await mflRepo.draftResults(league, cookie);
+    const units = deviceDraft ? mfl.toArray(deviceDraft) : await mflRepo.draftResults(league, cookie);
     const unit = units.find((u) => String(u.unit || 'LEAGUE') === 'LEAGUE') || units[0];
     if (!unit) return {};
     const open = mfl.toArray(unit.draftPick)
@@ -576,19 +577,24 @@ async function upcomingPicksByFranchise(cookie, token, league) {
 // draft grid) plus future-season picks (MFL's futureDraftPicks). Read-only: a value-tagged
 // inventory grouped by year, so you can see your pick capital at a glance and which picks were
 // acquired in a trade (and from whom). Trading picks stays on the trade desk.
-async function getPickInventory(cookie, token) {
+// `deviceReads` (optional) maps leagueId -> { assets, futureDraftPicks, draftResults } the DEVICE fetched
+// straight from MFL — when present, the three per-league pick reads are served from it, so the fan-out
+// leaves the shared IP (docs/DEVICE_ORIGIN_MFL.md). The franchise-name read (`league`, cached/shared)
+// stays on the backend, and the value/label enrichment is all backend-side.
+async function getPickInventory(cookie, token, { deviceReads = null } = {}) {
   const leagues = await leaguesService.orderedLeagues(cookie, token);
   const per = await Promise.all(
     leagues.map(async (league) => {
       const rawFid = String(league.franchiseId);
       const myFid = mfl.fid(rawFid);
       const base = { leagueId: league.leagueId, leagueName: league.name };
+      const dr = deviceReads ? deviceReads[String(league.leagueId)] : null;
       // Authoritative source: MFL's `assets` export (post-trade ownership + owner names in the
       // description). Falls back to composing draftResults (current) + futureDraftPicks (future).
       const [assetsMap, future, upcomingMap, names] = await Promise.all([
-        picksLib.assetsByFranchise(cookie, league).catch(() => null),
-        picksLib.franchisePicks(cookie, league).catch(() => []),
-        upcomingPicksByFranchise(cookie, token, league).catch(() => ({})),
+        picksLib.assetsByFranchise(cookie, league, dr && dr.assets).catch(() => null),
+        picksLib.franchisePicks(cookie, league, league.franchiseId, dr && dr.futureDraftPicks).catch(() => []),
+        upcomingPicksByFranchise(cookie, token, league, dr && dr.draftResults).catch(() => ({})),
         leaguesService.franchiseNames(cookie, league).catch(() => new Map()),
       ]);
 

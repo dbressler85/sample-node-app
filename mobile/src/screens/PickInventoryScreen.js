@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react';
 import { View, Text, StyleSheet, Pressable, SectionList, RefreshControl, ActivityIndicator } from 'react-native';
-import { api } from '../api';
 import { colors } from '../theme';
+import { pickInventoryPreferDevice } from '../mflDevice';
 import ErrorView from '../components/ErrorView';
 import useAndroidBack from '../useAndroidBack';
 import useCachedResource from '../useCachedResource';
@@ -15,7 +15,9 @@ import { Value } from '../components/Brand';
 const ROUND_COLOR = { 1: colors.gold, 2: colors.accent, 3: colors.good, 4: colors.textDim };
 
 export default function PickInventoryScreen({ onBack }) {
-  const { data, error, refreshing, loading, reload } = useCachedResource('pickInventory', () => api.pickInventory());
+  // Device-first: the per-league assets/futureDraftPicks/draftResults fan-out runs on-device, falling
+  // back to the backend on any device-read failure.
+  const { data, error, refreshing, loading, reload } = useCachedResource('pickInventory', () => pickInventoryPreferDevice());
   useAndroidBack(useCallback(() => { onBack(); return true; }, [onBack]));
 
   const summary = data && data.summary;

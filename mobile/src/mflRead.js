@@ -139,6 +139,29 @@ const reads = {
       return toArray(res && res.freeAgents && res.freeAgents.leagueUnit);
     },
   },
+  // `assets` -> every franchise's tradable assets (raw); mflRepo.assetsFromRaw normalizes, the picks
+  // service shapes. The authoritative source for pick inventory.
+  assets: {
+    type: 'assets',
+    needsAuth: true,
+    request({ host, year, league, params = {} }) {
+      return { url: buildExportUrl({ host, year, type: 'assets', league, params }), needsAuth: true };
+    },
+    parse(res) {
+      return toArray(res && res.assets && res.assets.franchise);
+    },
+  },
+  // `futureDraftPicks` -> per-franchise future picks (raw); the picks service finds mine + builds tokens.
+  futureDraftPicks: {
+    type: 'futureDraftPicks',
+    needsAuth: true,
+    request({ host, year, league, params = {} }) {
+      return { url: buildExportUrl({ host, year, type: 'futureDraftPicks', league, params }), needsAuth: true };
+    },
+    parse(res) {
+      return toArray(res && res.futureDraftPicks && res.futureDraftPicks.franchise);
+    },
+  },
   // `draftResults` -> the draft unit(s) (each nests draftPick[]); the draft service parses order/status.
   draftResults: {
     type: 'draftResults',

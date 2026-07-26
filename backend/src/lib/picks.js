@@ -77,7 +77,7 @@ function labelForToken(token) {
 // franchise by default, or any `franchiseId` (e.g. a trade partner's, to build a
 // counter sweetener). Demo tokens are 'pick:LABEL' (display-only) and only the
 // signed-in franchise's picks are modeled; live tokens are real MFL FP_ tokens.
-async function franchisePicks(cookie, league, franchiseId = league.franchiseId) {
+async function franchisePicks(cookie, league, franchiseId = league.franchiseId, deviceFuture = null) {
   const fid = String(franchiseId);
   if (config.demoMode) {
     if (fid !== String(league.franchiseId)) return []; // no per-partner inventory in demo
@@ -88,8 +88,14 @@ async function franchisePicks(cookie, league, franchiseId = league.franchiseId) 
     });
   }
   try {
-    const res = await mfl.exportRequest('futureDraftPicks', { host: league.host, cookie, L: league.leagueId, FRANCHISE: fid });
-    const arr = mfl.toArray(res && res.futureDraftPicks && res.futureDraftPicks.franchise);
+    // Device-origin: use the franchises the device fetched, else read futureDraftPicks from MFL.
+    let arr;
+    if (deviceFuture) {
+      arr = mfl.toArray(deviceFuture);
+    } else {
+      const res = await mfl.exportRequest('futureDraftPicks', { host: league.host, cookie, L: league.leagueId, FRANCHISE: fid });
+      arr = mfl.toArray(res && res.futureDraftPicks && res.futureDraftPicks.franchise);
+    }
     const fr = arr.find((f) => String(f.id) === fid) || arr[0];
     if (!fr) return [];
     return mfl.toArray(fr.futureDraftPick).map((p) => {
@@ -148,10 +154,12 @@ function fromDescription(desc) {
 // { [franchiseId]: [{ token, label, year, round, pick, kind:'current'|'future', originalOwner, from }] }
 // or null (demo, or any read/parse trouble) so callers fall back to composing from draftResults +
 // futureDraftPicks. Live only.
-async function assetsByFranchise(cookie, league) {
+async function assetsByFranchise(cookie, league, deviceAssets = null) {
   if (config.demoMode) return null;
   try {
-    const franchises = await mflRepo.assets(league, cookie);
+    // When the device supplied this league's raw `assets` franchises, normalize those instead of
+    // reading MFL (docs/DEVICE_ORIGIN_MFL.md) — the authoritative pick-inventory read moves on-device.
+    const franchises = deviceAssets ? mflRepo.assetsFromRaw(deviceAssets) : await mflRepo.assets(league, cookie);
     if (!franchises.length) return null;
     const out = {};
     for (const fr of franchises) {

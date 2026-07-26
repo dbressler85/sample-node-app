@@ -12,6 +12,7 @@ import {
   Alert,
 } from 'react-native';
 import { api } from '../api';
+import { waiversOverviewPreferDevice } from '../mflDevice';
 import { colors, positionColors } from '../theme';
 import { celebrate } from '../components/Celebrate';
 import AvailabilityBadge from '../components/AvailabilityBadge';
@@ -35,7 +36,7 @@ export default function WaiversScreen({ active = true, initialLeagueId, initialP
   // Landing overview via the shared hook: instant paint on remount (survives the tab-switch
   // unmount), throttled reloads, and it keeps the list on a failed refresh. `loadOverview`
   // (reload) is also called after a claim to reflect it immediately.
-  const { data: overview, error: overviewError, refreshing: ovRefreshing, reload: loadOverview } = useCachedResource('waivers:overview', () => api.waiversOverview(), { active });
+  const { data: overview, error: overviewError, refreshing: ovRefreshing, reload: loadOverview } = useCachedResource('waivers:overview', () => waiversOverviewPreferDevice(), { active });
   // Pending claims go through the same cached hook so switching to the Pending tab paints the last
   // snapshot INSTANTLY (the screen unmounts on every tab switch, so a bare fetch showed a cold
   // full-screen spinner every single time). It revalidates in the background and after a claim.
