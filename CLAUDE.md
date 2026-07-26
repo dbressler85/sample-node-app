@@ -30,6 +30,12 @@ config; `mobile/` is the Expo app.
   Oswald usage, touch-target + reduce-motion standards, and the shared state/component patterns.
   Any PR touching color, typography, spacing, or a shared component must conform; `mobile/src/theme.js`
   implements it as tokens (screens consume tokens, not raw literals).
+- [`docs/MOTION_AND_NEON_ROADMAP.md`](docs/MOTION_AND_NEON_ROADMAP.md) — **how the app moves + the
+  neon-sign identity**: the four motion registers (Threshold / Traversal / Texture / Punctuation),
+  the neon-sign system (no emoji — every glyph is a wired sign that flickers on; celebration = neon
+  sparks), the full-neon crest ignition, and the **phased build roadmap** (Phase 0 safety → 1
+  foundation → 2 traversal → 3 consistency → 4 neon → 5 threshold+texture). Start here before any
+  motion or animation work.
 
 ## Hard-won rules
 
