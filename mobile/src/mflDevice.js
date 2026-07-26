@@ -8,6 +8,13 @@ import mflRead from './mflRead';
 import { DEVICE_READS } from './config';
 import { loadMflCreds } from './auth';
 import { api } from './api';
+import deviceReadCache from './deviceReadCache';
+import { onCacheInvalidate } from './cache';
+
+// A write (add/drop, lineup, claim, trade…) fires invalidateCaches; clear the device read cache too, so
+// the next fan-out re-fetches from MFL rather than serving pre-action rosters — mirrors the backend's
+// invalidate-on-write and the screen-cache's markAllStale.
+onCacheInvalidate(() => deviceReadCache.clear());
 
 // Can we even attempt a device read right now? (flag on + a backend that handed us the cookie)
 export async function deviceReadsReady() {
@@ -23,15 +30,20 @@ async function runDeviceRead(descriptor, leagueId, params = {}) {
   if (!DEVICE_READS || !creds || !creds.cookie || !creds.host || !creds.season) {
     throw new Error('device reads unavailable');
   }
-  return mflRead.readWith(fetch, {
-    descriptor,
-    host: creds.host,
-    year: String(creds.season),
-    league: leagueId,
-    params,
-    cookie: creds.cookie,
-    userAgent: 'DynastyCentral/1.0',
-  });
+  // Through the session read cache (type+league+params, TTL matched to the backend tier): concurrent
+  // consumers of the same read share one fetch, and a remount within the TTL is a no-op rather than
+  // re-firing an N-league fan-out. Cleared on any write (see onCacheInvalidate above).
+  return deviceReadCache.get(descriptor.type, leagueId, params, () =>
+    mflRead.readWith(fetch, {
+      descriptor,
+      host: creds.host,
+      year: String(creds.season),
+      league: leagueId,
+      params,
+      cookie: creds.cookie,
+      userAgent: 'DynastyCentral/1.0',
+    })
+  );
 }
 
 // Raw device-origin rosters for a league → shaped franchises ({ franchiseId, players:[{id,status}] }).
