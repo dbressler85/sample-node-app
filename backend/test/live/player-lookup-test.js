@@ -90,7 +90,16 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
     const rows = (mx2.mfl && mx2.mfl.deviceReads) || [];
     assert(!rows.some((x) => /bogus/.test(x.read)), 'an unknown device-read name does not mint its own /_metrics key (A-4)');
     assert(rows.some((x) => x.read === '(other)' && x.device >= 1), 'unknown device-read names are bucketed to (other) (A-4)');
-    console.log('✓ device-read beacon → /_metrics deviceReads split + latency + fallback reasons; unknown names bucketed (A-4)');
+    // A-6: the device reports its shared-core version on the beacon; /_metrics surfaces the distribution +
+    // a stale-client tally (a build OLDER than this backend), so silent version skew is observable.
+    const backendVer = require('../../src/lib/mflRead').VERSION;
+    await fetch(`${base}/api/metrics/device-read`, { method: 'POST', headers: auth, body: JSON.stringify({ read: 'rosters', source: 'device', ms: 5, ver: backendVer }) });
+    await fetch(`${base}/api/metrics/device-read`, { method: 'POST', headers: auth, body: JSON.stringify({ read: 'rosters', source: 'device', ms: 5, ver: backendVer - 1 }) }); // stale
+    const mp = (await (await fetch(`${base}/api/_metrics`)).json()).mfl.deviceParity;
+    assert(mp && mp.backendVersion === backendVer, `deviceParity surfaces the backend version, got ${JSON.stringify(mp)}`);
+    assert(mp.versions[String(backendVer)] >= 1 && mp.versions[String(backendVer - 1)] >= 1, `records the reported version distribution, got ${JSON.stringify(mp.versions)}`);
+    assert(mp.staleClientReads >= 1, `flags a beacon from an older-than-backend app as stale, got ${mp.staleClientReads}`);
+    console.log('✓ device-read beacon → deviceReads split + latency + reasons; unknown names bucketed (A-4); version + stale-client observability (A-6)');
   } finally {
     server.close();
   }
