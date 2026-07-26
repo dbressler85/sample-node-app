@@ -47,7 +47,8 @@ function baseExport(type, opts = {}) {
       return {};
   }
 }
-mfl.exportRequest = async (type, opts) => baseExport(type, opts);
+let faReads = 0; // counts backend freeAgents fan-out reads (device-origin must issue zero)
+mfl.exportRequest = async (type, opts) => { if (type === 'freeAgents') faReads += 1; return baseExport(type, opts); };
 global.fetch = async () => ({ ok: true, status: 200, headers: { get: () => null }, json: async () => [], text: async () => '{}' }); // FantasyCalc/Sleeper empty
 
 const pointsMaps = require('../../src/lib/pointsMaps');
@@ -82,6 +83,18 @@ const L = { leagueId: 'L1', host: 'www10.myfantasyleague.com' };
   const defOnly = await waivers.getBoard(CK, TK, 'L1', { position: 'DEF' });
   assert(defOnly.freeAgents.length === 1 && defOnly.freeAgents[0].position === 'DEF', 'board "DEF" filter matches defenses');
   console.log('✓ board position filter normalizes K→PK and matches DEF');
+
+  // Device-origin (docs/DEVICE_ORIGIN_MFL.md): cross-league best-available. When the app supplies each
+  // league's freeAgents pool it fetched straight from MFL on-device, the SAME board is assembled with
+  // ZERO backend freeAgents reads — the heaviest waiver fan-out has left the shared IP.
+  const gget = await waivers.getBestAvailable(CK, TK);
+  const before = faReads;
+  const units = [{ player: PLAYERS.map((p) => ({ id: p.id })) }]; // == mflRead.reads.freeAgents.parse of the stub
+  const gdev = await waivers.getBestAvailable(CK, TK, { deviceReads: { L1: units } });
+  assert(faReads === before, `device path issues NO backend freeAgents read, got ${faReads - before} extra`);
+  assert(gdev.players.length === gget.players.length && gdev.players.length > 0, `device best-available matches the backend count (${gget.players.length}), got ${gdev.players.length}`);
+  assert(JSON.stringify(gdev.players.map((p) => p.id)) === JSON.stringify(gget.players.map((p) => p.id)), 'device best-available has the same players in the same order as the backend');
+  console.log(`✓ device-origin best-available: app-supplied freeAgents → identical board, zero backend freeAgents reads (${gdev.players.length} players)`);
 
   console.log('\nPLAYERS POINTS HARNESS PASSED');
 })().catch((e) => { console.error(e.message); process.exit(1); });

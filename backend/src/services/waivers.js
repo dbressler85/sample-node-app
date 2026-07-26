@@ -179,11 +179,15 @@ async function freeAgentIds(cookie, league, limit = 400) {
 }
 async function buildFreeAgentIds(cookie, league) {
   try {
-    const units = await mflRepo.freeAgentUnits(league, cookie);
-    return units.flatMap((u) => mfl.toArray(u && u.player)).map((p) => String(p.id));
+    return freeAgentIdsFromUnits(await mflRepo.freeAgentUnits(league, cookie));
   } catch (e) {
     return [];
   }
+}
+// Flatten the `freeAgents` export units to a plain id list — used for the backend read AND for a
+// device-origin read where the DEVICE fetched the units straight from MFL (docs/DEVICE_ORIGIN_MFL.md).
+function freeAgentIdsFromUnits(units) {
+  return mfl.toArray(units).flatMap((u) => mfl.toArray(u && u.player)).map((p) => String(p.id));
 }
 
 async function loadFreeAgents(cookie, league, settings) {
@@ -910,7 +914,11 @@ async function cancel(cookie, token, leagueId, claimId) {
 
 // Cross-league "best available": top free agents across all your leagues, each
 // annotated with which leagues he's available in and under what system.
-async function getBestAvailable(cookie, token) {
+// `deviceReads` (optional) maps leagueId -> the raw `freeAgents` export units the DEVICE fetched
+// straight from MFL — when present, the heavy free-agent-pool fan-out (the biggest read here, up to
+// thousands of players per league) leaves the shared IP (docs/DEVICE_ORIGIN_MFL.md); settings, the
+// open/closed check, enrichment, and the cross-league merge all stay on the backend.
+async function getBestAvailable(cookie, token, { deviceReads = null } = {}) {
   const leagues = await leaguesService.orderedLeagues(cookie, token);
   const [byId, enr, ctx] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(undefined, cookie), ctxFor(cookie)]);
   // Season-to-date points + this week's projection, under the owner's primary league's scoring — the
@@ -929,8 +937,13 @@ async function getBestAvailable(cookie, token) {
       const open = await draftService.freeAgencyOpen(cookie, token, league).catch(() => true);
       if (!open) return { league, settings: null, fas: [] };
       // Settings (league export) and free agents (freeAgents export) are independent MFL reads —
-      // fetch together so each league costs one throttle round-trip, not two in sequence.
-      const [settings, ids] = await Promise.all([loadSettings(league, cookie), freeAgentIds(cookie, league)]);
+      // fetch together so each league costs one throttle round-trip, not two in sequence. When the
+      // device supplied this league's free-agent units, use them instead of the backend fetch.
+      const dr = deviceReads ? deviceReads[String(league.leagueId)] : null;
+      const [settings, ids] = await Promise.all([
+        loadSettings(league, cookie),
+        dr ? Promise.resolve(freeAgentIdsFromUnits(dr)) : freeAgentIds(cookie, league),
+      ]);
       const scoring = config.demoMode ? demo.scoring(league.leagueId) || {} : {};
       const statMap = config.demoMode ? demo.statProjections() : {};
       const fas = ids.map((id) => makeFreeAgent(id, byId, scoring, statMap, ctx, settings.system, settings, null, enr));

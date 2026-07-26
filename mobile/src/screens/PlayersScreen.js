@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, FlatList, StyleSheet, Pressable, TextInput, ActivityIndicator, Linking } from 'react-native';
 import { api } from '../api';
-import { exposurePreferDevice } from '../mflDevice';
+import { exposurePreferDevice, bestAvailablePreferDevice } from '../mflDevice';
 import { colors, positionColors } from '../theme';
 import AvailabilityBadge from '../components/AvailabilityBadge';
 import AddAcrossSheet from '../components/AddAcrossSheet';
@@ -204,8 +204,9 @@ export default function PlayersScreen({ onOpenPlayer }) {
     // Watchlist changes as you star players elsewhere, so refetch each time the
     // tab is opened rather than caching it.
     if (tab === 'watch') { setWatch(null); api.watchlist().then(setWatch).catch((e) => setError(e.message)); }
-    // Free agents shift constantly (adds/drops/waivers process), so refetch on open.
-    if (tab === 'free') { setFree(null); api.bestAvailable().then(setFree).catch((e) => setError(e.message)); }
+    // Free agents shift constantly (adds/drops/waivers process), so refetch on open. Device-first: the
+    // heavy per-league freeAgents fan-out runs on-device, falling back to the backend.
+    if (tab === 'free') { setFree(null); bestAvailablePreferDevice().then(setFree).catch((e) => setError(e.message)); }
   }, [tab, mine, news]);
 
   // Inline Target/Avoid/Watch toggles. Optimistic: flip a per-id override immediately,
@@ -466,7 +467,7 @@ export default function PlayersScreen({ onOpenPlayer }) {
           onDone={() => {
             setAddAcross(null);
             // Reflect the add: the player is no longer free, so refetch the tab.
-            if (tab === 'free') { setFree(null); api.bestAvailable().then(setFree).catch((e) => setError(e.message)); }
+            if (tab === 'free') { setFree(null); bestAvailablePreferDevice().then(setFree).catch((e) => setError(e.message)); }
           }}
         />
       ) : null}

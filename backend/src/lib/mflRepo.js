@@ -69,7 +69,7 @@ async function liveScoring(league, cookie, params = {}) {
 // `freeAgents` export -> the league unit(s); each nests player[] the caller flattens.
 async function freeAgentUnits(league, cookie, params = {}) {
   const res = await read('freeAgents', league, cookie, params);
-  return mfl.toArray(res && res.freeAgents && res.freeAgents.leagueUnit);
+  return mflRead.reads.freeAgents.parse(res);
 }
 
 // `draftResults` export -> the draft unit(s); the caller picks the LEAGUE unit and reads draftPick[].

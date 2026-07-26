@@ -20,6 +20,7 @@ const TTL_MS = {
   rosters: 5 * 60 * 1000,
   leagueStandings: 5 * 60 * 1000,
   transactions: 5 * 60 * 1000,
+  freeAgents: 5 * 60 * 1000,
   draftResults: 12 * 1000,
   calendar: 60 * 60 * 1000,
 };
