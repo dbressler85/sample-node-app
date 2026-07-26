@@ -11,6 +11,7 @@ const demo = require('../demo/fixtures');
 const mfl = require('../lib/mfl');
 const mflRepo = require('../lib/mflRepo');
 const { logDegrade } = require('../lib/safe');
+const { withRetry } = require('../lib/retry');
 const enrichmentLib = require('../lib/enrichment');
 const leagueFormat = require('../lib/leagueformat');
 const playersLib = require('../lib/players');
@@ -219,8 +220,10 @@ function annotateTags(offers, token) {
 async function livePendingOffers(cookie, league) {
   try {
     // MFL documents this param as FRANCHISE_ID (only honored for a commissioner request;
-    // an owner's cookie already scopes the response to their own franchise).
-    const list = await mflRepo.pendingTrades(league, cookie, { FRANCHISE_ID: league.franchiseId });
+    // an owner's cookie already scopes the response to their own franchise). Retry a transient
+    // throttle: in the cross-league inbox fan-out a single rate-limited read would otherwise be
+    // swallowed to [] below and the offer would silently vanish from the inbox, On Deck, and the push.
+    const list = await withRetry(() => mflRepo.pendingTrades(league, cookie, { FRANCHISE_ID: league.franchiseId }));
     if (!list.length) return [];
     const names = await leaguesService.franchiseNames(cookie, league);
     const toks = (v) => mfl.text(v).split(/[,;|]/).map((s) => s.trim()).filter(Boolean);

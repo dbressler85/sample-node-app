@@ -20,6 +20,7 @@ const playersLib = require('../lib/players');
 const picksLib = require('../lib/picks');
 const adpLib = require('../lib/adp');
 const draftClockLib = require('../lib/draftClock');
+const { withRetry } = require('../lib/retry');
 const leaguesService = require('./leagues');
 const waiversService = require('./waivers');
 const rosterService = require('./roster');
@@ -201,20 +202,9 @@ async function loadDraft(cookie, token, league, deviceRead = null) {
 // precisely so a rate-limit isn't mistaken for "no draft." In the Home/overview fan-out that read
 // races every other league's reads (+ the triage fan-out), so a single league can get throttled and,
 // swallowed as 'none', its live draft would silently disappear from Home. Retry the transient failure
-// a couple times (the backend queue re-serves it) before giving up — the single-league board doesn't
-// need this (it keeps its last-good board and surfaces the error).
-async function loadDraftResilient(cookie, token, league, dr, attempts = 3) {
-  let lastErr = null;
-  for (let i = 0; i < attempts; i += 1) {
-    try {
-      return await loadDraft(cookie, token, league, dr);
-    } catch (e) {
-      lastErr = e;
-      if (i < attempts - 1) await new Promise((r) => setTimeout(r, 300 * (i + 1)));
-    }
-  }
-  throw lastErr;
-}
+// before giving up (shared withRetry) — the single-league board doesn't need this (it keeps its
+// last-good board and surfaces the error).
+const loadDraftResilient = (cookie, token, league, dr) => withRetry(() => loadDraft(cookie, token, league, dr));
 
 // Round-1 franchise sequence from a full pick grid (if present).
 function deriveOrder(rawWithOrder) {

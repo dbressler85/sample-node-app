@@ -14,6 +14,7 @@ const config = require('../config');
 const demo = require('../demo/fixtures');
 const mfl = require('../lib/mfl');
 const mflRepo = require('../lib/mflRepo');
+const { withRetry } = require('../lib/retry');
 const scoringLib = require('../lib/scoring');
 const availabilityLib = require('../lib/availability');
 const enrichmentLib = require('../lib/enrichment');
@@ -179,7 +180,11 @@ async function freeAgentIds(cookie, league, limit = 400) {
 }
 async function buildFreeAgentIds(cookie, league) {
   try {
-    return freeAgentIdsFromUnits(await mflRepo.freeAgentUnits(league, cookie));
+    // Retry a transient throttle before giving up: this list is memoized (faIdsMemo), so a swallowed
+    // [] would stick for the whole TTL — dropping watchlist "now free" alerts AND making validateClaim
+    // reject a VALID add as "not available in this league" (a sticky, misleading block). A momentary
+    // rate-limit now re-reads instead of caching empty.
+    return freeAgentIdsFromUnits(await withRetry(() => mflRepo.freeAgentUnits(league, cookie)));
   } catch (e) {
     return [];
   }
@@ -1027,7 +1032,9 @@ const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 // guarded: any read/parse trouble yields null (the feature simply doesn't highlight).
 async function nextWaiverRun(cookie, league) {
   try {
-    const events = await mflRepo.calendar(league, cookie);
+    // Retry a transient throttle: swallowing it to null drops the "waiver window open — get a claim in"
+    // item from On Deck and Home, a genuinely actionable last-chance alert.
+    const events = await withRetry(() => mflRepo.calendar(league, cookie));
     const now = Date.now();
     let soonest = null;
     for (const ev of events) {

@@ -15,6 +15,7 @@ const config = require('../config');
 const demo = require('../demo/fixtures');
 const mfl = require('../lib/mfl');
 const mflRepo = require('../lib/mflRepo');
+const { withRetry } = require('../lib/retry');
 const picksLib = require('../lib/picks');
 const playersLib = require('../lib/players');
 const leaguesService = require('./leagues');
@@ -72,8 +73,10 @@ async function pendingTrades(cookie, league) {
   if (config.demoMode) return demo.trades(league.leagueId);
   try {
     // MFL documents this param as FRANCHISE_ID (honored only for a commissioner request;
-    // an owner's cookie already scopes the response to their own franchise).
-    const list = await mflRepo.pendingTrades(league, cookie, { FRANCHISE_ID: league.franchiseId });
+    // an owner's cookie already scopes the response to their own franchise). Retry a transient
+    // throttle so a rate-limited read in the Home fan-out doesn't swallow the offer to [] and drop
+    // the trade-offer triage card.
+    const list = await withRetry(() => mflRepo.pendingTrades(league, cookie, { FRANCHISE_ID: league.franchiseId }));
     if (!list.length) return [];
     const [byId, names] = await Promise.all([playersLib.load(cookie), leaguesService.franchiseNames(cookie, league)]);
     const label = (tok) => {
