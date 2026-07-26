@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, ActivityIndicator } from 'react-native';
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
-import { displayLg } from '../typography';
+import { displayLg, displayLabel } from '../typography';
 import ErrorView from '../components/ErrorView';
 import useAndroidBack from '../useAndroidBack';
 
@@ -154,7 +154,7 @@ export default function CompareScreen({ seedPlayer, onBack, onOpenPlayer }) {
 
           {visible.map((m, i) =>
             m.section ? (
-              <Text key={`s-${i}`} style={styles.sectionLabel}>{m.section}</Text>
+              <Text key={`s-${i}`} style={[styles.sectionLabel, displayLabel()]}>{m.section}</Text>
             ) : (
               <View key={m.label} style={[styles.metricRow, i % 2 === 0 && styles.metricRowAlt]}>
                 <Text style={styles.labelCellText}>{m.label}</Text>

@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, RefreshControl, ActivityIndicator } from 'react-native';
 import { colors } from '../theme';
-import { displayLg } from '../typography';
+import { displayLg, displayLabel } from '../typography';
 import { draftsPreferDevice } from '../mflDevice';
 import ErrorView from '../components/ErrorView';
 import useAndroidBack from '../useAndroidBack';
@@ -131,7 +131,7 @@ export default function DraftHubScreen({ covered = false, onBack, onOpenDraft, o
 function Section({ label, children }) {
   return (
     <View style={{ marginBottom: 6 }}>
-      <Text style={styles.section}>{label}</Text>
+      <Text style={[styles.section, displayLabel()]}>{label}</Text>
       {children}
     </View>
   );

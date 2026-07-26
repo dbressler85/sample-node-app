@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, Pressable, ActivityIndicator, Alert, Image, Linking } from 'react-native';
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
+import { displayLabel } from '../typography';
 import AvailabilityBadge from '../components/AvailabilityBadge';
 import AddAcrossSheet from '../components/AddAcrossSheet';
 import TradeAcrossSheet from '../components/TradeAcrossSheet';
@@ -413,7 +414,7 @@ export default function PlayerProfileScreen({ playerId, seed, onBack, onOpenTrad
 function Card({ title, children }) {
   return (
     <View style={styles.card}>
-      <Text style={styles.cardTitle}>{title}</Text>
+      <Text style={[styles.cardTitle, displayLabel()]}>{title}</Text>
       {children}
     </View>
   );

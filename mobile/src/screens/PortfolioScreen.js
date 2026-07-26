@@ -3,7 +3,7 @@ import { View, Text, ScrollView, FlatList, StyleSheet, Pressable, ActivityIndica
 import { api } from '../api';
 import { portfolioPreferDevice } from '../mflDevice';
 import { colors, positionColors } from '../theme';
-import { displayLg } from '../typography';
+import { displayLg, displayLabel } from '../typography';
 import useAndroidBack from '../useAndroidBack';
 import useCachedResource from '../useCachedResource';
 import Sparkline from '../components/Sparkline';
@@ -190,7 +190,7 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
         {/* Movers — which of your holdings rose/fell most since we started tracking. */}
         {d.movers && d.movers.length ? (
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Your movers</Text>
+            <Text style={[styles.cardTitle, displayLabel()]}>Your movers</Text>
             {d.movers.map((m, i) => {
               const up = m.delta > 0;
               return (
@@ -223,7 +223,7 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
             to clear. The active segment stays lit; the rest dull. */}
         {d.allocation && d.allocation.length ? (
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Allocation by position</Text>
+            <Text style={[styles.cardTitle, displayLabel()]}>Allocation by position</Text>
             {/* Same value/shares lens as Top holdings — by value = share of dynasty value,
                 by shares = share of roster slots. */}
             <View style={styles.holdTabs}>
@@ -286,7 +286,7 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
         {hasHoldings ? (
           <View style={styles.holdCardTop}>
             <View style={styles.cardHeadRow}>
-              <Text style={styles.cardTitle}>{posFilter ? `Top ${posFilter} holdings` : 'Top holdings'}</Text>
+              <Text style={[styles.cardTitle, displayLabel()]}>{posFilter ? `Top ${posFilter} holdings` : 'Top holdings'}</Text>
               {posFilter ? (
                 <Pressable onPress={() => setPosFilter(null)} hitSlop={8}><Text style={styles.clearFilter}>Clear ✕</Text></Pressable>
               ) : null}
@@ -366,7 +366,7 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
         {/* Value at risk */}
         <View style={styles.card}>
           <View style={styles.cardHeadRow}>
-            <Text style={styles.cardTitle}>Value at risk</Text>
+            <Text style={[styles.cardTitle, displayLabel()]}>Value at risk</Text>
             <Text style={[styles.riskPct, risk.pct >= 25 && { color: colors.bad }, risk.pct >= 15 && risk.pct < 25 && { color: colors.warn }]}>{risk.pct}%</Text>
           </View>
           <View style={styles.riskSplit}>
@@ -433,7 +433,7 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
 
         {/* Age curve */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Value by age</Text>
+          <Text style={[styles.cardTitle, displayLabel()]}>Value by age</Text>
           {d.ageCurve.map((b) => (
             <View key={b.band} style={styles.curveRow}>
               <Text style={styles.curveBand}>{b.band}</Text>
@@ -463,7 +463,7 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
             });
           return (
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>Your tags · {all.length}</Text>
+              <Text style={[styles.cardTitle, displayLabel()]}>Your tags · {all.length}</Text>
               <Text style={styles.hint}>
                 <Text style={{ color: colors.good, fontWeight: '900' }}>◎ Targets</Text> are protected in trade suggestions; <Text style={{ color: colors.bad, fontWeight: '900' }}>⊘ Avoids</Text> are ones to shop. Tap ⊗ to untag.
               </Text>
@@ -529,7 +529,7 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
 
         {/* Per-league */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>By league</Text>
+          <Text style={[styles.cardTitle, displayLabel()]}>By league</Text>
           {d.byLeague.map((l) => {
             const inner = (
               <>

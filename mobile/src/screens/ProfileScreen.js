@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, Pressable, ActivityIndicator, RefreshControl } from 'react-native';
 import { api } from '../api';
 import { colors } from '../theme';
-import { displayLg } from '../typography';
+import { displayLg, displayLabel } from '../typography';
 import useAndroidBack from '../useAndroidBack';
 import Sparkline from '../components/Sparkline';
 
@@ -72,7 +72,7 @@ export default function ProfileScreen({ onBack, onOpenPortfolio, onOpenSettings,
         {/* Portfolio snapshot — taps through to the full Portfolio. */}
         <Pressable style={({ pressed }) => [styles.card, pressed && { opacity: 0.85 }]} onPress={onOpenPortfolio}>
           <View style={styles.cardHeadRow}>
-            <Text style={styles.cardTitle}>Portfolio</Text>
+            <Text style={[styles.cardTitle, displayLabel()]}>Portfolio</Text>
             <Text style={styles.link}>View ›</Text>
           </View>
           {port ? (
@@ -102,7 +102,7 @@ export default function ProfileScreen({ onBack, onOpenPortfolio, onOpenSettings,
         {/* League outlook mix */}
         {mix ? (
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Your leagues</Text>
+            <Text style={[styles.cardTitle, displayLabel()]}>Your leagues</Text>
             <View style={styles.mixRow}>
               <Mix label="Win-now" value={mix.winNow} color={colors.gold} />
               <Mix label="Ascending" value={mix.ascending} color={colors.good} />
@@ -115,7 +115,7 @@ export default function ProfileScreen({ onBack, onOpenPortfolio, onOpenSettings,
         {/* Personal activity */}
         {tags || watchCount != null ? (
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Your activity</Text>
+            <Text style={[styles.cardTitle, displayLabel()]}>Your activity</Text>
             <View style={styles.mixRow}>
               <Mix label="Targets" value={tags ? tags.targets : 0} color={colors.good} />
               <Mix label="Avoids" value={tags ? tags.avoids : 0} color={colors.bad} />
