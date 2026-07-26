@@ -192,6 +192,34 @@ function invalidate(cookie, leagueId) {
   mfl.invalidateLeague(cookie, leagueId);
 }
 
+// Assemble the enriched roster from ALREADY-FETCHED franchises + the resolved context (player DB,
+// injury/bye maps, enrichment snapshot, my picks). The post-fetch half of buildRoster, factored out so
+// the SAME bucketing + strength + summary logic serves both the backend's own MFL read and a
+// device-origin read where the franchises were fetched on-device (docs/DEVICE_ORIGIN_MFL.md). Pure over
+// its inputs (no MFL reads); `franchises` is the raw `rosters` export array (null in demo → demo buckets).
+function assembleRoster(league, franchises, ctx) {
+  const { byId, week, statusMap, byeMap, enr, picks = [] } = ctx;
+  const src = myBuckets(franchises, league);
+  const c = { week, statusMap, byeMap, enr };
+  const map = (ids) => (ids || []).map((id) => enrich(players.resolve(byId, id), c));
+  const roster = {
+    leagueId: league.leagueId,
+    name: league.name,
+    franchiseId: league.franchiseId,
+    franchiseName: league.franchiseName,
+    starters: map(src.starters),
+    bench: map(src.bench),
+    ir: map(src.ir),
+    taxi: map(src.taxi),
+    picks,
+  };
+  // Strength percentile: demo uses a fixture (no full league in fixtures); live ranks
+  // my roster value against every franchise's, using the same enrichment snapshot.
+  const strengthPct = config.demoMode ? demo.teamStrength(league.leagueId) : leagueStrengthPct(franchises, league.franchiseId, enr);
+  roster.summary = teamSummary([...roster.starters, ...roster.bench, ...roster.ir, ...roster.taxi], strengthPct);
+  return roster;
+}
+
 async function buildRoster(cookie, leagueId) {
   const league = await findLeague(cookie, leagueId);
   if (!league) {
@@ -216,27 +244,24 @@ async function buildRoster(cookie, leagueId) {
       .sort((a, b) => (a.year || 9999) - (b.year || 9999) || (a.round || 99) - (b.round || 99))),
     leagueFormat.format(cookie, league).then((fmt) => enrichmentLib.snapshot(fmt, cookie)),
   ]);
-  const src = myBuckets(franchises, league);
+  return assembleRoster(league, franchises, { byId, week, statusMap, byeMap, enr, picks });
+}
 
-  const ctx = { week, statusMap, byeMap, enr };
-  const map = (ids) => (ids || []).map((id) => enrich(players.resolve(byId, id), ctx));
-
-  const roster = {
-    leagueId: league.leagueId,
-    name: league.name,
-    franchiseId: league.franchiseId,
-    franchiseName: league.franchiseName,
-    starters: map(src.starters),
-    bench: map(src.bench),
-    ir: map(src.ir),
-    taxi: map(src.taxi),
-    picks,
-  };
-  // Strength percentile: demo uses a fixture (no full league in fixtures); live ranks
-  // my roster value against every franchise's, using the same enrichment snapshot.
-  const strengthPct = config.demoMode ? demo.teamStrength(leagueId) : leagueStrengthPct(franchises, league.franchiseId, enr);
-  roster.summary = teamSummary([...roster.starters, ...roster.bench, ...roster.ir, ...roster.taxi], strengthPct);
-  return roster;
+// Build my enriched roster (+ strength summary) from franchises the DEVICE fetched straight from MFL,
+// instead of the backend fetching them — the roster half of a device-origin portfolio read
+// (docs/DEVICE_ORIGIN_MFL.md). The heavy all-franchise `rosters` fan-out leaves the server; only the
+// GLOBAL/cached context (player DB, injury/bye, value snapshot) is resolved here. Picks are omitted (the
+// portfolio dashboard doesn't use them, and they'd re-introduce a per-franchise MFL read). NOT memoized —
+// the shared roster memo stays backend-authoritative for the read screens.
+async function rosterFromDeviceFranchises(cookie, league, franchises) {
+  const week = config.demoMode ? demo.week() : await nflLib.currentWeek(cookie);
+  const [byId, statusMap, byeMap, enr] = await Promise.all([
+    players.load(cookie),
+    config.demoMode ? Promise.resolve(demo.playerStatus()) : nflLib.injuryMap(cookie, week),
+    config.demoMode ? Promise.resolve(demo.byes()) : nflLib.byeMap(cookie, week),
+    leagueFormat.format(cookie, league).then((fmt) => enrichmentLib.snapshot(fmt, cookie)),
+  ]);
+  return assembleRoster(league, franchises, { byId, week, statusMap, byeMap, enr, picks: [] });
 }
 
 // Every franchise in a league with its roster valued and broken out by position —
@@ -327,4 +352,4 @@ async function moveTaxi(cookie, token, leagueId, { promote = [], demote = [], dr
   return getRoster(cookie, leagueId);
 }
 
-module.exports = { getRoster, invalidate, computeOutlook, strengthLabel, leagueFranchises, myRosterLight, myRosterEnriched, moveIr, moveTaxi };
+module.exports = { getRoster, invalidate, computeOutlook, strengthLabel, leagueFranchises, myRosterLight, myRosterEnriched, rosterFromDeviceFranchises, assembleRoster, moveIr, moveTaxi };

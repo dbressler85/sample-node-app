@@ -1,6 +1,7 @@
 import React, { useCallback, useRef, useState } from 'react';
 import { View, Text, ScrollView, FlatList, StyleSheet, Pressable, ActivityIndicator, RefreshControl, Dimensions } from 'react-native';
 import { api } from '../api';
+import { portfolioPreferDevice } from '../mflDevice';
 import { colors, positionColors } from '../theme';
 import useAndroidBack from '../useAndroidBack';
 import useCachedResource from '../useCachedResource';
@@ -24,7 +25,9 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
   // Portfolio via the shared cache hook: instant repaint on return, throttled reloads, and it keeps
   // the last book on a failed refresh (C1/C2/C4). A shop/trade done elsewhere marks it stale
   // (invalidate-on-write), so returning here refetches (C3).
-  const { data: d, error: fetchError, refreshing, reload } = useCachedResource('portfolio', () => api.portfolio());
+  // Device-first: the per-league roster fan-out runs on-device (its own IP), the backend only aggregates;
+  // silently falls back to the backend's own resilient fan-out on any device-read failure. `_source` tags it.
+  const { data: d, error: fetchError, refreshing, reload } = useCachedResource('portfolio', () => portfolioPreferDevice());
   const [shopError, setShopError] = useState(null); // a failed shop toggle surfaces here, separate from the fetch error
   const error = fetchError || shopError;
   const [posFilter, setPosFilter] = useState(null); // tap an allocation segment to filter holdings by position
@@ -163,6 +166,7 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
               ⚠ {d.totals.failedCount} of {d.totals.leagues} league{d.totals.leagues === 1 ? '' : 's'} couldn’t load — this total is partial. Pull to refresh.
             </Text>
           ) : null}
+          {d._source === 'device' ? <Text style={styles.deviceNote}>⚡ Rosters live from MFL on-device · {d.totals.leagues} league{d.totals.leagues === 1 ? '' : 's'}</Text> : null}
           {d.history && d.history.length >= 2 ? (
             <View style={styles.chartWrap}>
               <Sparkline
@@ -669,6 +673,7 @@ const styles = StyleSheet.create({
   totalValue: { color: colors.gold, fontSize: 40, fontWeight: '900', letterSpacing: -1, marginTop: 2 },
   totalLabel: { color: colors.textDim, fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
   partialNote: { color: colors.warn, fontSize: 12, fontWeight: '600', marginTop: 8, lineHeight: 17 },
+  deviceNote: { color: colors.accent, fontSize: 11, fontWeight: '700', marginTop: 8 },
   change: { fontSize: 15, fontWeight: '900', marginTop: 4 },
   changePct: { fontSize: 14, fontWeight: '800' },
   changeWindow: { color: colors.textDim, fontSize: 13, fontWeight: '700' },

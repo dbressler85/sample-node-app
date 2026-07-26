@@ -88,6 +88,18 @@ router.get('/portfolio', async (req, res, next) => {
   }
 });
 
+// POST /api/portfolio — same dashboard, but the per-league rosters are supplied by the DEVICE (fetched
+// straight from MFL on-device) instead of the backend fanning them out. Body: { deviceRosters: { [leagueId]:
+// rawFranchises } }. The heavy all-franchise fan-out leaves the shared IP; all aggregation stays here.
+router.post('/portfolio', async (req, res, next) => {
+  try {
+    const { deviceRosters } = req.body || {};
+    res.json(checkResponse(schemas.Portfolio, await portfolio.getDashboard(req.mflCookie, req.account, { deviceRosters: deviceRosters || null }), 'POST /portfolio'));
+  } catch (err) {
+    next(err);
+  }
+});
+
 // POST /api/portfolio/holdings/:playerId/bait — shop (or un-shop) a holding across every
 // league you roster him in. Body: { on: bool, leagueIds: [..] }.
 router.post('/portfolio/holdings/:playerId/bait', async (req, res, next) => {

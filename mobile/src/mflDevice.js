@@ -130,3 +130,23 @@ export async function deviceExposure() {
 export function exposurePreferDevice() {
   return preferDevice('exposure', () => deviceExposure(), () => api.exposure());
 }
+
+// Cross-league portfolio dashboard, device-first: fetch every league's FULL rosters (all franchises —
+// the backend needs them to rank roster strength) straight from MFL on-device, then hand them to the
+// backend to aggregate (value/at-risk/holdings/history + the stores it owns). This moves the heavy
+// all-franchise fan-out — the burst that trips the shared per-IP limiter — onto the device's own IP,
+// while the aggregation (which reads/writes backend stores) stays server-side. All-or-nothing: any
+// per-league read failure rejects → preferDevice falls back to the backend's own resilient fan-out.
+export async function devicePortfolio() {
+  const { leagues } = await api.leaguesList();
+  const list = (leagues || []).filter((l) => l && l.leagueId);
+  if (!list.length) return api.portfolio();
+  const entries = await Promise.all(
+    list.map(async (l) => [l.leagueId, await runDeviceRead(mflRead.reads.rosters, l.leagueId)])
+  );
+  const deviceRosters = Object.fromEntries(entries);
+  return api.portfolioDevice(deviceRosters);
+}
+export function portfolioPreferDevice() {
+  return preferDevice('portfolio', () => devicePortfolio(), () => api.portfolio());
+}

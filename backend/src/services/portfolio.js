@@ -314,7 +314,11 @@ const pct = (part, whole) => (whole > 0 ? Math.round((part / whole) * 100) : 0);
 // deployed now) or aging past their position's decline curve. Each roster spot
 // counts, so a player you hold in three leagues counts three times (that IS your
 // portfolio exposure). Reuses the enriched rosters (value + age + availability).
-async function getDashboard(cookie, token) {
+// `deviceRosters` (optional) maps leagueId -> the raw `rosters` export array the DEVICE fetched straight
+// from MFL. When present, each league's roster is assembled from that instead of the backend fetching it
+// (docs/DEVICE_ORIGIN_MFL.md) — the heavy all-franchise fan-out that trips MFL's per-IP limiter leaves the
+// server, while ALL the aggregation (strength, holdings, at-risk, allocation, history, stores) stays here.
+async function getDashboard(cookie, token, { deviceRosters = null } = {}) {
   // The leagues-list read is the one call here that isn't already best-effort — a
   // transient MFL error on it used to 502 the whole Portfolio. Retry once; the
   // per-league roster reads below already degrade to null individually.
@@ -330,17 +334,27 @@ async function getDashboard(cookie, token) {
   }
   // Pinned leagues sort first in the per-league breakdown (muting is a Home/On Deck/exposure concern).
   // Resolve NFL byes (team → week) alongside the rosters, best-effort, for bye-week concentration.
-  const [loaded, byeMap] = await Promise.all([
-    Promise.all(
-      // Resilient per-league roster load: fanning out ~15 leagues at once occasionally trips MFL's
-      // rate limiter, and a single dropped league used to VANISH from both the league count and the
-      // value total (a 15-league owner would silently see "9 leagues" and ~35% less value). Retry a
-      // failed roster a couple times (the memo drops rejected entries, so each retry re-runs), then
-      // if it STILL fails keep the league as a marked placeholder rather than dropping it.
-      leagues.map((l) => loadRosterResilient(cookie, l.leagueId)
+  // Per-league roster load. DEVICE path: assemble from the franchises the device fetched (no MFL read
+  // here) — a league missing from the device map is kept as a marked placeholder. BACKEND path: the
+  // resilient fan-out — fanning out ~15 leagues at once occasionally trips MFL's rate limiter, and a
+  // single dropped league used to VANISH from both the league count and the value total (a 15-league
+  // owner would silently see "9 leagues" and ~35% less value). Retry a failed roster a couple times
+  // (the memo drops rejected entries, so each retry re-runs), then if it STILL fails keep the league as
+  // a marked placeholder rather than dropping it.
+  const loadOne = (l) => {
+    if (deviceRosters) {
+      const fr = deviceRosters[String(l.leagueId)];
+      if (!fr) return Promise.resolve({ league: l, roster: null, loadFailed: true });
+      return rosterService.rosterFromDeviceFranchises(cookie, l, fr)
         .then((roster) => ({ league: l, roster }))
-        .catch(() => ({ league: l, roster: null, loadFailed: true }))),
-    ),
+        .catch(() => ({ league: l, roster: null, loadFailed: true }));
+    }
+    return loadRosterResilient(cookie, l.leagueId)
+      .then((roster) => ({ league: l, roster }))
+      .catch(() => ({ league: l, roster: null, loadFailed: true }));
+  };
+  const [loaded, byeMap] = await Promise.all([
+    Promise.all(leagues.map(loadOne)),
     (config.demoMode ? Promise.resolve(demo.byes()) : currentWeek(cookie).then((w) => nflLib.byeMap(cookie, w))).catch(() => ({})),
   ]);
   // Leagues whose roster loaded (drive the value aggregate) vs. those that couldn't (surfaced so the
