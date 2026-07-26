@@ -126,12 +126,13 @@ Legend — severity **High / Med / Low**; effort **S** ~hours · **M** ~days · 
 > missing-league fallback), **A-9** (covered-overlay polling — verified already gated by the keep-alive nav),
 > **A-10** (heavy free-agent pool kept backend-only), **A-2** (partial-tolerant aggregates via `settlePool`),
 > **U-1** ("complete/partial" affordance — already present on Portfolio, now reachable), **A-6 + U-6**
-> (parser-version observability + sampled shadow-compare on `/_metrics mfl.deviceParity`). Remaining: **A-12**
-> (a `preferDevice` fallback-path test; the new fan-out logic is covered by `poolMap.test.js`). Accept-with-doc:
-> **A-5** (cache erosion), **A-7** (cold-start), **A-11** (self-scoped trust). ✅ also done: **U-3** (fast
-> offline fail + no beacon-storm), **U-4** (backend-independent Shape-A reads during a backend outage, via
-> `deviceEnrichCache`), **U-7** (expired-cookie → refresh, not silent fallback). U-series remaining: **U-2**
-> (Sunday battery/data budget), **U-5** (device-faster headline).
+> (parser-version observability + sampled shadow-compare on `/_metrics mfl.deviceParity`), **A-12**
+> (device-path unit tests — `preferDevice` extracted + covered). Accept-with-doc: **A-5** (cache erosion),
+> **A-7** (cold-start), **A-11** (self-scoped trust). ✅ also done: **U-3** (fast offline fail + no
+> beacon-storm), **U-4** (backend-independent Shape-A reads during a backend outage, via `deviceEnrichCache`),
+> **U-5** (device-faster headline on `/_metrics mfl.deviceLatency`), **U-7** (expired-cookie → refresh, not
+> silent fallback). **Every A-item is now resolved or accept-with-doc.** U-series remaining: only **U-2**
+> (Sunday battery/data budget — larger).
 
 - **A-1 · Device omits the request discipline it was specified to mirror · Med · S · ✅ FIXED.** The device
   fired `Promise.all` across 15–20 leagues with **no stagger, no concurrency cap, no 429 backoff** —
@@ -228,10 +229,13 @@ Legend — severity **High / Med / Low**; effort **S** ~hours · **M** ~days · 
   `deviceRosters` through with no shape validation (`routes/draft.js:25-26`); self-scoped (a user can only
   feed bad data into their own read-only view), so low risk — but the backend read layer is no longer the
   sole authority on MFL data shapes.
-- **A-12 · Testability gap on the device path · Low · S.** `deviceReadCache` has a unit test and the
-  `mflRead` sync is CI-drift-guarded, but there is **no test for `mflDevice.js`** — `preferDevice`
-  fallback selection, `_source` tagging, `fallbackReason` bucketing — the riskiest new logic is
-  build-verified only.
+- **A-12 · Testability gap on the device path · Low · S · ✅ FIXED.** The riskiest device logic was
+  build-verified only. **Fixed** — the device path is now broadly unit-tested off-device:
+  `poolMap.test.js` (fan-out concurrency + settle), `deviceReadCache.test.js`, `deviceHealth.test.js`
+  (classification + offline cooldown), `deviceEnrichCache.test.js` (outage fallback), and now
+  **`preferDevice.test.js`**: the orchestration was extracted into an injectable `preferDevice.js` so its
+  fallback selection, `_source` tagging, beacon behavior (incl. network-suppression + version stamp), and
+  the U-7 cred-refresh trigger are all covered with fakes + the real `deviceHealth`.
 
 ---
 
@@ -375,10 +379,13 @@ Everything else (A-1/A-7/A-10) is tunable post-flip and should not hold the gate
   (C11 — the exposure enrich carries personal tag/watched). Unit-tested (`deviceEnrichCache.test.js`).
   Residual (documented follow-up): **persist** the cache so a *cold launch during* an outage also works, and
   render the `_offline` flag as a calm "last-known" note.
-- **U-5 · Faster-than-backend reads as an explicit, measured promise · S.** `preferDevice` already beacons
-  device-vs-backend latency (`mflDevice.js:69`). If device p50 beats backend p50 on forgiving screens,
-  *that's* the headline benefit to lead the rollout with — not just "quota safety." If it doesn't win on
-  latency, that reframes the flip as purely a scaling play and changes how aggressively to sequence.
+- **U-5 · Faster-than-backend reads as an explicit, measured promise · S · ✅ FIXED.** `preferDevice` already
+  beaconed per-read device-vs-backend latency, but you had to eyeball it across read types. **Fixed:**
+  `/_metrics mfl.deviceLatency` now rolls it into one answer — pooled `deviceAvgMs` vs `backendAvgMs`,
+  sample counts, and **`deviceFasterByMs` / `deviceFasterPct`** (positive = device wins). That's the single
+  number that decides whether "reads load faster on your own network" is a headline benefit or whether the
+  flip is purely a scaling play — and it sequences the rollout (forgiving screens first only *pays* if
+  device actually wins there). Tested (`player-lookup-test.js`).
 - **U-6 · Parity self-check the user never sees · M.** Ties to A-6: add the sampled shadow-compare with a
   product acceptance bar — **zero tolerance for divergence on roster membership + player status** (what the
   user acts on), looser on cosmetic fields (`format`/`name`, M-2's latent drops).

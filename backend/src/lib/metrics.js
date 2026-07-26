@@ -133,6 +133,24 @@ function snapshot() {
       fallbacks: c.fallbacks, // times the device was tried but fell back
       reasons: c.reasons, // why it fell back — { rate_limited, no_creds, incomplete, network, … }
     })),
+    // Device-origin LATENCY headline (U-5): roll the per-read device-vs-backend latency up into ONE
+    // answer — is device-origin actually FASTER for the user, or only a scaling play? Pooled across every
+    // read type: mean device ms vs mean backend ms, and how much faster (positive = device wins). This is
+    // the number that decides whether "reads load faster on your own network" is a headline benefit.
+    deviceLatency: (() => {
+      let dSum = 0, dN = 0, bSum = 0, bN = 0;
+      for (const c of deviceReads.values()) { dSum += c.deviceMsSum; dN += c.deviceMsN; bSum += c.backendMsSum; bN += c.backendMsN; }
+      const dAvg = dN ? Math.round(dSum / dN) : null;
+      const bAvg = bN ? Math.round(bSum / bN) : null;
+      return {
+        deviceAvgMs: dAvg,
+        backendAvgMs: bAvg,
+        deviceSamples: dN,
+        backendSamples: bN,
+        deviceFasterByMs: dAvg != null && bAvg != null ? bAvg - dAvg : null, // + = device wins
+        deviceFasterPct: dAvg != null && bAvg != null && bAvg > 0 ? Math.round(((bAvg - dAvg) / bAvg) * 1000) / 10 : null,
+      };
+    })(),
     // Device-origin parity + version health (A-6/U-6): the version distribution reported by clients, how
     // many beacons came from a STALE app (older shared core than this backend), and the sampled
     // shadow-compare tally (samples taken, and how many DIVERGED from the backend's own fetch).

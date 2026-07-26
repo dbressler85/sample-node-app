@@ -99,7 +99,13 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
     assert(mp && mp.backendVersion === backendVer, `deviceParity surfaces the backend version, got ${JSON.stringify(mp)}`);
     assert(mp.versions[String(backendVer)] >= 1 && mp.versions[String(backendVer - 1)] >= 1, `records the reported version distribution, got ${JSON.stringify(mp.versions)}`);
     assert(mp.staleClientReads >= 1, `flags a beacon from an older-than-backend app as stale, got ${mp.staleClientReads}`);
-    console.log('✓ device-read beacon → deviceReads split + latency + reasons; unknown names bucketed (A-4); version + stale-client observability (A-6)');
+    // U-5: the per-read latency rolls up into a single "is device-origin faster" headline. Every device
+    // beacon in this test was ≤120ms and the only backend beacon was 300ms, so the pooled answer must show
+    // the device winning (faster by a positive ms + %). (Exact avg floats with the other beacons above.)
+    const dl = (await (await fetch(`${base}/api/_metrics`)).json()).mfl.deviceLatency;
+    assert(dl && dl.deviceSamples >= 1 && dl.backendSamples >= 1, `rolls up device + backend latency samples, got ${JSON.stringify(dl)}`);
+    assert(dl.deviceAvgMs < dl.backendAvgMs && dl.deviceFasterByMs > 0 && dl.deviceFasterPct > 0, `surfaces the device-faster headline, got ${JSON.stringify(dl)}`);
+    console.log('✓ beacon → deviceReads split + latency + reasons; unknown names bucketed (A-4); version/stale obs (A-6); device-faster headline (U-5)');
   } finally {
     server.close();
   }
