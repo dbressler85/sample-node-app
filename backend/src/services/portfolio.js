@@ -183,7 +183,10 @@ async function extraItems(cookie, token, league) {
 // One league's triage contribution, for progressive loading. In-season we lead
 // with lineup status; in the offseason we skip it (no games) and attach a
 // dynasty summary instead — so the per-league call count stays flat either way.
-async function getLeagueTriage(cookie, token, leagueId) {
+// `deviceRosters` (optional) is the raw `rosters` the DEVICE fetched for this league — when present, the
+// per-league roster read (the heavy one behind both the in-season lineup status and the offseason dynasty
+// summary) is served from it (docs/DEVICE_ORIGIN_MFL.md). The trade/waiver/calendar items stay backend.
+async function getLeagueTriage(cookie, token, leagueId, { deviceRosters = null } = {}) {
   const league = (await leaguesService.listLeagues(cookie)).find((l) => l.leagueId === String(leagueId));
   if (!league) {
     const err = new Error(`League ${leagueId} not found for this account`);
@@ -196,12 +199,15 @@ async function getLeagueTriage(cookie, token, leagueId) {
   let dynasty = null;
 
   if (phase === 'in_season') {
-    const l = await lineupsService.getStatus(cookie, token, leagueId, { light: true });
+    const l = await lineupsService.getStatus(cookie, token, leagueId, { light: true, deviceFranchises: deviceRosters });
     status = l.status;
     const li = lineupItem(l);
     if (li) items.push(li);
   } else {
-    dynasty = dynastyOf(await rosterService.getRoster(cookie, leagueId).catch(() => null));
+    const roster = deviceRosters
+      ? await rosterService.rosterFromDeviceFranchises(cookie, league, deviceRosters).catch(() => null)
+      : await rosterService.getRoster(cookie, leagueId).catch(() => null);
+    dynasty = dynastyOf(roster);
   }
 
   items.push(...(await extraItems(cookie, token, league)));
@@ -210,7 +216,10 @@ async function getLeagueTriage(cookie, token, leagueId) {
   return { leagueId: league.leagueId, name: league.name, status, phase, dynasty, tradeDeadline, items };
 }
 
-async function getHome(cookie, token) {
+// `deviceReads` (optional) maps leagueId -> the raw `rosters` the device fetched, moving the per-league
+// roster fan-out off the shared IP (docs/DEVICE_ORIGIN_MFL.md). The lineup overview (in-season) and the
+// dynasty rollup (offseason) both read from it; trade/waiver items stay backend.
+async function getHome(cookie, token, { deviceReads = null } = {}) {
   const phase = await seasonPhase(cookie);
   // All of the account's leagues, pinned first.
   const leagues = await leaguesService.orderedLeagues(cookie, token);
@@ -223,7 +232,7 @@ async function getHome(cookie, token) {
     // The lineup overview does its own league read; intersect it with the account's
     // leagues so a stale or foreign entry can't leak into triage.
     const visible = new Set(leagues.map((l) => String(l.leagueId)));
-    const overview = await lineupsService.getOverview(cookie, token, 'auto', { light: true });
+    const overview = await lineupsService.getOverview(cookie, token, 'auto', { light: true, deviceReads });
     for (const l of overview.leagues) {
       if (!visible.has(String(l.leagueId))) continue;
       if (l.status === 'risk') counts.injuries += 1;
@@ -234,8 +243,12 @@ async function getHome(cookie, token) {
     }
     teams.push(...leagues.map((l) => ({ leagueId: l.leagueId, name: l.name })));
   } else {
-    // Offseason: no lineups — attach each team's dynasty summary instead.
-    const rosters = await mapLeagues(leagues, (l) => rosterService.getRoster(cookie, l.leagueId), null, 'portfolio.roster');
+    // Offseason: no lineups — attach each team's dynasty summary instead. Device path: assemble from the
+    // roster the device supplied for each league; else the backend reads it.
+    const rosters = await mapLeagues(leagues, (l) => {
+      const dr = deviceReads ? deviceReads[String(l.leagueId)] : null;
+      return dr ? rosterService.rosterFromDeviceFranchises(cookie, l, dr) : rosterService.getRoster(cookie, l.leagueId);
+    }, null, 'portfolio.roster');
     leagues.forEach((l, i) => {
       const dynasty = dynastyOf(rosters[i]);
       if (dynasty) dynastyList.push(dynasty);

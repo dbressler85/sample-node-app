@@ -301,12 +301,16 @@ function buildView({ league, week, requirements, pool, starterIds, franchiseName
 
 // `light` skips the per-league projectedScores call (used by the Home rollup,
 // which only needs availability + empty-slot detection, not point projections).
-async function viewForLeague(cookie, token, league, requestedMode, { light = false } = {}) {
+// `deviceFranchises` (optional) is the raw `rosters` export the DEVICE fetched — when present, my roster
+// (+ strength) is assembled from it instead of the backend reading MFL (docs/DEVICE_ORIGIN_MFL.md). In
+// `light` mode (Home rollup / getStatus) rosters is the ONLY per-user read, so this moves the whole
+// per-league fan-out off the shared IP; the projection/matchup reads on the full path stay backend.
+async function viewForLeague(cookie, token, league, requestedMode, { light = false, deviceFranchises = null } = {}) {
   const week = await currentWeek(cookie);
   const [requirements, scoring, roster, statusMap, byeMap] = await Promise.all([
     loadRequirements(cookie, league),
     loadScoring(cookie, league),
-    rosterService.getRoster(cookie, league.leagueId),
+    deviceFranchises ? rosterService.rosterFromDeviceFranchises(cookie, league, deviceFranchises) : rosterService.getRoster(cookie, league.leagueId),
     loadStatuses(cookie, week),
     loadByes(cookie, week),
   ]);
@@ -398,13 +402,16 @@ function summarize(view) {
   };
 }
 
-async function getOverview(cookie, token, mode, { light = false } = {}) {
+// `deviceReads` (optional) maps leagueId -> the raw `rosters` the device fetched; each league's view is
+// built from it instead of a backend roster read (docs/DEVICE_ORIGIN_MFL.md).
+async function getOverview(cookie, token, mode, { light = false, deviceReads = null } = {}) {
   const requested = normalizeMode(mode);
   const leagues = await leaguesService.listLeagues(cookie);
   const views = await Promise.all(
     leagues.map(async (league) => {
       try {
-        return summarize(await viewForLeague(cookie, token, league, requested, { light }));
+        const dr = deviceReads ? deviceReads[String(league.leagueId)] : null;
+        return summarize(await viewForLeague(cookie, token, league, requested, { light, deviceFranchises: dr }));
       } catch (e) {
         return { leagueId: league.leagueId, name: league.name, error: e.message };
       }
@@ -448,10 +455,11 @@ async function getLineup(cookie, token, leagueId, mode) {
   return viewForLeague(cookie, token, league, normalizeMode(mode));
 }
 
-// Lightweight single-league status (used for progressive Home loading).
-async function getStatus(cookie, token, leagueId, { light = true } = {}) {
+// Lightweight single-league status (used for progressive Home loading). `deviceFranchises` (optional)
+// lets the caller (Home triage) supply the roster the device fetched.
+async function getStatus(cookie, token, leagueId, { light = true, deviceFranchises = null } = {}) {
   const league = await findLeague(cookie, leagueId);
-  return summarize(await viewForLeague(cookie, token, league, 'auto', { light }));
+  return summarize(await viewForLeague(cookie, token, league, 'auto', { light, deviceFranchises }));
 }
 
 // A preview of "Set All" — per-league diffs (who comes in / out), applied to

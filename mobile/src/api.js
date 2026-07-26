@@ -101,6 +101,8 @@ export const api = {
   // Command center (M1.5) — the Home screen composes from leaguesList +
   // per-league leagueTriage (progressive load), not a single /api/home call.
   leagueTriage: (leagueId) => request(`/api/home/league/${leagueId}`),
+  // Device-origin: the app supplies this league's rosters it fetched from MFL on-device.
+  leagueTriageDevice: (leagueId, deviceRosters) => request(`/api/home/league/${leagueId}`, { method: 'POST', body: { deviceRosters } }),
   onDeck: () => request('/api/ondeck'),
   portfolio: () => request('/api/portfolio'),
   // Device-origin portfolio: the same dashboard, but the app supplies the per-league rosters it fetched
@@ -228,6 +230,9 @@ export const api = {
 
   // Lineups (M2 / M2.5). mode: 'auto' | 'safe' | 'balanced' | 'aggressive'
   lineups: (mode = 'auto') => request(`/api/lineups?mode=${mode}`),
+  // Device-origin: the app supplies each league's rosters it fetched on-device (the per-user fan-out);
+  // the optimizer + projections stay backend.
+  lineupsDevice: (mode, deviceReads) => request('/api/lineups', { method: 'POST', body: { mode, deviceReads } }),
   lineupDetail: (leagueId, mode = 'auto') => request(`/api/leagues/${leagueId}/lineup?mode=${mode}`),
   // Preview "Set All" as per-league diffs, writing nothing.
   planLineups: (mode = 'auto') => request(`/api/lineups/plan?mode=${mode}`),
