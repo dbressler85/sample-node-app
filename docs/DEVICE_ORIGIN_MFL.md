@@ -1,6 +1,14 @@
 # Device-origin MFL reads — scaling the API layer past the shared backend
 
-**Status:** Design / proposal. Not yet implemented. Supersedes nothing; complements the per-account
+**Status:** **Implemented but dormant** (as of 2026-07). The read/parse core, on-device fetch, the
+device-first/backend-fallback wrappers, the metrics beacon, and device paths for the surfaces below are
+all shipped in code, gated behind two flags that BOTH default OFF — `EXPO_PUBLIC_DEVICE_READS`
+(`mobile/src/config.js`) and `DEVICE_READS_ENABLED` (`backend/src/config.js`). It is not yet enabled in
+production. Before flipping `DEVICE_READS_ENABLED`, clear the must-fix + politeness items in
+[`ARCHITECTURE_REVIEW_2026-07-device-origin.md`](ARCHITECTURE_REVIEW_2026-07-device-origin.md) (notably:
+wire `deviceReadCache` into the logout/auth-lost wipe; converge the Shape-A "device assembles" surfaces
+with their backend fallbacks + add parity tests; and port the request stagger / concurrency cap / 429
+backoff to the device — costs #2 and #3 below are the ones still unbuilt). Complements the per-account
 fair queue (#12) and the registered-User-Agent work (see `MFL_CLIENT_REGISTRATION.md`).
 
 ## The problem
