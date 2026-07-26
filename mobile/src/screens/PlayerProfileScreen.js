@@ -259,7 +259,7 @@ export default function PlayerProfileScreen({ playerId, seed, onBack, onOpenTrad
             <Text style={[styles.tagTxt, tag === 'avoid' && styles.tagTxtOn]}>Avoid</Text>
           </Pressable>
           <Pressable style={[styles.tagBtn, watched && styles.tagWatchOn]} onPress={toggleWatch}>
-            <WatchIcon size={17} color={watched ? colors.gold : colors.textDim} filled={watched} />
+            <WatchIcon size={17} color={watched ? colors.watch : colors.textDim} filled={watched} />
             <Text style={[styles.tagTxt, watched && styles.tagTxtOn]}>Watch</Text>
           </Pressable>
         </View>
