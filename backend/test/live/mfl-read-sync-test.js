@@ -59,4 +59,25 @@ assert(shaped.franchiseId === '0003', `franchise id padded to 4 digits, got ${sh
 assert(shaped.players.length === 1 && shaped.players[0].id === '14080' && shaped.players[0].status === 'starter', 'player id/status unwrapped from $t');
 console.log('✓ shapeRoster applies fid padding + $t-safe fields');
 
-console.log('\nMFL-READ SHARED-CORE HARNESS PASSED');
+// 6. readWith(): the device's actual read — build URL, fetch with cookie + registered UA via the
+//    injected fetch, parse; a 429 throws and is NOT retried.
+(async () => {
+  const calls = [];
+  const okFetch = async (u, init) => { calls.push({ u, init }); return { ok: true, status: 200, json: async () => envelope }; };
+  const rows = await mflRead.readWith(okFetch, { descriptor: mflRead.reads.rosters, host: 'www10.myfantasyleague.com', year: '2026', league: 'L1', cookie: 'CK', userAgent: 'DynastyCentral/1.0' });
+  assert(calls.length === 1 && /TYPE=rosters&L=L1/.test(calls[0].u), 'readWith hits the rosters URL once');
+  assert(calls[0].init.headers.Cookie === 'MFL_USER_ID=CK', 'cookie sent as the MFL_USER_ID header (not in the URL)');
+  assert(calls[0].init.headers['User-Agent'] === 'DynastyCentral/1.0', 'registered UA sent on the device read');
+  assert(Array.isArray(rows) && rows.length === 2 && rows[0].id === '0001', 'readWith parsed the rosters envelope');
+
+  let n = 0;
+  const rl = async () => { n += 1; return { ok: false, status: 429, json: async () => ({}) }; };
+  let threw = false;
+  try {
+    await mflRead.readWith(rl, { descriptor: mflRead.reads.rosters, host: 'www10.myfantasyleague.com', year: '2026', league: 'L1' });
+  } catch (e) { threw = e.status === 429; }
+  assert(threw && n === 1, 'a 429 throws and is NOT retried (per MFL: retrying makes it worse)');
+  console.log('✓ readWith: builds URL + sends cookie/UA + parses; 429 throws without retry');
+
+  console.log('\nMFL-READ SHARED-CORE HARNESS PASSED');
+})().catch((e) => { console.error(e.message); process.exit(1); });
