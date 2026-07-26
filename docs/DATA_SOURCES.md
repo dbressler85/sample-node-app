@@ -212,19 +212,26 @@ FantasyCalc `enr.age()` is canonical **everywhere**, including the profile heade
 The MFL `adp` export is canonical **everywhere** — the profile bio now reads it (via `adpLib.adpMap`)
 instead of `playerProfile.adp`, so a player's profile ADP and his draft-board position agree. ✅
 
-### Q3 — Value is format-dependent across screens — DECIDED, implementation pending
+### Q3 — Value is format-dependent across screens — RESOLVED (value lens)
 **Decision (owner):** on sortable/filterable list screens, add a value-lens toggle (1QB/SF) where it
 makes sense; on the player profile, show **both** values; **tradebait** prices each block by that
-league's own format (not the default). This is a UI + endpoint feature (build-gated) tracked separately
-from this backend round. Current behavior (below) stands until it lands.
-Detail: `enr.value()` is format-aware. League screens price against the league's format; **global**
-screens with no single league (playerhub list/search, tradebait, exposure-with-no-primary-league) price
-against a default 1QB/PPR format.
-`enr.value()` is format-aware. League screens price against the league's format; **global** screens
-with no single league (playerhub list/search, tradebait, exposure-with-no-primary-league) price
-against a **default 1QB/PPR** format. So a superflex QB's value differs between his league's roster
-screen and the global playerhub. By design (no league to key on), but a visible cross-screen
-inconsistency. **Decision needed:** pick a documented default (1QB vs SF vs a user-selectable lens).
+league's own format (not the default).
+**Implemented:**
+- The lens keyword ('1qb' | 'sf') → snapshot format lives once in `leagueformat.lensFormat` (only
+  `numQbs` varies; PPR stays the dynasty-norm full PPR). Shared so every global list prices identically.
+- **List screens:** the Players screen's existing SF↔1QB toggle now also drives the **Free Agents** and
+  **Watch** tabs. `GET /api/waivers/best-available` and `GET /api/watchlist` accept `?format=1qb|sf`
+  (`getBestAvailable({format})`, `getWatchlist({format})`); the mobile ValueLens state is wired into both
+  loaders (incl. the device-origin best-available path). Rankings/search were already lens-driven.
+- **Player profile:** returns `values: { '1qb', sf }` alongside the neutral `value`; the profile header
+  renders both side by side (there's no single league to key on). ✅ `playerhub.js` profile.
+- **Tradebait:** `getBlock`/`getMarket` now price **each league's** bait through that league's own format
+  (`snapshot(await leagueFormat.format(cookie, league))`), so a superflex QB you're shopping shows what
+  that league would pay. ✅ `tradebait.js`.
+- **Exposure ("My Players")** already prices per-league-format, so it was left as-is.
+Remaining by design: a **global** screen with no league to key on (playerhub list/search) still defaults
+to the neutral 1QB/PPR market unless the lens toggle is set — now a *documented, user-selectable* default
+rather than a silent one.
 
 ### Q4 — My franchise name — RESOLVED (league directory)
 The `league` franchise directory is canonical for all franchise names including mine. Where it's already

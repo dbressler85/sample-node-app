@@ -38,9 +38,10 @@ router.get('/waivers/suggestions', async (req, res, next) => {
 });
 
 // GET /api/waivers/best-available — top free agents across all your leagues.
+// `?format=1qb|sf` re-prices the board through that value lens (matches the Players screen toggle).
 router.get('/waivers/best-available', async (req, res, next) => {
   try {
-    res.json(checkResponse(schemas.WaiversBest, await waivers.getBestAvailable(req.mflCookie, req.account), 'GET /waivers/best-available'));
+    res.json(checkResponse(schemas.WaiversBest, await waivers.getBestAvailable(req.mflCookie, req.account, { format: req.query.format || null }), 'GET /waivers/best-available'));
   } catch (err) {
     next(err);
   }
@@ -49,10 +50,11 @@ router.get('/waivers/best-available', async (req, res, next) => {
 // POST /api/waivers/best-available — same board, but the per-league freeAgents pools are supplied by the
 // DEVICE (fetched straight from MFL on-device) so the heaviest fan-out leaves the shared IP. Body:
 // { deviceReads: { [leagueId]: <freeAgents units> } }. Settings/enrichment/merge stay on the backend.
+// `?format=1qb|sf` re-prices the board through that value lens.
 router.post('/waivers/best-available', async (req, res, next) => {
   try {
     const { deviceReads } = req.body || {};
-    res.json(checkResponse(schemas.WaiversBest, await waivers.getBestAvailable(req.mflCookie, req.account, { deviceReads: deviceReads || null }), 'POST /waivers/best-available'));
+    res.json(checkResponse(schemas.WaiversBest, await waivers.getBestAvailable(req.mflCookie, req.account, { deviceReads: deviceReads || null, format: req.query.format || null }), 'POST /waivers/best-available'));
   } catch (err) {
     next(err);
   }

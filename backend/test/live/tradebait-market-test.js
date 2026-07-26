@@ -12,6 +12,7 @@ const leaguesService = require('../../src/services/leagues');
 const rosterService = require('../../src/services/roster');
 const playersLib = require('../../src/lib/players');
 const enrichmentLib = require('../../src/lib/enrichment');
+const leagueFormat = require('../../src/lib/leagueformat');
 const nflLib = require('../../src/lib/nfl');
 const mflRepo = require('../../src/lib/mflRepo');
 
@@ -34,7 +35,15 @@ leaguesService.listLeagues = async () => [LEAGUE];
 leaguesService.orderedLeagues = async () => [LEAGUE];
 leaguesService.franchiseNames = async () => new Map([['0006', 'Team Six'], ['0011', 'The Rebuild']]);
 playersLib.load = async () => PLAYERS;
-enrichmentLib.snapshot = async () => ({ value: (id) => ({ '16593': 4200, '16165': 900, '15721': 1500, '12620': 700 })[String(id)] || 0, age: () => 25, trend: () => 0, ownership: () => null });
+// getBlock/getMarket now price each league through its OWN format (Q3). Stub the format read (it would
+// otherwise fan out league/rules exports) AND make the snapshot format-aware, so we can PROVE the block
+// is priced through the league's format: this league is superflex, and the SF snapshot doubles values.
+const BASE_VALUE = { '16593': 4200, '16165': 900, '15721': 1500, '12620': 700 };
+enrichmentLib.snapshot = async (fmt) => {
+  const mult = fmt && fmt.numQbs === 2 ? 2 : 1;
+  return { value: (id) => (BASE_VALUE[String(id)] || 0) * mult, age: () => 25, trend: () => 0, ownership: () => null };
+};
+leagueFormat.format = async () => ({ numQbs: 2, ppr: 1, tePpr: 1, pprDetected: true });
 nflLib.currentWeek = async () => 3;
 nflLib.injuryMap = async () => ({});
 nflLib.byeMap = async () => ({});
@@ -53,6 +62,7 @@ const tradebait = require('../../src/services/tradebait');
   assert(lg.players.length === 3, `player + 2 picks on my block (got ${lg.players.length})`);
   const star = lg.players.find((p) => p.id === '16593');
   assert(star && star.kind === 'player' && star.bucket === 'starter', 'the rostered player is resolved with his bucket');
+  assert(star.value === 8400, `block priced through the league's format — superflex doubles the star's value (4200→8400), got ${star.value}`);
   const picks = lg.players.filter((p) => p.kind === 'pick');
   assert(picks.length === 2 && picks.every((p) => p.position === 'PICK' && p.name && p.value != null), 'both picks resolved to labels + values');
   assert(lg.note === 'Want a starting RB', 'league surfaces MFL asking-price note');
@@ -67,6 +77,8 @@ const tradebait = require('../../src/services/tradebait');
   assert(ids.join(',') === '0006,0011', `market lists the two rival blocks, not mine (got ${ids.join(',')})`);
   const six = m.teams.find((t) => t.franchiseId === '0006');
   assert(six.name === 'Team Six' && six.assets.length === 2, 'rival team resolved with name + assets');
+  const rivalRb = six.assets.find((a) => a.id === '16165');
+  assert(rivalRb && rivalRb.value === 1800, `market priced through the league's format — superflex doubles the rival RB (900→1800), got ${rivalRb && rivalRb.value}`);
   const rebuild = m.teams.find((t) => t.franchiseId === '0011');
   assert(rebuild.note === 'Rebuilding — picks please', 'rival asking-price note surfaced');
   assert(rebuild.assets.some((a) => a.kind === 'pick'), 'rival block includes a pick');

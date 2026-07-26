@@ -38,14 +38,8 @@ const GENERIC_SCORING = { ppr: 1, tePremium: 0, passTd: 4 };
 // Global value lens for the Players screen. Search/rankings default to the
 // neutral market (1QB, full PPR); the SF ↔ 1QB toggle lets you re-price and
 // re-sort the whole board through a superflex lens without opening a league.
-// Only numQbs varies here (PPR stays the dynasty-norm full PPR); returning
-// undefined keeps enrichment's neutral default snapshot.
-function lensFormat(format) {
-  const f = String(format || '').toLowerCase();
-  if (f === 'sf' || f === 'superflex' || f === '2qb') return { numQbs: 2, ppr: 1, tePpr: 1 };
-  if (f === '1qb' || f === 'single') return { numQbs: 1, ppr: 1, tePpr: 1 };
-  return undefined;
-}
+// Value-lens ('1qb' | 'sf') → snapshot format. Single source in lib/leagueformat (docs/DATA_SOURCES.md Q3).
+const lensFormat = leagueFormat.lensFormat;
 
 // Availability context (current week + injury/bye maps). Live now really fetches
 // these from MFL so search / rankings / profiles badge OUT/injured/bye players
@@ -383,7 +377,14 @@ async function livePriorSeasonTotal(cookie, league, playerId, enr) {
 }
 
 async function profile(cookie, token, playerId) {
-  const [byId, enr] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(undefined, cookie)]);
+  // Value under BOTH lenses (docs/DATA_SOURCES.md Q3): the profile shows a player's 1QB and Superflex
+  // value side by side (there's no single league to pick). Snapshots memoize per format, so this is cheap.
+  const [byId, enr, enr1qb, enrSf] = await Promise.all([
+    playersLib.load(cookie),
+    enrichmentLib.snapshot(undefined, cookie),
+    enrichmentLib.snapshot(lensFormat('1qb'), cookie),
+    enrichmentLib.snapshot(lensFormat('sf'), cookie),
+  ]);
   const base = playersLib.resolve(byId, playerId);
   const ranks = computeRanks(byId, enr);
   const ctx = await ctxFor(cookie);
@@ -535,6 +536,8 @@ async function profile(cookie, token, playerId) {
     draftRound: base.draftRound || null,
     draftPick: base.draftPick || null,
     value: enr.value(playerId),
+    // Both value lenses for the profile header (1QB vs Superflex).
+    values: { '1qb': enr1qb.value(playerId), sf: enrSf.value(playerId) },
     valueRange,
     overallRank: ranks.overall.get(playerId) || null,
     posRank: ranks.pos.get(playerId) || null,

@@ -203,11 +203,12 @@ export default function PlayersScreen({ onOpenPlayer }) {
     if (tab === 'news' && !news) api.news().then(setNews).catch((e) => setError(e.message));
     // Watchlist changes as you star players elsewhere, so refetch each time the
     // tab is opened rather than caching it.
-    if (tab === 'watch') { setWatch(null); api.watchlist().then(setWatch).catch((e) => setError(e.message)); }
+    // Both re-price with the value lens, so refetch when `format` changes too.
+    if (tab === 'watch') { setWatch(null); api.watchlist(format).then(setWatch).catch((e) => setError(e.message)); }
     // Free agents shift constantly (adds/drops/waivers process), so refetch on open. Device-first: the
     // heavy per-league freeAgents fan-out runs on-device, falling back to the backend.
-    if (tab === 'free') { setFree(null); bestAvailablePreferDevice().then(setFree).catch((e) => setError(e.message)); }
-  }, [tab, mine, news]);
+    if (tab === 'free') { setFree(null); bestAvailablePreferDevice(format).then(setFree).catch((e) => setError(e.message)); }
+  }, [tab, mine, news, format]);
 
   // Inline Target/Avoid/Watch toggles. Optimistic: flip a per-id override immediately,
   // reconcile with the server, and revert the override if the write fails. Overrides win
@@ -357,6 +358,7 @@ export default function PlayersScreen({ onOpenPlayer }) {
                     : 'Free agents available across your leagues.'}
                 </Text>
               </View>
+              <ValueLens format={format} setFormat={setFormat} />
               <PosFilter pos={pos} setPos={setPos} />
               <SortRow value={listSort} onChange={setListSort} />
               <FlatList
@@ -376,6 +378,7 @@ export default function PlayersScreen({ onOpenPlayer }) {
             </>
           ) : tab === 'watch' ? (
             <>
+              {watch && watch.players.length ? <ValueLens format={format} setFormat={setFormat} /> : null}
               {watch && watch.players.length ? <SortRow value={listSort} onChange={setListSort} /> : null}
               <FlatList
               data={watchData}
@@ -467,7 +470,7 @@ export default function PlayersScreen({ onOpenPlayer }) {
           onDone={() => {
             setAddAcross(null);
             // Reflect the add: the player is no longer free, so refetch the tab.
-            if (tab === 'free') { setFree(null); bestAvailablePreferDevice().then(setFree).catch((e) => setError(e.message)); }
+            if (tab === 'free') { setFree(null); bestAvailablePreferDevice(format).then(setFree).catch((e) => setError(e.message)); }
           }}
         />
       ) : null}

@@ -231,6 +231,22 @@ export default function PlayerProfileScreen({ playerId, seed, onBack, onOpenTrad
           ) : null}
         </View>
 
+        {/* Both value lenses side by side: there's no single league to pick on a profile, so show
+            what this player is worth in a 1QB market vs a Superflex one (docs/DATA_SOURCES.md Q3). */}
+        {p.values && (p.values['1qb'] != null || p.values.sf != null) ? (
+          <View style={styles.lensValues}>
+            <View style={styles.lensValCell}>
+              <Text style={styles.lensValNum}>{p.values['1qb'] != null ? p.values['1qb'] : '—'}</Text>
+              <Text style={styles.lensValLabel}>1QB value</Text>
+            </View>
+            <View style={styles.lensValDivider} />
+            <View style={styles.lensValCell}>
+              <Text style={styles.lensValNum}>{p.values.sf != null ? p.values.sf : '—'}</Text>
+              <Text style={styles.lensValLabel}>Superflex value</Text>
+            </View>
+          </View>
+        ) : null}
+
         {/* One control set: Target / Avoid tint your personal value (±10%); Watch tracks
             him on your watchlist. Tap an active Target/Avoid again to clear. */}
         <View style={styles.tagRow}>
@@ -498,6 +514,11 @@ const styles = StyleSheet.create({
   valueNum: { color: colors.gold, fontSize: 24, fontWeight: '900' },
   valueLabel: { color: colors.textDim, fontSize: 10, fontWeight: '700' },
   valueSpread: { color: colors.gold, fontSize: 10, fontWeight: '700', marginTop: 2, maxWidth: 92, textAlign: 'center' },
+  lensValues: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, paddingVertical: 10, marginTop: 12 },
+  lensValCell: { flex: 1, alignItems: 'center' },
+  lensValNum: { color: colors.gold, fontSize: 20, fontWeight: '900' },
+  lensValLabel: { color: colors.textDim, fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 2 },
+  lensValDivider: { width: 1, alignSelf: 'stretch', backgroundColor: colors.border },
   tagRow: { flexDirection: 'row', gap: 10, marginTop: 4, marginBottom: 4 },
   tagBtn: { flex: 1, flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center', paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
   tagTargetOn: { borderColor: colors.good, backgroundColor: colors.good + '22' },
