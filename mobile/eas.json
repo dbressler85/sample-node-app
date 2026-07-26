@@ -11,7 +11,8 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://dynasty-central-backend.onrender.com"
+        "EXPO_PUBLIC_API_URL": "https://dynasty-central-backend.onrender.com",
+        "EXPO_PUBLIC_DEVICE_READS": "1"
       }
     },
     "production": {
