@@ -286,10 +286,10 @@ function ListRow({ p, rank, first, last, onOpen, onTop, onUp, onDown, onRemove }
         <Text style={styles.meta}>{p.position}{p.team ? ` · ${p.team}` : ''}{p.value != null ? ` · ${p.value}` : ''}</Text>
       </Pressable>
       <View style={styles.ctrls}>
-        <Pressable onPress={onTop} disabled={first} hitSlop={6} style={styles.ctrlBtn}><Text style={[styles.ctrl, first && styles.ctrlOff]}>⤒</Text></Pressable>
-        <Pressable onPress={onUp} disabled={first} hitSlop={6} style={styles.ctrlBtn}><Text style={[styles.ctrl, first && styles.ctrlOff]}>↑</Text></Pressable>
-        <Pressable onPress={onDown} disabled={last} hitSlop={6} style={styles.ctrlBtn}><Text style={[styles.ctrl, last && styles.ctrlOff]}>↓</Text></Pressable>
-        <Pressable onPress={onRemove} hitSlop={6} style={styles.ctrlBtn}><Text style={styles.remove}>✕</Text></Pressable>
+        <Pressable onPress={onTop} disabled={first} hitSlop={10} style={styles.ctrlBtn}><Text style={[styles.ctrl, first && styles.ctrlOff]}>⤒</Text></Pressable>
+        <Pressable onPress={onUp} disabled={first} hitSlop={10} style={styles.ctrlBtn}><Text style={[styles.ctrl, first && styles.ctrlOff]}>↑</Text></Pressable>
+        <Pressable onPress={onDown} disabled={last} hitSlop={10} style={styles.ctrlBtn}><Text style={[styles.ctrl, last && styles.ctrlOff]}>↓</Text></Pressable>
+        <Pressable onPress={onRemove} hitSlop={10} style={styles.ctrlBtn}><Text style={styles.remove}>✕</Text></Pressable>
       </View>
     </View>
   );
@@ -341,8 +341,8 @@ const styles = StyleSheet.create({
   struck: { textDecorationLine: 'line-through' },
   draftedTag: { color: colors.bad, fontSize: 9, fontWeight: '900', marginLeft: 6, borderWidth: 1, borderColor: colors.bad, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1, overflow: 'hidden' },
   meta: { color: colors.textDim, fontSize: 12, marginTop: 2 },
-  ctrls: { flexDirection: 'row', alignItems: 'center', gap: 10, marginLeft: 8 },
-  ctrlBtn: { paddingHorizontal: 1 },
+  ctrls: { flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: 8 },
+  ctrlBtn: { paddingHorizontal: 6, paddingVertical: 8, alignItems: 'center', justifyContent: 'center' },
   ctrl: { color: colors.accent, fontSize: 17, fontWeight: '800' },
   ctrlOff: { color: colors.border },
   remove: { color: colors.bad, fontSize: 15, fontWeight: '800' },
