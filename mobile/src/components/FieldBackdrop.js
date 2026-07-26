@@ -2,13 +2,14 @@ import React from 'react';
 import { View, Image, StyleSheet } from 'react-native';
 import Svg, { Defs, LinearGradient, RadialGradient, Stop, Rect, Line, G } from 'react-native-svg';
 
-// The app-wide backdrop: a championship gold-to-navy gradient, faint gridiron yard-lines,
-// and a large, ghosted crest watermark. Two intensities share one look:
-//   • hero  (login) — a bold band of clear gold at the very top melting down into deep
-//                     navy. Dramatic, because the login content is vertically centered so
-//                     the gold sits behind empty space and the crest, never behind text.
-//   • ambient (app) — a navy field lit by a soft gold glow up top, so header text stays
-//                     readable while the whole app still reads gold-over-navy.
+// The app-wide backdrop: faint gridiron yard-lines and a ghosted crest watermark over one of two
+// grounds. Gold now means VALUE (docs/DESIGN_SYSTEM.md §1), so it can't also be the wallpaper —
+// the ambient ground is therefore gold-free:
+//   • hero  (login) — a bold band of clear gold at the very top melting into deep navy. This is
+//                     ceremony, not wallpaper (the threshold + the crest ignition), so gold stays.
+//   • ambient (app) — "Deep Ink": a near-flat dark navy that lifts slightly at center so cards
+//                     float, with an edge vignette and NO gold. Makes value-gold + the neon tier pop.
+//                     (Exploratory — trying Deep Ink on device; see the background-options study.)
 // Drawn in a 0–100 square stretched to fill (preserveAspectRatio none) so it adapts to any
 // container without measuring. Purely decorative — never intercepts touches.
 // Memoized: props are stable (the app renders it with none, login with a fixed `hero`), so the
@@ -18,7 +19,7 @@ function FieldBackdrop({ hero = false, watermark = true }) {
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
       <Svg style={StyleSheet.absoluteFill} viewBox="0 0 100 100" preserveAspectRatio="none">
         <Defs>
-          {/* hero — clear gold at the crown of the screen, dramatic fall to navy */}
+          {/* hero — clear gold at the crown of the screen, dramatic fall to navy (login only) */}
           <LinearGradient id="fbHero" x1="0" y1="0" x2="0" y2="1">
             <Stop offset="0" stopColor="#F8CB53" />
             <Stop offset="0.07" stopColor="#E3B245" />
@@ -28,20 +29,20 @@ function FieldBackdrop({ hero = false, watermark = true }) {
             <Stop offset="0.75" stopColor="#0B1121" />
             <Stop offset="1" stopColor="#05070E" />
           </LinearGradient>
-          {/* ambient — navy field for content screens */}
-          <LinearGradient id="fbBase" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor="#111C34" />
-            <Stop offset="0.5" stopColor="#0A1120" />
+          {/* ambient "Deep Ink" — near-flat dark navy that lifts slightly at center (cards float) */}
+          <RadialGradient id="fbInk" cx="0.5" cy="0.4" r="0.9">
+            <Stop offset="0" stopColor="#0F1930" />
+            <Stop offset="0.72" stopColor="#080D1A" />
             <Stop offset="1" stopColor="#05070E" />
-          </LinearGradient>
-          {/* soft gold glow up top (drives the ambient gold, absent in hero) */}
-          <RadialGradient id="fbGlow" cx="0.5" cy="0.14" r="0.72">
-            <Stop offset="0" stopColor="#F3C14A" stopOpacity={hero ? '0' : '0.34'} />
-            <Stop offset="1" stopColor="#F3C14A" stopOpacity="0" />
+          </RadialGradient>
+          {/* edge vignette so the corners fall away and the content floats (ambient only) */}
+          <RadialGradient id="fbVignette" cx="0.5" cy="0.42" r="0.75">
+            <Stop offset="0.55" stopColor="#000000" stopOpacity="0" />
+            <Stop offset="1" stopColor="#000000" stopOpacity="0.5" />
           </RadialGradient>
         </Defs>
-        <Rect x="0" y="0" width="100" height="100" fill={hero ? 'url(#fbHero)' : 'url(#fbBase)'} />
-        <Rect x="0" y="0" width="100" height="100" fill="url(#fbGlow)" />
+        <Rect x="0" y="0" width="100" height="100" fill={hero ? 'url(#fbHero)' : 'url(#fbInk)'} />
+        {hero ? null : <Rect x="0" y="0" width="100" height="100" fill="url(#fbVignette)" />}
         {/* faint yard-lines */}
         <G stroke="rgba(255,255,255,0.03)" strokeWidth="0.35">
           {[16, 30, 44, 58, 72, 86].map((y) => (
