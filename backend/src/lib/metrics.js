@@ -26,6 +26,14 @@ const byType = new Map(); // type -> fetches
 // these answer not just "is device-origin working" (devicePct) but "is it worth it" (deviceAvgMs vs
 // backendAvgMs) and "when does it break" (fallback reasons).
 const deviceReads = new Map(); // read -> { device, backend, deviceMsSum, deviceMsN, backendMsSum, backendMsN, fallbacks, reasons }
+// Device-origin PARITY + version observability (A-6/U-6). `deviceVersions` = the mflRead VERSION each device
+// reports on its beacon → count, so a STALE-client population (an old app build whose Shape-A screens the
+// backend can't see or correct) is visible; `staleClientReads` counts beacons from a device OLDER than this
+// backend's version. `parity` = the sampled shadow-compare's tally (how many device rosters reads we
+// re-fetched + compared, and how many DIVERGED from what the backend would have fetched).
+const deviceVersions = new Map(); // version -> beacon count
+let staleClientReads = 0;
+const parity = { samples: 0, diverged: 0 };
 // Fetch timestamps within the last window, for a rolling calls/min figure.
 const recent = [];
 const WINDOW_MS = 5 * 60 * 1000;
@@ -77,6 +85,20 @@ function recordDeviceRead(read, source, meta = {}) {
   }
   deviceReads.set(key, e);
 }
+// A device reported its shared-core (mflRead) VERSION on a beacon. Count the distribution and, when the
+// caller says this version is older than the backend's, tally it as a stale-client read (A-6). Only sane
+// small integers are recorded so a bad client can't grow the map (the version is a hand-bumped counter).
+function recordDeviceVersion(ver, isStale) {
+  const n = Number(ver);
+  if (!Number.isInteger(n) || n < 0 || n > 9999) return;
+  deviceVersions.set(n, (deviceVersions.get(n) || 0) + 1);
+  if (isStale) staleClientReads += 1;
+}
+// The sampled shadow-compare took a sample (and, if `diverged`, found device≠backend). (U-6)
+function recordParity(diverged) {
+  parity.samples += 1;
+  if (diverged) parity.diverged += 1;
+}
 const recordMiss = () => { counters.cacheMisses += 1; };
 const record429 = () => { counters.http429 += 1; };
 const record503 = () => { counters.http503 += 1; };
@@ -111,6 +133,16 @@ function snapshot() {
       fallbacks: c.fallbacks, // times the device was tried but fell back
       reasons: c.reasons, // why it fell back — { rate_limited, no_creds, incomplete, network, … }
     })),
+    // Device-origin parity + version health (A-6/U-6): the version distribution reported by clients, how
+    // many beacons came from a STALE app (older shared core than this backend), and the sampled
+    // shadow-compare tally (samples taken, and how many DIVERGED from the backend's own fetch).
+    deviceParity: {
+      backendVersion: require('./mflRead').VERSION,
+      versions: Object.fromEntries([...deviceVersions.entries()].sort((a, b) => a[0] - b[0])),
+      staleClientReads,
+      shadowSamples: parity.samples,
+      shadowDiverged: parity.diverged,
+    },
   };
 }
 
@@ -119,7 +151,11 @@ function _reset() {
   for (const k of Object.keys(counters)) counters[k] = 0;
   byType.clear();
   deviceReads.clear();
+  deviceVersions.clear();
+  staleClientReads = 0;
+  parity.samples = 0;
+  parity.diverged = 0;
   recent.length = 0;
 }
 
-module.exports = { recordFetch, recordHit, recordMiss, record429, record503, recordError, recordDeviceRead, fetchCount, snapshot, _reset };
+module.exports = { recordFetch, recordHit, recordMiss, record429, record503, recordError, recordDeviceRead, recordDeviceVersion, recordParity, fetchCount, snapshot, _reset };

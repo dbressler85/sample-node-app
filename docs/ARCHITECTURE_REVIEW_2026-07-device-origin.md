@@ -125,12 +125,12 @@ Legend — severity **High / Med / Low**; effort **S** ~hours · **M** ~days · 
 > 8/75 envelope via the handoff), **A-3** (registered UA), **A-4** (beacon key allowlist), **A-8** (draft
 > missing-league fallback), **A-9** (covered-overlay polling — verified already gated by the keep-alive nav),
 > **A-10** (heavy free-agent pool kept backend-only), **A-2** (partial-tolerant aggregates via `settlePool`),
-> **U-1** ("complete/partial" affordance — already present on Portfolio, now reachable). Remaining: **A-6**
-> (device parser-version + sampled shadow-compare), **A-12** (a `preferDevice` fallback-path test; the new
-> fan-out logic is covered by `poolMap.test.js`). Accept-with-doc: **A-5** (cache erosion), **A-7**
-> (cold-start), **A-11** (self-scoped trust). U-series remaining: **U-2** (Sunday battery/data budget),
-> **U-3** (fast offline fail), **U-4** (backend-independent reads during an outage), **U-5** (device-faster
-> headline), **U-6** (shadow-compare — pairs with A-6), **U-7** (calm expired-cookie re-login).
+> **U-1** ("complete/partial" affordance — already present on Portfolio, now reachable), **A-6 + U-6**
+> (parser-version observability + sampled shadow-compare on `/_metrics mfl.deviceParity`). Remaining: **A-12**
+> (a `preferDevice` fallback-path test; the new fan-out logic is covered by `poolMap.test.js`). Accept-with-doc:
+> **A-5** (cache erosion), **A-7** (cold-start), **A-11** (self-scoped trust). U-series remaining: **U-2**
+> (Sunday battery/data budget), **U-3** (fast offline fail), **U-4** (backend-independent reads during an
+> outage), **U-5** (device-faster headline), **U-7** (calm expired-cookie re-login).
 
 - **A-1 · Device omits the request discipline it was specified to mirror · Med · S · ✅ FIXED.** The device
   fired `Promise.all` across 15–20 leagues with **no stagger, no concurrency cap, no 429 backoff** —
@@ -176,10 +176,24 @@ Legend — severity **High / Med / Low**; effort **S** ~hours · **M** ~days · 
 - **A-5 · Backend cross-user cache erosion · Low · —.** Device data bypasses `exportRequest`
   (`portfolio.js:358`), so shared-cache hit rate falls and fallbacks trend cold. No correctness bug
   (invalidation intact both sides); a hit-rate/latency regression that makes A-2's fallback colder.
-- **A-6 · The beacon cannot see *silent* divergence · Med · M.** It records failures/latency, not "both
-  paths returned different data" (`metrics.js:55-70`). M-2's divergence would ship invisibly at 95%
-  device%. Consider a sampled shadow-compare and a device-parser-version header (also guards Shape-A
-  version skew from stale app builds — N4).
+- **A-6 · The beacon cannot see *silent* divergence · Med · M · ✅ FIXED (with U-6).** It recorded only
+  failures/latency, not "both paths returned different data." **Fixed on two axes, both surfaced under
+  `/_metrics mfl.deviceParity`:**
+  1. **Parser-version observability** — the shared core carries a `VERSION` (`mflRead.js`), the device
+     reports it on every beacon, and the backend records the version distribution + a `staleClientReads`
+     tally (beacons from a build OLDER than the backend). So a stale-app population — the one that could run
+     old Shape-A assemble logic the backend can't see or correct (N4) — is now visible instead of silent.
+  2. **Sampled shadow-compare (U-6)** — on a small sample (`config.deviceParitySampleRate`, default 2%) of
+     device-origin portfolio reads, the backend re-fetches ONE league and compares the device-supplied
+     rosters against its own (`lib/shadowParity.js`), recording `shadowSamples`/`shadowDiverged`.
+     Fire-and-forget after the response, so it never affects the request; sampled so the extra read is
+     amortized. Tested (`shadow-parity-test.js`: acceptance bar + recorder; version obs in `player-lookup-test.js`).
+- **U-6 · Parity self-check with a product acceptance bar · ✅ FIXED (see A-6).** The shadow-compare uses the
+  PO's bar: **STRICT on what the manager acts on** — roster MEMBERSHIP (which players) and each player's
+  SLOT (active/bench/ir/taxi, via the same status→slot rule the screens use) — and **ignores** ordering and
+  cosmetic status-string form. So it flags "the device thinks I roster a different player, or in a different
+  slot, than the backend," not "the arrays are in a different order." The operator watches
+  `deviceParity.shadowDiverged` / `staleClientReads` on `/_metrics` before and after flipping the flag.
 - **A-7 · Cold-start latency regression · Med · —.** `deviceReadCache` is session-only
   (`deviceReadCache.js:31`), so every cold launch re-fans-out with no server-warm entry to lean on
   (freshness-neutral, latency cost). Reverses the prior review's central mitigation (warm loop + shared

@@ -18,6 +18,15 @@
 // Transport, throttling, the SSRF redirect-following, and the demo/live split stay per-runtime and are
 // NOT here — this core only says "what URL" and "what shape".
 
+// Shared-core VERSION. BUMP whenever the parse/assemble output shape changes (a new field, a changed
+// bucket, a fixed slot rule…). Because the device and backend share THIS file byte-for-byte, they carry the
+// same VERSION at build time — but an OLD app build in the field still runs an OLD copy and, for the
+// "device assembles" (Shape A) screens, produces output the backend never sees and can't correct
+// (docs/ARCHITECTURE_REVIEW_2026-07-device-origin.md A-6/N4). The device reports this version on its beacon;
+// the backend compares it to its own and surfaces any STALE-client population on /_metrics, so silent
+// version skew is observable instead of invisible. Bump in lockstep with any assemble* behavior change.
+const VERSION = 1;
+
 // --- parse primitives (kept identical to lib/mfl.js; a parity test guards against divergence) ------
 
 // MFL returns a single-child collection as an object and a multi-child one as an array; callers always
@@ -455,4 +464,4 @@ function assembleExposure(perLeagueRosters, enrichDict, totalLeagues) {
   };
 }
 
-module.exports = { toArray, text, num, fid, round1, isMflHost, buildExportUrl, reads, readWith, shapeRoster, enrichRoster, rosterSlot, assembleTeams, assembleStandings, parseTransactions, assembleTransactions, exposureBucket, assembleExposure };
+module.exports = { VERSION, toArray, text, num, fid, round1, isMflHost, buildExportUrl, reads, readWith, shapeRoster, enrichRoster, rosterSlot, assembleTeams, assembleStandings, parseTransactions, assembleTransactions, exposureBucket, assembleExposure };

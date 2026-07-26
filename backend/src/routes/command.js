@@ -9,6 +9,8 @@ const scoreboard = require('../services/scoreboard');
 const exposure = require('../services/exposure');
 const ondeck = require('../services/ondeck');
 const leaguesService = require('../services/leagues');
+const mflRead = require('../lib/mflRead');
+const shadowParity = require('../lib/shadowParity');
 const { schemas, checkResponse } = require('../lib/apiSchema');
 
 const router = express.Router();
@@ -41,8 +43,12 @@ router.get('/session/mfl-cookie', (req, res) => {
 // read, so /_metrics can show how often each read was served ON-DEVICE vs. fell back to the backend
 // (the device-origin payoff, measured — docs/DEVICE_ORIGIN_MFL.md). Fire-and-forget; never errors.
 router.post('/metrics/device-read', (req, res) => {
-  const { read, source, ms, reason } = req.body || {};
+  const { read, source, ms, reason, ver } = req.body || {};
   if (read && (source === 'device' || source === 'backend')) metrics.recordDeviceRead(read, source, { ms, reason });
+  // A-6: the device reports its shared-core (mflRead) version; record the distribution + flag any client
+  // OLDER than this backend, so a stale-app population (whose Shape-A screens the backend can't correct) is
+  // visible on /_metrics rather than silent.
+  if (ver != null) metrics.recordDeviceVersion(ver, Number(ver) < mflRead.VERSION);
   res.json({ ok: true });
 });
 
@@ -130,6 +136,10 @@ router.post('/portfolio', async (req, res, next) => {
   try {
     const { deviceRosters } = req.body || {};
     res.json(checkResponse(schemas.Portfolio, await portfolio.getDashboard(req.mflCookie, req.account, { deviceRosters: deviceRosters || null }), 'POST /portfolio'));
+    // A-6/U-6: fire-and-forget parity self-check on a small SAMPLE of device rosters reads — the backend
+    // re-fetches one league and compares against what the device supplied, so a silent divergence is
+    // observable on /_metrics. AFTER res.json, never awaited, best-effort (never affects the response).
+    if (deviceRosters) shadowParity.sampleRosters(req.mflCookie, deviceRosters, config.deviceParitySampleRate);
   } catch (err) {
     next(err);
   }

@@ -121,7 +121,9 @@ async function preferDevice(readName, deviceFn, backendFn) {
     payload = { ...(await backendFn()), _source: 'backend' };
     ms = Date.now() - t0;
   }
-  if (DEVICE_READS) api.reportDeviceRead(readName, payload._source, { ms, reason });
+  // `ver` = this build's shared-core (mflRead) version, so the backend can spot a stale-app population whose
+  // Shape-A screens it can't see or correct (A-6).
+  if (DEVICE_READS) api.reportDeviceRead(readName, payload._source, { ms, reason, ver: mflRead.VERSION });
   return payload;
 }
 

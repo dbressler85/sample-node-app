@@ -50,6 +50,11 @@ const config = {
   // Legacy per-user APIKEY (export-only, per league) — unused by the registered-UA model, kept for
   // requests that opt into key auth. The UA registration above is the path to higher limits.
   apiKey: process.env.MFL_API_KEY || null,
+  // Sampled device/backend parity self-check (A-6/U-6): the fraction of device-origin portfolio reads on
+  // which the backend re-fetches one league and shadow-compares it against the device's data, so silent
+  // divergence is observable on /_metrics. Kept low (device-origin's point is to NOT read on the backend, so
+  // the check must be rare). 0 disables it.
+  deviceParitySampleRate: (() => { const n = parseFloat(process.env.DEVICE_PARITY_SAMPLE_RATE); return Number.isFinite(n) && n >= 0 && n <= 1 ? n : 0.02; })(),
 
   // Outbound MFL requests run with bounded concurrency plus a small stagger between
   // starts (polite, avoids bursts) — NOT strict serialization. Cold first-load fans
