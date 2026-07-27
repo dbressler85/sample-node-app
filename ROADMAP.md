@@ -5,7 +5,22 @@ the command-center work) lives in [`README.md`](README.md#roadmap); this file
 tracks **remaining** work: functional features, deferred performance/caching items,
 known data limitations, and hardening/ops.
 
-Last reviewed: 2026-07-19.
+Last reviewed: 2026-07-27.
+
+**Since the 2026-07-19 review** (all shipped, mobile changes staged for the next EAS build):
+- **Design system + full motion/neon system** — `docs/DESIGN_SYSTEM.md` (color law, glow recipe,
+  scales), `docs/MOTION_AND_NEON_ROADMAP.md`, and **Phases 0–5 built**: token scales + `glow()` +
+  Oswald + `useReducedMotion`; Traversal (overlay lift, tab slide, screen push); consistency sweep;
+  the **neon signature** (`NeonSign` flicker engine, emoji → neon signs, `NeonSparks` celebration);
+  and the **Threshold ceremony** (`NeonCrest` — the two-tone neon crest — igniting on login, the
+  logout mirror, and the unlit crest as the ambient app-background watermark) + **Texture**
+  (`useActFlash` acted-on-row flash on top of the existing press/skeleton/roll-up primitives).
+- **Neon app icon** — icon / adaptive / splash / favicon re-rendered from the lit neon crest.
+- **Watchlist accent = Acid Yellow `#E4F24A`**; active Target/Avoid/Watch now light with the glow recipe.
+- **Data-honesty pass** — a shared `PartialNote` ("showing N of M leagues — the rest didn't load")
+  across rankings / portfolio / player profile / exposure, backed by loaded-vs-total flags and
+  retry-hardened cross-league fan-outs, so a throttled partial load can never present as complete.
+- **Device-origin reads** shipped behind flags (see the speed note under Performance).
 
 ---
 
@@ -354,39 +369,43 @@ yet. The Misc reference also confirms our `login` should be POST + HTTPS + `XML=
 
 ## Design & motion
 
-Moving the app from "functional but uninspired" toward a slick, branded product.
+The app now has a **full design + motion system**, not just polish. The source of truth is
+[`docs/DESIGN_SYSTEM.md`](docs/DESIGN_SYSTEM.md) (color law: gold = value only, neon tier =
+state/action; the glow recipe; spacing/type/motion scales) and
+[`docs/MOTION_AND_NEON_ROADMAP.md`](docs/MOTION_AND_NEON_ROADMAP.md) (the four motion registers +
+the neon-sign identity + the phased build). `theme.js` implements the tokens; screens consume them.
 
-- [x] **DC monogram on the crest + first-impression polish.** The "Regent Crest" now
-  carries the brand's initials: the crown became a **coronet** (three points = your
-  leagues) and a **gold roundel medallion holds a crisp "DC" monogram**, over the gridiron
-  hash-marks. Login is the flagship polish pass — a branded `FieldBackdrop` (navy gradient
-  + soft gold glow + faint yard-lines), a choreographed entrance (crest springs in,
-  wordmark rises, a gold rule wipes out under "Central"), and a tactile `PressableScale`
-  button. All with the built-in `Animated` API (no new native deps).
-- [~] **Roll the motion primitives across the app.** A real motion system now runs on RN
-  `Animated` (native driver): **`PressableScale`** (springy dip + overshoot pop) on the tab bar,
-  Home tiles, Portfolio link/rows, and the **shared `PlayerRow`** (so Roster / Waivers / Trades /
-  Watch all get a tactile press); **`Pulse`** on the draft "PICK" pill and the Scores live
-  indicator; a new **`Reveal`** (staggered fade-and-rise entrance) cascading the Portfolio
-  holdings + movers rows; a new **`AnimatedNumber`** counting up the headline stats (Portfolio
-  total, Home tiles, live Scores); and the **tab transition** lengthened with a slide + scale so
-  a switch is felt. `Reveal` now cascades the lists on **Portfolio, Trades (inbox + desk),
-  Waivers, Leagues, Players, and Roster** (an `animate` gate keeps virtualized rows that mount
-  on scroll from re-animating — only the first screenful cascades). `FieldBackdrop` is app-wide.
-  *(Still open: Home-level section reveals — deferred since Home remounts on every overlay
-  open/close, which would replay them.)*
-- [ ] **Haptics.** Add `expo-haptics` so key actions (accept/reject trade, draft a pick, submit
-  a claim) carry a physical tap alongside the visual motion — the one "vibrancy" lever RN
-  `Animated` can't provide. Deferred to avoid adding a native dep mid-motion-pass.
-- [x] **Bundle a display typeface.** **Oswald** (condensed "broadcast" face) via `expo-font`
-  + `@expo-google-fonts/oswald`, wired into `ScreenTitle` and the Login wordmark. Loaded
-  defensively (`src/typography.js`): the packages are `require`d in a try/catch and the
-  load races a ~2.2s timeout folded into the boot gate, so a missing/slow font can't hang
-  the splash or crash — it just falls back to the system face. Numbers stay in the system
-  face for tabular alignment. *(Needs `npx expo install` + a rebuild to activate on-device;
-  verify the weights render.)*
-- [x] **Regenerate the app icon / splash** from the new DC crest. *(Done — icon /
-  adaptive-icon / favicon / splash re-rendered from the redesigned crest, 2026-07.)*
+- [x] **Design-system tokens + `glow()`** — `colors`/`space`/`radius`/`size`/`weight`/`motion`/`shadow`
+  and the neon glow recipe (edge + wash + iOS halo), plus `useReducedMotion`. `onAccent` fixes the
+  white-on-accent contrast fail.
+- [x] **Oswald display face** (`expo-font` + `@expo-google-fonts/oswald`), loaded defensively with a
+  timeout fallback; on section labels, titles, and neon words. Numbers stay system-face for tabular
+  alignment.
+- [x] **Traversal (Phase 2)** — directional overlay lift-from-row open/close, tab slide + scale, and
+  the app fall-in after login, all native-driven and reduce-motion-aware.
+- [x] **Neon signature (Phase 4)** — `neon.js` flicker engine + `NeonSign`/`NeonGlyphs` (a wired sign
+  that flickers on; two grades: moment vs steady inline), the **emoji → neon** sweep on the
+  high-traffic surfaces (celebration, On Deck icons, Home, device-note bolt, Scores, League/Profile
+  trophy), and `NeonSparks` replacing the confetti. Pure-text marks (`★ ☆ ›`) kept + tinted.
+- [x] **Threshold (Phase 5)** — `NeonCrest` (the approved two-tone gem-lit crest in react-native-svg;
+  lit + colored-dull-unlit states, flicker ignition) as the **login lockup** (rests unlit → ignites
+  on sign-in → holds → fly-out), the **logout mirror** (app powers down → login flies in → crest
+  flickers out), and the unlit crest as the **ambient app-background watermark**. Retires the old
+  gold-filled `HubMark`.
+- [x] **Texture (Phase 5)** — press feedback (`PressableScale`), skeleton shimmer (`Skeleton`), value
+  roll-ups (`AnimatedNumber`), and the **acted-on-row flash** (`useActFlash`) on Target/Avoid/Watch +
+  the on-the-block toggle. Active Target/Avoid/Watch icons light with the glow recipe.
+- [x] **Neon app icon** — icon / adaptive-icon / splash / favicon re-rendered from the **lit** neon
+  crest (glow dialed back for small-size legibility, verified at 96px).
+- [~] **On-device tuning (needs the EAS build).** Settle live: ignition/fly-out timing; the in-app RN
+  glow intensity (the live crest uses layered-stroke glow, not the icon's baked CSS glow);
+  **Acid `#E4F24A` vs Neon Lime `#D6F84E`** for the watch accent, in-row; the Deep Ink background.
+- [ ] **Neon tails (next build, `MOTION_AND_NEON_ROADMAP` §7).** Waiver/draft status-icon sets
+  (`🟢 🔒 🗓` → new dot/lock/calendar glyphs) and the trophy hero cups (Trophy Case, Playoff Bracket)
+  still use emoji; Texture's chip/segment pop-on-toggle and extending the flash to claim/trade rows.
+- [ ] **Haptics.** Add `expo-haptics` so key actions (accept/reject trade, draft a pick, submit a
+  claim) carry a physical tap — the one "vibrancy" lever RN `Animated` can't provide. Deferred to
+  avoid adding a native dep mid-motion-pass; good to pair with the next build.
 
 ## Performance & caching backlog
 
@@ -443,6 +462,19 @@ Remaining, in rough priority order:
   not in-flight promises. The snapshot memo already coalesces same-format callers;
   distinct-format concurrent cold callers could still double-fetch a provider.
   Low priority.
+- [~] **Device-origin MFL reads + the single-device speed tradeoff.** Eligible per-user reads can
+  run straight from the device (its own IP + MFL budget) with a silent backend fallback
+  ([`docs/DEVICE_ORIGIN_MFL.md`](docs/DEVICE_ORIGIN_MFL.md)), gated by TWO flags AND-ed together:
+  the app's build-time `EXPO_PUBLIC_DEVICE_READS` (baked into the binary — can't change on an
+  installed app) and the backend's runtime `DEVICE_READS_ENABLED` (Render env — the master switch,
+  flippable with no rebuild). **Open decision:** device-reads make the app slower on a *single*
+  device (the split adds round-trips); until there are multiple devices to spread load, turn the
+  Render master switch OFF (fast shared-backend path) and/or carve a `device-test` eas profile so
+  device-reads only ship in an opt-in build.
+- [x] **Cross-league fan-outs retry transient throttles.** A shared `withRetry` wraps the per-league
+  reads (rosters, free agents, waiver **settings**, calendar, pending, exposure) so one 429/403 in a
+  burst no longer surfaces as a spurious "couldn't load" for whichever league lost the race — it
+  retries, then falls back honestly (partial flags, never a fabricated complete result).
 
 ## Data limitations (MFL doesn't expose these cleanly)
 
