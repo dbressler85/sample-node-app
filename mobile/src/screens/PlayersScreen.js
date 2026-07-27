@@ -2,10 +2,10 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, FlatList, StyleSheet, Pressable, TextInput, ActivityIndicator, Linking, Animated } from 'react-native';
 import { api } from '../api';
 import { exposurePreferDevice, bestAvailablePreferDevice } from '../mflDevice';
-import { colors, positionColors } from '../theme';
+import { colors, positionColors, rgb } from '../theme';
 import AvailabilityBadge from '../components/AvailabilityBadge';
 import AddAcrossSheet from '../components/AddAcrossSheet';
-import { TargetIcon, AvoidIcon, WatchIcon } from '../components/PlayerActionIcons';
+import { TargetIcon, AvoidIcon, WatchIcon, GlowChip } from '../components/PlayerActionIcons';
 import { getValue, setValue } from '../cache';
 import { peekResource, primeResource } from '../useCachedResource';
 import InfoDot from '../components/InfoDot';
@@ -533,13 +533,13 @@ function PlayerRow({ p, rank, sub, tag, watched, showTrend, onTag, onWatch, onQu
         {acts ? (
           <View style={styles.actions}>
             <Pressable hitSlop={13} onPress={() => onTag(p.id, t === 'target' ? null : 'target', t)} accessibilityLabel="Target">
-              <TargetIcon size={18} color={t === 'target' ? colors.good : colors.textDim} />
+              <GlowChip active={t === 'target'} triplet={rgb.good}><TargetIcon size={18} color={t === 'target' ? colors.good : colors.textDim} /></GlowChip>
             </Pressable>
             <Pressable hitSlop={13} onPress={() => onTag(p.id, t === 'avoid' ? null : 'avoid', t)} accessibilityLabel="Avoid">
-              <AvoidIcon size={18} color={t === 'avoid' ? colors.bad : colors.textDim} />
+              <GlowChip active={t === 'avoid'} triplet={rgb.bad}><AvoidIcon size={18} color={t === 'avoid' ? colors.bad : colors.textDim} /></GlowChip>
             </Pressable>
             <Pressable hitSlop={13} onPress={() => onWatch(p.id, !w)} accessibilityLabel="Watch">
-              <WatchIcon size={18} color={w ? colors.watch : colors.textDim} filled={w} />
+              <GlowChip active={w} triplet={rgb.watch}><WatchIcon size={18} color={w ? colors.watch : colors.textDim} filled={w} /></GlowChip>
             </Pressable>
           </View>
         ) : null}

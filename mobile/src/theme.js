@@ -22,7 +22,7 @@ export const colors = {
   good: '#2FD196', // positive / win / gain — also the "target" tag hue
   bad: '#FF6470', // negative / loss / destructive — also the "avoid" tag hue
   warn: '#FFA23A', // caution / deadline — orange, kept distinct from gold
-  watch: '#D6F84E', // Neon Lime — the watchlist tag (distinct from value gold). Acid alt: #E4F24A
+  watch: '#E4F24A', // Acid Yellow — the watchlist tag (leans yellow; distinct from value gold + orange warn). Neon Lime alt: #D6F84E
 };
 
 export const positionColors = {
@@ -41,7 +41,7 @@ export const rgb = {
   good: '47,209,150',
   bad: '255,100,112',
   warn: '255,162,58',
-  watch: '214,248,78',
+  watch: '228,242,74',
 };
 
 // 4-based spacing scale — no raw padding/margin/gap literals in screens.

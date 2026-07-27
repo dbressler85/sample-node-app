@@ -12,7 +12,7 @@ const COLORS = {
   bad: { hex: '#FF6470', rgb: '255,100,112' },
   gold: { hex: '#F3C14A', rgb: '243,193,74' },
   warn: { hex: '#FFA23A', rgb: '255,162,58' },
-  watch: { hex: '#D6F84E', rgb: '214,248,78' },
+  watch: { hex: '#E4F24A', rgb: '228,242,74' },
   cold: { hex: '#93A2BE', rgb: '147,162,190' },
 };
 // The near-white tube CORE every neon sign shares — the hot inner filament the color blooms around.
