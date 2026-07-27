@@ -6,6 +6,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   KeyboardAvoidingView,
+  Keyboard,
   Platform,
   Animated,
   Easing,
@@ -62,6 +63,9 @@ export default function LoginScreen({ onLoggedIn, justLoggedOut = false }) {
   const rule = { transform: [{ scaleX: intro }] };
 
   async function submit() {
+    // Drop the keyboard first so it slides away before the ceremony — the neon crest ignition + fly-out
+    // are fully visible instead of half-hidden behind the keyboard.
+    Keyboard.dismiss();
     setBusy(true);
     setError(null);
     try {
@@ -85,7 +89,7 @@ export default function LoginScreen({ onLoggedIn, justLoggedOut = false }) {
       <FieldBackdrop hero watermark={false} />
       <View style={styles.inner}>
         <Animated.View style={[styles.lockup, fade, pop]}>
-          <NeonCrest size={196} ignited={ignited} />
+          <NeonCrest size={216} ignited={ignited} />
         </Animated.View>
 
         <Animated.View style={[fade, rise]}>

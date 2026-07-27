@@ -40,6 +40,8 @@ import TrophyCaseScreen from './src/screens/TrophyCaseScreen';
 import DraftListScreen from './src/screens/DraftListScreen';
 import OnDeckScreen from './src/screens/OnDeckScreen';
 import { loadSession, clearSession } from './src/auth';
+import { hasSeenWelcome, markWelcomeSeen } from './src/welcome';
+import WelcomeModal from './src/components/WelcomeModal';
 import { loadDisplayFont, fonts } from './src/typography';
 import PressableScale from './src/components/PressableScale';
 import FieldBackdrop from './src/components/FieldBackdrop';
@@ -77,6 +79,9 @@ export default function App() {
   const [authed, setAuthed] = useState(false);
   const [justLoggedOut, setJustLoggedOut] = useState(false); // drives the login's crest flicker-OUT mirror
   const [demoMode, setDemoMode] = useState(false);
+  const [welcomeSeen, setWelcomeSeen] = useState(null); // null until loaded from storage; drives the first-run intro
+  const [showWelcome, setShowWelcome] = useState(false);
+  const pushArmed = useRef(false); // register-for-push fires once per session, after the ceremony (never mid-animation)
   const [tab, setTab] = useState('home');
   // Overlays form a stack so back returns to the previous screen (e.g. Trades or
   // Draft opened from a roster returns to that roster, not Home).
@@ -158,6 +163,7 @@ export default function App() {
       // Load the display face and the session in parallel; the font load can't hang the
       // splash (it races an internal timeout) and never blocks past ~2s.
       const token = await loadSession();
+      hasSeenWelcome().then(setWelcomeSeen); // gates the first-run intro (and, on first run, defers the push prompt)
       setAuthed(!!token);
       if (token) api.health().then((h) => setDemoMode(!!h.demoMode)).catch(() => {});
       // Don't hold the splash on the display font (~2.2s worst case). Give it a brief head start
@@ -171,11 +177,34 @@ export default function App() {
     })();
   }, []);
 
-  // Register this device for push once authenticated (after login and on a
-  // restored session). Defensive: no-ops if push isn't available/granted.
+  // Register this device for push — but never DURING the login ceremony. The OS permission prompt is a
+  // blocking modal, so firing it the instant we authenticate would freeze the crest ignition + app
+  // drop-in mid-animation. Fire it once per session, AFTER the ceremony settles:
+  //   • returning user  → a short delay past the drop-in, then register (no prompt if already decided).
+  //   • brand-new user  → hold it entirely; the welcome intro's "Enter" arms it, so the very first
+  //                        permission prompt lands only after they've dismissed the intro.
+  const armPush = useCallback(() => {
+    if (pushArmed.current) return;
+    pushArmed.current = true;
+    registerForPush();
+  }, []);
   useEffect(() => {
-    if (authed) registerForPush();
-  }, [authed]);
+    if (!authed || welcomeSeen === null) return undefined;
+    if (welcomeSeen === false) {
+      // First run: surface the intro once the ceremony has settled; push waits for its dismissal.
+      const t = setTimeout(() => setShowWelcome(true), 1300);
+      return () => clearTimeout(t);
+    }
+    const t = setTimeout(armPush, 1400); // returning user: arm after the drop-in
+    return () => clearTimeout(t);
+  }, [authed, welcomeSeen, armPush]);
+
+  const closeWelcome = useCallback(() => {
+    setShowWelcome(false);
+    setWelcomeSeen(true);
+    markWelcomeSeen();
+    armPush(); // now — after they've read the intro — is the moment to ask for notifications
+  }, [armPush]);
 
   // Idle prefetch: once a tab settles, give the screen the user actually opened a head
   // start, then quietly warm the OTHER tabs' caches in the background so switching to
@@ -197,6 +226,7 @@ export default function App() {
       clearResourceCache();
       deviceReadCache.clear(); // device-origin reads hold parsed rosters/etc per account — wipe on auth loss (UX_GUARDRAILS C11)
       deviceEnrichCache.clear(); // cached enrichment carries personal tag/watched — wipe on auth loss (C11)
+      pushArmed.current = false; // re-register for push on the next sign-in
       setAuthed(false);
       setTab('home');
       setOverlayStack([]);
@@ -229,6 +259,7 @@ export default function App() {
       setOverlayStack([]);
       setJustLoggedOut(true); // login mounts with the crest lit, then extinguishes it
       setAuthed(false);
+      pushArmed.current = false; // a fresh sign-in re-registers for push (we just unregistered below)
       drop.setValue(1); // reset so the next fall-in starts clean
       // Wipe session + all per-account caches (UX_GUARDRAILS C11). Fire-and-forget so the logout
       // transition stays instant; unregisterPush needs the still-present session, so it runs first.
@@ -558,6 +589,11 @@ export default function App() {
           them, lets the confetti behind it show. */}
       <ErrorBoundary silent>
         <ToastHost />
+      </ErrorBoundary>
+      {/* First-run intro — shown once, over the app, after the login ceremony settles. Orients a new
+          user and buys time while their leagues fan out behind it. */}
+      <ErrorBoundary silent>
+        <WelcomeModal visible={authed && showWelcome} onClose={closeWelcome} />
       </ErrorBoundary>
     </View>
   );
