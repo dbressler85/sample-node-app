@@ -15,6 +15,7 @@ const TYPE = {
   draft_clock: { icon: '🎯', tint: colors.gold },
   draft_start: { icon: '🎯', tint: colors.accent },
   lineup_lock: { icon: '⚑', tint: colors.warn },
+  lineup_unknown: { icon: '⚠', tint: colors.warn }, // lineup read failed — "couldn't check", not "all good"
   waiver_run: { icon: '⇄', tint: colors.accent },
   trade_offer: { icon: '🤝', tint: colors.accent },
   trade_deadline: { icon: '⏳', tint: colors.bad },

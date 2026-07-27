@@ -431,6 +431,11 @@ async function profile(cookie, token, playerId) {
   // per-league value).
   const inSeason = ctx.week >= 1 && ctx.week <= 18;
 
+  // The cross-league roll-up runs over gather()'s loaded leagues only; capture its honesty meta
+  // (set inside the D) closure) so the profile can say "8 of 15 leagues" instead of presenting the
+  // ownership map as complete — the same "owned in N/N" trust bug the lists carry.
+  let crossMeta = { leaguesTotal: 0, leaguesLoaded: 0, partial: false };
+
   // Four independent MFL fan-outs — game log, upcoming schedule, per-player news, and the
   // cross-league roll-up — used to run one after another, so the profile's latency was
   // their SUM. They don't depend on each other, so run them concurrently: latency is now
@@ -473,7 +478,9 @@ async function profile(cookie, token, playerId) {
     })(),
     // D) Cross-league ownership + per-league projection.
     (async () => {
-      const { data } = await gather(cookie, token);
+      const g = await gather(cookie, token);
+      const { data } = g;
+      crossMeta = { leaguesTotal: g.leaguesTotal, leaguesLoaded: g.leaguesLoaded, partial: g.partial };
       return Promise.all(
         data.map(async ({ league, roster, faSet }) => {
           // The profile's labels over the shared canonical standing: a player I've dropped
@@ -587,6 +594,11 @@ async function profile(cookie, token, playerId) {
     schedule: { upcoming, avgDifficulty },
     news,
     crossLeague,
+    // Honesty meta for the cross-league card: when partial, the ownership map covers leaguesLoaded of
+    // leaguesTotal — the app shows "8 of 15 leagues loaded" instead of presenting a subset as complete.
+    leaguesTotal: crossMeta.leaguesTotal,
+    leaguesLoaded: crossMeta.leaguesLoaded,
+    partial: crossMeta.partial,
     actions: {
       addLeagues: crossLeague.filter((c) => c.relation === 'free').map((c) => ({ leagueId: c.leagueId, name: c.name, system: c.system })),
       dropLeagues: crossLeague.filter((c) => c.relation === 'rostered').map((c) => ({ leagueId: c.leagueId, name: c.name, bucket: c.bucket })),

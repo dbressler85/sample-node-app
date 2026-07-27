@@ -9,6 +9,7 @@ import TradeAcrossSheet from '../components/TradeAcrossSheet';
 import { TargetIcon, AvoidIcon, WatchIcon } from '../components/PlayerActionIcons';
 import useAndroidBack from '../useAndroidBack';
 import useCachedResource from '../useCachedResource';
+import PartialNote from '../components/PartialNote';
 
 const RELATION = {
   rostered: { label: 'Rostered', color: colors.good },
@@ -349,6 +350,8 @@ export default function PlayerProfileScreen({ playerId, seed, onBack, onOpenTrad
               </View>
             );
           })}
+          {/* Honesty: this map covers the leagues we could read — say so instead of implying it's all of them. */}
+          <PartialNote loaded={p.leaguesLoaded} total={p.leaguesTotal} onRetry={reload} />
         </Card>
 
         {/* Recent news — at the bottom. Tapping a headline opens the source story. */}

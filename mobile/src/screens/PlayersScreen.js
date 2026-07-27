@@ -406,6 +406,9 @@ export default function PlayersScreen({ onOpenPlayer }) {
               ) : null}
               <PosFilter pos={pos} setPos={setPos} />
               <SortRow value={listSort} onChange={setListSort} />
+              {/* Honest exposure: "N leagues" per row counts only the leagues we could read. Nulling `mine`
+                  re-triggers the load effect (device-first, backend fallback). */}
+              {mine ? <PartialNote loaded={mine.leaguesLoaded} total={mine.leaguesTotal} onRetry={() => setMine(null)} /> : null}
               <FlatList
                 data={mineData}
                 keyExtractor={(p) => p.id}
