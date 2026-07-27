@@ -5,6 +5,7 @@ import { api } from '../api';
 import { colors } from '../theme';
 import { displayLg, displayLabel } from '../typography';
 import useAndroidBack from '../useAndroidBack';
+import { peekResource, primeResource } from '../useCachedResource';
 
 // The push channels, in display order. `key` matches the backend pref key.
 const CHANNELS = [
@@ -25,7 +26,9 @@ export default function SettingsScreen({ onBack, onOpenHelp, onLogout }) {
     ]);
   }, [onLogout]);
 
-  const [prefs, setPrefs] = useState(null);
+  // Seed from cache so re-opening Settings (an overlay — unmounts on back) shows the switches instantly
+  // instead of a spinner; the mount fetch revalidates. Push prefs rarely change.
+  const [prefs, setPrefs] = useState(() => { const h = peekResource('settings:pushPrefs'); return h ? h.value : null; });
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
 
@@ -33,7 +36,7 @@ export default function SettingsScreen({ onBack, onOpenHelp, onLogout }) {
 
   useEffect(() => {
     api.pushPrefs()
-      .then((r) => setPrefs(r.prefs || {}))
+      .then((r) => { const p = r.prefs || {}; setPrefs(p); primeResource('settings:pushPrefs', p); })
       .catch((e) => setError(e.message));
   }, []);
 
@@ -42,7 +45,7 @@ export default function SettingsScreen({ onBack, onOpenHelp, onLogout }) {
       const next = { ...cur, [key]: !cur[key] };
       setSaving(true);
       api.setPushPrefs(next)
-        .then((r) => { if (r && r.prefs) setPrefs(r.prefs); })
+        .then((r) => { if (r && r.prefs) { setPrefs(r.prefs); primeResource('settings:pushPrefs', r.prefs); } })
         .catch(() => { setError('Could not save — tap a switch to retry'); setPrefs(cur); }) // revert
         .finally(() => setSaving(false));
       return next;

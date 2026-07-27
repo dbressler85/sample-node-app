@@ -4,6 +4,7 @@ import { api } from '../api';
 import { colors } from '../theme';
 import { displayLg, displayLabel } from '../typography';
 import useAndroidBack from '../useAndroidBack';
+import { peekResource, primeResource } from '../useCachedResource';
 import Sparkline from '../components/Sparkline';
 import NeonSign from '../components/NeonSign';
 
@@ -12,8 +13,10 @@ import NeonSign from '../components/NeonSign';
 // actions. Identity loads instantly from /api/me; the value + outlook + activity fill in from
 // the (client-cached) portfolio and watchlist reads, so the card is never blank while loading.
 export default function ProfileScreen({ onBack, onOpenPortfolio, onOpenSettings, onOpenHelp, onOpenPlayer, onOpenTrophies, onLogout }) {
-  const [me, setMe] = useState(null);
-  const [port, setPort] = useState(null);
+  // Seed identity (+ the portfolio glance) from cache so re-opening Profile — an overlay that unmounts
+  // on back — paints the card instantly instead of a full-screen spinner. `me` gates the screen.
+  const [me, setMe] = useState(() => { const h = peekResource('me'); return h ? h.value : null; });
+  const [port, setPort] = useState(() => { const h = peekResource('portfolio'); return h ? h.value : null; });
   const [watchCount, setWatchCount] = useState(null);
   const [error, setError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -21,8 +24,8 @@ export default function ProfileScreen({ onBack, onOpenPortfolio, onOpenSettings,
   useAndroidBack(useCallback(() => { onBack(); return true; }, [onBack]));
 
   const load = useCallback(() => {
-    api.me().then(setMe).catch((e) => setError(e.message));
-    api.portfolio().then(setPort).catch(() => {});
+    api.me().then((m) => { setMe(m); primeResource('me', m); }).catch((e) => setError(e.message));
+    api.portfolio().then(setPort).catch(() => {}); // read-only for the glance; the Portfolio tab owns its cache
     api.watchlist().then((w) => setWatchCount((w.players || []).length)).catch(() => {});
     setRefreshing(false);
   }, []);

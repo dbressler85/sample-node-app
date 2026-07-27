@@ -471,11 +471,10 @@ Remaining, in rough priority order:
   (never skips the fetch), so there's no stale-after-action surprise — the trap
   that sank the earlier time-based Home gate. *(Not applied to Scores — it's live
   and freshness matters. Draft Hub and Trade Inbox could get the same treatment.)*
-- [~] **Stale-while-revalidate SWEEP — the remaining blank-on-reload screens.** (2026-07-27 audit:
-  ~23/30 screens already keep prior data; **7 still show a full-screen spinner / blank while prior
-  values exist**.) Principle: keep the old values on screen and revalidate in the background (a thin
-  top "refreshing" hint at most); reserve the blocking spinner for a genuine cold first-load with no
-  cached data. In rough priority:
+- [x] **Stale-while-revalidate SWEEP — the remaining blank-on-reload screens.** DONE (2026-07-27 audit:
+  ~23/30 screens already kept prior data; the 7 that still blanked are all fixed). Principle: keep the
+  old values on screen and revalidate in the background (a thin "refreshing" hint at most); reserve the
+  blocking spinner for a genuine cold first-load with no cached data. All items below shipped:
   - [x] **P1 · WaiversScreen league board** — DONE. The board now seeds instantly from a per
     `leagueId+position+sort` resource-store key and keeps the prior board on screen during revalidate;
     the full spinner is gated on `!board`, a small inline "refreshing" hint shows while a shown board
@@ -484,18 +483,17 @@ Remaining, in rough priority order:
   - [x] **P2 · PortfolioScreen error takeover** — DONE. Full-screen error now gated `if (fetchError && !d)`
     so a failed background refetch keeps the painted book; the failed shop-toggle / untag paths route to a
     toast (the row already reverts) instead of tripping the page-level error.
-  - **P2 · PlayersScreen Watch tab** (`setWatch(null)` on open) nulls the list every open → spinner,
-    unlike sibling Mine/News/Free tabs which keep prior data. Drop the null; refetch in the background
-    (mirror `reloadMine`). *(S.)*
-  - **P2 · Leagues / Profile / Settings overlays** — bespoke `useState(null)` with no `peekResource`
-    seeding, so each open cold-loads a full spinner though the data rarely changes (every other overlay
-    repaints instantly from the surviving resource store). Migrate the three to `useCachedResource`
-    (or seed via `peekResource`). *(S–M each.)*
+  - [x] **P2 · PlayersScreen Watch tab** — DONE. Dropped the `setWatch(null)` on open; it refetches in
+    the background keeping the prior list (mirrors My Players), re-pricing on `format` change.
+  - [x] **P2 · Leagues / Profile / Settings overlays** — DONE. The three bespoke `useState(null)` overlays
+    now seed from the surviving in-memory store via `peekResource` (Leagues `leagues:list`, Profile `me` +
+    the portfolio glance, Settings `settings:pushPrefs`) and prime on load, so re-opening repaints
+    instantly and revalidates instead of cold-loading a full spinner.
   - [x] **P3 · LineupEditorScreen error gate** — DONE. Gated `if (error && !detail)` so a failed refetch
     after a seeded paint keeps the shown lineup instead of an error view.
-  Systemic: the two error-gate bugs (Portfolio, LineupEditor) are the same `if (error)` →
-  `if (error && !data)` class; the three overlay cold-loads are the same "not on the resource store"
-  class. Fixing all seven closes the pattern across the app.
+  Closed all seven: the two error-gate bugs (Portfolio, LineupEditor) were the same `if (error)` →
+  `if (error && !data)` class; the three overlay cold-loads were the same "not on the resource store"
+  class; the Waivers board + Watch tab were spinners gated on `loading` rather than `!data`.
 - [x] **Seed overlays from Home's already-fetched data.** Done: Home now write-throughs its
   `api.drafts()` / `api.onDeck()` results to the shared SWR cache keys (`'drafts'` / `'ondeck'`),
   and the **Draft Hub** was converted to `useCachedResource('drafts', …)` (On Deck already used

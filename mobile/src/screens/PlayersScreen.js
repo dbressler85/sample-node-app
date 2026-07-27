@@ -222,10 +222,10 @@ export default function PlayersScreen({ onOpenPlayer }) {
     // enriched + grouped via the backend; silently falls back to the backend on any device-read failure.
     if (tab === 'mine' && !mine) reloadMine();
     if (tab === 'news' && !news) api.news().then(setNews).catch((e) => setError(e.message));
-    // Watchlist changes as you star players elsewhere, so refetch each time the
-    // tab is opened rather than caching it.
-    // Both re-price with the value lens, so refetch when `format` changes too.
-    if (tab === 'watch') { setWatch(null); api.watchlist(format).then(setWatch).catch((e) => setError(e.message)); }
+    // Watchlist changes as you star players elsewhere, so refetch each open — but WITHOUT clearing the
+    // current list (mirror My Players), so the prior watch stays on screen while it revalidates instead
+    // of blanking to a spinner. Re-prices when `format` changes too.
+    if (tab === 'watch') api.watchlist(format).then(setWatch).catch((e) => setError(e.message));
   }, [tab, mine, news, format, reloadMine]);
 
   // Free agents get the same stale-while-revalidate treatment as Rankings: paint the cached board at
