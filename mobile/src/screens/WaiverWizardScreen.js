@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, ActivityIndicator, Alert } from 'react-native';
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
@@ -11,9 +11,13 @@ import useAndroidBack from '../useAndroidBack';
 // Wizard that walks league-to-league with a suggested pickup (best add + smart
 // drop + FAAB bid) pre-filled for each. The owner can swap the add from the
 // shortlist, change the drop, adjust the bid, submit, and advance — or skip.
-// `leagues` is the pre-filtered queue of per-league suggestion objects.
+// `leagues` is a lightweight STUB queue ({ leagueId, name, system, waiverState });
+// each league's full suggestion (candidates, bench, recommendation) is loaded on
+// demand — the current one, plus a prefetch of the next — so the first step paints
+// immediately instead of blocking on the whole N-league fan-out (was ~30s cold).
 export default function WaiverWizardScreen({ leagues, onBack, onOpenPlayer }) {
   const [index, setIndex] = useState(0);
+  const [full, setFull] = useState({}); // leagueId -> suggestion | { loading:true } | { error }
   const [addId, setAddId] = useState(null);
   const [dropId, setDropId] = useState(null);
   const [bid, setBid] = useState(null); // string, faab only
@@ -25,13 +29,54 @@ export default function WaiverWizardScreen({ leagues, onBack, onOpenPlayer }) {
   const [results, setResults] = useState([]); // {leagueId, name, action, add?, bid?}
 
   const total = leagues.length;
-  const current = index < total ? leagues[index] : null;
   const done = index >= total;
+  const currentStub = index < total ? leagues[index] : null;
+  const currentId = currentStub ? currentStub.leagueId : null;
+  const nextId = index + 1 < total ? leagues[index + 1].leagueId : null;
+
+  // Lazy per-league loader. `requested` guards against a double-fetch (current + prefetch can both
+  // point at the same league across a re-render); `mountedRef` drops a late resolve after unmount.
+  // The suggestion endpoint returns an error-SHAPED object ({ leagueId, name, error }) on a per-league
+  // failure (a resolved 200, not a reject), so both that and a network reject land in `full` as `.error`.
+  const requested = useRef(new Set());
+  const mountedRef = useRef(true);
+  useEffect(() => () => { mountedRef.current = false; }, []);
+  const loadOne = useCallback((leagueId) => {
+    if (!leagueId || requested.current.has(leagueId)) return;
+    requested.current.add(leagueId);
+    setFull((f) => ({ ...f, [leagueId]: { loading: true } }));
+    api
+      .waiverSuggestion(leagueId)
+      .then((res) => { if (mountedRef.current) setFull((f) => ({ ...f, [leagueId]: res })); })
+      .catch((e) => { if (mountedRef.current) setFull((f) => ({ ...f, [leagueId]: { error: e.message } })); });
+  }, []);
+  const retry = useCallback((leagueId) => { requested.current.delete(leagueId); loadOne(leagueId); }, [loadOne]);
+
+  // Load the league we're on now and prefetch the next, so it's ready the moment the user advances.
+  useEffect(() => {
+    if (currentId) loadOne(currentId);
+    if (nextId) loadOne(nextId);
+  }, [currentId, nextId, loadOne]);
+
+  const currentFull = currentId ? full[currentId] : null;
+  const loadingCurrent = !!(currentFull && currentFull.loading);
+  const currentError = currentFull && currentFull.error ? currentFull.error : null;
+  // The fully-loaded suggestion for the current league (null while loading / on error).
+  const current = currentFull && !currentFull.loading && !currentFull.error ? currentFull : null;
 
   // Exit the wizard on hardware back.
   useAndroidBack(useCallback(() => { onBack(); return true; }, [onBack]));
 
-  // Seed the selection from each league's recommendation as we arrive.
+  // A loaded league with no free agents to consider and no lock to explain is nothing to act on —
+  // silently advance past it (mirrors the old pre-filter, but done progressively as each loads).
+  useEffect(() => {
+    if (!current) return;
+    if (!current.locked && (!current.candidates || current.candidates.length === 0)) {
+      setIndex((i) => i + 1);
+    }
+  }, [current && current.leagueId]);
+
+  // Seed the selection from each league's recommendation once its suggestion arrives.
   useEffect(() => {
     if (!current) return;
     const rec = current.recommended;
@@ -149,17 +194,25 @@ export default function WaiverWizardScreen({ leagues, onBack, onOpenPlayer }) {
     }
   }
 
+  // Skip works even while the league is still loading — key it off the stub, not the loaded suggestion.
   function skip() {
-    advance({ leagueId: current.leagueId, name: current.name, action: 'skipped' });
+    if (!currentStub) return;
+    advance({ leagueId: currentStub.leagueId, name: currentStub.name, action: 'skipped' });
   }
   function nextLocked() {
-    advance({ leagueId: current.leagueId, name: current.name, action: 'locked' });
+    if (!currentStub) return;
+    advance({ leagueId: currentStub.leagueId, name: currentStub.name, action: 'locked' });
   }
 
   if (done) return <Summary results={results} onBack={onBack} />;
-  if (!current) return null;
+  if (!currentStub) return null;
 
-  const rec = current.recommended;
+  const rec = current ? current.recommended : null;
+  // A loaded-but-empty, non-locked league is about to be auto-advanced (effect above); keep showing
+  // the loading state through that beat instead of flashing an empty "pick a player" builder.
+  const skipping = !!(current && !current.locked && (!current.candidates || current.candidates.length === 0));
+  const showBuilder = !!current && !skipping;
+
   return (
     <View style={styles.container}>
       <View style={styles.topbar}>
@@ -173,6 +226,21 @@ export default function WaiverWizardScreen({ leagues, onBack, onOpenPlayer }) {
         <View style={[styles.barFill, { width: `${Math.round((index / total) * 100)}%` }]} />
       </View>
 
+      {loadingCurrent || skipping ? (
+        <View style={styles.loadingStep}>
+          <ActivityIndicator color={colors.accent} size="large" />
+          <Text style={styles.loadingName} numberOfLines={1}>{currentStub.name}</Text>
+          <Text style={styles.loadingHint}>Loading suggestions…</Text>
+        </View>
+      ) : currentError ? (
+        <View style={styles.loadingStep}>
+          <Text style={styles.errorStepTitle} numberOfLines={1}>{currentStub.name}</Text>
+          <Text style={styles.errorStepBody}>{currentError}</Text>
+          <Pressable style={styles.retryBtn} onPress={() => retry(currentId)}>
+            <Text style={styles.retryText}>Try again</Text>
+          </Pressable>
+        </View>
+      ) : showBuilder ? (
       <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
         <Text style={[styles.title, displayLg()]} numberOfLines={1}>{current.name}</Text>
         <Text style={styles.subtitle}>
@@ -319,13 +387,27 @@ export default function WaiverWizardScreen({ leagues, onBack, onOpenPlayer }) {
         </>
         )}
       </ScrollView>
+      ) : null}
 
       <View style={styles.actions}>
-        {current.locked ? (
+        {loadingCurrent || skipping ? (
+          <Pressable style={styles.skipInline} onPress={skip}>
+            <Text style={styles.skipInlineText}>Skip</Text>
+          </Pressable>
+        ) : currentError ? (
+          <>
+            <Pressable style={styles.skipInline} onPress={skip}>
+              <Text style={styles.skipInlineText}>Skip</Text>
+            </Pressable>
+            <Pressable style={styles.submit} onPress={() => retry(currentId)}>
+              <Text style={styles.submitText}>Retry</Text>
+            </Pressable>
+          </>
+        ) : current && current.locked ? (
           <Pressable style={styles.submit} onPress={nextLocked}>
             <Text style={styles.submitText}>{index + 1 === total ? 'Finish' : 'Next league ›'}</Text>
           </Pressable>
-        ) : (
+        ) : showBuilder ? (
           <>
             <Pressable style={styles.skipInline} onPress={skip} disabled={submitting}>
               <Text style={styles.skipInlineText}>Skip</Text>
@@ -344,7 +426,7 @@ export default function WaiverWizardScreen({ leagues, onBack, onOpenPlayer }) {
               )}
             </Pressable>
           </>
-        )}
+        ) : null}
       </View>
     </View>
   );
@@ -447,6 +529,13 @@ const styles = StyleSheet.create({
   bar: { height: 4, backgroundColor: colors.card, marginHorizontal: 16, marginTop: 10, borderRadius: 2, overflow: 'hidden' },
   barFill: { height: 4, backgroundColor: colors.accent },
   body: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 20 },
+  loadingStep: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
+  loadingName: { color: colors.text, fontSize: 18, fontWeight: '800', marginTop: 16, textAlign: 'center' },
+  loadingHint: { color: colors.textDim, fontSize: 13, marginTop: 6 },
+  errorStepTitle: { color: colors.text, fontSize: 18, fontWeight: '800', textAlign: 'center' },
+  errorStepBody: { color: colors.bad, fontSize: 14, marginTop: 10, textAlign: 'center', lineHeight: 20 },
+  retryBtn: { marginTop: 18, borderWidth: 1, borderColor: colors.accent, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 28 },
+  retryText: { color: colors.accent, fontSize: 14, fontWeight: '800' },
   title: { color: colors.text, fontSize: 22, fontWeight: '900' },
   subtitle: { color: colors.textDim, fontSize: 13, marginTop: 6 },
   reason: { color: colors.textDim, fontSize: 13, fontWeight: '700', marginTop: 8 },

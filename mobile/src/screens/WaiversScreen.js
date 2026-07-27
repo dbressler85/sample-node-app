@@ -45,7 +45,6 @@ export default function WaiversScreen({ active = true, initialLeagueId, initialP
   // snapshot INSTANTLY (the screen unmounts on every tab switch, so a bare fetch showed a cold
   // full-screen spinner every single time). It revalidates in the background and after a claim.
   const { data: pending, reload: loadPending } = useCachedResource('waivers:pending', () => api.waiverPending(), { active });
-  const [wizardLoading, setWizardLoading] = useState(false);
   const [segment, setSegment] = useState('leagues'); // 'leagues' | 'pending'
   // A league drill-in: the per-league board. Set from a card tap or a Home
   // deep-link (initialLeagueId), which lands the user straight on that board.
@@ -104,26 +103,21 @@ export default function WaiversScreen({ active = true, initialLeagueId, initialP
     loadPending();
   }
 
-  // Fetch per-league pickup suggestions, then hand the wizard a queue of the
-  // leagues that actually have free agents to consider.
-  async function startWizard() {
+  // Open the wizard INSTANTLY with a lightweight stub queue built from the overview we
+  // already have — the wizard then loads each league's full suggestion on demand (current +
+  // prefetch next) instead of blocking here on the whole N-league fan-out (was ~30s cold).
+  function startWizard() {
     if (!onStartWizard) return;
-    setWizardLoading(true);
-    try {
-      const res = await api.waiverSuggestions();
-      // Include locked leagues so the wizard can explain them (draft pending, etc.)
-      // rather than silently omitting them.
-      const queue = (res.leagues || []).filter((l) => !l.error && (l.locked || (l.candidates && l.candidates.length)));
-      if (!queue.length) {
-        Alert.alert('Nothing to pick up', 'No free agents worth a claim across your leagues right now.');
-        return;
-      }
-      onStartWizard(queue);
-    } catch (e) {
-      Alert.alert('Could not build suggestions', e.message);
-    } finally {
-      setWizardLoading(false);
+    const src = overview && overview.leagues ? overview.leagues : null;
+    if (!src) return; // button is only shown once the overview has leagues, so this is defensive
+    const stubs = src
+      .filter((l) => !l.error)
+      .map((l) => ({ leagueId: l.leagueId, name: l.name, system: l.system, waiverState: l.waiverState }));
+    if (!stubs.length) {
+      Alert.alert('Nothing to pick up', 'No leagues available to run the wizard right now.');
+      return;
     }
+    onStartWizard(stubs);
   }
 
   async function cancelClaim(cid, lid) {
@@ -187,13 +181,8 @@ export default function WaiversScreen({ active = true, initialLeagueId, initialP
                 <Pressable
                   style={({ pressed }) => [styles.wizardBtn, pressed && { opacity: 0.85 }]}
                   onPress={startWizard}
-                  disabled={wizardLoading}
                 >
-                  {wizardLoading ? (
-                    <ActivityIndicator color="#fff" />
-                  ) : (
-                    <Text style={styles.wizardBtnText}>Waiver Wizard — pick up across leagues</Text>
-                  )}
+                  <Text style={styles.wizardBtnText}>Waiver Wizard — pick up across leagues</Text>
                 </Pressable>
               ) : null}
               <OverviewView

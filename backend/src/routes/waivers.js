@@ -28,10 +28,20 @@ router.post('/waivers/overview', async (req, res, next) => {
   }
 });
 
-// GET /api/waivers/suggestions — league-by-league pickup suggestions (wizard).
+// GET /api/waivers/suggestions — league-by-league pickup suggestions (wizard, all at once).
 router.get('/waivers/suggestions', async (req, res, next) => {
   try {
     res.json(checkResponse(schemas.WaiverSuggestions, await waivers.getSuggestions(req.mflCookie, req.account), 'GET /waivers/suggestions'));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/leagues/:leagueId/waivers/suggestion — ONE league's wizard suggestion. The wizard loads these
+// on demand (current + prefetch next) so the first step paints fast instead of blocking on every league.
+router.get('/leagues/:leagueId/waivers/suggestion', async (req, res, next) => {
+  try {
+    res.json(await waivers.getLeagueSuggestion(req.mflCookie, req.account, req.params.leagueId));
   } catch (err) {
     next(err);
   }
