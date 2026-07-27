@@ -1300,23 +1300,46 @@ async function getOverview(cookie, token, { deviceReads = null } = {}) {
 // Extracted so the wizard can load it PER LEAGUE (progressive) instead of blocking on all N at once.
 // `resolveLockReason` yields the "why it's locked" string — the batch path passes the pre-computed
 // cross-league lock map; the standalone (per-league) path resolves it on its own via calendarLock.
-async function leagueSuggestionOne(cookie, token, league, resolveLockReason) {
+async function leagueSuggestionOne(cookie, token, league) {
       try {
-        const settings = await loadSettings(league, cookie);
-        const fmt = await leagueFormat.format(cookie, league); // format (SF/PPR/TEP) — also keys the value snapshot
-        // byId + ctx (bye map) are loaded alongside so the wizard can carry NFL team, injury status,
-        // and bye week on every player, and reconcile already-submitted claims (incl. ones placed on
-        // MFL directly). enr (values) + points (this-week proj + this-year points) enrich the rostered
-        // players AND the submitted-claim add/drop. byId/ctxFor/enr/points are cached, so cheap.
-        const [byId, ctx, roster, fas, waiverRun, enr, points] = await Promise.all([
+        const draftService = require('./draft'); // lazy require — avoids a waivers↔draft cycle
+        // Phase 1: independent base reads in PARALLEL — league settings, format (SF/PPR/TEP, also keys
+        // the value snapshot), the player DB, and the week/injury/bye context.
+        const [settings, fmt, byId, ctx] = await Promise.all([
+          loadSettings(league, cookie),
+          leagueFormat.format(cookie, league),
           playersLib.load(cookie),
           ctxFor(cookie),
+        ]);
+        // Phase 2: everything that depends on phase 1, ALSO in parallel — roster, free agents, values,
+        // this-week/this-year points, the pending queue, and the calendar/draft posture signals. This
+        // is the wizard's first-paint HOT PATH, so nothing here runs sequentially (the enrichment used
+        // to chain settings→format→batch→pending→posture→lockReason, which made a single league slow).
+        const [roster, fas, waiverRun, enr, points, pend, calLock, faOpen] = await Promise.all([
           rosterService.getRoster(cookie, league.leagueId),
           loadFreeAgents(cookie, league, settings),
           config.demoMode ? Promise.resolve(null) : nextWaiverRun(cookie, league).catch(() => null),
           enrichmentLib.snapshot(fmt, cookie),
-          (async () => pointsMaps.maps(cookie, league, config.demoMode ? demo.week() : await nflLib.currentWeek(cookie).catch(() => null)))(),
+          pointsMaps.maps(cookie, league, ctx.week), // reuse ctx.week (no second currentWeek fetch)
+          reconciledPending(cookie, token, league, byId).catch(() => []),
+          config.demoMode ? Promise.resolve(null) : calendarLock(cookie, league).catch(() => null),
+          config.demoMode ? Promise.resolve(true) : draftService.freeAgencyOpen(cookie, token, league).catch(() => false),
         ]);
+
+        // Posture — waiverPosture's rules, inlined so its reads (calLock/faOpen above) joined the batch
+        // instead of running after it. Bias toward LOCKED when uncertain (freeAgencyOpen defaults false).
+        let waiverState;
+        let lockReason = null;
+        if (config.demoMode) {
+          waiverState = settings.system === 'free' ? 'fa_open' : 'waivers_soon';
+        } else {
+          const faOpenNow = !calLock && faOpen;
+          const hasUpcomingRun = waiverRun != null && waiverRun > Date.now();
+          waiverState = faOpenNow ? 'fa_open' : hasUpcomingRun ? 'waivers_soon' : 'locked';
+          lockReason = waiverState === 'locked' ? calLock : null;
+        }
+        const locked = waiverState === 'locked';
+
         const byeOf = (team) => (ctx.byeMap && ctx.byeMap[team] != null ? Number(ctx.byeMap[team]) : null);
         const projOf = (id) => (points && points.proj.get(String(id)) != null ? points.proj.get(String(id)) : null);
         const seasonOf = (id) => (points && points.season.get(String(id)) != null ? points.season.get(String(id)) : null);
@@ -1357,7 +1380,7 @@ async function leagueSuggestionOne(cookie, token, league, resolveLockReason) {
         // can see what's in before adding more. Fail-soft (never blocks a suggestion).
         let submitted = [];
         try {
-          const pend = await reconciledPending(cookie, token, league, byId);
+          // `pend` came from the phase-2 parallel batch above (reconciledPending) — no second read.
           // Enrich each already-submitted claim with team + value on both the add and the drop, plus
           // the net dynasty value the move swings — so the wizard's "already submitted" strip carries
           // the same context as a live claim.
@@ -1408,13 +1431,7 @@ async function leagueSuggestionOne(cookie, token, league, resolveLockReason) {
           };
         }
 
-        // Calendar-aware posture — the wizard MUST see upcoming runs, not just "open right now": a FAAB
-        // league between runs ('waivers_soon') should still offer a suggestion to QUEUE for the run.
-        // Only a truly 'locked' league (no open FA, no upcoming run) drops its recommendation.
-        const { waiverState } = await waiverPosture(cookie, token, league, settings, waiverRun);
-        const locked = waiverState === 'locked';
-        const lockReason = locked && resolveLockReason ? await resolveLockReason() : null;
-
+        // waiverState / locked / lockReason were computed up top (posture, inlined into phase 2).
         return {
           leagueId: league.leagueId,
           name: league.name,
@@ -1457,12 +1474,9 @@ async function leagueSuggestionOne(cookie, token, league, resolveLockReason) {
 // getLeagueSuggestion so the first step paints fast instead of waiting on the whole fan-out.
 async function getSuggestions(cookie, token) {
   const leagues = await leaguesService.listLeagues(cookie);
-  // Lock REASONS (draft-pending / calendar) for the leagues that are truly locked, computed once
-  // cross-league and handed to each per-league call.
-  const locks = await waiverLocks(cookie, token);
-  const out = await Promise.all(
-    leagues.map((league) => leagueSuggestionOne(cookie, token, league, () => Promise.resolve(locks.get(String(league.leagueId)) || null)))
-  );
+  // Each league now resolves its own lock/posture inside leagueSuggestionOne (no cross-league
+  // precompute needed).
+  const out = await Promise.all(leagues.map((league) => leagueSuggestionOne(cookie, token, league)));
   const summary = {
     total: out.length,
     withSuggestions: out.filter((l) => l.recommended && l.recommended.upgrade).length,
@@ -1485,7 +1499,7 @@ async function getLeagueSuggestion(cookie, token, leagueId) {
     err.status = 404;
     throw err;
   }
-  return leagueSuggestionOne(cookie, token, league, () => calendarLock(cookie, league).catch(() => null));
+  return leagueSuggestionOne(cookie, token, league);
 }
 
 // All pending claims + recent results across leagues, for one activity view. Pending is reconciled
