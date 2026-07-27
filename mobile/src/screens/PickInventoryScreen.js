@@ -8,6 +8,7 @@ import PressableScale from '../components/PressableScale';
 import useAndroidBack from '../useAndroidBack';
 import useCachedResource from '../useCachedResource';
 import { Value } from '../components/Brand';
+import ValueCredit from '../components/ValueCredit';
 
 // Your draft-pick capital, grouped BY LEAGUE (richest capital first) so it reads as "what you hold,
 // and in which window" — not a flat cross-league pile of picks that told you nothing about where to
@@ -67,6 +68,7 @@ export default function PickInventoryScreen({ onBack, onShopPicks, onGetPicks, o
           renderSectionFooter={({ section }) =>
             section.league.count === 0 ? <Text style={styles.leagueEmpty}>No picks — all traded away.</Text> : null
           }
+          ListFooterComponent={<ValueCredit center label="Pick values" style={styles.credit} />}
         />
       )}
     </View>
@@ -177,6 +179,7 @@ const styles = StyleSheet.create({
   chipText: { fontSize: 11, fontWeight: '800', letterSpacing: 0.2 },
   chipTextDim: { color: colors.textDim, fontSize: 11, fontWeight: '700' },
   leagueEmpty: { color: colors.textDim, fontSize: 13, fontStyle: 'italic', paddingVertical: 6 },
+  credit: { marginTop: 8, marginBottom: 20 },
   ctaRow: { flexDirection: 'row', marginTop: 10, marginBottom: 2 },
   cta: { flex: 1, borderRadius: 10, borderWidth: 1, borderColor: colors.accent, paddingVertical: 8, alignItems: 'center', marginRight: 8, backgroundColor: 'rgba(79,140,255,0.10)' },
   ctaAlt: { marginRight: 0 },

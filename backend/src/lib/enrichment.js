@@ -23,6 +23,9 @@ const players = require('./players');
 const { createMemo } = require('./memo');
 
 const TTL_MS = 6 * 60 * 60 * 1000; // 6h — dynasty values/trends change slowly
+// FantasyCalc's Terms of Use ask that cached results ideally be retrieved once per day, so its
+// values get a longer, dedicated TTL than the other (Sleeper/ownership/adds) providers above.
+const FC_TTL_MS = 24 * 60 * 60 * 1000; // 24h — align FantasyCalc refresh with their ToU (§3e)
 const SLEEPER_TREND_URL = 'https://api.sleeper.app/v1/players/nfl/trending/add?lookback_hours=48&limit=300';
 
 const DEFAULT_FORMAT = { numQbs: 1, ppr: 1, tePpr: 1 };
@@ -106,7 +109,7 @@ async function getFantasyCalc(format) {
   // TE premium is applied afterward as a value multiplier.
   const key = `${format.numQbs}|${format.ppr}`;
   const hit = fcCache.get(key);
-  if (hit && Date.now() - hit.at < TTL_MS) return hit;
+  if (hit && Date.now() - hit.at < FC_TTL_MS) return hit;
   if (fcInflight.has(key)) return fcInflight.get(key); // a fetch for this format is already running — share it
   const p = buildFantasyCalc(format, key, hit);
   fcInflight.set(key, p);

@@ -8,6 +8,7 @@ import { displayLg } from '../typography';
 import { celebrate } from '../components/Celebrate';
 import { toast } from '../components/Toast';
 import TradeColumns from '../components/TradeColumns';
+import ValueCredit from '../components/ValueCredit';
 import Reveal from '../components/Reveal';
 import NeonSign from '../components/NeonSign';
 import useActFlash from '../useActFlash';
@@ -664,6 +665,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
                   <FaabInput amount={faabOf(receive)} onChange={(n) => setFaab(setReceive, n)} tint={colors.good} />
                 </View>
               </View>
+              <ValueCredit center style={styles.credit} />
             </>
           ) : <Text style={styles.empty}>Pick a team above.</Text>}
         </ScrollView>
@@ -1002,6 +1004,7 @@ const styles = StyleSheet.create({
   segTextActive: { color: colors.text },
   list: { padding: 16 },
   empty: { color: colors.textDim, textAlign: 'center', marginTop: 30, fontSize: 14 },
+  credit: { marginTop: 14, marginBottom: 4 },
   error: { color: colors.bad, textAlign: 'center', marginTop: 12, marginHorizontal: 24 },
   retry: { marginTop: 16, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingHorizontal: 24, paddingVertical: 10 },
   retryText: { color: colors.accent, fontWeight: '700' },

@@ -13,6 +13,17 @@ Providers: **MFL** (MyFantasyLeague — the league system of record), **FantasyC
 values + ages), **Sleeper** (trending adds + headshots), **ESPN** (news), **app stores**
 (`state.json`, the app's own data), and **computed** (values the app derives, not reads).
 
+**FantasyCalc Terms of Use compliance.** We lean on FantasyCalc for player *and* draft-pick
+dynasty values, so we honor their ToU: (a) **non-commercial** use only (this is a solo, unpaid
+app — a commercial release would need their written permission); (b) **attribution** — a tappable
+"FantasyCalc.com" credit sits in close proximity to the values on every value-bearing screen
+(rankings, player profile, portfolio, trades, pick capital) via `components/ValueCredit.js`, plus a
+persistent **Data & credits** row in Settings and the Help "Where values come from" topic; (c)
+**cache ~once/day** — the FantasyCalc snapshot uses a dedicated 24h TTL (`FC_TTL_MS` in
+`lib/enrichment.js`), longer than the 6h TTL the other providers share, to match their
+"ideally retrieve once per day" guidance; (d) we never redistribute bulk FantasyCalc data — only
+per-player/-pick values rendered inside the app.
+
 ---
 
 ## 1. Player identity & attributes
