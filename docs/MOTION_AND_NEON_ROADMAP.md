@@ -18,7 +18,16 @@ throughline, not competing to-do lists.
 > on-device tuning per §7): the remaining **status-icon sets** (waiver `🟢/🔒`, draft `🗓`) which
 > need new glyphs (dot/lock/calendar) + per-widget restructuring, and the **trophy hero cups**
 > (Trophy Case, Playoff Bracket empty/champion) sized live. Pure-text marks (`★ ☆ ›`) are kept and
-> tinted, per §3.7. Phase 5 (threshold crest ignition + texture) is unstarted and depends on this.
+> tinted, per §3.7.
+>
+> **Phase 5 (threshold + texture) — Threshold landed.** The approved neon crest is now `NeonCrest`
+> (react-native-svg: two-tone tubes, lit + colored-dull-unlit states, flicker ignition, reduce-motion
+> aware). It's wired as the **login lockup** (rests unlit → ignites on sign-in → holds → fly-out) with
+> the **logout mirror** (app powers down → login flies in → crest flickers out), and as the **ambient
+> app-background watermark** (unlit crest, low opacity — reserved gold, quiet behind content; overlays
+> stay gradient-only for perf). The old gold-filled `HubMark` is retired from the app. **Texture is the
+> remaining half** (press feedback sweep, acted-on-row flash, value roll-ups, chip/segment pops) —
+> next build. Exact ignition/fly-out timing + the RN glow intensity are on-device tune items (§7).
 
 ---
 

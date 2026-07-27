@@ -75,6 +75,7 @@ export default function App() {
   const [booting, setBooting] = useState(true);
   const [, bumpFont] = useState(0); // re-render trigger when a slow first-load font finally lands
   const [authed, setAuthed] = useState(false);
+  const [justLoggedOut, setJustLoggedOut] = useState(false); // drives the login's crest flicker-OUT mirror
   const [demoMode, setDemoMode] = useState(false);
   const [tab, setTab] = useState('home');
   // Overlays form a stack so back returns to the previous screen (e.g. Trades or
@@ -128,6 +129,7 @@ export default function App() {
   }, [tab, tabSlide, tabFade, tabScale, reduced]);
 
   function handleLoggedIn(info) {
+    setJustLoggedOut(false); // consumed — the next logout re-arms the mirror
     if (info && typeof info.demoMode === 'boolean') setDemoMode(info.demoMode);
     // Beat 1: login accelerates up and out — slower and further, so it clearly departs.
     Animated.timing(leave, { toValue: 1, duration: 760, easing: Easing.in(Easing.cubic), useNativeDriver: true }).start(() => {
@@ -219,17 +221,33 @@ export default function App() {
     }, [authed, overlay, tab])
   );
 
-  async function handleLogout() {
-    await unregisterPush(); // stop notifications for this device (needs the live session)
-    await clearSession();
-    await clearCache();
-    resetHomeCache();
-    clearResourceCache();
-    deviceReadCache.clear(); // device-origin reads hold parsed rosters/etc per account — wipe on logout (UX_GUARDRAILS C11)
-    deviceEnrichCache.clear(); // cached enrichment carries personal tag/watched — wipe on logout (C11)
-    setAuthed(false);
-    setTab('home');
-    setOverlayStack([]);
+  function handleLogout() {
+    // Threshold mirror (docs/MOTION_AND_NEON_ROADMAP.md §2.1): the app powers DOWN — lifts away and
+    // fades (the reverse of the fall-in) — then login flies back in and its crest flickers out.
+    const swap = () => {
+      setTab('home');
+      setOverlayStack([]);
+      setJustLoggedOut(true); // login mounts with the crest lit, then extinguishes it
+      setAuthed(false);
+      drop.setValue(1); // reset so the next fall-in starts clean
+      // Wipe session + all per-account caches (UX_GUARDRAILS C11). Fire-and-forget so the logout
+      // transition stays instant; unregisterPush needs the still-present session, so it runs first.
+      (async () => {
+        try {
+          await unregisterPush();
+          await clearSession();
+          await clearCache();
+          resetHomeCache();
+          clearResourceCache();
+          deviceReadCache.clear();
+          deviceEnrichCache.clear();
+        } catch (e) {
+          /* logout cleanup is best-effort — never block the sign-out */
+        }
+      })();
+    };
+    if (reduced) { swap(); return; }
+    Animated.timing(drop, { toValue: 0, duration: 380, easing: Easing.in(Easing.cubic), useNativeDriver: true }).start(swap);
   }
 
   const openRoster = (league) => pushOverlay({ type: 'roster', league });
@@ -444,7 +462,7 @@ export default function App() {
       };
       return (
         <Animated.View style={[styles.flex, leaveStyle]}>
-          <LoginScreen onLoggedIn={handleLoggedIn} />
+          <LoginScreen onLoggedIn={handleLoggedIn} justLoggedOut={justLoggedOut} />
         </Animated.View>
       );
     }
@@ -484,7 +502,9 @@ export default function App() {
           // (OverlayLayer). isTop + closing drive the exit; finishPop removes it once that completes.
           <OverlayLayer key={i} isTop={i === overlayStack.length - 1} closing={closing} onClosed={finishPop}>
             <ErrorBoundary silent>
-              <FieldBackdrop />
+              {/* Overlays fully occlude the app beneath, so their backdrop is the gradient only — no
+                  crest watermark (skips re-rendering the neon crest behind every stacked drill-in). */}
+              <FieldBackdrop watermark={false} />
             </ErrorBoundary>
             {/* covered = another overlay sits on top of this one (it isn't the visible top). */}
             <View style={styles.flex}>{renderOverlay(o, i < overlayStack.length - 1)}</View>
