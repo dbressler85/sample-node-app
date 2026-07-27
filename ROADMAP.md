@@ -407,6 +407,36 @@ the neon-sign identity + the phased build). `theme.js` implements the tokens; sc
   claim) carry a physical tap — the one "vibrancy" lever RN `Animated` can't provide. Deferred to
   avoid adding a native dep mid-motion-pass; good to pair with the next build.
 
+## Dynasty modeling & trade brain (expert review — 2026-07-27)
+
+The plumbing, MFL correctness, and format detection are strong, and the trade *matching* heuristics
+are good; the ceiling is held down by one recurring gap (the app reasons in dynasty ASSET value, never
+win-now / rest-of-season) plus two narrower correctness issues. Ranked by value-to-effort:
+
+- [ ] **Format-aware pick values (P1).** `lib/picks.js` `value()` is a single format-blind curve — no
+  superflex / TE-premium premium and no rookie-class strength. In SF the 1.01 is a top-5 asset but is
+  priced like a 1QB pick, and this flows straight into the trade brain (`pickPartners`). Pull
+  FantasyCalc's per-format per-pick values (the enrichment layer already fetches per `{numQbs, ppr}`),
+  or at minimum apply the SF/TEP premium to first-round picks. *(Effort low–med, high impact.)*
+- [ ] **Blend standings/record into outlook (P1).** `roster.js` `computeOutlook` assigns
+  win-now/rebuild from dynasty-value strength + core age only, so a 2-8 team with a stacked-but-
+  underperforming roster reads "Win-now." Fold in real W-L / points (needs `leagueStandings`). *(Low
+  effort, roadmap-ready; half the buy/sell signal at the deadline.)*
+- [ ] **Win-now / rest-of-season value beside dynasty value on trades (P1).** `tradeMath.analyze`
+  drives the headline favorable/fair/unfavorable purely on dynasty value, so a contender is told a
+  "sell the vet for a pick + youth" deal is *favorable* — correct for assets, backwards for their
+  window. (`tradefit.js` already knows "startability isn't dynasty value" for hole-detection — apply
+  it to the verdict.) Carry a second ROS/win-now valuation and let team outlook decide which leads;
+  projections already exist for the optimizer. *(Med effort — the single highest-impact correctness fix.)*
+- [ ] **Cross-league value arbitrage (P2).** The app tracks player exposure across leagues but never
+  says "you roster him in 3 leagues — he's worth most in your SF league; shop him *there*." A
+  differentiated, on-brand insight this cross-league app is uniquely positioned to own. *(Med effort.)*
+- [ ] **Production-weighted core age (P2, minor).** `coreAge` = the 5 *most valuable* players, and value
+  is already age-discounted, so aging on-field studs get excluded from the very "how old is your core"
+  average → aging teams look younger than they play. Weight by snaps/production instead of value.
+- [ ] **Rookie/startup draft boards (P2).** Rookie drafts reuse the same keeper-ADP pool ordering with
+  no rookie-specific tiers wired into the draft screen; startups have no value board. *(Med effort.)*
+
 ## Performance & caching backlog
 
 The big wins are shipped (parallelized per-league fan-outs; cached `listLeagues` /
@@ -441,6 +471,33 @@ Remaining, in rough priority order:
   (never skips the fetch), so there's no stale-after-action surprise — the trap
   that sank the earlier time-based Home gate. *(Not applied to Scores — it's live
   and freshness matters. Draft Hub and Trade Inbox could get the same treatment.)*
+- [ ] **Stale-while-revalidate SWEEP — the remaining blank-on-reload screens.** (2026-07-27 audit:
+  ~23/30 screens already keep prior data; **7 still show a full-screen spinner / blank while prior
+  values exist**.) Principle: keep the old values on screen and revalidate in the background (a thin
+  top "refreshing" hint at most); reserve the blocking spinner for a genuine cold first-load with no
+  cached data. In rough priority:
+  - **P1 · WaiversScreen league board** (`WaiversScreen.js`, `BoardView` spinner gated on `loading`,
+    not `!board`; board is bespoke local state, not on the resource store). Every position filter and
+    every Value↔Proj sort toggle — plus each post-`cancelClaim` reload — blanks the whole board to a
+    centered spinner. Gate the spinner on `!board`, keep the prior list during revalidate, ideally
+    seed/prime per `leagueId+position+sort` (the overview beside it already does `loading && !overview`).
+    *(Effort M — the most frequent, most jarring one.)*
+  - **P2 · PortfolioScreen error takeover** (`if (error)` not gated on `!d`). A transient background
+    refetch error — or a failed optimistic shop toggle (which already reverts the row) — throws the
+    whole populated portfolio to a full-screen error. Gate as `if (fetchError && !d)`; route `shopError`
+    to a toast. *(S — also a UX-guardrail C4 non-destructive-error regression.)*
+  - **P2 · PlayersScreen Watch tab** (`setWatch(null)` on open) nulls the list every open → spinner,
+    unlike sibling Mine/News/Free tabs which keep prior data. Drop the null; refetch in the background
+    (mirror `reloadMine`). *(S.)*
+  - **P2 · Leagues / Profile / Settings overlays** — bespoke `useState(null)` with no `peekResource`
+    seeding, so each open cold-loads a full spinner though the data rarely changes (every other overlay
+    repaints instantly from the surviving resource store). Migrate the three to `useCachedResource`
+    (or seed via `peekResource`). *(S–M each.)*
+  - **P3 · LineupEditorScreen error gate** (`if (error)` not `if (error && !detail)`): a failed refetch
+    after a seeded paint replaces the shown lineup with an error view. One-line fix. *(S.)*
+  Systemic: the two error-gate bugs (Portfolio, LineupEditor) are the same `if (error)` →
+  `if (error && !data)` class; the three overlay cold-loads are the same "not on the resource store"
+  class. Fixing all seven closes the pattern across the app.
 - [x] **Seed overlays from Home's already-fetched data.** Done: Home now write-throughs its
   `api.drafts()` / `api.onDeck()` results to the shared SWR cache keys (`'drafts'` / `'ondeck'`),
   and the **Draft Hub** was converted to `useCachedResource('drafts', …)` (On Deck already used
