@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, FlatList, RefreshControl, ActivityIndicator, Alert } from 'react-native';
 import { api } from '../api';
 import useCachedResource from '../useCachedResource';
+import { getValue, setValue } from '../cache';
 import { colors, positionColors } from '../theme';
 import { displayLg } from '../typography';
 import { celebrate } from '../components/Celebrate';
@@ -45,6 +46,7 @@ export default function TradeInboxScreen({ active = true, onBack, onOpenLeague, 
   const [busy, setBusy] = useState(null); // `${leagueId}:${offerId}` being responded to
   const [baitByLeague, setBaitByLeague] = useState({}); // leagueId -> # players you're shopping
   const [fitByLeague, setFitByLeague] = useState({}); // leagueId -> fit hint (filled in progressively)
+  const [fitSeeded, setFitSeeded] = useState(false); // cached fits loaded (so we don't refetch what we know)
 
   // As a top-level tab there's no onBack — let the app's handler take hardware back to Home.
   useAndroidBack(useCallback(() => { if (onBack) { onBack(); return true; } return false; }, [onBack]));
@@ -59,12 +61,31 @@ export default function TradeInboxScreen({ active = true, onBack, onOpenLeague, 
     return () => { alive = false; };
   }, []);
 
-  // The "deep at X" hint needs a per-league needs/surplus read (expensive), so the
-  // inbox returns offers immediately and we fill the hint in here — one league at a
-  // time, in the background, to stay gentle on MFL. Leagues that already came back
-  // with a fit (the ones with an offer) are skipped.
+  // The "deep at X" hint needs a per-league needs/surplus read (expensive), so the inbox returns
+  // offers immediately and we fill the hint in here — one league at a time, in the background, to
+  // stay gentle on MFL. The hints are PERSISTED to the shared cache (key 'trades:fit') so they
+  // survive the tab-switch unmount and repaint instantly on return instead of blanking and slowly
+  // re-fetching (they were previously in ephemeral state only). Cleared on logout with the rest of
+  // the cache (UX_GUARDRAILS C11).
   useEffect(() => {
-    if (!data || !data.leagues) return undefined;
+    let alive = true;
+    getValue('trades:fit').then((v) => {
+      if (!alive) return;
+      if (v && typeof v === 'object') setFitByLeague((m) => ({ ...v, ...m }));
+      setFitSeeded(true);
+    });
+    return () => { alive = false; };
+  }, []);
+
+  // Persist whatever we know so far (write-through), so the next mount paints it instantly.
+  useEffect(() => {
+    if (fitSeeded && Object.keys(fitByLeague).length) setValue('trades:fit', fitByLeague);
+  }, [fitByLeague, fitSeeded]);
+
+  // Fetch only the hints we DON'T already have (from the payload or the cached seed). Wait for the
+  // seed so a remount doesn't re-fetch everything it already knew.
+  useEffect(() => {
+    if (!fitSeeded || !data || !data.leagues) return undefined;
     const missing = data.leagues.filter((l) => l.fit == null && fitByLeague[String(l.leagueId)] === undefined);
     if (!missing.length) return undefined;
     let alive = true;
@@ -79,7 +100,7 @@ export default function TradeInboxScreen({ active = true, onBack, onOpenLeague, 
       }
     })();
     return () => { alive = false; };
-  }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [data, fitSeeded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function doRespond(offer, action) {
     const k = `${offer.leagueId}:${offer.id}`;

@@ -92,7 +92,10 @@ async function loadSettings(league, cookie) {
     // FAAB balance & waiver priority live in this (otherwise 1h-static) export but
     // change when waivers process overnight — read them near-fresh so a validated bid
     // can't exceed a budget that was already spent.
-    res = await mfl.exportRequest('league', { host: league.host, cookie, L: league.leagueId, maxAge: config.mflFreshTtlMs });
+    // Retry a transient throttle before giving up: the overview fans this read out across every
+    // league at once (a burst that trips MFL's per-IP limiter), and a single 429/403 here was
+    // surfacing as "Could not load waiver settings" for whichever leagues happened to lose the race.
+    res = await withRetry(() => mfl.exportRequest('league', { host: league.host, cookie, L: league.leagueId, maxAge: config.mflFreshTtlMs }));
   } catch (e) {
     console.log(`[waiverSettings] league=${league.leagueId} error=${e.message}`);
     const err = new Error(`Could not load waiver settings for ${league.name || league.leagueId}.`);
