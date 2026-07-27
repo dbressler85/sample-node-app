@@ -45,13 +45,20 @@ function FieldBackdrop({ hero = false, watermark = true, atmosphere = true }) {
               more color depth (feedback: it felt blue/white heavy). Non-semantic: this is wallpaper, it
               never marks anything. A faint overall wash + a richer off-center bloom for depth. */}
           <RadialGradient id="fbVioletWash" cx="0.5" cy="0.5" r="0.95">
-            <Stop offset="0" stopColor="#8B5CF6" stopOpacity="0.09" />
-            <Stop offset="0.62" stopColor="#8B5CF6" stopOpacity="0.025" />
+            <Stop offset="0" stopColor="#8B5CF6" stopOpacity="0.16" />
+            <Stop offset="0.62" stopColor="#8B5CF6" stopOpacity="0.05" />
             <Stop offset="1" stopColor="#8B5CF6" stopOpacity="0" />
           </RadialGradient>
           <RadialGradient id="fbVioletBloom" cx="0.84" cy="0.12" r="0.6">
-            <Stop offset="0" stopColor="#9E6BFF" stopOpacity="0.16" />
-            <Stop offset="0.55" stopColor="#8B5CF6" stopOpacity="0.05" />
+            <Stop offset="0" stopColor="#9E6BFF" stopOpacity="0.28" />
+            <Stop offset="0.55" stopColor="#8B5CF6" stopOpacity="0.09" />
+            <Stop offset="1" stopColor="#8B5CF6" stopOpacity="0" />
+          </RadialGradient>
+          {/* A second bloom anchored low-left so the violet is felt diagonally across the whole ground,
+              not just the top-right corner — the previous single corner glow read as barely there. */}
+          <RadialGradient id="fbVioletBloom2" cx="0.14" cy="0.9" r="0.62">
+            <Stop offset="0" stopColor="#7C4DEB" stopOpacity="0.22" />
+            <Stop offset="0.58" stopColor="#8B5CF6" stopOpacity="0.07" />
             <Stop offset="1" stopColor="#8B5CF6" stopOpacity="0" />
           </RadialGradient>
           {/* edge vignette so the corners fall away and the content floats (ambient only) */}
@@ -68,6 +75,7 @@ function FieldBackdrop({ hero = false, watermark = true, atmosphere = true }) {
           <>
             <Rect x="0" y="0" width="100" height="100" fill="url(#fbVioletWash)" />
             <Rect x="0" y="0" width="100" height="100" fill="url(#fbVioletBloom)" />
+            <Rect x="0" y="0" width="100" height="100" fill="url(#fbVioletBloom2)" />
           </>
         ) : null}
         {/* faint yard-lines */}

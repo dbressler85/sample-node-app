@@ -108,6 +108,16 @@ Rules: `bad` is **destructive/negative only** — a "caution" construction ratin
 not `bad` (they're currently collapsed). A **BYE is not an injury** — it must not share OUT/IR's
 `bad` red; give it `warn` or neutral so red keeps meaning "he's out."
 
+### 2.5b Decorative accent — Electric Violet (`#8B5CF6`, non-semantic)
+
+Violet is the app's **atmosphere/ornament** accent. It is **unclaimed by the color law** and must
+**never** mark an action, state, or value — those stay accent-blue / green‑red‑orange / gold. It only
+appears as decoration: the ambient backdrop glow (two blooms + a wash in `FieldBackdrop`), the screen‑
+title rule (`Brand.ScreenTitle`), and the neutral **hairline** (`border` is a violet‑biased grey, so
+every card/divider edge carries a faint tint — a *chosen* neutral, not a semantic mark). `violetDim`
+`#6E54B8` is for rails where full chroma would shout. Dose is deliberately felt, not shouted; if it ever
+competes with a semantic color for meaning, pull it back. Tokens: `violet`, `violetDim`, `rgb.violet`.
+
 ### 2.6 The `onAccent` fix (the one real contrast bug)
 White on the bright `accent` fill computes to **3.22:1 — fails WCAG AA.** Primary buttons
 (`ErrorView` Retry, `InfoDot` "Got it") use it today.
