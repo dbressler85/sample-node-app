@@ -80,10 +80,12 @@ export default function LoginScreen({ onLoggedIn, justLoggedOut = false }) {
 
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <FieldBackdrop hero />
+      {/* Login gets a clean hero ground with NO embedded crest watermark — the big lit NeonCrest
+          lockup below is the only crest here, so a faint second one behind it would just muddy it. */}
+      <FieldBackdrop hero watermark={false} />
       <View style={styles.inner}>
         <Animated.View style={[styles.lockup, fade, pop]}>
-          <NeonCrest size={104} ignited={ignited} />
+          <NeonCrest size={196} ignited={ignited} />
         </Animated.View>
 
         <Animated.View style={[fade, rise]}>
@@ -137,12 +139,12 @@ export default function LoginScreen({ onLoggedIn, justLoggedOut = false }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg, justifyContent: 'center' },
   inner: { padding: 28 },
-  lockup: { alignItems: 'center', marginBottom: 18 },
+  lockup: { alignItems: 'center', marginBottom: 6 },
   brandTop: { color: colors.textDim, fontSize: 13, fontWeight: '700', letterSpacing: 5, textAlign: 'center', marginLeft: 5 },
   brandMain: { color: colors.text, fontSize: 40, fontWeight: '900', textAlign: 'center', letterSpacing: -1, marginTop: 2 },
   // The gold rule wipes out from the center as the brand settles.
   rule: { alignSelf: 'center', width: 64, height: 3, borderRadius: 2, backgroundColor: colors.gold, marginTop: 10 },
-  tagline: { color: colors.textDim, fontSize: 14, textAlign: 'center', marginTop: 10, marginBottom: 32 },
+  tagline: { color: colors.textDim, fontSize: 14, textAlign: 'center', marginTop: 8, marginBottom: 22 },
   demoPill: { alignSelf: 'center', borderWidth: 1, borderColor: colors.gold, borderRadius: 6, paddingHorizontal: 10, paddingVertical: 3, marginBottom: 18 },
   demoPillText: { color: colors.gold, fontSize: 11, fontWeight: '900', letterSpacing: 1 },
   input: {
