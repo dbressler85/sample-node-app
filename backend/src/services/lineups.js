@@ -310,7 +310,12 @@ async function viewForLeague(cookie, token, league, requestedMode, { light = fal
   const [requirements, scoring, roster, statusMap, byeMap] = await Promise.all([
     loadRequirements(cookie, league),
     loadScoring(cookie, league),
-    deviceFranchises ? rosterService.rosterFromDeviceFranchises(cookie, league, deviceFranchises) : rosterService.getRoster(cookie, league.leagueId),
+    deviceFranchises
+      ? rosterService.rosterFromDeviceFranchises(cookie, league, deviceFranchises)
+      // Light rollup only needs my starters/bench for availability + empty-slot detection — not picks or
+      // the all-franchise strength. myRosterEnriched skips both (and reads only my franchise), dropping a
+      // futureDraftPicks round-trip + the strength compute per league on the Home rollup.
+      : (light ? rosterService.myRosterEnriched(cookie, league.leagueId) : rosterService.getRoster(cookie, league.leagueId)),
     loadStatuses(cookie, week),
     loadByes(cookie, week),
   ]);
