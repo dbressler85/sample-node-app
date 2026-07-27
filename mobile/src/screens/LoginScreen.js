@@ -10,7 +10,9 @@ import {
   Platform,
   Animated,
   Easing,
+  Dimensions,
 } from 'react-native';
+import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
 import { api } from '../api';
 import { saveSession } from '../auth';
 import { colors } from '../theme';
@@ -18,7 +20,13 @@ import NeonCrest, { CREST_IGNITE_MS } from '../components/NeonCrest';
 import FieldBackdrop from '../components/FieldBackdrop';
 import PressableScale from '../components/PressableScale';
 import useReducedMotion from '../useReducedMotion';
+import { flickerPlan } from '../neon';
 import { displayXL, displayLabel } from '../typography';
+
+const SCREEN = Dimensions.get('window');
+// The wall-wash light pool is a big soft circle centered on the sign. Sized to overspill the screen
+// so its bright core sits behind the crest and the falloff reaches the edges of the "wall".
+const WASH = Math.round(Math.max(SCREEN.width, SCREEN.height) * 1.5);
 
 export default function LoginScreen({ onLoggedIn, justLoggedOut = false }) {
   const [username, setUsername] = useState('');
@@ -38,6 +46,24 @@ export default function LoginScreen({ onLoggedIn, justLoggedOut = false }) {
   // and the gold rule under "Central" wipes out from the center. One driver, native-driven.
   const intro = useRef(new Animated.Value(0)).current;
 
+  // The wall-wash: a warm pool of light on the dark wall behind the sign. It rests OFF (a dark room)
+  // and comes ON with the crest — driven by the SAME neon flicker plan so the light and the sign
+  // catch together (light in a dark room). Starts lit on a logout arrival (mirror), then goes out.
+  const glow = useRef(new Animated.Value(justLoggedOut ? 1 : 0)).current;
+  const prevIgnited = useRef(ignited);
+  // Where the sign actually sits, so the light emanates from it. Measured from the lockup; sensible
+  // upper-third default until the first layout lands.
+  const lockupRef = useRef(null);
+  const [washCenter, setWashCenter] = useState({ x: 0.5, y: 0.36 });
+  const measureCrest = () => {
+    const node = lockupRef.current;
+    if (node && node.measureInWindow) {
+      node.measureInWindow((x, y, w, h) => {
+        if (w && h) setWashCenter({ x: (x + w / 2) / SCREEN.width, y: (y + h / 2) / SCREEN.height });
+      });
+    }
+  };
+
   useEffect(() => {
     api.health().then((h) => setDemoMode(!!h.demoMode)).catch(() => setDemoMode(null));
     Animated.timing(intro, {
@@ -56,6 +82,32 @@ export default function LoginScreen({ onLoggedIn, justLoggedOut = false }) {
     const t = setTimeout(() => setIgnited(false), reduced ? 0 : 460);
     return () => clearTimeout(t);
   }, [justLoggedOut, reduced]);
+
+  // The wall-wash tracks the sign: ignite → the light catches with the same flicker as the tubes;
+  // extinguish → a quick stutter out. Only runs on an actual state CHANGE, so a fresh mount holds its
+  // resting value (off on a normal open, on for a logout arrival) instead of flickering unprompted.
+  useEffect(() => {
+    const was = prevIgnited.current;
+    prevIgnited.current = ignited;
+    if (was === ignited) return undefined;
+    if (reduced) { glow.setValue(ignited ? 1 : 0); return undefined; }
+    let seq;
+    if (ignited) {
+      // Same plan the crest uses (NeonCrest) → the wall lights in lockstep with the tubes.
+      const plan = flickerPlan({ tone: 'clean' });
+      glow.setValue(0);
+      seq = Animated.sequence(plan.frames.map((f) => Animated.timing(glow, { toValue: f.to, duration: f.dur, useNativeDriver: true })));
+    } else {
+      seq = Animated.sequence([
+        Animated.timing(glow, { toValue: 0.6, duration: 60, useNativeDriver: true }),
+        Animated.timing(glow, { toValue: 0.12, duration: 55, useNativeDriver: true }),
+        Animated.timing(glow, { toValue: 0.4, duration: 50, useNativeDriver: true }),
+        Animated.timing(glow, { toValue: 0, duration: 190, useNativeDriver: true }),
+      ]);
+    }
+    seq.start();
+    return () => seq.stop();
+  }, [ignited, reduced, glow]);
 
   const fade = { opacity: intro };
   const rise = { transform: [{ translateY: intro.interpolate({ inputRange: [0, 1], outputRange: [18, 0] }) }] };
@@ -84,11 +136,41 @@ export default function LoginScreen({ onLoggedIn, justLoggedOut = false }) {
 
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      {/* Login gets a clean hero ground with NO embedded crest watermark — the big lit NeonCrest
-          lockup below is the only crest here, so a faint second one behind it would just muddy it. */}
-      <FieldBackdrop hero watermark={false} />
+      {/* The SAME dark "Deep Ink" ground the app uses — no hero gold, no embedded crest watermark.
+          A dark room; the only light comes from the sign itself. */}
+      <FieldBackdrop watermark={false} />
+
+      {/* Wall-wash: the light the sign casts on the wall. Sits above the dark ground, below the
+          content, centered on the crest — brightest behind the sign, falling off into the room. Its
+          opacity is driven by `glow`, which flickers on with the tubes. */}
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.wash,
+          {
+            left: washCenter.x * SCREEN.width - WASH / 2,
+            top: washCenter.y * SCREEN.height - WASH / 2,
+            opacity: glow,
+            transform: [{ scale: glow.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1] }) }],
+          },
+        ]}
+      >
+        <Svg width={WASH} height={WASH} viewBox="0 0 100 100">
+          <Defs>
+            {/* Warm neon spill — a hot near-white core melting through value-gold to nothing. */}
+            <RadialGradient id="wallWash" cx="0.5" cy="0.5" r="0.5">
+              <Stop offset="0" stopColor="#FFF4D6" stopOpacity="0.55" />
+              <Stop offset="0.2" stopColor="#F3C14A" stopOpacity="0.30" />
+              <Stop offset="0.5" stopColor="#B67C28" stopOpacity="0.11" />
+              <Stop offset="1" stopColor="#F3C14A" stopOpacity="0" />
+            </RadialGradient>
+          </Defs>
+          <Rect x="0" y="0" width="100" height="100" fill="url(#wallWash)" />
+        </Svg>
+      </Animated.View>
+
       <View style={styles.inner}>
-        <Animated.View style={[styles.lockup, fade, pop]}>
+        <Animated.View ref={lockupRef} onLayout={measureCrest} style={[styles.lockup, fade, pop]}>
           <NeonCrest size={216} ignited={ignited} />
         </Animated.View>
 
@@ -142,6 +224,9 @@ export default function LoginScreen({ onLoggedIn, justLoggedOut = false }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg, justifyContent: 'center' },
+  // The wall-wash light pool — absolutely placed and centered on the sign (left/top computed inline
+  // from the measured crest center). Above the ground, below the content.
+  wash: { position: 'absolute', width: WASH, height: WASH },
   inner: { padding: 28 },
   lockup: { alignItems: 'center', marginBottom: 6 },
   brandTop: { color: colors.textDim, fontSize: 13, fontWeight: '700', letterSpacing: 5, textAlign: 'center', marginLeft: 5 },
