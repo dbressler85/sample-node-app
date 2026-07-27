@@ -73,6 +73,6 @@ test('a win is the hero spark; sad moments are the sparse cold shower', () => {
 
 test('color() resolves known keys and falls back to accent', () => {
   assert.equal(neon.color('gold').hex, '#F3C14A');
-  assert.equal(neon.color('watch').rgb, '214,248,78');
+  assert.equal(neon.color('watch').rgb, '228,242,74');
   assert.equal(neon.color('nonsense').hex, neon.COLORS.accent.hex);
 });

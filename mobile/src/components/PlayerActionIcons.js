@@ -1,8 +1,26 @@
 import React from 'react';
+import { View, StyleSheet } from 'react-native';
 import Svg, { Circle, Line, Path } from 'react-native-svg';
+import { glow } from '../theme';
 
 // Matched vector icons for the three per-player actions, so Target / Avoid / Watch read
 // as one control set wherever they appear. All stroke-based, tinted by `color`.
+
+// A round chip that lights with the neon glow recipe (docs/DESIGN_SYSTEM.md §3: edge + wash + iOS
+// halo) when its action is ACTIVE, and is invisible otherwise — so a set Target/Avoid/Watch reads as
+// a lit neon sign, not just a recolored glyph. `triplet` is the accent's "r,g,b" (theme.rgb.*). The
+// base keeps a transparent 1px border so the box size never jumps between states.
+export function GlowChip({ active, triplet, children }) {
+  return (
+    <View style={[styles.chip, active ? glow(triplet, { edge: 0.65, wash: 0.2, halo: 0.9, radius: 8 }) : null]}>
+      {children}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  chip: { padding: 4, borderRadius: 999, borderWidth: 1, borderColor: 'transparent' },
+});
 
 // Target — a crosshair reticule.
 export function TargetIcon({ size = 20, color = '#5AD19A' }) {
