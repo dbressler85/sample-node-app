@@ -8,7 +8,7 @@ import { registerForPush, unregisterPush } from './src/push';
 import { clearAll as clearCache } from './src/cache';
 import { prefetchOtherTabs } from './src/prefetch';
 import LoginScreen from './src/screens/LoginScreen';
-import HomeScreen, { resetHomeCache } from './src/screens/HomeScreen';
+import HomeScreen, { resetHomeCache, warmHome } from './src/screens/HomeScreen';
 import { clearResourceCache } from './src/useCachedResource';
 import deviceReadCache from './src/deviceReadCache';
 import deviceEnrichCache from './src/deviceEnrichCache';
@@ -136,6 +136,12 @@ export default function App() {
   function handleLoggedIn(info) {
     setJustLoggedOut(false); // consumed — the next logout re-arms the mirror
     if (info && typeof info.demoMode === 'boolean') setDemoMode(info.demoMode);
+    // Start the Home cross-league fan-out RIGHT NOW — the instant the session is live — so the ~2s
+    // login ceremony, the first-run welcome modal, and the push-permission prompt are all spent
+    // loading instead of idle. HomeScreen adopts this in-flight warm when it mounts (it streams into
+    // homeCache + any mounted screen), and warmHome self-guards so the screen's own mount refresh
+    // won't double-run it. Fire-and-forget; it's fully fail-soft.
+    warmHome();
     // Beat 1: login accelerates up and out — slower and further, so it clearly departs.
     Animated.timing(leave, { toValue: 1, duration: 760, easing: Easing.in(Easing.cubic), useNativeDriver: true }).start(() => {
       // Beat 2: reveal the app lifted above its resting spot, then let it fall in and settle.
