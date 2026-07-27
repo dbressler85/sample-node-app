@@ -25,7 +25,7 @@ import NeonSign from '../components/NeonSign';
 import useActFlash from '../useActFlash';
 import usePopScale from '../usePopScale';
 import useAndroidBack from '../useAndroidBack';
-import useCachedResource, { primeResource } from '../useCachedResource';
+import useCachedResource, { peekResource, primeResource } from '../useCachedResource';
 import { ScreenTitle } from '../components/Brand';
 
 const SORTS = [
@@ -114,13 +114,21 @@ export default function WaiversScreen({ active = true, initialLeagueId, initialP
     return false;
   }, [claim, openLeagueId]));
 
-  // Board for the drilled-in league.
+  // Board for the drilled-in league. Stale-while-revalidate: seed instantly from the cache for this
+  // exact league+position+sort if we've seen it, otherwise KEEP whatever board is already on screen
+  // (e.g. the prior sort/position for this league) and revalidate in the background — never blank to a
+  // spinner while we hold data. A failed refetch keeps the shown board (BoardView gates error on !board).
   const loadBoard = useCallback(async () => {
     if (!openLeagueId) return;
+    const key = `waivers:board:${openLeagueId}:${position || 'all'}:${sort}`;
+    const cached = peekResource(key);
+    if (cached) setBoard(cached.value);
     setLoading(true);
     setError(null);
     try {
-      setBoard(await api.waiverBoard(openLeagueId, { position, sort }));
+      const b = await api.waiverBoard(openLeagueId, { position, sort });
+      setBoard(b);
+      primeResource(key, b);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -379,11 +387,16 @@ function BoardView({ board, loading, error, position, setPosition, sort, setSort
     <Pressable style={styles.backRow} onPress={onBack} hitSlop={8}>
       <Text style={styles.backChev}>‹</Text>
       <Text style={styles.backText} numberOfLines={1}>{leagueName || 'Leagues'}</Text>
+      {/* Subtle non-blocking hint while revalidating a board we're already showing (filter/sort toggle,
+          post-claim refresh) — the list stays put instead of blanking to a full-screen spinner. */}
+      {loading && board ? <ActivityIndicator color={colors.accent} size="small" style={{ marginLeft: 10 }} /> : null}
     </Pressable>
   ) : null;
 
-  if (loading) return <View style={{ flex: 1 }}>{header}<Center><ActivityIndicator color={colors.accent} size="large" /></Center></View>;
-  if (error) return <View style={{ flex: 1 }}>{header}<ErrorView message={error} onRetry={onRetry} /></View>;
+  // Full-screen spinner / error ONLY when there's nothing to show — a reload with a board in hand keeps
+  // the board on screen (stale-while-revalidate) and shows the inline hint above instead.
+  if (loading && !board) return <View style={{ flex: 1 }}>{header}<Center><ActivityIndicator color={colors.accent} size="large" /></Center></View>;
+  if (error && !board) return <View style={{ flex: 1 }}>{header}<ErrorView message={error} onRetry={onRetry} /></View>;
   if (!board) return <View style={{ flex: 1 }}>{header}</View>;
 
   // Which free agents already have a claim in — so a FA row can flash its accent the moment your claim
