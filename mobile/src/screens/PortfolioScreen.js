@@ -12,6 +12,7 @@ import Reveal from '../components/Reveal';
 import AnimatedNumber from '../components/AnimatedNumber';
 import PartialNote from '../components/PartialNote';
 import DeviceNote from '../components/DeviceNote';
+import ValueCredit from '../components/ValueCredit';
 import { toast } from '../components/Toast';
 
 // Chart width = screen minus the body padding (16×2) and card padding (16×2).
@@ -359,6 +360,7 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
             <Text style={styles.hint}>
               <Text style={{ color: colors.gold, fontWeight: '900' }}>Value</Text> = each player’s value summed across every league you roster him in (your real exposure); <Text style={{ fontWeight: '900' }}>7-day</Text> = how his dynasty value has moved over the last week (<Text style={{ color: colors.good, fontWeight: '900' }}>▲</Text> rising, <Text style={{ color: colors.bad, fontWeight: '900' }}>▼</Text> falling, <Text style={{ fontWeight: '900' }}>◆</Text> flat). Think of each league you hold him in as one <Text style={{ fontWeight: '900' }}>share</Text>: <Text style={{ fontWeight: '900' }}>By value</Text> ranks by total value (shares × per-league value), <Text style={{ fontWeight: '900' }}>By shares</Text> ranks by how many leagues hold him. <Text style={{ fontWeight: '900' }}>⇄ Shop</Text> puts him on the block in every league you hold him.
             </Text>
+            <ValueCredit style={styles.credit} />
           </View>
         ) : null}
 
@@ -765,6 +767,7 @@ const styles = StyleSheet.create({
   showAll: { alignItems: 'center', paddingVertical: 11, marginTop: 4, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
   showAllTxt: { color: colors.accent, fontSize: 13, fontWeight: '800' },
   hint: { color: colors.textDim, fontSize: 11, marginTop: 6, lineHeight: 15 },
+  credit: { marginTop: 10 },
   tagLine: { color: colors.text, fontSize: 13, lineHeight: 20 },
   leagueRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   leagueName: { color: colors.text, fontSize: 14, fontWeight: '700' },

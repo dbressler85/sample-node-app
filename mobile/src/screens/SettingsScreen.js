@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, Switch, ActivityIndicator, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Switch, ActivityIndicator, ScrollView, Linking } from 'react-native';
 import { appAlert } from "../components/AppAlert";
 import { api } from '../api';
 import { colors } from '../theme';
@@ -104,6 +104,24 @@ export default function SettingsScreen({ onBack, onOpenHelp, onLogout }) {
           </>
         ) : null}
 
+        <Text style={[styles.sectionLabel, { marginTop: 26 }]}>Data & credits</Text>
+        <View style={styles.card}>
+          <Pressable style={({ pressed }) => [styles.creditRow, pressed && { opacity: 0.7 }]} onPress={() => Linking.openURL('https://fantasycalc.com').catch(() => {})}>
+            <View style={styles.rowText}>
+              <Text style={styles.rowLabel}>FantasyCalc.com</Text>
+              <Text style={styles.rowDesc}>Player and draft-pick dynasty values are provided by FantasyCalc. Tap to visit.</Text>
+            </View>
+            <Text style={styles.chev}>↗</Text>
+          </Pressable>
+          <View style={styles.rowDivider} />
+          <View style={styles.creditRow}>
+            <View style={styles.rowText}>
+              <Text style={styles.rowLabel}>MyFantasyLeague · Sleeper</Text>
+              <Text style={styles.rowDesc}>League, roster, and transaction data come live from MyFantasyLeague; waiver-heat trends from Sleeper.</Text>
+            </View>
+          </View>
+        </View>
+
         {onLogout ? (
           <>
             <Text style={[styles.sectionLabel, { marginTop: 26 }]}>Session</Text>
@@ -139,4 +157,5 @@ const styles = StyleSheet.create({
   error: { color: colors.bad, fontSize: 13, marginBottom: 12 },
   helpRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, gap: 12 },
   chev: { color: colors.textDim, fontSize: 22, fontWeight: '300' },
+  creditRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, gap: 12 },
 });

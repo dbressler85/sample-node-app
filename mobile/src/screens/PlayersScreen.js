@@ -13,6 +13,7 @@ import Pulse from '../components/Pulse';
 import Reveal from '../components/Reveal';
 import PartialNote from '../components/PartialNote';
 import DeviceNote from '../components/DeviceNote';
+import ValueCredit from '../components/ValueCredit';
 import PopChip from '../components/PopChip';
 import useActFlash from '../useActFlash';
 import useAutoReload from '../useAutoReload';
@@ -385,6 +386,8 @@ export default function PlayersScreen({ onOpenPlayer }) {
                 ListFooterComponent={
                   loadingMore ? (
                     <ActivityIndicator style={styles.loadMore} color={colors.gold} />
+                  ) : rankingsData && rankingsData.length ? (
+                    <ValueCredit center style={styles.credit} />
                   ) : null
                 }
                 ListEmptyComponent={
@@ -844,5 +847,6 @@ const styles = StyleSheet.create({
   empty: { color: colors.textDim, textAlign: 'center', marginTop: 24 },
   note: { color: colors.textDim, textAlign: 'center', marginTop: 40, marginHorizontal: 28, fontSize: 14, lineHeight: 20 },
   loadMore: { paddingVertical: 20 },
+  credit: { marginTop: 12, marginBottom: 24 },
   errorBanner: { color: colors.bad, backgroundColor: colors.card, marginHorizontal: 16, marginBottom: 8, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, fontSize: 12, fontWeight: '600', textAlign: 'center' },
 });

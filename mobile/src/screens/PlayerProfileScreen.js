@@ -11,6 +11,7 @@ import { TargetIcon, AvoidIcon, WatchIcon } from '../components/PlayerActionIcon
 import useAndroidBack from '../useAndroidBack';
 import useCachedResource from '../useCachedResource';
 import PartialNote from '../components/PartialNote';
+import ValueCredit from '../components/ValueCredit';
 
 const RELATION = {
   rostered: { label: 'Rostered', color: colors.good },
@@ -375,6 +376,7 @@ export default function PlayerProfileScreen({ playerId, seed, onBack, onOpenTrad
           </Card>
         ) : null}
 
+        <ValueCredit center style={{ marginTop: 4 }} />
         <View style={{ height: 90 }} />
       </ScrollView>
 
