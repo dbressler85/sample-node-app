@@ -23,7 +23,7 @@ const POINTS = [
     body: 'In a lot of leagues? The first load takes a moment — we pull live data from MFL for each one, and MFL limits how fast we can read. It’s much quicker after this: everything caches on your device, so reopening is instant.',
   },
   {
-    glyph: 'dot',
+    glyph: 'dollar',
     color: 'gold',
     title: 'Values from FantasyCalc',
     body: 'Player and pick values are live dynasty-market values from FantasyCalc, so trade grades and portfolio math reflect the real market — not a static list.',

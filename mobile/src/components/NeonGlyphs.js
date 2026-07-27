@@ -46,6 +46,8 @@ const PATHS = {
   dot: ['M12 8 A4 4 0 1 1 12 16 A4 4 0 1 1 12 8'],
   // Calendar (draft not started / seasonal marker): frame, header divider, two binding legs.
   calendar: ['M5 6 H19 V19 H5 Z', 'M5 9.5 H19', 'M8.5 4 V7', 'M15.5 4 V7'],
+  // Dollar sign (value / market): an S-curve with a vertical bar through it.
+  dollar: ['M15.5 8 C15.5 5.6 13.6 4.5 12 4.5 C9.8 4.5 8.5 5.9 8.5 7.7 C8.5 9.5 10.2 10.3 12 10.8 C13.8 11.3 15.5 12.2 15.5 14.1 C15.5 16 14.1 17.5 12 17.5 C10.2 17.5 8.5 16.5 8.5 14', 'M12 2.5 V19.5'],
 };
 
 const NAMES = Object.keys(PATHS);
