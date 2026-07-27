@@ -261,12 +261,15 @@ export default function HomeScreen({ active = true, demoMode, onOpenLineup, onOp
         lineupsToSet: vals.filter((v) => v.status === 'unset').length,
         tradeOffers: items.filter((i) => i.type === 'trade_offer').length,
         waiversPending: items.filter((i) => i.type === 'waiver_pending').length,
-        // Outlook now blends roster strength (value vs the league) with core age, so
-        // the four buckets are exhaustive and add up to your league count.
+        // Outlook blends roster strength (value vs the league) with core age; the four buckets are
+        // exhaustive over the leagues we could CLASSIFY. A league whose roster read dropped carries no
+        // dynasty (dyn filters it out), so the four buckets can sum short of the league count — surface
+        // that shortfall as `outlookUnknown` instead of letting the numbers silently not add up.
         contenders: dyn.filter((d) => d.outlook === 'Win-now window').length,
         ascending: dyn.filter((d) => d.outlook === 'Ascending').length,
         rebuilding: dyn.filter((d) => d.outlook === 'Rebuilding').length,
         balanced: dyn.filter((d) => d.outlook === 'Balanced').length,
+        outlookUnknown: Math.max(0, leagues.length - dyn.length),
         actionItems: items.length,
       },
     };
@@ -492,6 +495,10 @@ function Portfolio({ p, phase, loading, onLeagues, onPortfolio, onOpenOnDeck, on
             <Chip label="Ascending" value={p.ascending} loading={loading} onPress={onPortfolio} />
             <Chip label="Balanced" value={p.balanced} loading={loading} onPress={onPortfolio} />
             <Chip label="Rebuilding" value={p.rebuilding} loading={loading} onPress={onPortfolio} />
+            {/* Leagues whose roster couldn't be read this pass — shown so the four buckets visibly
+                reconcile to the league count instead of summing short. Tap opens the portfolio, where the
+                unread leagues are listed by name. */}
+            {p.outlookUnknown > 0 ? <Chip label="Unread" value={p.outlookUnknown} loading={loading} onPress={onPortfolio} /> : null}
             <View style={styles.chipInfo}><InfoDot id="outlook" size={16} /></View>
           </>
         ) : (

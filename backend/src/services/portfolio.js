@@ -289,6 +289,10 @@ async function getHome(cookie, token, { deviceReads = null } = {}) {
       ascending: dynastyList.filter((d) => d.outlook === 'Ascending').length,
       rebuilding: dynastyList.filter((d) => d.outlook === 'Rebuilding').length,
       balanced: dynastyList.filter((d) => d.outlook === 'Balanced').length,
+      // Leagues whose roster couldn't be read this pass carry no outlook, so they're absent from the four
+      // buckets above. Surface the shortfall explicitly (honesty over a fabricated bucket) so the app can
+      // reconcile the mix to the true league count instead of showing four numbers that sum short.
+      outlookUnknown: dynastyList.length < leagues.length ? leagues.length - dynastyList.length : 0,
       actionItems: items.length,
     },
     teams,

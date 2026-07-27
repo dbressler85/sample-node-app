@@ -126,6 +126,7 @@ export default function TrophyCaseScreen({ onBack }) {
         <ErrorView message={error} onRetry={reload} refreshing={refreshing} onRefresh={reload} />
       ) : !trophies.length ? (
         <FlatList
+          key="trophies-empty"
           data={[]}
           renderItem={null}
           keyExtractor={() => 'x'}
@@ -142,6 +143,7 @@ export default function TrophyCaseScreen({ onBack }) {
         />
       ) : (
         <FlatList
+          key="trophies-grid"
           data={trophies}
           keyExtractor={(t) => t.id}
           numColumns={2}
