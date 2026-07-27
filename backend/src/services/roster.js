@@ -211,7 +211,8 @@ function assembleRoster(league, franchises, ctx) {
     bench: map(src.bench),
     ir: map(src.ir),
     taxi: map(src.taxi),
-    picks,
+    // Format-aware pick value (FantasyCalc per-slot for this league's format, else the local curve).
+    picks: (picks || []).map((p) => ({ ...p, value: picksLib.value(p.label, p.token, enr) })),
   };
   // Strength percentile: demo uses a fixture (no full league in fixtures); live ranks
   // my roster value against every franchise's, using the same enrichment snapshot.
@@ -240,7 +241,8 @@ async function buildRoster(cookie, leagueId) {
     // Picks as first-class assets: token (so they can be shopped/traded), label, year/round,
     // and dynasty value — sorted soonest-first (year, then round).
     picksLib.franchisePicks(cookie, league).then((list) => list
-      .map((p) => ({ token: p.token, label: p.label, year: p.year, round: p.round, value: picksLib.value(p.label) }))
+      // value is filled in assembleRoster (needs the enrichment snapshot for format-aware pick values).
+      .map((p) => ({ token: p.token, label: p.label, year: p.year, round: p.round }))
       .sort((a, b) => (a.year || 9999) - (b.year || 9999) || (a.round || 99) - (b.round || 99))),
     leagueFormat.format(cookie, league).then((fmt) => enrichmentLib.snapshot(fmt, cookie)),
   ]);

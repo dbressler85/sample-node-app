@@ -51,7 +51,7 @@ function baitAsset(token, byId, enr) {
     return { id: token, kind: 'player', name: base.name, position: base.position, team: base.team, value: enr.value(token), age: enr.age(token) };
   }
   const label = picksLib.labelForToken(token);
-  return { id: token, kind: 'pick', name: label, position: 'PICK', team: null, value: picksLib.value(label), age: null };
+  return { id: token, kind: 'pick', name: label, position: 'PICK', team: null, value: picksLib.value(label, token, enr), age: null };
 }
 
 // Display order for trade-bait assets: players by position (QB→RB→WR→TE→…), ties by value, then

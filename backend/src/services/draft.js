@@ -668,6 +668,9 @@ async function getPickInventory(cookie, token, { deviceReads = null } = {}) {
         rosterService.getRoster(cookie, league.leagueId).then((r) => r.summary).catch(() => null),
         leagueFormat.format(cookie, league).catch(() => null),
       ]);
+      // Enrichment snapshot for this league's format → FantasyCalc's format-aware per-slot pick value
+      // (memoized per cookie+format, so it's ~free across leagues of the same format). Null → curve.
+      const enr = fmt ? await enrichmentLib.snapshot(fmt, cookie).catch(() => null) : null;
 
       const context = {
         outlook: teamSummary ? teamSummary.outlook : null,
@@ -686,7 +689,7 @@ async function getPickInventory(cookie, token, { deviceReads = null } = {}) {
           const acquired = p.kind === 'future' && p.originalOwner && mfl.fid(p.originalOwner) !== myFid;
           return {
             ...base, token: p.token, label: p.label, year: p.year, round: p.round, pick: p.pick,
-            value: picksLib.value(p.label),
+            value: picksLib.value(p.label, p.token, enr),
             kind: p.kind === 'future' ? 'future' : 'upcoming',
             acquiredFrom: acquired ? (p.from || `Franchise ${p.originalOwner}`) : null,
           };
@@ -696,7 +699,7 @@ async function getPickInventory(cookie, token, { deviceReads = null } = {}) {
         const upcoming = upcomingMap[rawFid] || [];
         rows = upcoming.map((p) => ({
           ...base, token: p.token, label: p.label, year: p.year, round: p.round, pick: p.pick || null,
-          value: picksLib.value(p.label), kind: 'upcoming', acquiredFrom: null,
+          value: picksLib.value(p.label, p.token, enr), kind: 'upcoming', acquiredFrom: null,
         }));
         for (const p of future) {
           // FP_<originalOwner>_<year>_<round>: a pick whose original owner isn't me was acquired.
@@ -705,7 +708,7 @@ async function getPickInventory(cookie, token, { deviceReads = null } = {}) {
           const acquired = owner !== myFid;
           rows.push({
             ...base, token: p.token, label: p.label, year: p.year, round: p.round, pick: null,
-            value: picksLib.value(p.label), kind: 'future',
+            value: picksLib.value(p.label, p.token, enr), kind: 'future',
             acquiredFrom: acquired ? (names.get(owner) || names.get(String(Number(owner))) || `Franchise ${owner}`) : null,
           });
         }
