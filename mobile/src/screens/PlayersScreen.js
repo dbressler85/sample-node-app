@@ -634,8 +634,10 @@ function PosFilter({ pos, setPos, rankType, setRankType }) {
 function ValueLens({ format, setFormat }) {
   return (
     <View style={styles.lensRow}>
-      <Text style={styles.lensLabel}>Value lens</Text>
-      <InfoDot id="format" />
+      <View style={styles.lensLabelWrap}>
+        <Text style={styles.lensLabel}>Value lens</Text>
+        <InfoDot id="format" />
+      </View>
       <View style={styles.lensToggle}>
         {[['1qb', '1QB'], ['sf', 'Superflex']].map(([k, label]) => (
           <Pressable key={k} style={[styles.lensSeg, format === k && styles.lensSegActive]} onPress={() => setFormat(k)}>
@@ -738,7 +740,10 @@ const styles = StyleSheet.create({
   grow: { flex: 1 },
   posChipActive: { backgroundColor: colors.cardAlt, borderColor: colors.accent },
   posChipText: { color: colors.textDim, fontSize: 12, fontWeight: '800' },
-  lensRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', paddingHorizontal: 16, gap: 10, paddingBottom: 6, paddingTop: 2 },
+  // Label on the left, market toggle on the right — filling the row. (It used to be right-aligned, which
+  // stranded a big blank rectangle on the left where the filter/sort rows below start, reading as an odd gap.)
+  lensRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, gap: 10, paddingBottom: 6, paddingTop: 2 },
+  lensLabelWrap: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   lensLabel: { color: colors.textDim, fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
   lensToggle: { flexDirection: 'row', backgroundColor: colors.card, borderRadius: 8, borderWidth: 1, borderColor: colors.border, padding: 2 },
   lensSeg: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 6, borderWidth: 1, borderColor: 'transparent' },

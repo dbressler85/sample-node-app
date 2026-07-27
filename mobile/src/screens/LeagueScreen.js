@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, FlatList, ScrollView, ActivityIndicator, RefreshControl } from 'react-native';
 import { colors, positionColors } from '../theme';
 import { displayLg } from '../typography';
@@ -99,19 +99,42 @@ function StandingsTab({ leagueId }) {
 }
 
 // --- Rosters (opponent scouting) ----------------------------------------------
+// Position filter chips (label 'K' maps to the normalized 'PK' code) and the sort options — the same
+// filter/sort vocabulary the Players screen uses, so a scouted roster reads the same way as your own.
+const ROSTER_POS = [[null, 'All'], ['QB', 'QB'], ['RB', 'RB'], ['WR', 'WR'], ['TE', 'TE'], ['PK', 'K'], ['DEF', 'DEF']];
+const ROSTER_SORTS = [['value', 'Value'], ['name', 'Name'], ['pos', 'Pos']];
+const POS_ORDER = { QB: 0, RB: 1, WR: 2, TE: 3, PK: 4, DEF: 5, PICK: 6 };
+
 function RostersTab({ leagueId, onOpenPlayer }) {
   // Device-first: when device reads are enabled + ready, this league's rosters are fetched straight from
   // MFL on-device and enriched with the backend's player dictionary + franchise names; otherwise (or on
   // any device-read failure) it silently falls back to the backend. `_source` says which path served it.
   const { data, error, refreshing, reload } = useCachedResource(`league:teams:${leagueId}`, () => leagueTeamsPreferDevice(leagueId));
   const [sel, setSel] = useState(null);
-  if (error && !data) return <ErrorView message={error} onRetry={reload} onRefresh={reload} refreshing={refreshing} />;
-  if (!data) return <Center><ActivityIndicator color={colors.accent} size="large" /></Center>;
+  const [pos, setPos] = useState(null); // position filter (null = all)
+  const [sort, setSort] = useState('value'); // value | name | pos
 
   // Your team pinned first in the chip bar (then value-sorted) so it's visible on open — otherwise a
   // value-sorted bar buries "you" off-screen to the right. The default selection is still your team.
-  const teams = (data.teams || []).slice().sort((a, b) => (b.mine ? 1 : 0) - (a.mine ? 1 : 0) || (b.totalValue || 0) - (a.totalValue || 0));
+  const teams = useMemo(
+    () => (data && data.teams ? data.teams.slice().sort((a, b) => (b.mine ? 1 : 0) - (a.mine ? 1 : 0) || (b.totalValue || 0) - (a.totalValue || 0)) : []),
+    [data]
+  );
   const active = teams.find((t) => t.franchiseId === sel) || teams.find((t) => t.mine) || teams[0];
+
+  // Filter by position, then sort. Value sinks nulls to the bottom; Pos groups by position then value.
+  const shown = useMemo(() => {
+    const list = (active ? active.players : []).filter((p) => !pos || p.position === pos);
+    const byVal = (a, b) => (b.value == null ? -1 : a.value == null ? 1 : b.value - a.value);
+    return list.slice().sort((a, b) => {
+      if (sort === 'name') return String(a.name).localeCompare(String(b.name));
+      if (sort === 'pos') return (POS_ORDER[a.position] ?? 9) - (POS_ORDER[b.position] ?? 9) || byVal(a, b);
+      return byVal(a, b);
+    });
+  }, [active, pos, sort]);
+
+  if (error && !data) return <ErrorView message={error} onRetry={reload} onRefresh={reload} refreshing={refreshing} />;
+  if (!data) return <Center><ActivityIndicator color={colors.accent} size="large" /></Center>;
 
   return (
     <View style={{ flex: 1 }}>
@@ -129,8 +152,23 @@ function RostersTab({ leagueId, onOpenPlayer }) {
           );
         })}
       </ScrollView>
+      <View style={styles.rFilterRow}>
+        {ROSTER_POS.map(([k, label]) => (
+          <Pressable key={label} style={[styles.rChip, pos === k && styles.rChipOn]} onPress={() => setPos(k)}>
+            <Text style={[styles.rChipText, pos === k && { color: colors.text }]}>{label}</Text>
+          </Pressable>
+        ))}
+      </View>
+      <View style={styles.rSortRow}>
+        <Text style={styles.rSortLabel}>Sort</Text>
+        {ROSTER_SORTS.map(([k, label]) => (
+          <Pressable key={k} style={[styles.rSortChip, sort === k && styles.rSortChipOn]} onPress={() => setSort(k)}>
+            <Text style={[styles.rSortText, sort === k && { color: colors.text }]}>{label}</Text>
+          </Pressable>
+        ))}
+      </View>
       <FlatList
-        data={active ? active.players : []}
+        data={shown}
         keyExtractor={(p) => p.id}
         contentContainerStyle={styles.list}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={reload} tintColor={colors.accent} />}
@@ -143,7 +181,7 @@ function RostersTab({ leagueId, onOpenPlayer }) {
             <Text style={styles.pVal}>{item.value != null ? item.value : '—'}</Text>
           </Pressable>
         )}
-        ListEmptyComponent={<Text style={styles.empty}>No roster to show.</Text>}
+        ListEmptyComponent={<Text style={styles.empty}>{pos ? `No ${pos === 'PK' ? 'K' : pos}s on this roster.` : 'No roster to show.'}</Text>}
       />
     </View>
   );
@@ -242,6 +280,16 @@ const styles = StyleSheet.create({
   teamChipOn: { backgroundColor: colors.cardAlt, borderColor: colors.accent },
   teamChipName: { color: colors.textDim, fontSize: 13, fontWeight: '700' },
   teamChipVal: { color: colors.gold, fontSize: 12, fontWeight: '800', marginTop: 1 },
+  // Position filter + sort for the selected roster — same vocabulary as the Players screen.
+  rFilterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, rowGap: 6, paddingHorizontal: 16, paddingTop: 2, paddingBottom: 4 },
+  rChip: { backgroundColor: colors.card, borderRadius: 8, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 5 },
+  rChipOn: { backgroundColor: colors.cardAlt, borderColor: colors.accent },
+  rChipText: { color: colors.textDim, fontSize: 12, fontWeight: '800' },
+  rSortRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingBottom: 4 },
+  rSortLabel: { color: colors.textDim, fontSize: 12, fontWeight: '700', marginRight: 2 },
+  rSortChip: { backgroundColor: colors.card, borderRadius: 8, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 5 },
+  rSortChipOn: { backgroundColor: colors.cardAlt, borderColor: colors.accent },
+  rSortText: { color: colors.textDim, fontSize: 12, fontWeight: '700' },
   pRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 7 },
   pDot: { width: 10, height: 10, borderRadius: 5, marginRight: 10 },
   pName: { color: colors.text, fontSize: 14, fontWeight: '700', flexShrink: 1 },

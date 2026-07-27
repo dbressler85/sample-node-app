@@ -32,6 +32,7 @@ export const HELP = [
       'Ascending — a young core (about 24.5 or younger) that isn’t bottom-tier. A winner is forming; be patient with picks and youth.',
       'Rebuilding — a bottom-half roster by value. The move is to accumulate youth and picks.',
       'Balanced — middling on both axes, no strong lean either way.',
+      'Unread — a league whose roster couldn’t be loaded this pass (usually a brief MFL rate-limit), so it has no outlook yet. Pull to refresh to retry; it’s shown only so the four buckets still add up to your league count.',
     ],
   },
   {

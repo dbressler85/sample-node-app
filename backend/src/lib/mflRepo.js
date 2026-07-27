@@ -84,7 +84,10 @@ async function freeAgentUnits(league, cookie, params = {}) {
 
 // `draftResults` export -> the draft unit(s); the caller picks the LEAGUE unit and reads draftPick[].
 async function draftResults(league, cookie, params = {}) {
-  const res = await read('draftResults', league, cookie, params);
+  // Retry a transient throttle: the live draft board polls this and the pick-inventory fan-out reads it
+  // per league — a single 429 in a burst surfaced as "MFL request failed (429) for export?TYPE=draftResults"
+  // on the draft screen and silently dropped a league's picks from inventory. Retry at the source.
+  const res = await withRetry(() => read('draftResults', league, cookie, params));
   return mflRead.reads.draftResults.parse(res);
 }
 

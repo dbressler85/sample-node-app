@@ -68,12 +68,16 @@ mfl.exportRequest = async (type, opts = {}) => {
       return { leagues: { league: [
         { league_id: '1000', name: 'Strong Here', url: 'https://www10.myfantasyleague.com/2026/home/1000', franchise_id: '0001', franchise_name: 'My Team' },
         { league_id: '2000', name: 'Weak Here', url: 'https://www10.myfantasyleague.com/2026/home/2000', franchise_id: '0001', franchise_name: 'My Team' },
+        // A third league whose roster read always throws (a persistent throttle) — it must land in
+        // `outlookUnknown`, not silently vanish from the outlook mix.
+        { league_id: '3000', name: 'Unreadable Here', url: 'https://www10.myfantasyleague.com/2026/home/3000', franchise_id: '0001', franchise_name: 'My Team' },
       ] } };
     case 'players':
       return { players: { player: PLAYERS } };
     case 'league':
       return { league: { starters: { position: [{ name: 'WR', limit: '1' }, { name: 'RB', limit: '1' }] }, franchises: { franchise: [{ id: '0001' }, { id: '0002' }, { id: '0003' }] } } };
     case 'rosters':
+      if (opts.L === '3000') throw new Error('MFL request failed (429)'); // persistent throttle -> roster stays null
       return { rosters: { franchise: ROSTERS[opts.L] || ROSTERS['1000'] } };
     case 'injuries':
       return { injuries: { injury: [] } };
@@ -114,11 +118,14 @@ const portfolio = require('../../src/services/portfolio');
   console.log('✓ live: identical young core -> Ascending when strongest, Rebuilding when weakest');
 
   const home = await portfolio.getHome(CK, TK);
-  console.log('rollup:', JSON.stringify({ ascending: home.portfolio.ascending, rebuilding: home.portfolio.rebuilding, winNow: home.portfolio.contenders, balanced: home.portfolio.balanced }));
+  console.log('rollup:', JSON.stringify({ ascending: home.portfolio.ascending, rebuilding: home.portfolio.rebuilding, winNow: home.portfolio.contenders, balanced: home.portfolio.balanced, unknown: home.portfolio.outlookUnknown }));
   const sum = home.portfolio.ascending + home.portfolio.rebuilding + home.portfolio.contenders + home.portfolio.balanced;
-  assert(sum === home.portfolio.leagues, `outlook buckets sum to league count (${sum} vs ${home.portfolio.leagues})`);
   assert(home.portfolio.ascending === 1 && home.portfolio.rebuilding === 1, 'rollup counts one Ascending + one Rebuilding');
-  console.log('✓ rollup: the four buckets are exhaustive (sum to league count)');
+  // The third league's roster couldn't be read, so it carries no outlook — it must show up as `outlookUnknown`
+  // (honesty) rather than dropping out and leaving the four buckets summing short of the league count.
+  assert(home.portfolio.outlookUnknown === 1, `a league with an unreadable roster is counted as unknown, got ${home.portfolio.outlookUnknown}`);
+  assert(sum + home.portfolio.outlookUnknown === home.portfolio.leagues, `buckets + unknown reconcile to league count (${sum} + ${home.portfolio.outlookUnknown} vs ${home.portfolio.leagues})`);
+  console.log('✓ rollup: buckets + unknown reconcile to the league count (unreadable leagues are surfaced, not dropped)');
 
   console.log('\nDYNASTY OUTLOOK HARNESS PASSED');
 })().catch((e) => { console.error(e.message); process.exit(1); });
