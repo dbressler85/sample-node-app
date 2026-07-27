@@ -4,6 +4,7 @@ import { colors } from '../theme';
 import { displayLg, displayLabel } from '../typography';
 import { pickInventoryPreferDevice } from '../mflDevice';
 import ErrorView from '../components/ErrorView';
+import PressableScale from '../components/PressableScale';
 import useAndroidBack from '../useAndroidBack';
 import useCachedResource from '../useCachedResource';
 import { Value } from '../components/Brand';
@@ -25,7 +26,7 @@ const OUTLOOK_COLOR = {
   Balanced: colors.accent,
 };
 
-export default function PickInventoryScreen({ onBack }) {
+export default function PickInventoryScreen({ onBack, onShopPicks, onGetPicks }) {
   // Device-first: the per-league assets/futureDraftPicks/draftResults fan-out runs on-device, falling
   // back to the backend on any device-read failure.
   const { data, error, refreshing, loading, reload } = useCachedResource('pickInventory', () => pickInventoryPreferDevice());
@@ -61,7 +62,7 @@ export default function PickInventoryScreen({ onBack }) {
           contentContainerStyle={styles.list}
           stickySectionHeadersEnabled={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={reload} tintColor={colors.accent} />}
-          renderSectionHeader={({ section }) => <LeagueHeader league={section.league} />}
+          renderSectionHeader={({ section }) => <LeagueHeader league={section.league} onShopPicks={onShopPicks} onGetPicks={onGetPicks} />}
           renderItem={({ item }) => <PickRow p={item} />}
           renderSectionFooter={({ section }) =>
             section.league.count === 0 ? <Text style={styles.leagueEmpty}>No picks — all traded away.</Text> : null
@@ -74,9 +75,10 @@ export default function PickInventoryScreen({ onBack }) {
 
 // The per-league card header: league name + total pick value, then a context chip row (outlook,
 // roster age, format) so the picks below read in the context of where this team actually is.
-function LeagueHeader({ league }) {
+function LeagueHeader({ league, onShopPicks, onGetPicks }) {
   const c = league.context || {};
   const outlookColor = OUTLOOK_COLOR[c.outlook] || colors.textDim;
+  const arg = { leagueId: league.leagueId, name: league.leagueName };
   return (
     <View style={styles.leagueHead}>
       <View style={styles.leagueTop}>
@@ -103,6 +105,22 @@ function LeagueHeader({ league }) {
           <View style={styles.chip}><Text style={styles.chipTextDim}>{c.scoringLabel}</Text></View>
         ) : null}
       </View>
+      {/* Turn the capital into action: shop these picks for a proven player, or spend a player to add
+          picks. Each opens a ranked-partner shortlist for that intent. Shown only when I hold picks. */}
+      {(onShopPicks || onGetPicks) && league.count > 0 ? (
+        <View style={styles.ctaRow}>
+          {onShopPicks ? (
+            <PressableScale style={styles.cta} onPress={() => onShopPicks(arg)}>
+              <Text style={styles.ctaText}>Shop picks</Text>
+            </PressableScale>
+          ) : null}
+          {onGetPicks ? (
+            <PressableScale style={[styles.cta, styles.ctaAlt]} onPress={() => onGetPicks(arg)}>
+              <Text style={[styles.ctaText, styles.ctaTextAlt]}>Get picks</Text>
+            </PressableScale>
+          ) : null}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -147,6 +165,11 @@ const styles = StyleSheet.create({
   chipText: { fontSize: 11, fontWeight: '800', letterSpacing: 0.2 },
   chipTextDim: { color: colors.textDim, fontSize: 11, fontWeight: '700' },
   leagueEmpty: { color: colors.textDim, fontSize: 13, fontStyle: 'italic', paddingVertical: 6 },
+  ctaRow: { flexDirection: 'row', marginTop: 10, marginBottom: 2 },
+  cta: { flex: 1, borderRadius: 10, borderWidth: 1, borderColor: colors.accent, paddingVertical: 8, alignItems: 'center', marginRight: 8, backgroundColor: 'rgba(79,140,255,0.10)' },
+  ctaAlt: { marginRight: 0 },
+  ctaText: { color: colors.accent, fontSize: 13, fontWeight: '800', letterSpacing: 0.2 },
+  ctaTextAlt: { color: colors.accent },
   row: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 12, marginBottom: 8 },
   roundBadge: { width: 38, paddingVertical: 3, borderRadius: 6, borderWidth: 1, alignItems: 'center', marginRight: 10 },
   roundText: { fontSize: 11, fontWeight: '800' },

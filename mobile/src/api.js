@@ -193,6 +193,9 @@ export const api = {
     request(`/api/leagues/${leagueId}/trades/ask?send=${encodeURIComponent((sendIds || []).join(','))}&partner=${partnerId}`),
   // Full deal from zero with a partner — both sides proposed at once.
   fullDeal: (leagueId, partnerId) => request(`/api/leagues/${leagueId}/trades/deal?partner=${partnerId}`),
+  // Pick Capital shop/acquire: ranked trade partners for a pick-oriented deal (intent 'shop'|'acquire'),
+  // each with a pre-built suggested deal.
+  pickPartners: (leagueId, intent) => request(`/api/leagues/${leagueId}/trades/pick-partners?intent=${intent}`),
   // Manual per-league trade deadline (MFL exposes none). Pass 'YYYY-MM-DD' or null to clear.
   setTradeDeadline: (leagueId, deadline) => request(`/api/leagues/${leagueId}/trade-deadline`, { method: 'POST', body: { deadline } }),
   counterTrade: (leagueId, offerId) => request(`/api/leagues/${leagueId}/trades/counter?offer=${offerId}`),
