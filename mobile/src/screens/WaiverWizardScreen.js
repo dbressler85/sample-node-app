@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, ActivityIndicator } from 'react-native';
+import { appAlert } from "../components/AppAlert";
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import { displayLg } from '../typography';
@@ -98,7 +99,6 @@ export default function WaiverWizardScreen({ leagues, onBack, onOpenPlayer }) {
     return seen;
   }, [current && current.leagueId]);
   const queuedAddIds = useMemo(() => new Set(queue.map((q) => q.addId)), [queue]);
-  const queuedDropIds = useMemo(() => new Set(queue.map((q) => q.dropId).filter(Boolean)), [queue]);
   const filteredCandidates = useMemo(
     () => (current ? current.candidates.filter((c) => (!posFilter || c.position === posFilter) && !queuedAddIds.has(c.id)) : []),
     [current && current.leagueId, posFilter, queuedAddIds]
@@ -146,8 +146,12 @@ export default function WaiverWizardScreen({ leagues, onBack, onOpenPlayer }) {
   // re-validates the whole queue on submit; these are the live client-side hints.
   const queuedBidTotal = queue.reduce((s, q) => s + (q.bid || 0), 0);
   const addsCount = queue.length + (add ? 1 : 0);
-  const dropsCount = queuedDropIds.size + (dropId ? 1 : 0);
-  const rosterAfter = current ? current.rosterCount + addsCount - dropsCount : 0;
+  // Roster impact with CONTINGENCY: claims that share a drop are mutually exclusive (the drop happens
+  // once), so each drop-group nets zero — only claims with NO drop actually grow the roster. Mirrors
+  // the backend so the wizard doesn't block queuing two claims that drop the same player.
+  const queuedDropless = queue.filter((q) => !q.dropId).length;
+  const currentDropless = add && !dropId ? 1 : 0;
+  const rosterAfter = current ? current.rosterCount + queuedDropless + currentDropless : 0;
   const overRoster = current && rosterAfter > current.rosterSize;
   const totalSpend = queuedBidTotal + (isFaab && bidNum ? bidNum : 0);
   const budgetLeftAll = isFaab && current && current.faabRemaining != null ? current.faabRemaining - totalSpend : null;
@@ -191,7 +195,7 @@ export default function WaiverWizardScreen({ leagues, onBack, onOpenPlayer }) {
       else await api.submitMultiClaim(current.leagueId, claims);
       advance({ leagueId: current.leagueId, name: current.name, action: 'claimed', add: names.join(', '), count: names.length, bid: isFaab ? totalSpend : null });
     } catch (e) {
-      Alert.alert('Could not submit', e.message);
+      appAlert('Could not submit', e.message, null, { tone: 'error' });
     } finally {
       setSubmitting(false);
     }
@@ -252,6 +256,17 @@ export default function WaiverWizardScreen({ leagues, onBack, onOpenPlayer }) {
           {isFaab && current.faabRemaining != null ? `$${current.faabRemaining} FAAB · ` : ''}
           Roster {current.rosterCount}/{current.rosterSize}{current.rosterFull ? ' · FULL' : ''}
         </Text>
+
+        {/* League + team context: format (Superflex/1QB · PPR · TE-premium), my dynasty outlook, and
+            average roster age — so the pickup decision is made with the league and team in view. */}
+        {current.context ? (
+          <View style={styles.ctxRow}>
+            {current.context.format ? <Text style={[styles.ctxChip, current.context.superflex && styles.ctxChipSf]}>{current.context.format}</Text> : null}
+            {current.context.outlook ? <Text style={[styles.ctxChip, styles.ctxChipOutlook]}>{current.context.outlook}</Text> : null}
+            {current.context.avgAge != null ? <Text style={styles.ctxChip}>{`Avg age ${current.context.avgAge}`}</Text> : null}
+          </View>
+        ) : null}
+
         {rec ? (
           <Text style={[styles.reason, rec.upgrade && { color: colors.gold }]}>
             {rec.upgrade ? '★ ' : ''}{rec.reason}
@@ -277,13 +292,25 @@ export default function WaiverWizardScreen({ leagues, onBack, onOpenPlayer }) {
             </Text>
             {current.submitted.map((c) => (
               <View key={c.id} style={styles.submittedRow}>
-                <Text style={styles.submittedText} numberOfLines={1}>
-                  <Text style={styles.submittedAdd}>+ {c.add ? shortName(c.add.name) : '—'}</Text>
-                  {c.add && c.add.position ? <Text style={styles.submittedMeta}>{`  ${c.add.position}`}</Text> : null}
-                  {c.bid != null ? <Text style={styles.submittedBid}>{`  $${c.bid}`}</Text> : null}
-                  {c.priority != null ? <Text style={styles.submittedBid}>{`  #${c.priority}`}</Text> : null}
-                  {c.drop ? <Text style={styles.submittedMeta}>{`  · − ${shortName(c.drop.name)}`}</Text> : null}
-                </Text>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={styles.submittedText} numberOfLines={1}>
+                    <Text style={styles.submittedAdd}>+ {c.add ? shortName(c.add.name) : '—'}</Text>
+                    {c.add ? <Text style={styles.submittedMeta}>{`  ${[c.add.position, c.add.team].filter(Boolean).join(' · ')}`}</Text> : null}
+                    {c.bid != null ? <Text style={styles.submittedBid}>{`  $${c.bid}`}</Text> : null}
+                    {c.priority != null ? <Text style={styles.submittedBid}>{`  #${c.priority}`}</Text> : null}
+                  </Text>
+                  {c.drop ? (
+                    <Text style={styles.submittedText} numberOfLines={1}>
+                      <Text style={styles.submittedDrop}>− {shortName(c.drop.name)}</Text>
+                      <Text style={styles.submittedMeta}>{`  ${[c.drop.position, c.drop.team].filter(Boolean).join(' · ')}`}</Text>
+                    </Text>
+                  ) : null}
+                  {c.valueDelta != null ? (
+                    <Text style={[styles.submittedDelta, { color: c.valueDelta >= 0 ? colors.good : colors.bad }]}>
+                      {`net ${c.valueDelta >= 0 ? '+' : ''}${c.valueDelta} value`}
+                    </Text>
+                  ) : null}
+                </View>
                 {c.source === 'mfl' ? <Text style={styles.mflTag}>MFL</Text> : null}
               </View>
             ))}
@@ -459,9 +486,17 @@ function shortName(name) {
   const first = (parts[1] || '').trim();
   return first ? `${last} ${first[0]}.` : last;
 }
-// Shared identity meta: NFL team · bye week — carried on every wizard player (add + rostered).
+// Rostered-player meta for the drop picker: NFL team · bye · this-week projection · this-year points
+// — filling the previously-empty drop card with the numbers that inform who to cut.
 function teamByeLine(p) {
-  return [p.team, p.bye != null ? `bye ${p.bye}` : null].filter(Boolean).join(' · ');
+  return [
+    p.team,
+    p.bye != null ? `bye ${p.bye}` : null,
+    p.projection != null ? `proj ${p.projection}` : null,
+    p.seasonPoints != null ? `${p.seasonPoints} yr` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
 }
 
 function PlayerLine({ p, showValue, compact, onOpenPlayer }) {
@@ -645,11 +680,18 @@ const styles = StyleSheet.create({
   submittedStrip: { backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.accent + '55', paddingHorizontal: 12, paddingTop: 8, paddingBottom: 8, marginTop: 4, marginBottom: 4 },
   submittedTitle: { color: colors.accent, fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 6 },
   submittedRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 },
-  submittedText: { color: colors.text, fontSize: 14, flex: 1, marginRight: 8 },
+  submittedText: { color: colors.text, fontSize: 14, marginRight: 8 },
   submittedAdd: { color: colors.good, fontWeight: '800' },
+  submittedDrop: { color: colors.textDim, fontWeight: '800' },
   submittedMeta: { color: colors.textDim, fontSize: 13, fontWeight: '600' },
   submittedBid: { color: colors.gold, fontSize: 13, fontWeight: '800' },
+  submittedDelta: { fontSize: 12, fontWeight: '800', marginTop: 1 },
   mflTag: { color: colors.accent, fontSize: 9, fontWeight: '900', borderWidth: 1, borderColor: colors.accent, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, overflow: 'hidden' },
+  // League + team context chip row (format / outlook / avg age).
+  ctxRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
+  ctxChip: { color: colors.textDim, fontSize: 11, fontWeight: '800', borderWidth: 1, borderColor: colors.border, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, overflow: 'hidden' },
+  ctxChipSf: { color: colors.accent, borderColor: colors.accent },
+  ctxChipOutlook: { color: colors.gold, borderColor: colors.gold + '88' },
   // Full-roster drop picker rows, grouped by position.
   posGroupHeader: { color: colors.textDim, fontSize: 11, fontWeight: '900', letterSpacing: 0.6, textTransform: 'uppercase', paddingHorizontal: 10, paddingTop: 10, paddingBottom: 2 },
   rosterRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 9, paddingHorizontal: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },

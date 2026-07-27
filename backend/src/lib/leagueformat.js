@@ -85,6 +85,18 @@ function numQbs(reqs) {
   return qbSlots >= 2 ? 2 : 1;
 }
 
+// How many TEs the lineup REQUIRES you to start — the count of dedicated TE-only slots (a flex that
+// merely CAN hold a TE doesn't force one). ≥2 means the league mandates two tight ends, which is one
+// of the two things that make a league "TE-premium" (the other being a TE reception bonus).
+function teStarterCount(reqs) {
+  let n = 0;
+  for (const r of reqs || []) {
+    const elig = r.eligible || [];
+    if (elig.length === 1 && elig[0] === 'TE') n += Number(r.min != null ? r.min : r.count) || 0;
+  }
+  return n;
+}
+
 // --- live scoring-rule parsing (PPR detection) ------------------------------
 // MFL's `rules` export returns per-position scoring rules. Each rule is a triple:
 // an `event` stat code, a `range`, and a `points` multiplier — and MFL JSON wraps
@@ -180,16 +192,18 @@ async function buildFormat(cookie, league) {
     // The demo scoring fixture states the TE bump as `tePremium` (extra points per TE
     // reception); tePpr is the TE's total per-reception points.
     const tePpr = s.tePpr != null ? s.tePpr : ppr + (s.tePremium || 0);
-    return { numQbs: numQbs(reqs), ppr, tePpr, pprDetected: true };
+    const teStarters = teStarterCount(reqs);
+    return { numQbs: numQbs(reqs), ppr, tePpr, teStarters, tep: tePpr > ppr || teStarters >= 2, pprDetected: true };
   }
   // Roster requirements and scoring rules are independent reads — fetch in parallel.
   const [reqs, rules] = await Promise.all([requirements(cookie, league), scoringRules(cookie, league)]);
-  return {
-    numQbs: numQbs(reqs),
-    ppr: rules.detected ? rules.ppr : 1,
-    tePpr: rules.detected ? rules.tePpr : null,
-    pprDetected: !!rules.detected,
-  };
+  const ppr = rules.detected ? rules.ppr : 1;
+  const tePpr = rules.detected ? rules.tePpr : null;
+  const teStarters = teStarterCount(reqs);
+  // TE-premium if EITHER the TE gets a bigger per-reception bump than the base PPR, OR the lineup
+  // mandates two tight-end starters — both make TEs scarce/valuable and both must surface as "TEP".
+  const tep = (tePpr != null && tePpr > ppr) || teStarters >= 2;
+  return { numQbs: numQbs(reqs), ppr, tePpr, teStarters, tep, pprDetected: !!rules.detected };
 }
 
 // --- draft pick-clock settings (auto-detected from the `league` export) ------
@@ -254,7 +268,8 @@ function label(fmt) {
   if (!fmt) return null;
   const qb = fmt.numQbs >= 2 ? 'Superflex' : '1QB';
   const pprLabel = fmt.ppr >= 1 ? 'PPR' : fmt.ppr >= 0.5 ? 'Half-PPR' : 'Standard';
-  const te = fmt.tePpr != null && fmt.tePpr > fmt.ppr ? ' · TE-premium' : '';
+  // TE-premium covers BOTH triggers now (scoring bump OR a mandated 2nd TE), via fmt.tep.
+  const te = fmt.tep || (fmt.tePpr != null && fmt.tePpr > fmt.ppr) ? ' · TE-premium' : '';
   return `${qb} · ${pprLabel}${te}`;
 }
 

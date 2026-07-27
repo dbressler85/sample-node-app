@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, Pressable, ActivityIndicator, Alert, Image, Linking } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Pressable, ActivityIndicator, Image, Linking } from 'react-native';
+import { appAlert } from "../components/AppAlert";
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import { displayLabel } from '../typography';
@@ -117,7 +118,7 @@ export default function PlayerProfileScreen({ playerId, seed, onBack, onOpenTrad
     const next = !watched;
     setWatched(next);
     const call = next ? api.watchAdd(playerId) : api.watchRemove(playerId);
-    call.catch((e) => { setWatched(!next); Alert.alert('Could not update watchlist', e.message); });
+    call.catch((e) => { setWatched(!next); appAlert('Could not update watchlist', e.message); });
   }, [watched, playerId]);
 
   // Target / Avoid — tapping the current tag clears it. Optimistic, reverts on failure.
@@ -125,7 +126,7 @@ export default function PlayerProfileScreen({ playerId, seed, onBack, onOpenTrad
     const next = tag === which ? null : which;
     const prev = tag;
     setTag(next);
-    api.setTag(playerId, next).catch((e) => { setTag(prev); Alert.alert('Could not update tag', e.message); });
+    api.setTag(playerId, next).catch((e) => { setTag(prev); appAlert('Could not update tag', e.message); });
   }, [tag, playerId]);
 
   // Back closes an open action sheet before leaving the profile.
@@ -214,7 +215,7 @@ export default function PlayerProfileScreen({ playerId, seed, onBack, onOpenTrad
               style={styles.valueBox}
               hitSlop={8}
               onPress={() =>
-                Alert.alert(
+                appAlert(
                   'Dynasty value',
                   `A player's trade value on the dynasty market, priced for each league's format — Superflex and PPR raise a player's worth, so the same player is valued differently in each of your leagues.\n\n${
                     p.valueRange && p.valueRange.min !== p.valueRange.max
@@ -440,10 +441,10 @@ function DropSheet({ player, onClose, onDone }) {
     setBusy(true);
     try {
       const res = await api.playerDrop(player.id, [...selected]);
-      Alert.alert('Dropped', `${player.name} dropped in ${res.summary.dropped} league${res.summary.dropped === 1 ? '' : 's'}.`);
+      appAlert('Dropped', `${player.name} dropped in ${res.summary.dropped} league${res.summary.dropped === 1 ? '' : 's'}.`);
       onDone();
     } catch (e) {
-      Alert.alert('Could not drop', e.message);
+      appAlert('Could not drop', e.message);
     } finally {
       setBusy(false);
     }
@@ -454,7 +455,7 @@ function DropSheet({ player, onClose, onDone }) {
   function submit() {
     const n = selected.size;
     const where = n === 1 ? 'this league' : `${n} leagues`;
-    Alert.alert(
+    appAlert(
       `Drop ${player.name}?`,
       `This releases him to free agency in ${where}. Another team can claim him right away.`,
       [

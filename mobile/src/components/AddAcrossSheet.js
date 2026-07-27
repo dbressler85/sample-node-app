@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, Pressable, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
+import { appAlert } from './AppAlert';
 import { api } from '../api';
 import { colors } from '../theme';
 
@@ -33,10 +34,10 @@ export default function AddAcrossSheet({ player, onClose, onDone }) {
     try {
       const leagues = preview.leagues.filter((l) => selected.has(l.leagueId)).map((l) => ({ leagueId: l.leagueId }));
       const res = await api.playerAdd(player.id, leagues);
-      Alert.alert('Claims submitted', `${player.name} claimed in ${res.summary.submitted} of ${res.summary.requested} leagues.`);
+      appAlert('Claims submitted', `${player.name} claimed in ${res.summary.submitted} of ${res.summary.requested} leagues.`);
       onDone();
     } catch (e) {
-      Alert.alert('Could not submit', e.message);
+      appAlert('Could not submit', e.message);
     } finally {
       setBusy(false);
     }

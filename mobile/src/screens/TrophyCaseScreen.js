@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, FlatList, ActivityIndicator, RefreshControl, Modal, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, FlatList, ActivityIndicator, RefreshControl, Modal, TextInput } from 'react-native';
+import { appAlert } from "../components/AppAlert";
 import { api } from '../api';
 import { colors } from '../theme';
 import { displayLg } from '../typography';
@@ -50,12 +51,12 @@ export default function TrophyCaseScreen({ onBack }) {
       const n = (res.added || []).length;
       if (n) {
         const lines = res.added.map((t) => `${t.year} · ${t.leagueName}`).join('\n');
-        Alert.alert(`Found ${n} title${n === 1 ? '' : 's'}!`, lines);
+        appAlert(`Found ${n} title${n === 1 ? '' : 's'}!`, lines);
       } else {
-        Alert.alert('All caught up', 'No new championships found in your MyFantasyLeague playoff history.');
+        appAlert('All caught up', 'No new championships found in your MyFantasyLeague playoff history.');
       }
     } catch (e) {
-      Alert.alert('Could not scan', e.message);
+      appAlert('Could not scan', e.message);
     } finally {
       setDetecting(false);
     }
@@ -66,7 +67,7 @@ export default function TrophyCaseScreen({ onBack }) {
 
   async function submit() {
     if (!team.trim() || !leagueName.trim() || !/^\d{4}$/.test(year.trim())) {
-      Alert.alert('Add a title', 'Enter a team, a league, and a 4-digit year.');
+      appAlert('Add a title', 'Enter a team, a league, and a 4-digit year.');
       return;
     }
     setSaving(true);
@@ -76,14 +77,14 @@ export default function TrophyCaseScreen({ onBack }) {
       setAdding(false);
       setTeam(''); setLeagueName(''); setYear('');
     } catch (e) {
-      Alert.alert('Could not add', e.message);
+      appAlert('Could not add', e.message);
     } finally {
       setSaving(false);
     }
   }
 
   function confirmRemove(trophy) {
-    Alert.alert('Remove trophy?', `${trophy.year} · ${trophy.leagueName}`, [
+    appAlert('Remove trophy?', `${trophy.year} · ${trophy.leagueName}`, [
       { text: 'Keep', style: 'cancel' },
       {
         text: 'Remove',
@@ -93,7 +94,7 @@ export default function TrophyCaseScreen({ onBack }) {
             const res = await api.removeTrophy(trophy.id);
             apply(res);
           } catch (e) {
-            Alert.alert('Could not remove', e.message);
+            appAlert('Could not remove', e.message);
           }
         },
       },

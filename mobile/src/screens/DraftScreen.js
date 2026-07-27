@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, FlatList, SectionList, ActivityIndicator, Alert, Modal, TextInput } from 'react-native';
+import { View, Text, StyleSheet, Pressable, FlatList, SectionList, ActivityIndicator, Modal, TextInput } from 'react-native';
+import { appAlert } from "../components/AppAlert";
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import { displayLg, displayLabel } from '../typography';
@@ -262,7 +263,7 @@ export default function DraftScreen({ league, demoMode, covered = false, onBack,
       setData(res);
       primeResource(boardKey, res);
     } catch (e) {
-      Alert.alert('Could not draft', e.message);
+      appAlert('Could not draft', e.message);
     } finally {
       setPicking(null);
     }

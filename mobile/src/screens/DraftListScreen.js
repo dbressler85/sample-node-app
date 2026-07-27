@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, ActivityIndicator } from 'react-native';
+import { appAlert } from "../components/AppAlert";
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import { displayLg } from '../typography';
@@ -96,7 +97,7 @@ export default function DraftListScreen({ league, onBack, onOpenPlayer }) {
     setSaving(true);
     api.saveDraftList(league.leagueId, list.map((p) => p.id))
       .then((d) => { setData(d); setList(d.list || []); setDirty(false); })
-      .catch((e) => Alert.alert('Could not save your list', e.message))
+      .catch((e) => appAlert('Could not save your list', e.message))
       .finally(() => setSaving(false));
   };
 
@@ -261,7 +262,7 @@ export default function DraftListScreen({ league, onBack, onOpenPlayer }) {
 }
 
 function promptDiscard(onBack) {
-  Alert.alert('Discard changes?', 'You have unsaved changes to your draft list.', [
+  appAlert('Discard changes?', 'You have unsaved changes to your draft list.', [
     { text: 'Keep editing', style: 'cancel' },
     { text: 'Discard', style: 'destructive', onPress: onBack },
   ]);

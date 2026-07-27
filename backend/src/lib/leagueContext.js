@@ -39,6 +39,10 @@ async function build(cookie, league) {
   const ppr = fmt && fmt.ppr != null ? fmt.ppr : 1;
   // Extra points per TE reception above the base — the "TE premium" that lifts TE value.
   const tePremium = fmt && fmt.tePpr != null && fmt.tePpr > ppr ? Math.round((fmt.tePpr - ppr) * 100) / 100 : 0;
+  // TE-premium as a league TRAIT — true from EITHER a TE reception bump or a mandated 2nd TE starter.
+  // `teStarters` (>=2 means two required TEs) lets the UI say WHY when there's no scoring bump.
+  const teStarters = fmt && fmt.teStarters != null ? fmt.teStarters : 0;
+  const tep = !!(fmt && fmt.tep) || tePremium > 0 || teStarters >= 2;
   // Per-slot: keep min/max so the UI can show ranges; `count` (max) stays for callers that expect it.
   const starters = (spec.slots || []).map((r) => ({ slot: r.name, count: r.count || 1, min: r.min != null ? r.min : r.count || 1, max: r.max != null ? r.max : r.count || 1, eligible: r.eligible || [] }));
   // `hasRange` lets the UI note the label is a set of maximums whose true total is `totalStarters`.
@@ -49,6 +53,8 @@ async function build(cookie, league) {
     ppr,
     pprLabel: ppr >= 1 ? 'Full PPR' : ppr >= 0.5 ? 'Half PPR' : 'Standard',
     tePremium,
+    tep,
+    teStarters,
     lineup: {
       label: lineupLabel(starters),
       starters,

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, SectionList, StyleSheet, Pressable, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, SectionList, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
+import { appAlert } from "../components/AppAlert";
 import { api } from '../api';
 import PlayerRow from '../components/PlayerRow';
 import Reveal from '../components/Reveal';
@@ -64,7 +65,7 @@ export default function RosterScreen({ league, onBack, onOpenTrades, onOpenDraft
       await call();
       reload();
     } catch (e) {
-      Alert.alert('Move not allowed', e.message);
+      appAlert('Move not allowed', e.message);
     } finally {
       setMovingId(null);
     }

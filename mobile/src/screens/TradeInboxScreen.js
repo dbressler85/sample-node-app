@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, FlatList, RefreshControl, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, FlatList, RefreshControl, ActivityIndicator } from 'react-native';
+import { appAlert } from "../components/AppAlert";
 import { api } from '../api';
 import useCachedResource from '../useCachedResource';
 import { getValue, setValue } from '../cache';
@@ -130,7 +131,7 @@ export default function TradeInboxScreen({ active = true, onBack, onOpenLeague, 
       celebrate(action === 'accept' ? 'tradeAccepted' : 'offerRejected');
       await reload();
     } catch (e) {
-      Alert.alert('Could not respond', e.message);
+      appAlert('Could not respond', e.message);
     } finally {
       setBusy(null);
     }
@@ -142,7 +143,7 @@ export default function TradeInboxScreen({ active = true, onBack, onOpenLeague, 
     if (action !== 'accept') return doRespond(offer, action);
     const net = offer.analysis && typeof offer.analysis.net === 'number' ? offer.analysis.net : null;
     const netStr = net != null ? ` · market net ${net > 0 ? '+' : ''}${net}` : '';
-    Alert.alert(
+    appAlert(
       'Accept this trade?',
       `Complete the deal with ${offer.withName || 'this team'}${netStr}. This is final on MyFantasyLeague — it can’t be undone from the app.`,
       [
