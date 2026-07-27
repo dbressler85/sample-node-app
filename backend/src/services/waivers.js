@@ -81,7 +81,11 @@ function firstNum(obj, ...keys) {
   return null;
 }
 
-async function loadSettings(league, cookie) {
+// `fresh` (default true) reads the `league` export near-live (60s) for the FAAB balance / priority — the
+// bid/claim paths need that so a validated bid can't exceed an already-spent budget. Read-only callers
+// that only need the SYSTEM + roster size (e.g. the best-available board) pass fresh:false to serve from
+// the 24h `league` cache instead of re-reading all N leagues' settings every 60s.
+async function loadSettings(league, cookie, { fresh = true } = {}) {
   if (config.demoMode) return demo.waiverSettings(league.leagueId) || { system: 'free', rosterSize: 99 };
   // Parse the live league settings (roster size, FAAB budget/priority/system).
   // A hard failure here throws rather than fabricating a board: the old fallback
@@ -95,7 +99,9 @@ async function loadSettings(league, cookie) {
     // Retry a transient throttle before giving up: the overview fans this read out across every
     // league at once (a burst that trips MFL's per-IP limiter), and a single 429/403 here was
     // surfacing as "Could not load waiver settings" for whichever leagues happened to lose the race.
-    res = await withRetry(() => mfl.exportRequest('league', { host: league.host, cookie, L: league.leagueId, maxAge: config.mflFreshTtlMs }));
+    const params = { host: league.host, cookie, L: league.leagueId };
+    if (fresh) params.maxAge = config.mflFreshTtlMs; // near-live only when a caller needs the live FAAB balance
+    res = await withRetry(() => mfl.exportRequest('league', params));
   } catch (e) {
     console.log(`[waiverSettings] league=${league.leagueId} error=${e.message}`);
     const err = new Error(`Could not load waiver settings for ${league.name || league.leagueId}.`);
@@ -954,7 +960,7 @@ async function getBestAvailable(cookie, token, { deviceReads = null, format = nu
       // device supplied this league's free-agent units, use them instead of the backend fetch.
       const dr = deviceReads ? deviceReads[String(league.leagueId)] : null;
       const [settings, ids] = await Promise.all([
-        loadSettings(league, cookie),
+        loadSettings(league, cookie, { fresh: false }), // read-only board — the 24h league cache is fine (no live FAAB needed)
         dr ? Promise.resolve(freeAgentIdsFromUnits(dr)) : freeAgentIds(cookie, league),
       ]);
       const scoring = config.demoMode ? demo.scoring(league.leagueId) || {} : {};

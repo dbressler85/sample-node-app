@@ -4,6 +4,7 @@ import { colors } from '../theme';
 import { displayLg, displayLabel } from '../typography';
 import { draftsPreferDevice } from '../mflDevice';
 import ErrorView from '../components/ErrorView';
+import NeonSign from '../components/NeonSign';
 import useAndroidBack from '../useAndroidBack';
 import useCachedResource from '../useCachedResource';
 import usePoll from '../usePoll';
@@ -67,7 +68,10 @@ export default function DraftHubScreen({ covered = false, onBack, onOpenDraft, o
 
       {onOpenPicks ? (
         <Pressable style={({ pressed }) => [styles.capitalBtn, pressed && { opacity: 0.8 }]} onPress={onOpenPicks}>
-          <Text style={styles.capitalText}>🎯 Your pick capital across all leagues</Text>
+          <View style={styles.capitalLeft}>
+            <NeonSign glyph="target" color="gold" grade="inline" size={16} />
+            <Text style={styles.capitalText}>Your pick capital across all leagues</Text>
+          </View>
           <Text style={styles.chev}>›</Text>
         </Pressable>
       ) : null}
@@ -157,6 +161,7 @@ const styles = StyleSheet.create({
   title: { color: colors.text, fontSize: 20, fontWeight: '900' },
   subtitle: { color: colors.textDim, fontSize: 13, textAlign: 'center', marginTop: 4 },
   capitalBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: 16, marginTop: 12, backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 15, paddingVertical: 13 },
+  capitalLeft: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
   capitalText: { color: colors.text, fontSize: 14, fontWeight: '800' },
   list: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 32 },
   section: { color: colors.textDim, fontSize: 12, fontWeight: '800', letterSpacing: 0.4, textTransform: 'uppercase', marginTop: 14, marginBottom: 8 },
