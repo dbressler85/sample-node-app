@@ -11,7 +11,6 @@ const nflLib = require('../lib/nfl');
 const leaguesService = require('./leagues');
 const rosterService = require('./roster');
 const { mapLeagues } = require('../lib/safe');
-const { withRetry } = require('../lib/retry');
 const standingLib = require('../lib/standing');
 const pointsMaps = require('../lib/pointsMaps');
 const playerTags = require('../store/playerTags');
@@ -31,11 +30,11 @@ async function gather(cookie, token) {
   const rosters = (
     await mapLeagues(
       leagues,
-      // Exposure only needs MY valued players by bucket, not the all-franchise strength build —
-      // the light enriched read skips the rival fetch + strength/picks/summary. Retry a transient
-      // throttle before dropping the league — a dropped roster silently removes it from every
-      // exposure count (the "owned in 8/8 when I'm in 15" bug applied to My Players).
-      (l) => withRetry(() => rosterService.myRosterEnriched(cookie, l.leagueId)).then((roster) => (roster ? { league: l, roster } : null)),
+      // Exposure only needs MY valued players by bucket, not the all-franchise strength build — the
+      // light enriched read skips the rival fetch + strength/picks/summary. The roster read retries
+      // transient throttles at the source (lib/mflRepo.rosters); a dropped roster would silently remove
+      // the league from every exposure count (the "owned in 8/8 when I'm in 15" bug on My Players).
+      (l) => rosterService.myRosterEnriched(cookie, l.leagueId).then((roster) => (roster ? { league: l, roster } : null)),
       null,
       'exposure.roster'
     )

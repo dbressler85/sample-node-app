@@ -2,6 +2,7 @@
 
 const mfl = require('./mfl');
 const mflRead = require('./mflRead'); // shared read core (device-origin spike): owns the parse
+const { withRetry } = require('./retry');
 
 // Repository layer over MFL's export envelopes.
 //
@@ -28,7 +29,11 @@ async function read(type, league, cookie, params = {}) {
 // single-sourced in the shared mflRead core, so the device fetches+parses this read with the SAME
 // code the backend uses here (device-origin spike — docs/DEVICE_ORIGIN_MFL.md).
 async function rosters(league, cookie, params = {}) {
-  const res = await read('rosters', league, cookie, params);
+  // Retry a transient throttle here, at the shared read: this is the dominant per-league fan-out read
+  // (rosters feed lineups, waivers, the Players/exposure sets, trades, portfolio, On Deck's IR check),
+  // so a burst that trips MFL's per-IP limiter used to surface as a spurious "couldn't load"/dropped
+  // league across those screens. Retrying at the source hardens every caller at once.
+  const res = await withRetry(() => read('rosters', league, cookie, params));
   return mflRead.reads.rosters.parse(res);
 }
 
@@ -42,7 +47,10 @@ async function standings(league, cookie, params = {}) {
 // the playoffs service normalizes into rounds/games). The service is defensive about the exact
 // per-game field names, which aren't yet confirmed against a live sample.
 async function playoffBrackets(league, cookie, params = {}) {
-  const res = await read('playoffBrackets', league, cookie, params);
+  // Retry a transient throttle: the trophy scan walks years backward and treats an empty bracket as
+  // "no title that year" (it stops there) — so a throttled read would silently truncate the scan and
+  // miss championships. Retrying keeps a real 429 from masquerading as "league didn't exist yet."
+  const res = await withRetry(() => read('playoffBrackets', league, cookie, params));
   return mfl.toArray(res && res.playoffBrackets && res.playoffBrackets.playoffBracket);
 }
 
@@ -62,7 +70,9 @@ async function pendingTrades(league, cookie, params = {}) {
 
 // `liveScoring` export -> per-franchise live score rows (each nests players.player internally).
 async function liveScoring(league, cookie, params = {}) {
-  const res = await read('liveScoring', league, cookie, params);
+  // Retry a transient throttle: the live scoreboard fans this out on Sunday — the exact peak when MFL
+  // throttles — and a dropped league silently vanishes a live game from the board. Retry at the source.
+  const res = await withRetry(() => read('liveScoring', league, cookie, params));
   return mfl.toArray(res && res.liveScoring && res.liveScoring.franchise);
 }
 
@@ -92,7 +102,9 @@ async function projectedScores(league, cookie, params = {}) {
 
 // `schedule` export -> the weekly schedule rows (pass W); each nests matchup[].
 async function schedule(league, cookie, params = {}) {
-  const res = await read('schedule', league, cookie, params);
+  // Retry a transient throttle: paired with liveScoring/playoffBrackets in the scoreboard + trophy
+  // fan-outs, so an unretried 429 here would drop the same games/titles those reads protect.
+  const res = await withRetry(() => read('schedule', league, cookie, params));
   return mfl.toArray(res && res.schedule && res.schedule.weeklySchedule);
 }
 

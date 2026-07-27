@@ -25,7 +25,6 @@ const standingLib = require('../lib/standing');
 const leaguesService = require('./leagues');
 const rosterService = require('./roster');
 const waiversService = require('./waivers');
-const { withRetry } = require('../lib/retry');
 const draftService = require('./draft');
 const dropStore = require('../store/drops');
 const watchStore = require('../store/watchlist');
@@ -98,10 +97,10 @@ async function gatherUncached(cookie, token) {
       // which bucket a player is in; they never touch value/age/strength, so the full
       // (all-franchise, enriched, strength-scored) getRoster build would be wasted here.
       const [roster, faIds, draftOpen] = await Promise.all([
-        // Retry a transient throttle: a dropped roster here removes the whole league from every
-        // cross-league count, and the partial result gets memoized — the root of "owned in 8/8
-        // leagues" when you're in 15 (8 = the leagues that happened to load).
-        withRetry(() => rosterService.myRosterLight(cookie, league.leagueId)).catch(() => null),
+        // The roster read retries transient throttles at the source (lib/mflRepo.rosters). A dropped
+        // roster here would remove the whole league from every cross-league count and get memoized —
+        // the root of "owned in 8/8 leagues" when you're in 15 (8 = the leagues that happened to load).
+        rosterService.myRosterLight(cookie, league.leagueId).catch(() => null),
         waiversService.freeAgentIds(cookie, league).catch(() => []),
         // A league whose draft hasn't been HELD has no true free agents yet — its whole pool reads as
         // "unrostered". We keep the raw set (the profile still uses it to label a player "draftable")
@@ -611,7 +610,15 @@ async function previewAdd(cookie, token, playerId) {
   const p = await profile(cookie, token, playerId);
   const leagues = await Promise.all(
     p.actions.addLeagues.map(async (l) => {
-      const pv = await waiversService.preview(cookie, token, l.leagueId, { addId: playerId });
+      // Guard each league: even with the roster read retried, a persistent failure on one league must
+      // not reject Promise.all and 500 the whole "add across leagues" sheet — surface that league as
+      // unavailable and let the rest through.
+      let pv;
+      try {
+        pv = await waiversService.preview(cookie, token, l.leagueId, { addId: playerId });
+      } catch (e) {
+        return { leagueId: l.leagueId, name: l.name, system: l.system, valid: false, errors: [mfl.errorDetail(e)] };
+      }
       return {
         leagueId: l.leagueId,
         name: l.name,
