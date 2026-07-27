@@ -1,8 +1,9 @@
 import React from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Animated } from 'react-native';
 import { colors, positionColors } from '../theme';
 import AvailabilityBadge from './AvailabilityBadge';
 import PressableScale from './PressableScale';
+import useActFlash from '../useActFlash';
 
 // `onToggleBait` (+ `baited`) opts a row into a trailing "on the block" toggle. When
 // it's not passed the row renders exactly as before, so every other screen is unaffected.
@@ -10,6 +11,9 @@ import PressableScale from './PressableScale';
 // open his cross-league profile — the app's standard "tap a player" gesture, with a spring.
 function PlayerRow({ player, baited, onToggleBait, onOpenPlayer }) {
   const posColor = positionColors[player.position] || colors.textDim;
+  // Texture: wash the row's accent when the on-the-block toggle lands (§2.3). Only rows with the bait
+  // toggle can change `baited`, so the flash is a no-op everywhere else.
+  const flash = useActFlash(baited ? 1 : 0);
   const content = (
     <>
       <View style={[styles.posBadge, { backgroundColor: posColor + '22', borderColor: posColor }]}>
@@ -26,6 +30,10 @@ function PlayerRow({ player, baited, onToggleBait, onOpenPlayer }) {
   );
   return (
     <View style={styles.row}>
+      <Animated.View
+        pointerEvents="none"
+        style={[StyleSheet.absoluteFill, { backgroundColor: colors.accent, opacity: flash.interpolate({ inputRange: [0, 1], outputRange: [0, 0.22] }) }]}
+      />
       {onOpenPlayer ? (
         <PressableScale
           pressableStyle={styles.identityFlex}

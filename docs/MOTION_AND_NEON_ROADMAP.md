@@ -25,9 +25,16 @@ throughline, not competing to-do lists.
 > aware). It's wired as the **login lockup** (rests unlit → ignites on sign-in → holds → fly-out) with
 > the **logout mirror** (app powers down → login flies in → crest flickers out), and as the **ambient
 > app-background watermark** (unlit crest, low opacity — reserved gold, quiet behind content; overlays
-> stay gradient-only for perf). The old gold-filled `HubMark` is retired from the app. **Texture is the
-> remaining half** (press feedback sweep, acted-on-row flash, value roll-ups, chip/segment pops) —
-> next build. Exact ignition/fly-out timing + the RN glow intensity are on-device tune items (§7).
+> stay gradient-only for perf). The old gold-filled `HubMark` is retired from the app. Exact
+> ignition/fly-out timing + the RN glow intensity are on-device tune items (§7).
+>
+> **Phase 5 Texture — landed.** Most of the register was already in place from earlier phases: press
+> feedback (`PressableScale`, spring dip + pop), skeleton shimmer (`Skeleton`), and value roll-ups
+> (`AnimatedNumber`, tabular). The missing signature piece — the **acted-on-row flash** — is now a
+> reusable hook (`useActFlash`: pulses an accent wash when a row's own action lands; skips first-mount
+> + reduce-motion so it never fires on scroll/re-sort), wired into the Target/Avoid/Watch tag rows and
+> the on-the-block toggle. Remaining texture (chip/segment pop-on-toggle; extending the flash to claim
+> and trade rows) is light per-control polish, best tuned on device (§7). **Phases 0–5 are now complete.**
 
 ---
 
