@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, FlatList, StyleSheet, Pressable, TextInput, ActivityIndicator, Linking } from 'react-native';
+import { View, Text, FlatList, StyleSheet, Pressable, TextInput, ActivityIndicator, Linking, Animated } from 'react-native';
 import { api } from '../api';
 import { exposurePreferDevice, bestAvailablePreferDevice } from '../mflDevice';
 import { colors, positionColors } from '../theme';
@@ -13,6 +13,7 @@ import Pulse from '../components/Pulse';
 import Reveal from '../components/Reveal';
 import PartialNote from '../components/PartialNote';
 import DeviceNote from '../components/DeviceNote';
+import useActFlash from '../useActFlash';
 import { ScreenTitle, Value } from '../components/Brand';
 
 const TABS = [
@@ -491,8 +492,16 @@ function PlayerRow({ p, rank, sub, tag, watched, showTrend, onTag, onWatch, onQu
   const t = tag !== undefined ? tag : p.tag || null;
   const w = watched !== undefined ? watched : !!p.watched;
   const acts = !!(onTag && onWatch);
+  // Texture: wash the row's accent when a Target/Avoid/Watch action lands on it, then settle. The
+  // trigger is this row's own tag/watch state, so it fires on the action — not on scroll or re-sort.
+  const flash = useActFlash(`${t || '-'}|${w ? 1 : 0}`);
+  const flashColor = t === 'target' ? colors.good : t === 'avoid' ? colors.bad : w ? colors.watch : colors.accent;
   return (
     <Pressable style={({ pressed }) => [styles.row, { borderLeftColor: posColor, borderLeftWidth: 3 }, pressed && { opacity: 0.7 }]} onPress={onPress}>
+      <Animated.View
+        pointerEvents="none"
+        style={[StyleSheet.absoluteFill, { borderRadius: 12, backgroundColor: flashColor, opacity: flash.interpolate({ inputRange: [0, 1], outputRange: [0, 0.26] }) }]}
+      />
       {rank ? <Text style={styles.rank}>{rank}</Text> : null}
       <View style={[styles.posBadge, { backgroundColor: posColor + '22', borderColor: posColor }]}>
         <Text style={[styles.pos, { color: posColor }]}>{p.position}</Text>
