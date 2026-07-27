@@ -12,6 +12,7 @@ import InfoDot from '../components/InfoDot';
 import Pulse from '../components/Pulse';
 import Reveal from '../components/Reveal';
 import PartialNote from '../components/PartialNote';
+import DeviceNote from '../components/DeviceNote';
 import { ScreenTitle, Value } from '../components/Brand';
 
 const TABS = [
@@ -402,7 +403,7 @@ export default function PlayersScreen({ onOpenPlayer }) {
           ) : tab === 'mine' ? (
             <>
               {mine && mine._source === 'device' ? (
-                <Text style={styles.deviceNote}>⚡ Your rosters live from MFL on-device · {mine.totalLeagues} league{mine.totalLeagues === 1 ? '' : 's'}</Text>
+                <DeviceNote center text={`Your rosters live from MFL on-device · ${mine.totalLeagues} league${mine.totalLeagues === 1 ? '' : 's'}`} />
               ) : null}
               <PosFilter pos={pos} setPos={setPos} />
               <SortRow value={listSort} onChange={setListSort} />
@@ -753,7 +754,6 @@ const styles = StyleSheet.create({
   newsSortChipActive: { backgroundColor: colors.cardAlt, borderColor: colors.accent },
   newsSortText: { color: colors.textDim, fontSize: 12, fontWeight: '700' },
   newsSearch: { flex: 1, color: colors.text, fontSize: 14, paddingVertical: 9 },
-  deviceNote: { color: colors.accent, fontSize: 11, fontWeight: '700', textAlign: 'center', paddingBottom: 4, paddingTop: 2 },
   freeIntro: { paddingHorizontal: 16, paddingBottom: 4, paddingTop: 2 },
   freeIntroText: { color: colors.textDim, fontSize: 12, lineHeight: 17 },
   list: { paddingHorizontal: 16, paddingBottom: 32, paddingTop: 4 },

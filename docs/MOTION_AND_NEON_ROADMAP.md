@@ -9,6 +9,16 @@ throughline, not competing to-do lists.
 
 > **Status:** ratified 2026-07. Direction and phase order are settled; exact durations/easings are
 > tuned on device (§7). This supersedes the design system's §8 stub and §11 icon note.
+>
+> **Build progress:** Phases 0–3 landed. **Phase 4 (neon signature) landed in two parts** — Part 1
+> (this build): the `NeonSign` engine + flicker + glyph/word set + neon `NeonSparks`, the full
+> **Punctuation register** (Celebrate → neon moment signs + sparks, emoji retired), and the
+> high-traffic **inline sweep** (On Deck type icons, Home deadline/watch/inbox/all-clear, the shared
+> `DeviceNote` bolt, Scores close-game bolt, League/Profile trophy). Part 2 (next build, needs
+> on-device tuning per §7): the remaining **status-icon sets** (waiver `🟢/🔒`, draft `🗓`) which
+> need new glyphs (dot/lock/calendar) + per-widget restructuring, and the **trophy hero cups**
+> (Trophy Case, Playoff Bracket empty/champion) sized live. Pure-text marks (`★ ☆ ›`) are kept and
+> tinted, per §3.7. Phase 5 (threshold crest ignition + texture) is unstarted and depends on this.
 
 ---
 

@@ -4,6 +4,7 @@ import { api } from '../api';
 import { colors } from '../theme';
 import { ScreenTitle } from '../components/Brand';
 import { celebrate } from '../components/Celebrate';
+import NeonSign from '../components/NeonSign';
 import ErrorView from '../components/ErrorView';
 import Pulse from '../components/Pulse';
 import AnimatedNumber from '../components/AnimatedNumber';
@@ -127,10 +128,8 @@ function Game({ g, onOpenLineup }) {
         </Text>
         <View style={styles.statusWrap}>
           {!g.locked ? <Pulse style={[styles.gameLiveDot, { backgroundColor: st.color }]} min={0.25} /> : null}
-          <Text style={[styles.status, { color: st.color }]}>
-            {g.close ? '⚡ ' : ''}
-            {st.label}
-          </Text>
+          {g.close ? <NeonSign grade="inline" glyph="bolt" color="accent" size={12} accessibilityLabel="Close game" /> : null}
+          <Text style={[styles.status, { color: st.color }]}>{st.label}</Text>
         </View>
       </View>
 
