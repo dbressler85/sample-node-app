@@ -7,6 +7,7 @@
 
 const mfl = require('../lib/mfl');
 const mflRepo = require('../lib/mflRepo');
+const { withRetry } = require('../lib/retry');
 const config = require('../config');
 const demo = require('../demo/fixtures');
 const leaguesService = require('./leagues');
@@ -14,8 +15,11 @@ const leaguesService = require('./leagues');
 // --- live helpers (best-effort; MFL shapes vary, so each is defensive) -------
 
 async function liveMatchup(league, cookie) {
-  // liveScoring (no W) returns the current week's franchise scores.
-  const res = await mfl.exportRequest('liveScoring', { host: league.host, cookie, L: league.leagueId });
+  // liveScoring (no W) returns the current week's franchise scores. Read directly (not via
+  // mflRepo.liveScoring, which returns only the franchise array) because we also need `live.week` — but
+  // wrap in the same transient-throttle retry the repo reader uses, so a Sunday-peak 429 in this per-league
+  // dashboard fan-out recovers instead of blanking the league's live matchup.
+  const res = await withRetry(() => mfl.exportRequest('liveScoring', { host: league.host, cookie, L: league.leagueId }));
   const live = res && res.liveScoring;
   const week = live ? Number(live.week) : null;
   const franchises = mfl.toArray(live && live.franchise);

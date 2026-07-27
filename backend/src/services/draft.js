@@ -20,7 +20,6 @@ const playersLib = require('../lib/players');
 const picksLib = require('../lib/picks');
 const adpLib = require('../lib/adp');
 const draftClockLib = require('../lib/draftClock');
-const { withRetry } = require('../lib/retry');
 const leaguesService = require('./leagues');
 const waiversService = require('./waivers');
 const rosterService = require('./roster');
@@ -199,12 +198,11 @@ async function loadDraft(cookie, token, league, deviceRead = null) {
 }
 
 // loadDraft re-throws a transient MFL read failure (a throttle/403) rather than returning null,
-// precisely so a rate-limit isn't mistaken for "no draft." In the Home/overview fan-out that read
-// races every other league's reads (+ the triage fan-out), so a single league can get throttled and,
-// swallowed as 'none', its live draft would silently disappear from Home. Retry the transient failure
-// before giving up (shared withRetry) — the single-league board doesn't need this (it keeps its
-// last-good board and surfaces the error).
-const loadDraftResilient = (cookie, token, league, dr) => withRetry(() => loadDraft(cookie, token, league, dr));
+// precisely so a rate-limit isn't mistaken for "no draft" and silently dropped from the Home/overview
+// fan-out. Its two MFL reads — draftResults and the calendar's DRAFT_START — now BOTH retry a transient
+// throttle at the source (lib/mflRepo), so loadDraft is called directly here; an outer withRetry would
+// only re-run the whole thing on top of the source retries (3×3). A persistent failure still throws and
+// the overview's per-league catch fails it soft.
 
 // Round-1 franchise sequence from a full pick grid (if present).
 function deriveOrder(rawWithOrder) {
@@ -380,7 +378,7 @@ async function getOverview(cookie, token, { deviceReads = null } = {}) {
         // cached league list one step behind) must NOT silently read as 'none' — that hid a scheduled/live
         // draft and could cause a missed clock (docs/ARCHITECTURE_REVIEW_2026-07-device-origin.md A-8). Fall
         // back to a one-off backend read for just that league; every other league still comes from the device.
-        const draft = await loadDraftResilient(cookie, token, league, dr);
+        const draft = await loadDraft(cookie, token, league, dr);
         if (!draft) return { leagueId: league.leagueId, name: league.name, status: 'none' };
         const slots = slotsFor(draft);
         const status = statusOf(draft, slots);

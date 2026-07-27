@@ -183,11 +183,11 @@ async function freeAgentIds(cookie, league, limit = 400) {
 }
 async function buildFreeAgentIds(cookie, league) {
   try {
-    // Retry a transient throttle before giving up: this list is memoized (faIdsMemo), so a swallowed
-    // [] would stick for the whole TTL — dropping watchlist "now free" alerts AND making validateClaim
-    // reject a VALID add as "not available in this league" (a sticky, misleading block). A momentary
-    // rate-limit now re-reads instead of caching empty.
-    return freeAgentIdsFromUnits(await withRetry(() => mflRepo.freeAgentUnits(league, cookie)));
+    // The transient-throttle retry lives at the source now (mflRepo.freeAgentUnits). It matters here
+    // because this list is memoized (faIdsMemo): a swallowed [] would stick for the whole TTL — dropping
+    // watchlist "now free" alerts AND making validateClaim reject a VALID add as "not available in this
+    // league" (a sticky, misleading block). Retrying at the source re-reads instead of caching empty.
+    return freeAgentIdsFromUnits(await mflRepo.freeAgentUnits(league, cookie));
   } catch (e) {
     return [];
   }
@@ -1035,9 +1035,10 @@ const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 // guarded: any read/parse trouble yields null (the feature simply doesn't highlight).
 async function nextWaiverRun(cookie, league) {
   try {
-    // Retry a transient throttle: swallowing it to null drops the "waiver window open — get a claim in"
-    // item from On Deck and Home, a genuinely actionable last-chance alert.
-    const events = await withRetry(() => mflRepo.calendar(league, cookie));
+    // The transient-throttle retry lives at the source now (mflRepo.calendar); it matters here because
+    // swallowing a throttle to null drops the "waiver window open — get a claim in" item from On Deck and
+    // Home, a genuinely actionable last-chance alert.
+    const events = await mflRepo.calendar(league, cookie);
     const now = Date.now();
     let soonest = null;
     for (const ev of events) {
