@@ -60,6 +60,24 @@ function needsSurplus(franchises, requirements) {
   const medStarter = {};
   for (const pos of started) medStarter[pos] = median(bds.map((b) => (b.bd[pos] ? b.bd[pos].starterVal : 0)));
 
+  // Startable-quality floor per position, for HOLE detection ONLY. The needs/surplus comparisons below
+  // use the league-median STARTER's value, but that bar wrongly demotes a productive VETERAN whose
+  // DYNASTY value is age-discounted: a real weekly-starter TE (e.g. an older Goedert) reads as "not
+  // startable," so trading your OTHER TE looked like it emptied the position ("no startable TE") when it
+  // didn't. Startability isn't dynasty value. So base the floor on where a player ranks in the league's
+  // POOL at that spot: the league's starting jobs (slots × teams) plus a spot-starter buffer. Anyone
+  // inside that startable-caliber tier counts as a body you can field — low-value vets included — while
+  // genuine deep scrubs (below the tier) still don't, so "trading your only real starter" still flags.
+  const startFloor = {};
+  for (const pos of started) {
+    const jobs = Math.max(1, Math.round((slots[pos] || 0) * franchises.length));
+    const poolVals = franchises
+      .flatMap((f) => (f.players || []).filter((p) => p.position === pos && p.value != null).map((p) => p.value))
+      .sort((a, b) => b - a);
+    const cut = Math.min(poolVals.length, Math.ceil(jobs * 1.5));
+    startFloor[pos] = cut > 0 ? poolVals[cut - 1] : 0;
+  }
+
   const out = {};
   for (const { franchiseId, bd } of bds) {
     const needs = [];
@@ -74,13 +92,14 @@ function needsSurplus(franchises, requirements) {
       if (b.depthVal > 0 && med > 0 && b.depthVal >= med * 0.6 && b.starterVal >= med * 0.9) {
         surplus.push({ pos, depth: Math.round(b.depthVal) });
       }
-      // Depth for hole detection: how many startable-quality players you hold here vs how
-      // many you must start. A "startable" bar of 60% of the league-median starter keeps
-      // deep-bench scrubs from counting. When there's no league median (thin data), any
-      // rostered player counts so we don't invent holes.
-      const threshold = med > 0 ? med * 0.6 : 0;
+      // Depth for hole detection: how many startable-quality players you hold here vs how many you must
+      // start. The bar is the league POSITIONAL-tier floor (startFloor) — a player inside the league's
+      // startable-caliber pool counts, so an age-discounted vet still reads as a startable body while
+      // deep-bench scrubs below the tier don't. When there's no pool (thin data), any rostered player
+      // counts so we don't invent holes. `count` = total rostered bodies here (for callers that want it).
+      const threshold = startFloor[pos] || 0;
       const startable = (b.vals || []).filter((v) => v >= threshold).length;
-      depth[pos] = { slots: b.nStart, threshold, startable };
+      depth[pos] = { slots: b.nStart, threshold, startable, count: b.count };
     }
     needs.sort((a, b) => b.gap - a.gap);
     surplus.sort((a, b) => b.depth - a.depth);

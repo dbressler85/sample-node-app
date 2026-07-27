@@ -67,5 +67,27 @@ const anotherRB = { position: 'RB', value: 55 };
   assert(give.length === 1 && give[0].id === 'w', 'the fair WR is suggested, not the defense');
   console.log('✓ K/DEF are streamers: never a trade need, never in a suggested package');
 
+  // 6) Re-tuned "startable" bar (needsSurplus depth): a productive VET with a low DYNASTY value still
+  // counts as a startable body — dynasty value age-discounts vets, startability shouldn't. So trading
+  // your top TE while keeping the vet must NOT read as a phantom "no startable TE" hole. The floor is
+  // the league POSITIONAL tier (starting jobs + a buffer), not 60% of the best-TE median.
+  const teReqs = [{ name: 'TE', eligible: ['TE'], count: 1 }];
+  const teFranchises = [
+    { franchiseId: '1', players: [{ id: 'kittle', position: 'TE', value: 60 }, { id: 'goedert', position: 'TE', value: 22 }] },
+    { franchiseId: '2', players: [{ id: 't2a', position: 'TE', value: 50 }, { id: 't2b', position: 'TE', value: 15 }] },
+    { franchiseId: '3', players: [{ id: 't3a', position: 'TE', value: 45 }, { id: 't3b', position: 'TE', value: 10 }] },
+    { franchiseId: '4', players: [{ id: 't4a', position: 'TE', value: 30 }] },
+  ];
+  const teNs = needsSurplus(teFranchises, teReqs);
+  const myTE = teNs['1'].depth.TE;
+  console.log('vet TE depth:', JSON.stringify(myTE));
+  // Under the OLD 60%-of-median-starter bar the 22-value vet fell below the cut (startable would be 1);
+  // the positional-tier floor now counts him, so both my TEs are startable.
+  assert(myTE.startable >= 2, `a low-value vet TE still counts as startable, got startable=${myTE.startable} (threshold ${myTE.threshold})`);
+  const teHole = constructionVerdict([{ position: 'TE', value: 60 }], [{ position: 'RB', value: 55 }], teNs['1'].needs, teNs['1'].surplus, 'you', teNs['1'].depth);
+  console.log('trade-top-TE-keep-vet:', JSON.stringify(teHole));
+  assert(!teHole.holes.includes('TE'), 'trading your top TE while keeping a startable vet is NOT a no-startable-TE hole');
+  console.log('✓ startable bar counts low-value vets — no phantom "no startable TE" when a vet remains');
+
   console.log('\nTRADE HOLE HARNESS PASSED');
 })().catch((e) => { console.error(e.message); process.exit(1); });
