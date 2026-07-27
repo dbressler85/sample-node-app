@@ -74,9 +74,10 @@ function liveDraftSub(d) {
   const cur = d.currentPick;
   const mine = d.myNextPick;
   if (cur && mine && mine.overall >= cur.overall) {
-    return `${ordinal(cur.overall)} on the clock · yours ${pickCode(mine)} · ${mine.overall - cur.overall} away`;
+    // "on the clock" reads as round.pick (e.g. 2.01) to match "yours 2.07" — consistent notation.
+    return `${pickCode(cur)} on the clock · yours ${pickCode(mine)} · ${mine.overall - cur.overall} away`;
   }
-  if (cur && !mine) return `${ordinal(cur.overall)} on the clock · no picks left for you`;
+  if (cur && !mine) return `${pickCode(cur)} on the clock · no picks left for you`;
   if (mine) return `Live · your pick ${pickCode(mine)} · ${ordinal(mine.overall)} overall`;
   return `Live · ${d.picksMade || 0} picks made`;
 }

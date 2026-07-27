@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, Switch, ActivityIndicator, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Switch, ActivityIndicator, ScrollView } from 'react-native';
+import { appAlert } from "../components/AppAlert";
 import { api } from '../api';
 import { colors } from '../theme';
 import { displayLg, displayLabel } from '../typography';
@@ -18,7 +19,7 @@ const CHANNELS = [
 // immediately (optimistic, reverts on failure). Channels default on.
 export default function SettingsScreen({ onBack, onOpenHelp, onLogout }) {
   const confirmLogout = useCallback(() => {
-    Alert.alert('Log out?', 'You’ll need your MFL username and password to sign back in.', [
+    appAlert('Log out?', 'You’ll need your MFL username and password to sign back in.', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Log out', style: 'destructive', onPress: () => onLogout && onLogout() },
     ]);

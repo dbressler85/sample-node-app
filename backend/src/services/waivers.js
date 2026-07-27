@@ -288,10 +288,27 @@ function rosterIsFull(roster, settings) {
   return activeCount(roster) >= (settings.rosterSize || 99);
 }
 
-// Smart drop: the lowest-value bench player (never a starter or high asset).
-function suggestDrop(roster) {
+// How many of a position sit on the active roster (starters + bench) — used to protect a lone K/DEF.
+function positionCount(roster, pos) {
+  return [...roster.starters, ...roster.bench].filter((p) => p.position === pos).length;
+}
+
+// Smart drop: the lowest-value bench player — but NEVER suggest cutting your only kicker or only
+// defense unless the pickup is itself a kicker/defense (i.e. it replaces that slot). Dropping your
+// lone K/DEF leaves you unable to field a legal lineup, so we skip those candidates and take the next
+// lowest instead. `addPosition` is the position of the player being added (null when unknown).
+function suggestDrop(roster, addPosition) {
   const bench = roster.bench.slice().sort((a, b) => (a.value || 0) - (b.value || 0) || (a.projection || 0) - (b.projection || 0));
-  return bench[0] || null;
+  const kCount = positionCount(roster, 'PK');
+  const dCount = positionCount(roster, 'DEF');
+  const add = addPosition ? String(addPosition).toUpperCase() : null;
+  const isProtected = (p) =>
+    (p.position === 'PK' && kCount <= 1 && add !== 'PK') ||
+    (p.position === 'DEF' && dCount <= 1 && add !== 'DEF');
+  const safe = bench.filter((p) => !isProtected(p));
+  // Prefer a non-protected drop; only fall back to a protected one if the bench is nothing but the
+  // lone K/DEF (a drop is still required when the roster is full).
+  return safe[0] || bench[0] || null;
 }
 
 // Smart FAAB bid: scale remaining budget by the player's dynasty value and a bit
@@ -448,7 +465,9 @@ function validateClaim(payload, ctx) {
   else if (!available.has(addId)) errors.push(`${add.name} is not available in this league.`);
 
   const full = rosterIsFull(roster, settings);
-  const suggestedDrop = suggestDrop(roster);
+  // Suggestion respects the lone-K/DEF guard (add position aware); a manual dropId still overrides it,
+  // so you can always choose to drop your only kicker/defense yourself.
+  const suggestedDrop = suggestDrop(roster, add ? add.position : null);
   let dropId = payload.dropId ? String(payload.dropId) : null;
   if (!dropId && full && suggestedDrop) dropId = suggestedDrop.id; // required when full
   const drop = dropId ? playersLib.resolve(byId, dropId) : null;
@@ -525,13 +544,19 @@ async function previewMulti(cookie, token, leagueId, claims) {
   const addIds = previews.map((p) => p.add && p.add.id).filter(Boolean);
   const dropIds = previews.map((p) => p.dropId).filter(Boolean);
   if (addIds.some((id, i) => addIds.indexOf(id) !== i)) errors.push('The same player is queued to add more than once.');
-  if (dropIds.some((id, i) => dropIds.indexOf(id) !== i)) errors.push('The same player is queued to drop more than once.');
+  // The same player CAN be queued to drop in more than one claim on purpose — CONTINGENCY claims: bid
+  // on several adds that all drop the same guy, knowing only one can win. MFL allows it (the drop only
+  // executes once; the other claims can't process against an already-gone player), so we don't block
+  // it. We still guard add-and-drop-the-same-player, which is never valid.
   if (addIds.some((id) => dropIds.includes(id))) errors.push("You can't add and drop the same player.");
 
-  // Roster space if every claim clears: start + adds - unique drops must fit.
+  // Roster space, accounting for contingency: claims that share a drop are mutually exclusive (the
+  // drop can only happen once), so each unique-drop group nets zero on the roster. ONLY claims with
+  // no drop actually grow the roster — those are what can push you over.
   const rosterSize = ctx.settings.rosterSize || 99;
   const uniqueDrops = new Set(dropIds).size;
-  const rosterAfter = activeCount(ctx.roster) + addIds.length - uniqueDrops;
+  const droplessAdds = previews.filter((p) => p.add && !p.dropId).length;
+  const rosterAfter = activeCount(ctx.roster) + droplessAdds;
   if (rosterAfter > rosterSize) {
     const need = rosterAfter - rosterSize;
     errors.push(`This would put you ${need} over your ${rosterSize} roster spots — queue ${need} more drop${need === 1 ? '' : 's'}.`);
@@ -1121,9 +1146,13 @@ async function waiverPosture(cookie, token, league, settings, waiverRun) {
     return { waiverState: settings.system === 'free' ? 'fa_open' : 'waivers_soon', lockReason: null };
   }
   const draftService = require('./draft'); // lazy require — avoids a waivers↔draft cycle
+  // Bias toward LOCKED when a read is uncertain: if the "is free agency open?" check fails/loads,
+  // default it to CLOSED (not open). Wrongly showing "waivers run soon" for a league that's actually
+  // open is harmless (you'll still see the board); wrongly flashing "FA OPEN — add anyone now" for a
+  // league that's really locked invites a claim that can't process. So err on the side of locked.
   const [calLock, open] = await Promise.all([
     calendarLock(cookie, league).catch(() => null),
-    draftService.freeAgencyOpen(cookie, token, league).catch(() => true),
+    draftService.freeAgencyOpen(cookie, token, league).catch(() => false),
   ]);
   const faOpen = !calLock && open;
   const hasUpcomingRun = waiverRun != null && waiverRun > Date.now();
@@ -1212,37 +1241,48 @@ async function getOverview(cookie, token, { deviceReads = null } = {}) {
 async function leagueSuggestionOne(cookie, token, league, resolveLockReason) {
       try {
         const settings = await loadSettings(league, cookie);
+        const fmt = await leagueFormat.format(cookie, league); // format (SF/PPR/TEP) — also keys the value snapshot
         // byId + ctx (bye map) are loaded alongside so the wizard can carry NFL team, injury status,
         // and bye week on every player, and reconcile already-submitted claims (incl. ones placed on
-        // MFL directly). byId/ctxFor are cached, so this adds no real cost.
-        const [byId, ctx, roster, fas, waiverRun] = await Promise.all([
+        // MFL directly). enr (values) + points (this-week proj + this-year points) enrich the rostered
+        // players AND the submitted-claim add/drop. byId/ctxFor/enr/points are cached, so cheap.
+        const [byId, ctx, roster, fas, waiverRun, enr, points] = await Promise.all([
           playersLib.load(cookie),
           ctxFor(cookie),
           rosterService.getRoster(cookie, league.leagueId),
           loadFreeAgents(cookie, league, settings),
           config.demoMode ? Promise.resolve(null) : nextWaiverRun(cookie, league).catch(() => null),
+          enrichmentLib.snapshot(fmt, cookie),
+          (async () => pointsMaps.maps(cookie, league, config.demoMode ? demo.week() : await nflLib.currentWeek(cookie).catch(() => null)))(),
         ]);
         const byeOf = (team) => (ctx.byeMap && ctx.byeMap[team] != null ? Number(ctx.byeMap[team]) : null);
+        const projOf = (id) => (points && points.proj.get(String(id)) != null ? points.proj.get(String(id)) : null);
+        const seasonOf = (id) => (points && points.season.get(String(id)) != null ? points.season.get(String(id)) : null);
         let freeAgents = fas;
         if (!config.demoMode) freeAgents = freeAgents.filter((p) => p.name && !/^Player \d+$/.test(p.name));
         freeAgents.sort((a, b) => (b.value || 0) - (a.value || 0));
 
         const full = rosterIsFull(roster, settings);
-        const drop = suggestDrop(roster);
         // A deeper, position-diverse pool so the wizard can filter by position and
         // pick a different player — not just the single best add.
         const candidates = freeAgents.slice(0, 30).map((p) => ({
           id: p.id, name: p.name, position: p.position, team: p.team,
           value: p.value, projection: p.projection, trend: p.trend, ownership: p.ownership, availability: p.availability, bye: p.bye,
         }));
+        const top = candidates[0] || null;
+        // Suggested drop is add-position aware so it never proposes cutting your lone K/DEF unless the
+        // pickup replaces that slot (a manual pick can still drop anyone).
+        const drop = suggestDrop(roster, top ? top.position : null);
 
         // Position-then-value grouping so the wizard can show the whole depth chart at a glance
-        // when choosing a drop. Starters are shown (marked, not droppable); bench is droppable.
+        // when choosing a drop. Starters are shown (marked, not droppable); bench is droppable. Each
+        // rostered player carries this-week projection + this-year points so the drop card is rich.
         const POS_ORDER = { QB: 0, RB: 1, WR: 2, TE: 3, PK: 4, DEF: 5 };
         const posRank = (pos) => (POS_ORDER[pos] != null ? POS_ORDER[pos] : 9);
         const byPosThenValue = (a, b) => posRank(a.position) - posRank(b.position) || (b.value || 0) - (a.value || 0);
         const toRow = (p, starter) => ({
           id: p.id, name: p.name, position: p.position, team: p.team, value: p.value,
+          projection: projOf(p.id), seasonPoints: seasonOf(p.id),
           availability: p.availability, bye: byeOf(p.team), starter,
         });
         const rosterView = [...roster.starters.map((p) => toRow(p, true)), ...roster.bench.map((p) => toRow(p, false))].sort(byPosThenValue);
@@ -1256,21 +1296,35 @@ async function leagueSuggestionOne(cookie, token, league, resolveLockReason) {
         let submitted = [];
         try {
           const pend = await reconciledPending(cookie, token, league, byId);
+          // Enrich each already-submitted claim with team + value on both the add and the drop, plus
+          // the net dynasty value the move swings — so the wizard's "already submitted" strip carries
+          // the same context as a live claim.
+          const enrichSide = (p) => {
+            if (!p) return null;
+            const v = enr.value(p.id);
+            const base = playersLib.resolve(byId, p.id);
+            return { id: p.id, name: p.name, position: p.position, team: base.team || null, value: v != null ? v : null };
+          };
           submitted = pend
             .filter((c) => (c.status || 'pending') === 'pending')
-            .map((c) => ({
-              id: c.id,
-              add: c.add ? { id: c.add.id, name: c.add.name, position: c.add.position } : null,
-              drop: c.drop ? { id: c.drop.id, name: c.drop.name, position: c.drop.position } : null,
-              bid: c.bid != null ? c.bid : null,
-              priority: c.priority != null ? c.priority : null,
-              source: c.source === 'mfl' ? 'mfl' : 'app',
-            }));
+            .map((c) => {
+              const add = enrichSide(c.add);
+              const dropSide = enrichSide(c.drop);
+              const valueDelta = add && add.value != null ? Math.round((add.value || 0) - (dropSide && dropSide.value != null ? dropSide.value : 0)) : null;
+              return {
+                id: c.id,
+                add,
+                drop: dropSide,
+                valueDelta,
+                bid: c.bid != null ? c.bid : null,
+                priority: c.priority != null ? c.priority : null,
+                source: c.source === 'mfl' ? 'mfl' : 'app',
+              };
+            });
         } catch (e) {
           submitted = [];
         }
 
-        const top = candidates[0] || null;
         let recommended = null;
         if (top) {
           // An "upgrade" means it's worth acting on: either you have an open spot,
@@ -1318,6 +1372,19 @@ async function leagueSuggestionOne(cookie, token, league, resolveLockReason) {
           bench,
           roster: rosterView,
           submitted,
+          // League + team context for the wizard header: format (Superflex/1QB + PPR + TE-premium),
+          // and my dynasty posture (outlook + average roster age) so the pickup decision has context.
+          context: {
+            format: leagueFormat.label(fmt),
+            superflex: fmt.numQbs >= 2,
+            numQbs: fmt.numQbs,
+            ppr: fmt.ppr,
+            tep: !!fmt.tep,
+            teStarters: fmt.teStarters || 0,
+            outlook: roster.summary ? roster.summary.outlook || null : null,
+            avgAge: roster.summary && roster.summary.avgAge != null ? roster.summary.avgAge : null,
+            strengthLabel: roster.summary ? roster.summary.strengthLabel || null : null,
+          },
         };
       } catch (e) {
         return { leagueId: league.leagueId, name: league.name, error: e.message };

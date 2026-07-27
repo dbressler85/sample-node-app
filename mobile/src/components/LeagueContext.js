@@ -18,13 +18,19 @@ function Chip({ label, tone }) {
 
 export default function LeagueContext({ context }) {
   if (!context) return null;
-  const { superflex, pprLabel, tePremium, lineup, team } = context;
+  const { superflex, pprLabel, tePremium, tep, teStarters, lineup, team } = context;
   return (
     <View style={styles.card}>
       <View style={styles.chipRow}>
         <Chip label={superflex ? 'Superflex' : '1QB'} tone={superflex ? 'accent' : undefined} />
         {pprLabel ? <Chip label={pprLabel} /> : null}
-        {tePremium > 0 ? <Chip label={`TE +${tePremium}/rec`} tone="accent" /> : null}
+        {/* TE-premium from EITHER trigger: a TE reception bump shows the per-rec amount; a mandated
+            2nd TE starter shows "TE-premium · 2 TE". Either way it's flagged wherever format shows. */}
+        {tePremium > 0 ? (
+          <Chip label={`TE +${tePremium}/rec`} tone="accent" />
+        ) : tep ? (
+          <Chip label={teStarters >= 2 ? 'TE-premium · 2 TE' : 'TE-premium'} tone="accent" />
+        ) : null}
       </View>
       {lineup && lineup.label ? (
         <Text style={styles.line}>

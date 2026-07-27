@@ -9,9 +9,9 @@ import {
   TextInput,
   ActivityIndicator,
   RefreshControl,
-  Alert,
   Animated,
 } from 'react-native';
+import { appAlert } from "../components/AppAlert";
 import { api } from '../api';
 import { waiversOverviewPreferDevice } from '../mflDevice';
 import { colors, positionColors } from '../theme';
@@ -114,7 +114,7 @@ export default function WaiversScreen({ active = true, initialLeagueId, initialP
       .filter((l) => !l.error)
       .map((l) => ({ leagueId: l.leagueId, name: l.name, system: l.system, waiverState: l.waiverState }));
     if (!stubs.length) {
-      Alert.alert('Nothing to pick up', 'No leagues available to run the wizard right now.');
+      appAlert('Nothing to pick up', 'No leagues available to run the wizard right now.');
       return;
     }
     onStartWizard(stubs);
@@ -127,7 +127,7 @@ export default function WaiversScreen({ active = true, initialLeagueId, initialP
       loadOverview();
       if (openLeagueId) loadBoard(); // reflect the removed claim in the board's claims strip
     } catch (e) {
-      Alert.alert('Could not cancel', e.message);
+      appAlert('Could not cancel', e.message);
     }
   }
 
@@ -582,7 +582,7 @@ function ClaimSheet({ leagueId, addId, onClose, onOpenLineup, onDone }) {
       // claims process later, so there's nothing to set yet — those just confirm.
       const addName = res.submitted.add.name;
       if (preview && preview.immediate && onOpenLineup) {
-        Alert.alert('Added', `${addName} is on your roster.`, [
+        appAlert('Added', `${addName} is on your roster.`, [
           { text: 'Not now', style: 'cancel', onPress: onDone },
           { text: 'Set lineup', onPress: () => { onDone(); onOpenLineup({ leagueId }); } },
         ]);
@@ -592,7 +592,7 @@ function ClaimSheet({ leagueId, addId, onClose, onOpenLineup, onDone }) {
       }
     } catch (e) {
       celebrate('claimFailed');
-      Alert.alert('Could not submit', e.message);
+      appAlert('Could not submit', e.message);
     } finally {
       setBusy(false);
     }

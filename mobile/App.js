@@ -48,6 +48,7 @@ import FieldBackdrop from './src/components/FieldBackdrop';
 import { NavHubIcon, NavPersonIcon, NavTradesIcon, NavWaiversIcon, NavLineupsIcon, NavGoalPostIcon } from './src/components/NavIcons';
 import { CelebrationHost } from './src/components/Celebrate';
 import { ToastHost } from './src/components/Toast';
+import { AppAlertHost } from './src/components/AppAlert';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import { colors } from './src/theme';
 
@@ -600,6 +601,11 @@ export default function App() {
           them, lets the confetti behind it show. */}
       <ErrorBoundary silent>
         <ToastHost />
+      </ErrorBoundary>
+      {/* On-theme, BLOCKING alert (choices/errors) — the neon-edged replacement for the white native
+          Alert box. Mounted last so it sits above every tab + overlay. */}
+      <ErrorBoundary silent>
+        <AppAlertHost />
       </ErrorBoundary>
       {/* First-run intro — shown once, over the app, after the login ceremony settles. Orients a new
           user and buys time while their leagues fan out behind it. */}

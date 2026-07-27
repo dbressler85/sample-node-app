@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
+import { appAlert } from "../components/AppAlert";
 import { api } from '../api';
 import { colors } from '../theme';
 import { displayLg } from '../typography';
@@ -80,7 +81,7 @@ export default function LineupEditorScreen({ league, onBack, onOpenWaivers }) {
       setAssignments(updated.slots.map((s) => (s.current ? s.current.id : null)));
       toast(`Lineup saved · ${updated.name} · ${updated.current.total} projected pts`);
     } catch (e) {
-      Alert.alert('Could not save', e.message);
+      appAlert('Could not save', e.message);
     } finally {
       setSaving(false);
     }

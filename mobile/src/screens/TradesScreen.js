@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Alert, TextInput, Modal, Animated } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, TextInput, Modal, Animated } from 'react-native';
+import { appAlert } from "../components/AppAlert";
 import { api } from '../api';
 import tradeMath from '../tradeMath';
 import { colors, positionColors } from '../theme';
@@ -138,7 +139,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
       setDeadlineOverride(res.deadline);
       setEditingDeadline(false);
     } catch (e) {
-      Alert.alert('Could not save', e.message);
+      appAlert('Could not save', e.message);
     } finally {
       setSavingDeadline(false);
     }
@@ -180,7 +181,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
       celebrate(action === 'accept' ? 'tradeAccepted' : action === 'revoke' ? 'offerWithdrawn' : 'offerRejected');
       await load();
     } catch (e) {
-      Alert.alert('Could not respond', e.message);
+      appAlert('Could not respond', e.message);
     } finally {
       setBusy(null);
     }
@@ -197,7 +198,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
 
   // Withdraw (revoke) pulls back your own outgoing offer — a plain confirm; MFL takes no note here.
   function withdraw(offer) {
-    Alert.alert('Withdraw offer?', `Pull back your offer to ${offer.withName || 'this team'}.`, [
+    appAlert('Withdraw offer?', `Pull back your offer to ${offer.withName || 'this team'}.`, [
       { text: 'Keep it', style: 'cancel' },
       { text: 'Withdraw', style: 'destructive', onPress: () => respond(offer, 'revoke') },
     ]);
@@ -209,7 +210,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
   function accept(offer) {
     const net = offer.analysis && typeof offer.analysis.net === 'number' ? offer.analysis.net : null;
     const netStr = net != null ? ` · market net ${net > 0 ? '+' : ''}${net}` : '';
-    Alert.alert(
+    appAlert(
       'Accept this trade?',
       `Complete the deal with ${offer.withName || 'this team'}${netStr}. This is final on MyFantasyLeague — it can’t be undone from the app.`,
       [
@@ -301,7 +302,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
       const a = await api.askTrade(league.leagueId, ids, partnerId);
       setReceive(Object.fromEntries((a.ask || []).map((x) => [x.id, x])));
     } catch (e) {
-      Alert.alert('Could not suggest an ask', e.message);
+      appAlert('Could not suggest an ask', e.message);
     } finally {
       setSuggesting(false);
     }
@@ -318,7 +319,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
       setCounterInfo(null);
       setDealNote({ rationale: d.rationale, verdict: d.verdict });
     } catch (e) {
-      Alert.alert('Could not build a deal', e.message);
+      appAlert('Could not build a deal', e.message);
     } finally {
       setSuggesting(false);
     }
@@ -336,7 +337,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
       setCounterInfo({ offerId: c.counterOfferId, rationale: c.rationale });
       setTab('propose');
     } catch (e) {
-      Alert.alert('Could not build a counter', e.message);
+      appAlert('Could not build a counter', e.message);
     } finally {
       setSuggesting(false);
     }
@@ -393,7 +394,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
       // In the multi-league wizard, advance to the next league on OK instead of
       // resetting this desk (it unmounts as the wizard steps forward).
       if (onSent) {
-        Alert.alert('Trade proposed', `Sent to ${res.offer.withName}.`, [{ text: 'Next league ›', onPress: onSent }]);
+        appAlert('Trade proposed', `Sent to ${res.offer.withName}.`, [{ text: 'Next league ›', onPress: onSent }]);
         return;
       }
       toast(`${counterInfo ? 'Counter sent' : 'Trade proposed'} · sent to ${res.offer.withName}${counterInfo ? ' (their offer declined)' : ''}`);
@@ -403,7 +404,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
       setTab('sent'); // land on Sent so the just-proposed offer is right there to review/withdraw
       await load();
     } catch (e) {
-      Alert.alert('Could not propose', e.message);
+      appAlert('Could not propose', e.message);
     } finally {
       setSending(false);
     }
@@ -477,7 +478,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
               maxLength={10}
             />
             <Pressable
-              onPress={() => /^\d{4}-\d{2}-\d{2}$/.test(deadlineInput.trim()) ? saveDeadline(deadlineInput.trim()) : Alert.alert('Enter a date', 'Use the format YYYY-MM-DD (e.g. 2026-11-15).')}
+              onPress={() => /^\d{4}-\d{2}-\d{2}$/.test(deadlineInput.trim()) ? saveDeadline(deadlineInput.trim()) : appAlert('Enter a date', 'Use the format YYYY-MM-DD (e.g. 2026-11-15).')}
               disabled={savingDeadline}
               style={styles.deadlineSave}
             >

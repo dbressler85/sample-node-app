@@ -7,8 +7,8 @@ import {
   Pressable,
   RefreshControl,
   ActivityIndicator,
-  Alert,
-} from 'react-native';
+  } from 'react-native';
+import { appAlert } from "../components/AppAlert";
 import { api } from '../api';
 import { lineupsPreferDevice } from '../mflDevice';
 import { colors } from '../theme';
@@ -57,7 +57,7 @@ export default function LineupsScreen({ active = true, onOpenLineup, onStartWiza
   function startWizard() {
     const queue = (data ? data.leagues : []).filter((l) => !l.error && l.status !== 'optimal');
     if (!queue.length) {
-      Alert.alert('All set', 'Every lineup is already optimal for this mode.');
+      appAlert('All set', 'Every lineup is already optimal for this mode.');
       return;
     }
     onStartWizard(queue.map((l) => ({ leagueId: l.leagueId, name: l.name })), mode);
@@ -69,12 +69,12 @@ export default function LineupsScreen({ active = true, onOpenLineup, onStartWiza
       const p = await api.planLineups(mode);
       const changed = p.leagues.filter((l) => l.changed);
       if (!changed.length) {
-        Alert.alert('Nothing to change', 'Every lineup is already optimal for this mode.');
+        appAlert('Nothing to change', 'Every lineup is already optimal for this mode.');
         return;
       }
       setPlan({ ...p, changed, selected: new Set(changed.map((l) => l.leagueId)) });
     } catch (e) {
-      Alert.alert('Could not build plan', e.message);
+      appAlert('Could not build plan', e.message);
     } finally {
       setPlanning(false);
     }
@@ -92,7 +92,7 @@ export default function LineupsScreen({ active = true, onOpenLineup, onStartWiza
       await reload();
       toast(`Lineups set · ${res.summary.leaguesUpdated} updated · +${res.summary.pointsGained} projected pts`);
     } catch (e) {
-      Alert.alert('Could not set lineups', e.message);
+      appAlert('Could not set lineups', e.message);
     } finally {
       setApplying(false);
     }

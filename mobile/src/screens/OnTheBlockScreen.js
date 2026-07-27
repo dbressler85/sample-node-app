@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, RefreshControl, ActivityIndicator, Alert, TextInput } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, RefreshControl, ActivityIndicator, TextInput } from 'react-native';
+import { appAlert } from "../components/AppAlert";
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import { displayLg } from '../typography';
@@ -149,7 +150,7 @@ export default function OnTheBlockScreen({ onBack, onOpenPlayer, onOpenInbox, on
       await loadEditor();
       toast(`Block saved · ${tokens.length} asset${tokens.length === 1 ? '' : 's'} shopped in ${lg.name}`);
     } catch (e) {
-      Alert.alert('Could not save', e.message);
+      appAlert('Could not save', e.message);
     } finally {
       setSavingLeague(null);
     }
