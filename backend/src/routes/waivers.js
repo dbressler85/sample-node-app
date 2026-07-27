@@ -134,4 +134,14 @@ router.delete('/leagues/:leagueId/waivers/:claimId', async (req, res, next) => {
   }
 });
 
+// POST /api/leagues/:leagueId/waivers/reorder — reorder pending claims (priority order for contingent
+// bids). Body: { order: [claimId, ...] } — the desired top-to-bottom sequence.
+router.post('/leagues/:leagueId/waivers/reorder', async (req, res, next) => {
+  try {
+    res.json(await waivers.reorder(req.mflCookie, req.account, req.params.leagueId, (req.body || {}).order));
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;

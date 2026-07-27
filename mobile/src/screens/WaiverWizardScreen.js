@@ -27,6 +27,7 @@ export default function WaiverWizardScreen({ leagues, onBack, onOpenPlayer }) {
   const [posFilter, setPosFilter] = useState(null); // position filter in the add picker
   const [changingDrop, setChangingDrop] = useState(false); // bench picker open
   const [submitting, setSubmitting] = useState(false);
+  const [submittedBusy, setSubmittedBusy] = useState(false); // delete/reorder of already-submitted claims in flight
   const [results, setResults] = useState([]); // {leagueId, name, action, add?, bid?}
 
   const total = leagues.length;
@@ -201,6 +202,48 @@ export default function WaiverWizardScreen({ leagues, onBack, onOpenPlayer }) {
     }
   }
 
+  // Silently re-pull the current league's suggestion (after a delete/reorder) so `submitted` reflects
+  // MFL's new queue + fresh ids, without flashing the loading step.
+  const refetchCurrent = useCallback(async () => {
+    if (!currentId) return;
+    try {
+      const res = await api.waiverSuggestion(currentId);
+      if (mountedRef.current) setFull((f) => ({ ...f, [currentId]: res }));
+    } catch (e) { /* keep what we have */ }
+  }, [currentId]);
+
+  // Delete / reorder ALREADY-SUBMITTED claims. Order = MFL processing priority for contingent bids.
+  async function deleteSubmitted(claimId) {
+    if (submittedBusy || !currentId) return;
+    setSubmittedBusy(true);
+    try {
+      await api.cancelClaim(currentId, claimId);
+      await refetchCurrent();
+    } catch (e) {
+      appAlert('Could not delete claim', e.message, null, { tone: 'error' });
+    } finally {
+      setSubmittedBusy(false);
+    }
+  }
+  async function moveSubmitted(fromIdx, dir) {
+    if (submittedBusy || !current || !current.submitted) return;
+    const list = current.submitted;
+    const toIdx = fromIdx + dir;
+    if (toIdx < 0 || toIdx >= list.length) return;
+    const order = list.map((c) => c.id);
+    const [moved] = order.splice(fromIdx, 1);
+    order.splice(toIdx, 0, moved);
+    setSubmittedBusy(true);
+    try {
+      await api.reorderClaims(currentId, order);
+      await refetchCurrent();
+    } catch (e) {
+      appAlert('Could not reorder', e.message, null, { tone: 'error' });
+    } finally {
+      setSubmittedBusy(false);
+    }
+  }
+
   // Skip works even while the league is still loading — key it off the stub, not the loaded suggestion.
   function skip() {
     if (!currentStub) return;
@@ -284,16 +327,18 @@ export default function WaiverWizardScreen({ leagues, onBack, onOpenPlayer }) {
         ) : (
         <>
         {/* ALREADY SUBMITTED HERE — claims already in for this league, reconciled with MFL so a bid
-            you placed on the MFL site (tagged) shows up too. Read-only context before you add more. */}
+            you placed on the MFL site (tagged) shows up too. Reorder (priority for contingent bids) +
+            delete inline; new claims append to the bottom. */}
         {current.submitted && current.submitted.length ? (
           <View style={styles.submittedStrip}>
             <Text style={styles.submittedTitle}>
-              {current.submitted.length} already submitted here
+              {current.submitted.length} already submitted here{current.submitted.length > 1 ? ' · top tried first' : ''}
             </Text>
-            {current.submitted.map((c) => (
+            {current.submitted.map((c, i) => (
               <View key={c.id} style={styles.submittedRow}>
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text style={styles.submittedText} numberOfLines={1}>
+                    {current.submitted.length > 1 ? <Text style={styles.submittedIdx}>{`${i + 1}. `}</Text> : null}
                     <Text style={styles.submittedAdd}>+ {c.add ? shortName(c.add.name) : '—'}</Text>
                     {c.add ? <Text style={styles.submittedMeta}>{`  ${[c.add.position, c.add.team].filter(Boolean).join(' · ')}`}</Text> : null}
                     {c.bid != null ? <Text style={styles.submittedBid}>{`  $${c.bid}`}</Text> : null}
@@ -312,6 +357,31 @@ export default function WaiverWizardScreen({ leagues, onBack, onOpenPlayer }) {
                   ) : null}
                 </View>
                 {c.source === 'mfl' ? <Text style={styles.mflTag}>MFL</Text> : null}
+                <View style={styles.submittedActions}>
+                  {current.submitted.length > 1 ? (
+                    <>
+                      <Pressable onPress={() => moveSubmitted(i, -1)} disabled={i === 0 || submittedBusy} hitSlop={6} style={styles.reorderBtn}>
+                        <Text style={[styles.reorderArrow, (i === 0 || submittedBusy) && styles.reorderArrowOff]}>▲</Text>
+                      </Pressable>
+                      <Pressable onPress={() => moveSubmitted(i, 1)} disabled={i === current.submitted.length - 1 || submittedBusy} hitSlop={6} style={styles.reorderBtn}>
+                        <Text style={[styles.reorderArrow, (i === current.submitted.length - 1 || submittedBusy) && styles.reorderArrowOff]}>▼</Text>
+                      </Pressable>
+                    </>
+                  ) : null}
+                  <Pressable
+                    onPress={() =>
+                      appAlert('Delete claim?', `Remove your ${c.add ? shortName(c.add.name) : ''} claim from this league?`, [
+                        { text: 'Keep', style: 'cancel' },
+                        { text: 'Delete', style: 'destructive', onPress: () => deleteSubmitted(c.id) },
+                      ])
+                    }
+                    disabled={submittedBusy}
+                    hitSlop={6}
+                    style={styles.reorderBtn}
+                  >
+                    <Text style={[styles.submittedDelete, submittedBusy && styles.reorderArrowOff]}>✕</Text>
+                  </Pressable>
+                </View>
               </View>
             ))}
           </View>
@@ -686,7 +756,13 @@ const styles = StyleSheet.create({
   submittedMeta: { color: colors.textDim, fontSize: 13, fontWeight: '600' },
   submittedBid: { color: colors.gold, fontSize: 13, fontWeight: '800' },
   submittedDelta: { fontSize: 12, fontWeight: '800', marginTop: 1 },
-  mflTag: { color: colors.accent, fontSize: 9, fontWeight: '900', borderWidth: 1, borderColor: colors.accent, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, overflow: 'hidden' },
+  submittedIdx: { color: colors.textDim, fontSize: 13, fontWeight: '800' },
+  mflTag: { color: colors.accent, fontSize: 9, fontWeight: '900', borderWidth: 1, borderColor: colors.accent, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, overflow: 'hidden', marginRight: 4 },
+  submittedActions: { flexDirection: 'row', alignItems: 'center', gap: 2, marginLeft: 4 },
+  reorderBtn: { paddingHorizontal: 6, paddingVertical: 4 },
+  reorderArrow: { color: colors.accent, fontSize: 13, fontWeight: '900' },
+  reorderArrowOff: { color: colors.border },
+  submittedDelete: { color: colors.bad, fontSize: 14, fontWeight: '900' },
   // League + team context chip row (format / outlook / avg age).
   ctxRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
   ctxChip: { color: colors.textDim, fontSize: 11, fontWeight: '800', borderWidth: 1, borderColor: colors.border, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, overflow: 'hidden' },
