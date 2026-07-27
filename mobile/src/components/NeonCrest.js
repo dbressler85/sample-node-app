@@ -115,12 +115,13 @@ export default function NeonCrest({ size = 104, ignited = true, animate = true }
       lit.setValue(0);
       seq = Animated.sequence(plan.frames.map((f) => Animated.timing(lit, { toValue: f.to, duration: f.dur, useNativeDriver: true })));
     } else {
-      // Extinguish: a quick stutter down to dark — the mirror the logout plays.
+      // Extinguish: a stutter down to dark — the mirror the logout plays. Slowed a touch (the logout
+      // beat read a little fast) and kept in step with the login wall-wash's own extinguish.
       seq = Animated.sequence([
-        Animated.timing(lit, { toValue: 0.6, duration: 60, useNativeDriver: true }),
-        Animated.timing(lit, { toValue: 0.12, duration: 55, useNativeDriver: true }),
-        Animated.timing(lit, { toValue: 0.4, duration: 50, useNativeDriver: true }),
-        Animated.timing(lit, { toValue: 0, duration: 190, useNativeDriver: true }),
+        Animated.timing(lit, { toValue: 0.62, duration: 90, useNativeDriver: true }),
+        Animated.timing(lit, { toValue: 0.14, duration: 85, useNativeDriver: true }),
+        Animated.timing(lit, { toValue: 0.42, duration: 80, useNativeDriver: true }),
+        Animated.timing(lit, { toValue: 0, duration: 300, useNativeDriver: true }),
       ]);
     }
     seq.start();
