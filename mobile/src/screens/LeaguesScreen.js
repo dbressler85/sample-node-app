@@ -5,6 +5,7 @@ import { colors } from '../theme';
 import { displayLg } from '../typography';
 import Reveal from '../components/Reveal';
 import useAndroidBack from '../useAndroidBack';
+import { peekResource, primeResource } from '../useCachedResource';
 
 // Compact countdown for a trade deadline ({ at: ms }) → { label, urgent }, or null when none/past.
 function deadlineChip(dl) {
@@ -18,7 +19,9 @@ function deadlineChip(dl) {
 // top of every cross-league view. The backend returns leagues pinned-first with the
 // pinned flag.
 export default function LeaguesScreen({ onBack, onOpenLeague, onOpenDraftHub }) {
-  const [leagues, setLeagues] = useState(null);
+  // Seed from the surviving in-memory store so re-opening the switcher (an overlay — unmounts on back)
+  // repaints the league list instantly instead of cold-loading a full spinner each time.
+  const [leagues, setLeagues] = useState(() => { const h = peekResource('leagues:list'); return h ? h.value : null; });
   const [error, setError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [busy, setBusy] = useState({}); // leagueId -> true while a toggle is in flight
@@ -43,7 +46,7 @@ export default function LeaguesScreen({ onBack, onOpenLeague, onOpenDraftHub }) 
 
   const load = useCallback(() => {
     api.leaguesList()
-      .then((res) => setLeagues(res.leagues || []))
+      .then((res) => { const list = res.leagues || []; setLeagues(list); primeResource('leagues:list', list); })
       .catch((e) => setError(e.message))
       .finally(() => setRefreshing(false));
     loadEnrich();
