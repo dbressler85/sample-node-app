@@ -7,6 +7,7 @@ import { displayLg } from '../typography';
 import AvailabilityBadge from '../components/AvailabilityBadge';
 import ValueDelta from '../components/ValueDelta';
 import NeonSign from '../components/NeonSign';
+import { toast } from '../components/Toast';
 import useAndroidBack from '../useAndroidBack';
 
 // Wizard that walks league-to-league with a suggested pickup (best add + smart
@@ -43,6 +44,13 @@ export default function WaiverWizardScreen({ leagues, onBack, onOpenPlayer }) {
   const requested = useRef(new Set());
   const mountedRef = useRef(true);
   useEffect(() => () => { mountedRef.current = false; }, []);
+  // What was submitted THIS session, per league — drives the end Summary and lets the builder skip a
+  // player you've already claimed here when it reseeds after a submit. { leagueId -> {names[], addIds:Set} }
+  const sessionRef = useRef({});
+  const sessionFor = (id) => {
+    if (!sessionRef.current[id]) sessionRef.current[id] = { names: [], addIds: new Set() };
+    return sessionRef.current[id];
+  };
   const loadOne = useCallback((leagueId) => {
     if (!leagueId || requested.current.has(leagueId)) return;
     requested.current.add(leagueId);
@@ -184,7 +192,10 @@ export default function WaiverWizardScreen({ leagues, onBack, onOpenPlayer }) {
     setQueue((qs) => qs.filter((q) => q.addId !== id));
   }
 
-  async function submitAndNext() {
+  // Submit the built claim(s) and STAY on this league — submitting is decoupled from advancing, so you
+  // can add several claims, reorder them, then move on when ready. On success the claims land in the
+  // "already submitted" strip, and the builder reseeds to the next-best add you haven't claimed yet.
+  async function submitClaims() {
     if (!canSubmit || !current) return;
     const claims = queue.map((q) => ({ addId: q.addId, dropId: q.dropId || undefined, bid: q.bid != null ? q.bid : undefined }));
     if (valid && add) claims.push({ addId, dropId: dropId || undefined, bid: isFaab && bidNum != null ? bidNum : undefined });
@@ -194,7 +205,21 @@ export default function WaiverWizardScreen({ leagues, onBack, onOpenPlayer }) {
       const names = [...queue.map((q) => q.add.name), ...(valid && add ? [add.name] : [])].map((n) => shortName(n));
       if (claims.length === 1) await api.submitClaim(current.leagueId, claims[0]);
       else await api.submitMultiClaim(current.leagueId, claims);
-      advance({ leagueId: current.leagueId, name: current.name, action: 'claimed', add: names.join(', '), count: names.length, bid: isFaab ? totalSpend : null });
+      // Record for the Summary + so the reseed skips players already claimed here.
+      const s = sessionFor(current.leagueId);
+      names.forEach((n) => s.names.push(n));
+      claims.forEach((c) => s.addIds.add(c.addId));
+      // Reseed the builder to the best candidate not yet claimed this league; clear the queue.
+      const nextAdd = current.candidates.find((c) => !s.addIds.has(c.id));
+      setAddId(nextAdd ? nextAdd.id : null);
+      setDropId(null);
+      setBid(current.system === 'faab' ? String(current.minBid || 1) : null);
+      setQueue([]);
+      setBrowsing(false);
+      setChangingDrop(false);
+      setPosFilter(null);
+      toast(`Submitted ${names.length} claim${names.length === 1 ? '' : 's'} — ${current.name.split(' ')[0]}`);
+      refetchCurrent(); // pull MFL's updated queue into the submitted strip (fresh ids for reorder/delete)
     } catch (e) {
       appAlert('Could not submit', e.message, null, { tone: 'error' });
     } finally {
@@ -244,10 +269,19 @@ export default function WaiverWizardScreen({ leagues, onBack, onOpenPlayer }) {
     }
   }
 
-  // Skip works even while the league is still loading — key it off the stub, not the loaded suggestion.
-  function skip() {
+  // Move to the next league (navigation is now separate from submitting). Records the league's outcome
+  // for the Summary from what you actually submitted here this session. Works while still loading too.
+  function nextLeague() {
     if (!currentStub) return;
-    advance({ leagueId: currentStub.leagueId, name: currentStub.name, action: 'skipped' });
+    const s = sessionRef.current[currentStub.leagueId];
+    const names = s ? s.names : [];
+    advance({
+      leagueId: currentStub.leagueId,
+      name: currentStub.name,
+      action: names.length ? 'claimed' : 'skipped',
+      add: names.join(', '),
+      count: names.length,
+    });
   }
   function nextLocked() {
     if (!currentStub) return;
@@ -270,7 +304,9 @@ export default function WaiverWizardScreen({ leagues, onBack, onOpenPlayer }) {
           <Text style={styles.back}>‹ Done</Text>
         </Pressable>
         <Text style={styles.progress}>League {index + 1} of {total}</Text>
-        <Text style={styles.skipTop} onPress={skip}>Skip</Text>
+        {/* Navigation lives in the bottom bar now (submitting is decoupled from moving on); spacer keeps
+            the progress label centered. */}
+        <View style={styles.topbarSpacer} />
       </View>
       <View style={styles.bar}>
         <View style={[styles.barFill, { width: `${Math.round((index / total) * 100)}%` }]} />
@@ -505,15 +541,17 @@ export default function WaiverWizardScreen({ leagues, onBack, onOpenPlayer }) {
       </ScrollView>
       ) : null}
 
+      {/* Actions: SUBMIT (stay on this league — you can add + reorder several) is separate from moving
+          on. The nav button advances; on the last league it's "Finish". */}
       <View style={styles.actions}>
         {loadingCurrent || skipping ? (
-          <Pressable style={styles.skipInline} onPress={skip}>
-            <Text style={styles.skipInlineText}>Skip</Text>
+          <Pressable style={styles.navBtn} onPress={nextLeague}>
+            <Text style={styles.navBtnText}>{index + 1 === total ? 'Finish' : 'Next league ›'}</Text>
           </Pressable>
         ) : currentError ? (
           <>
-            <Pressable style={styles.skipInline} onPress={skip}>
-              <Text style={styles.skipInlineText}>Skip</Text>
+            <Pressable style={styles.navBtn} onPress={nextLeague}>
+              <Text style={styles.navBtnText}>{index + 1 === total ? 'Finish' : 'Next ›'}</Text>
             </Pressable>
             <Pressable style={styles.submit} onPress={() => retry(currentId)}>
               <Text style={styles.submitText}>Retry</Text>
@@ -525,19 +563,21 @@ export default function WaiverWizardScreen({ leagues, onBack, onOpenPlayer }) {
           </Pressable>
         ) : showBuilder ? (
           <>
-            <Pressable style={styles.skipInline} onPress={skip} disabled={submitting}>
-              <Text style={styles.skipInlineText}>Skip</Text>
+            <Pressable style={styles.navBtn} onPress={nextLeague} disabled={submitting}>
+              <Text style={styles.navBtnText}>{index + 1 === total ? 'Finish' : 'Next league ›'}</Text>
             </Pressable>
             <Pressable
               style={({ pressed }) => [styles.submit, (!canSubmit || submitting) && styles.submitOff, pressed && canSubmit && { opacity: 0.85 }]}
-              onPress={submitAndNext}
+              onPress={submitClaims}
               disabled={!canSubmit || submitting}
             >
               {submitting ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.submitText}>
-                  {current.system === 'free' ? 'Add' : 'Claim'}{pendingCount > 1 ? ` ${pendingCount}` : ''}{index + 1 === total ? ' & Finish' : ' & Next'}
+                <Text style={[styles.submitText, !canSubmit && { color: colors.textDim }]}>
+                  {current.system === 'free'
+                    ? pendingCount > 1 ? `Add ${pendingCount}` : 'Add'
+                    : pendingCount > 1 ? `Submit ${pendingCount}` : 'Submit claim'}
                 </Text>
               )}
             </Pressable>
@@ -705,7 +745,7 @@ const styles = StyleSheet.create({
   topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8 },
   back: { color: colors.accent, fontSize: 16, fontWeight: '600' },
   progress: { color: colors.text, fontSize: 14, fontWeight: '800' },
-  skipTop: { color: colors.textDim, fontSize: 15, fontWeight: '700' },
+  topbarSpacer: { width: 44 },
   bar: { height: 4, backgroundColor: colors.card, marginHorizontal: 16, marginTop: 10, borderRadius: 2, overflow: 'hidden' },
   barFill: { height: 4, backgroundColor: colors.accent },
   body: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 20 },
@@ -798,6 +838,9 @@ const styles = StyleSheet.create({
   actions: { flexDirection: 'row', paddingHorizontal: 16, paddingBottom: 16, paddingTop: 4, gap: 12 },
   skipInline: { paddingHorizontal: 22, borderRadius: 14, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
   skipInlineText: { color: colors.textDim, fontSize: 15, fontWeight: '700' },
+  // Secondary "Next league / Finish" nav button (submitting is a separate, primary action).
+  navBtn: { paddingHorizontal: 16, borderRadius: 14, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
+  navBtnText: { color: colors.text, fontSize: 15, fontWeight: '800' },
   submit: { flex: 1, backgroundColor: colors.accent, borderRadius: 14, paddingVertical: 16, alignItems: 'center' },
   submitOff: { backgroundColor: colors.cardAlt },
   submitText: { color: '#fff', fontSize: 16, fontWeight: '800' },
