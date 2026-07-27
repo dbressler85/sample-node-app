@@ -9,6 +9,7 @@ const demo = require('../demo/fixtures');
 const mfl = require('./mfl');
 const playersLib = require('./players');
 const { createMemo } = require('./memo');
+const { withRetry } = require('./retry');
 
 // A readable name for a slot given its eligible positions. A multi-position slot
 // isn't just a generic "FLEX": a QB-eligible flex is a SUPERFLEX (drives value),
@@ -41,7 +42,9 @@ function startersSpec(cookie, league) {
 }
 
 async function buildStartersSpec(cookie, league) {
-  const res = await mfl.exportRequest('league', { host: league.host, cookie, L: league.leagueId });
+  // Retry a transient throttle: this feeds the lineups overview fan-out (viewForLeague reads the
+  // starting requirements per league); an unretried 429 here would turn a league into an error tile.
+  const res = await withRetry(() => mfl.exportRequest('league', { host: league.host, cookie, L: league.leagueId }));
   const startersNode = res && res.league && res.league.starters;
   const positions = mfl.toArray(startersNode && startersNode.position);
   const slots = positions.map((p) => {
@@ -241,7 +244,7 @@ const draftClockMemo = createMemo({ ttlMs: config.mflStaticTtlMs });
 async function draftClockConfig(cookie, league) {
   if (config.demoMode) return null;
   return draftClockMemo.get(`${cookie}|${league.leagueId}`, async () => {
-    const res = await mfl.exportRequest('league', { host: league.host, cookie, L: league.leagueId });
+    const res = await withRetry(() => mfl.exportRequest('league', { host: league.host, cookie, L: league.leagueId }));
     return parseDraftClock(res && res.league);
   });
 }

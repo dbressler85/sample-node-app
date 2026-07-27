@@ -18,12 +18,13 @@ leaguesService.orderedLeagues = async () => [
   { leagueId: 'L2', name: 'League Two' },
   { leagueId: 'L3', name: 'League Three' },
 ];
-// A player rostered in L1 + L2. L3's read always throws → withRetry exhausts, the league drops.
+// A player rostered in L1 + L2. L3's read always throws → the league drops, honestly (partial flags).
+// (The transient-throttle RETRY now lives at the source, lib/mflRepo.rosters — covered by
+// mflrepo-rosters-retry-test — so this stub at the service level intentionally sees one attempt.)
 const star = { id: '11', name: 'Bravo Wideout', position: 'WR', team: 'BBB', age: 25, value: 8000, availability: { status: 'ACTIVE' } };
 const rosterFor = () => ({ starters: [star], bench: [], ir: [], taxi: [] });
-let l3Attempts = 0;
 rosterService.myRosterEnriched = async (cookie, leagueId) => {
-  if (leagueId === 'L3') { l3Attempts += 1; throw new Error('MFL 429'); }
+  if (leagueId === 'L3') { throw new Error('MFL 429'); }
   return rosterFor();
 };
 pointsMaps.maps = async () => ({ season: new Map(), proj: new Map() });
@@ -33,9 +34,6 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
 
 (async () => {
   const r = await exposure.getExposure('ck', 'tk');
-
-  // The dropped league is retried (not abandoned on the first throttle) before it's counted as lost.
-  assert(l3Attempts >= 2, `a throttled roster read is retried before being dropped, got ${l3Attempts} attempts`);
 
   // Honesty flags: 2 of 3 leagues loaded → partial.
   assert(r.leaguesTotal === 3, `leaguesTotal is the TRUE league count, got ${r.leaguesTotal}`);
