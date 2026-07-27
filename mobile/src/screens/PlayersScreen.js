@@ -11,6 +11,7 @@ import { peekResource, primeResource } from '../useCachedResource';
 import InfoDot from '../components/InfoDot';
 import Pulse from '../components/Pulse';
 import Reveal from '../components/Reveal';
+import PartialNote from '../components/PartialNote';
 import { ScreenTitle, Value } from '../components/Brand';
 
 const TABS = [
@@ -326,6 +327,9 @@ export default function PlayersScreen({ onOpenPlayer }) {
               <PosFilter pos={pos} setPos={setPos} rankType={rankType} setRankType={setRankType} />
               <ValueLens format={format} setFormat={setFormat} />
               <SortRow value={listSort} onChange={setListSort} />
+              {/* Honest partial-load signal: "owned in N leagues" counts are over the leagues that
+                  loaded — if some were throttled, say so instead of showing a subset as the whole. */}
+              {rankings ? <PartialNote loaded={rankings.leaguesLoaded} total={rankings.leaguesTotal} onRetry={loadRankings} /> : null}
               <FlatList
                 style={styles.grow}
                 data={rankingsData}

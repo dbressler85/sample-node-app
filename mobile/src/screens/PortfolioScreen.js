@@ -10,6 +10,7 @@ import Sparkline from '../components/Sparkline';
 import PressableScale from '../components/PressableScale';
 import Reveal from '../components/Reveal';
 import AnimatedNumber from '../components/AnimatedNumber';
+import PartialNote from '../components/PartialNote';
 
 // Chart width = screen minus the body padding (16×2) and card padding (16×2).
 const CHART_W = Dimensions.get('window').width - 64;
@@ -162,11 +163,7 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
           <Text style={styles.totalLabel}>Total dynasty value · {d.totals.teams} team{d.totals.teams === 1 ? '' : 's'}</Text>
           <AnimatedNumber value={d.totals.rosterValue} style={styles.totalValue} />
           <ChangeLine change={d.change} />
-          {d.totals.partial ? (
-            <Text style={styles.partialNote}>
-              ⚠ {d.totals.failedCount} of {d.totals.leagues} league{d.totals.leagues === 1 ? '' : 's'} couldn’t load — this total is partial. Pull to refresh.
-            </Text>
-          ) : null}
+          <PartialNote loaded={d.totals.teams} total={d.totals.leagues} onRetry={reload} />
           {d._source === 'device' ? <Text style={styles.deviceNote}>⚡ Rosters live from MFL on-device · {d.totals.leagues} league{d.totals.leagues === 1 ? '' : 's'}</Text> : null}
           {d.history && d.history.length >= 2 ? (
             <View style={styles.chartWrap}>
@@ -673,7 +670,6 @@ const styles = StyleSheet.create({
   holdCardBottom: { backgroundColor: colors.card, borderBottomLeftRadius: 16, borderBottomRightRadius: 16, borderWidth: 1, borderTopWidth: 0, borderColor: colors.border, paddingHorizontal: 16, paddingBottom: 16, paddingTop: 4, marginBottom: 14 },
   totalValue: { color: colors.gold, fontSize: 40, fontWeight: '900', letterSpacing: -1, marginTop: 2 },
   totalLabel: { color: colors.textDim, fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
-  partialNote: { color: colors.warn, fontSize: 12, fontWeight: '600', marginTop: 8, lineHeight: 17 },
   deviceNote: { color: colors.accent, fontSize: 11, fontWeight: '700', marginTop: 8 },
   change: { fontSize: 15, fontWeight: '900', marginTop: 4 },
   changePct: { fontSize: 14, fontWeight: '800' },
