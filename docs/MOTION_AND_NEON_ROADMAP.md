@@ -35,8 +35,12 @@ throughline, not competing to-do lists.
 > (`AnimatedNumber`, tabular). The missing signature piece — the **acted-on-row flash** — is now a
 > reusable hook (`useActFlash`: pulses an accent wash when a row's own action lands; skips first-mount
 > + reduce-motion so it never fires on scroll/re-sort), wired into the Target/Avoid/Watch tag rows and
-> the on-the-block toggle. Remaining texture (chip/segment pop-on-toggle; extending the flash to claim
-> and trade rows) is light per-control polish, best tuned on device (§7). **Phases 0–5 are now complete.**
+> the on-the-block toggle. **The texture tail then landed too:** a `usePopScale` hook + `PopChip` give the
+> filter/sort chips a pop-on-toggle (Players position/sort, League-roster filter/sort, the shared Waiver
+> `FilterChip`), and the acted-on-row flash now extends to **claim rows** (a free-agent row washes when
+> your claim lands) and **trade rows** (a builder `AssetRow` washes when it's added to the deal). The one
+> residual is a pop on the bespoke **segmented controls** (value-lens, tab bars) — deferred as a live tune
+> item (§7) to avoid layout risk without a device. **Phases 0–5 are complete.**
 
 ---
 
@@ -159,7 +163,7 @@ Every current emoji, mapped. (Moment = animated ignition; Inline = steady glow.)
 | ↩️ | Offer withdrawn | **Undo-arrow** glyph | Moment · `cold`/dim · quick |
 | 📉 | Claim failed / outbid | **"OUTBID"** (or down-arrow) | Moment · `bad` · broken flicker |
 | 💀 | Matchup lost | **"L"** (skull optional) | Moment · `cold` · broken flicker |
-| ⭐ | Watchlist | **Star** glyph | Inline · `watch` (Neon Lime) · steady |
+| ⭐ | Watchlist | **Star** glyph | Inline · `watch` (Acid Yellow) · steady |
 | ⏳ | Trade deadline | **Hourglass** glyph | Inline · `warn` · steady |
 | 📥 | Trade inbox | **Tray** glyph | Inline · `accent` · steady |
 | 🔁 | Trades | **Swap-arrows** glyph | Inline · `accent` · steady |
@@ -202,7 +206,7 @@ lands last, as the finishing flourish.
 - **Symbols + words mix** — glyph when iconic, neon word when abstract.
 - **Sad = broken flicker;** happy = clean bloom + steady hum.
 - **Confetti fully replaced by neon sparks.**
-- **Watch = Neon Lime `#D6F84E`** (per `DESIGN_SYSTEM.md`; Acid `#E4F24A` held as on-device alt).
+- **Watch = Acid Yellow `#E4F24A`** (per `DESIGN_SYSTEM.md`; the earlier Neon Lime `#D6F84E` was dropped).
 - **Reduce-motion:** everything resolves to its steady, fully-lit settled state.
 
 ## 6. Guardrails this must honor
@@ -219,4 +223,4 @@ lands last, as the finishing flourish.
 - Traversal depth: simple directional slide vs. a shared-element "lift from the tapped row" — decide
   when prototyping Phase 2 on a real device.
 - Sad glyphs: neon "L" vs. a neon skull — decide when the `NeonSign` glyph set is drawn.
-- Acid vs. Neon Lime for watch — settle once seen in-row on device.
+- ~~Acid vs. Neon Lime for watch~~ — **settled: Acid Yellow `#E4F24A`** (Neon Lime read too chartreuse in-row).

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Alert, TextInput, Modal } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Alert, TextInput, Modal, Animated } from 'react-native';
 import { api } from '../api';
 import tradeMath from '../tradeMath';
 import { colors, positionColors } from '../theme';
@@ -9,6 +9,7 @@ import { toast } from '../components/Toast';
 import TradeColumns from '../components/TradeColumns';
 import Reveal from '../components/Reveal';
 import NeonSign from '../components/NeonSign';
+import useActFlash from '../useActFlash';
 import useAndroidBack from '../useAndroidBack';
 import { peekResource, primeResource } from '../useCachedResource';
 
@@ -909,6 +910,14 @@ function shortName(full) {
 
 function AssetRow({ asset, on, onPress, tint, compact }) {
   const posColor = positionColors[asset.position] || colors.textDim;
+  // Texture: wash the row's side tint when it's added to the deal (§2.3) so the pick visibly lands.
+  const flash = useActFlash(on ? 1 : 0);
+  const wash = (
+    <Animated.View
+      pointerEvents="none"
+      style={[StyleSheet.absoluteFill, { borderRadius: compact ? 8 : 10, backgroundColor: tint, opacity: flash.interpolate({ inputRange: [0, 1], outputRange: [0, 0.22] }) }]}
+    />
+  );
   if (compact) {
     // Narrow two-column builder: checkbox + first-initial + last name, with pos · team · value on a
     // second line. Position color is a left border instead of a dot to save width.
@@ -920,6 +929,7 @@ function AssetRow({ asset, on, onPress, tint, compact }) {
         style={({ pressed }) => [styles.cAssetRow, { borderLeftColor: posColor }, on && { borderColor: tint, backgroundColor: colors.cardAlt }, pressed && { opacity: 0.8 }]}
         onPress={onPress}
       >
+        {wash}
         <View style={[styles.check, on && { backgroundColor: tint, borderColor: tint }]}>{on ? <Text style={styles.checkMark}>✓</Text> : null}</View>
         <View style={{ flex: 1 }}>
           <Text style={styles.cAssetName} numberOfLines={1}>{shortName(asset.name)}</Text>
@@ -932,6 +942,7 @@ function AssetRow({ asset, on, onPress, tint, compact }) {
   }
   return (
     <Pressable style={({ pressed }) => [styles.assetRow, on && { borderColor: tint, backgroundColor: colors.cardAlt }, pressed && { opacity: 0.8 }]} onPress={onPress}>
+      {wash}
       <View style={[styles.check, on && { backgroundColor: tint, borderColor: tint }]}>{on ? <Text style={styles.checkMark}>✓</Text> : null}</View>
       <View style={[styles.dot, { backgroundColor: posColor }]} />
       <Text style={styles.assetName} numberOfLines={1}>{asset.name}</Text>

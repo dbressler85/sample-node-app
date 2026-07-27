@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   RefreshControl,
   Alert,
+  Animated,
 } from 'react-native';
 import { api } from '../api';
 import { waiversOverviewPreferDevice } from '../mflDevice';
@@ -21,6 +22,8 @@ import { toast } from '../components/Toast';
 import ErrorView from '../components/ErrorView';
 import Reveal from '../components/Reveal';
 import NeonSign from '../components/NeonSign';
+import useActFlash from '../useActFlash';
+import usePopScale from '../usePopScale';
 import useAndroidBack from '../useAndroidBack';
 import useCachedResource from '../useCachedResource';
 import { ScreenTitle } from '../components/Brand';
@@ -340,6 +343,10 @@ function BoardView({ board, loading, error, position, setPosition, sort, setSort
   if (error) return <View style={{ flex: 1 }}>{header}<ErrorView message={error} onRetry={onRetry} /></View>;
   if (!board) return <View style={{ flex: 1 }}>{header}</View>;
 
+  // Which free agents already have a claim in — so a FA row can flash its accent the moment your claim
+  // lands on it (Texture §2.3), the same "action visibly lands on the row" feedback the tag rows use.
+  const claimedIds = new Set((board.pending || []).map((c) => c.add && c.add.id).filter(Boolean));
+
   return (
     <View style={{ flex: 1 }}>
       {header}
@@ -404,7 +411,7 @@ function BoardView({ board, loading, error, position, setPosition, sort, setSort
         contentContainerStyle={styles.list}
         renderItem={({ item, index }) => (
         <Reveal delay={Math.min(index, 8) * 40} animate={index < 12}>
-          <FaRow p={item} onPress={() => onPick(item.id)} onOpenPlayer={onOpenPlayer} />
+          <FaRow p={item} claimed={claimedIds.has(item.id)} onPress={() => onPick(item.id)} onOpenPlayer={onOpenPlayer} />
         </Reveal>
       )}
         ListEmptyComponent={<Text style={styles.empty}>No free agents match.</Text>}
@@ -413,8 +420,12 @@ function BoardView({ board, loading, error, position, setPosition, sort, setSort
   );
 }
 
-function FaRow({ p, onPress, onOpenPlayer }) {
+function FaRow({ p, claimed, onPress, onOpenPlayer }) {
   const posColor = positionColors[p.position] || colors.textDim;
+  // Texture: wash the row's accent when your claim lands on THIS player (§2.3) — the action visibly
+  // lands on the board instead of only appearing in the "claims submitted" strip. Keyed to `claimed`,
+  // so it fires when the claim goes in and skips scroll-in / re-sort (useActFlash's first-mount guard).
+  const flash = useActFlash(claimed ? 1 : 0);
   // Identity (badge + name + meta + value) opens the cross-league profile to research the
   // player; the "+ Claim" pill is the action. Falls back to a whole-row claim if no profile
   // handler is wired.
@@ -422,6 +433,10 @@ function FaRow({ p, onPress, onOpenPlayer }) {
   const idProps = onOpenPlayer ? { onPress: () => onOpenPlayer(p.id) } : {};
   return (
     <View style={[styles.faRow, p.tag === 'target' && styles.faRowTarget, p.tag === 'avoid' && styles.faRowAvoid]}>
+      <Animated.View
+        pointerEvents="none"
+        style={[StyleSheet.absoluteFill, { borderRadius: 12, backgroundColor: colors.good, opacity: flash.interpolate({ inputRange: [0, 1], outputRange: [0, 0.20] }) }]}
+      />
       <Identity style={styles.faIdentity} {...idProps}>
         <View style={[styles.posBadge, { backgroundColor: posColor + '22', borderColor: posColor }]}>
           <Text style={[styles.pos, { color: posColor }]}>{p.position}</Text>
@@ -681,9 +696,12 @@ function Center({ children }) {
   return <View style={styles.center}>{children}</View>;
 }
 function FilterChip({ label, active, onPress, sortStyle }) {
+  const scale = usePopScale(active); // Texture: pop when this filter/sort chip becomes active (§2.3)
   return (
-    <Pressable style={[styles.filterChip, active && styles.filterChipActive, sortStyle && styles.sortChip]} onPress={onPress}>
-      <Text style={[styles.filterText, active && { color: colors.text }]}>{label}</Text>
+    <Pressable onPress={onPress} hitSlop={6}>
+      <Animated.View style={[styles.filterChip, active && styles.filterChipActive, sortStyle && styles.sortChip, { transform: [{ scale }] }]}>
+        <Text style={[styles.filterText, active && { color: colors.text }]}>{label}</Text>
+      </Animated.View>
     </Pressable>
   );
 }

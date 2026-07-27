@@ -5,6 +5,7 @@ import { displayLg } from '../typography';
 import ErrorView from '../components/ErrorView';
 import DeviceNote from '../components/DeviceNote';
 import NeonSign from '../components/NeonSign';
+import PopChip from '../components/PopChip';
 import useAndroidBack from '../useAndroidBack';
 import useCachedResource from '../useCachedResource';
 import { leagueTeamsPreferDevice, standingsPreferDevice, transactionsPreferDevice } from '../mflDevice';
@@ -154,17 +155,13 @@ function RostersTab({ leagueId, onOpenPlayer }) {
       </ScrollView>
       <View style={styles.rFilterRow}>
         {ROSTER_POS.map(([k, label]) => (
-          <Pressable key={label} style={[styles.rChip, pos === k && styles.rChipOn]} onPress={() => setPos(k)}>
-            <Text style={[styles.rChipText, pos === k && { color: colors.text }]}>{label}</Text>
-          </Pressable>
+          <PopChip key={label} active={pos === k} onPress={() => setPos(k)} style={styles.rChip} activeStyle={styles.rChipOn} textStyle={styles.rChipText} activeTextStyle={{ color: colors.text }} label={label} />
         ))}
       </View>
       <View style={styles.rSortRow}>
         <Text style={styles.rSortLabel}>Sort</Text>
         {ROSTER_SORTS.map(([k, label]) => (
-          <Pressable key={k} style={[styles.rSortChip, sort === k && styles.rSortChipOn]} onPress={() => setSort(k)}>
-            <Text style={[styles.rSortText, sort === k && { color: colors.text }]}>{label}</Text>
-          </Pressable>
+          <PopChip key={k} active={sort === k} onPress={() => setSort(k)} style={styles.rSortChip} activeStyle={styles.rSortChipOn} textStyle={styles.rSortText} activeTextStyle={{ color: colors.text }} label={label} />
         ))}
       </View>
       <FlatList
