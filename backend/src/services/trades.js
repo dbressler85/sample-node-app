@@ -18,6 +18,7 @@ const picksLib = require('../lib/picks');
 const leaguesService = require('./leagues');
 const rosterService = require('./roster');
 const draftService = require('./draft');
+const { createMemo } = require('../lib/memo');
 const tradeStore = require('../store/trades');
 const playerTags = require('../store/playerTags');
 const baitStore = require('../store/tradebait');
@@ -1148,12 +1149,20 @@ function throwBad(msg) {
 // the expensive part, so the inbox returns offers immediately and the client fetches
 // this per league in the background — spreading the MFL load instead of paying it all
 // up front (which is why the hint used to only appear on leagues that had an offer).
+// The "deep at X · N rivals need it" hint. It runs the full per-league tradeData (every franchise's
+// roster → needs/surplus), so it's expensive — and the inbox asks for it once PER LEAGUE. Memoize the
+// result (~20m): needs/surplus only shifts on adds/drops/trades, so a many-league user re-opening the
+// tab (or the client re-driving the fan-out) gets instant hits instead of recomputing 15 heavy reads.
+// A FAILED fit is NOT cached (the memo drops a rejected produce), so a transient throttle is retried.
+const fitMemo = createMemo({ ttlMs: 20 * 60 * 1000 });
 async function getLeagueFit(cookie, token, leagueId) {
   try {
-    const d = await tradeData(cookie, token, leagueId);
-    return { leagueId: String(leagueId), fit: tradeFitSummary(d.ns, d.league.franchiseId) };
+    return await fitMemo.get(`${cookie || ''}:${leagueId}`, async () => {
+      const d = await tradeData(cookie, token, leagueId);
+      return { leagueId: String(leagueId), fit: tradeFitSummary(d.ns, d.league.franchiseId) };
+    });
   } catch (e) {
-    return { leagueId: String(leagueId), fit: null };
+    return { leagueId: String(leagueId), fit: null }; // not memoized — retried on the next request
   }
 }
 

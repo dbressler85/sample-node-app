@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, FlatList, RefreshControl, ActivityIndicator, Alert } from 'react-native';
 import { api } from '../api';
 import useCachedResource from '../useCachedResource';
@@ -83,25 +83,44 @@ export default function TradeInboxScreen({ active = true, onBack, onOpenLeague, 
     if (fitSeeded && Object.keys(fitByLeague).length) setValue('trades:fit', fitByLeague);
   }, [fitByLeague, fitSeeded]);
 
-  // Fetch only the hints we DON'T already have (from the payload or the cached seed). Wait for the
-  // seed so a remount doesn't re-fetch everything it already knew.
+  // Fill the per-league hints in the background. Two things the old one-at-a-time loop got wrong for a
+  // many-league user: (1) it was strictly SEQUENTIAL, so ~15 heavy per-league reads ran back-to-back —
+  // minutes; (2) it was tied to the effect's lifecycle, so a background refetch of the overview (a new
+  // `data` reference) cancelled the in-flight sweep and restarted it, stalling after the very first hint.
+  // Now a ref-driven pump fetches a few at a time and runs to completion regardless of re-renders (the
+  // backend already caps MFL concurrency globally, so client-side parallelism just fills its queue — it
+  // never hits MFL harder than sequential, it just finishes far sooner). In-flight + queued sets dedupe,
+  // so re-runs only enqueue genuinely-new leagues; each hint is still persisted as it lands.
+  const fitQueue = useRef([]);
+  const fitInflight = useRef(new Set());
+  const fitActive = useRef(0);
+  const mountedRef = useRef(true);
+  useEffect(() => () => { mountedRef.current = false; }, []);
+
+  const pumpFits = useCallback(() => {
+    const CONC = 4;
+    while (mountedRef.current && fitActive.current < CONC && fitQueue.current.length) {
+      const id = fitQueue.current.shift();
+      if (fitInflight.current.has(id)) continue;
+      fitInflight.current.add(id);
+      fitActive.current += 1;
+      api.tradeFit(id)
+        .then((r) => { if (mountedRef.current) setFitByLeague((m) => ({ ...m, [id]: r.fit || null })); })
+        .catch(() => { /* leave this league's hint blank */ })
+        .finally(() => { fitActive.current -= 1; pumpFits(); });
+    }
+  }, []);
+
   useEffect(() => {
-    if (!fitSeeded || !data || !data.leagues) return undefined;
-    const missing = data.leagues.filter((l) => l.fit == null && fitByLeague[String(l.leagueId)] === undefined);
-    if (!missing.length) return undefined;
-    let alive = true;
-    (async () => {
-      for (const l of missing) {
-        if (!alive) return;
-        try {
-          const r = await api.tradeFit(l.leagueId);
-          if (!alive) return;
-          setFitByLeague((m) => ({ ...m, [String(l.leagueId)]: r.fit || null }));
-        } catch (e) { /* skip this league's hint */ }
+    if (!fitSeeded || !data || !data.leagues) return;
+    for (const l of data.leagues) {
+      const id = String(l.leagueId);
+      if (l.fit == null && fitByLeague[id] === undefined && !fitInflight.current.has(id) && !fitQueue.current.includes(id)) {
+        fitQueue.current.push(id);
       }
-    })();
-    return () => { alive = false; };
-  }, [data, fitSeeded]); // eslint-disable-line react-hooks/exhaustive-deps
+    }
+    pumpFits(); // no teardown — in-flight fetches finish even if `data` refetches
+  }, [data, fitSeeded, fitByLeague, pumpFits]);
 
   async function doRespond(offer, action) {
     const k = `${offer.leagueId}:${offer.id}`;
