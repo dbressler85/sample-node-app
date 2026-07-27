@@ -117,7 +117,12 @@ export default function TrophyCaseScreen({ onBack }) {
 
       {!loading && !error ? (
         <Pressable onPress={detect} disabled={detecting} style={({ pressed }) => [styles.detectBtn, pressed && { opacity: 0.85 }]}>
-          {detecting ? <ActivityIndicator color={colors.accent} /> : <Text style={styles.detectText}>🔍 Find my titles from MyFantasyLeague</Text>}
+          {detecting ? <ActivityIndicator color={colors.accent} /> : (
+            <View style={styles.detectRow}>
+              <NeonSign glyph="search" color="accent" grade="inline" size={15} />
+              <Text style={styles.detectText}>Find my titles from MyFantasyLeague</Text>
+            </View>
+          )}
         </Pressable>
       ) : null}
 
@@ -189,6 +194,7 @@ const styles = StyleSheet.create({
   addBtnText: { color: colors.gold, fontSize: 14, fontWeight: '800' },
   subtitle: { color: colors.textDim, fontSize: 13, fontWeight: '700', paddingHorizontal: 16, paddingBottom: 8 },
   detectBtn: { marginHorizontal: 12, marginBottom: 8, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, paddingVertical: 11, alignItems: 'center' },
+  detectRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   detectText: { color: colors.accent, fontSize: 14, fontWeight: '800' },
   center: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 28 },
 

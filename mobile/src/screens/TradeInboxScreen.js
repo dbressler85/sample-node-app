@@ -207,7 +207,7 @@ export default function TradeInboxScreen({ active = true, onBack, onOpenLeague, 
           players as available and see who else is shopping. */}
       {onOpenBlock ? (
         <Pressable onPress={onOpenBlock} style={({ pressed }) => [styles.blockBanner, pressed && { opacity: 0.85 }]}>
-          <Text style={styles.blockBannerIcon}>🏷</Text>
+          <NeonSign glyph="tag" color="accent" grade="inline" size={22} style={styles.blockBannerIcon} />
           <View style={{ flex: 1 }}>
             <Text style={styles.blockBannerTitle}>Trade Block</Text>
             <Text style={styles.blockBannerSub} numberOfLines={1}>
@@ -252,7 +252,7 @@ export default function TradeInboxScreen({ active = true, onBack, onOpenLeague, 
           )}
           ListEmptyComponent={
             <View style={styles.emptyWrap}>
-              <Text style={styles.emptyFace}>😔</Text>
+              <NeonSign glyph="tray" color="cold" grade="inline" size={46} style={styles.emptyFace} />
               <Text style={styles.emptyTitle}>Quiet in here</Text>
               <Text style={styles.emptyText}>No pending trade offers across your leagues. Head to Propose to shake something loose.</Text>
             </View>

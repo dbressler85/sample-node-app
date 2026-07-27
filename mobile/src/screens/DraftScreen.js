@@ -5,6 +5,7 @@ import { colors, positionColors } from '../theme';
 import { displayLg, displayLabel } from '../typography';
 import PressableScale from '../components/PressableScale';
 import LeagueContext from '../components/LeagueContext';
+import NeonSign from '../components/NeonSign';
 import Reveal from '../components/Reveal';
 import useAndroidBack from '../useAndroidBack';
 import usePoll from '../usePoll';
@@ -148,12 +149,18 @@ const PickClock = React.memo(function PickClock({ pickClock, mine }) {
     <View style={[styles.pc, { borderColor: tone + '66', backgroundColor: tone + '14' }]}>
       {paused ? (
         <>
-          <Text style={[styles.pcBig, { color: tone }]}>⏸ Paused</Text>
+          <View style={styles.pcRow}>
+            <NeonSign glyph="pause" color="warn" grade="inline" size={18} />
+            <Text style={[styles.pcBig, { color: tone }]}>Paused</Text>
+          </View>
           <Text style={styles.pcSub}>Resumes{pause ? ` ${hourLabel(pause.end)} ET` : ''} · {fmtDur(anchor.remainingMs)} left</Text>
         </>
       ) : isOverdue ? (
         <>
-          <Text style={[styles.pcBig, { color: tone }]}>⏰ Overdue</Text>
+          <View style={styles.pcRow}>
+            <NeonSign glyph="hourglass" color="bad" grade="inline" size={18} />
+            <Text style={[styles.pcBig, { color: tone }]}>Overdue</Text>
+          </View>
           <Text style={styles.pcSub}>The clock has expired — auto-pick is imminent</Text>
         </>
       ) : (
@@ -569,6 +576,7 @@ const styles = StyleSheet.create({
   waiting: { color: colors.textDim, fontSize: 13, fontWeight: '600' },
   waitingBox: { marginTop: 12 },
   pc: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, marginTop: 10 },
+  pcRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   pcBig: { fontSize: 22, fontWeight: '900', fontVariant: ['tabular-nums'] },
   pcUnit: { fontSize: 13, fontWeight: '700', color: colors.textDim },
   pcSub: { color: colors.textDim, fontSize: 11, marginTop: 3 },

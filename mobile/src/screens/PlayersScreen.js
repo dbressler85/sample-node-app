@@ -15,6 +15,7 @@ import PartialNote from '../components/PartialNote';
 import DeviceNote from '../components/DeviceNote';
 import PopChip from '../components/PopChip';
 import useActFlash from '../useActFlash';
+import useAutoReload from '../useAutoReload';
 import { ScreenTitle, Value } from '../components/Brand';
 
 const TABS = [
@@ -137,6 +138,7 @@ export default function PlayersScreen({ onOpenPlayer }) {
   }, [query, pos, format]);
 
   const rankKey = `players:rankings:${rankType}:${pos || 'all'}:${format}`;
+  const freeKey = `players:free:${format}`; // free-agent board, per value lens — cached on the resource store
 
   const loadRankings = useCallback(async () => {
     try {
@@ -150,6 +152,21 @@ export default function PlayersScreen({ onOpenPlayer }) {
       setError(e.message);
     }
   }, [rankType, pos, format, rankKey]);
+
+  // Refetch My Players WITHOUT clearing the current list, so an auto-reload (below) fills in the leagues
+  // a throttle dropped while the rows stay on screen and the loaded count just climbs.
+  const reloadMine = useCallback(() => {
+    exposurePreferDevice().then(setMine).catch((e) => setError(e.message));
+  }, []);
+
+  // Free agents: refetch and cache on the resource store (in-memory + disk), so re-entering the tab
+  // repaints instantly from cache instead of blanking to a skeleton and re-running the heavy backend
+  // fan-out every time. Fetches without clearing, so the current board stays up while it revalidates.
+  const loadFree = useCallback(() => {
+    bestAvailablePreferDevice(format)
+      .then((res) => { setFree(res); primeResource(freeKey, res); setValue(freeKey, res); })
+      .catch((e) => setError(e.message));
+  }, [format, freeKey]);
 
   // Infinite scroll: fetch the next window and append. Guard on loadingMore so the
   // FlatList's onEndReached (which can fire repeatedly) only kicks off one fetch, and
@@ -203,16 +220,39 @@ export default function PlayersScreen({ onOpenPlayer }) {
   useEffect(() => {
     // My Players is device-first: the roster fan-out across all leagues runs on-device (its own IP),
     // enriched + grouped via the backend; silently falls back to the backend on any device-read failure.
-    if (tab === 'mine' && !mine) exposurePreferDevice().then(setMine).catch((e) => setError(e.message));
+    if (tab === 'mine' && !mine) reloadMine();
     if (tab === 'news' && !news) api.news().then(setNews).catch((e) => setError(e.message));
     // Watchlist changes as you star players elsewhere, so refetch each time the
     // tab is opened rather than caching it.
     // Both re-price with the value lens, so refetch when `format` changes too.
     if (tab === 'watch') { setWatch(null); api.watchlist(format).then(setWatch).catch((e) => setError(e.message)); }
-    // Free agents shift constantly (adds/drops/waivers process), so refetch on open. Device-first: the
-    // heavy per-league freeAgents fan-out runs on-device, falling back to the backend.
-    if (tab === 'free') { setFree(null); bestAvailablePreferDevice(format).then(setFree).catch((e) => setError(e.message)); }
-  }, [tab, mine, news, format]);
+  }, [tab, mine, news, format, reloadMine]);
+
+  // Free agents get the same stale-while-revalidate treatment as Rankings: paint the cached board at
+  // once (instant re-entry), then refresh in the background if it's stale. The heavy cross-league
+  // free-agent fan-out only re-runs when the cache is cold or aged out — not on every tab switch.
+  const FREE_STALE_MS = 60 * 1000;
+  useEffect(() => {
+    if (tab !== 'free') return undefined;
+    let alive = true;
+    const hit = peekResource(freeKey);
+    if (hit) {
+      setFree(hit.value);
+      if (Date.now() - hit.at > FREE_STALE_MS) loadFree();
+      return () => { alive = false; };
+    }
+    setFree(null);
+    getValue(freeKey).then((cached) => {
+      if (alive && cached != null) { setFree(cached); primeResource(freeKey, cached, 0); } // at:0 → stale, refreshes
+      if (alive) loadFree();
+    });
+    return () => { alive = false; };
+  }, [tab, freeKey, loadFree]);
+
+  // Auto-heal a partial My Players / Rankings load: if a throttle dropped some leagues, quietly re-fetch
+  // (a few times, backing off) so the missing leagues fill in on their own — no "Retry" tap needed.
+  const mineAuto = useAutoReload(tab === 'mine' ? mine : null, reloadMine, { key: 'mine' });
+  const rankAuto = useAutoReload(tab === 'rankings' ? rankings : null, loadRankings, { key: `rankings:${rankKey}` });
 
   // Inline Target/Avoid/Watch toggles. Optimistic: flip a per-id override immediately,
   // reconcile with the server, and revert the override if the write fails. Overrides win
@@ -332,7 +372,7 @@ export default function PlayersScreen({ onOpenPlayer }) {
               <SortRow value={listSort} onChange={setListSort} />
               {/* Honest partial-load signal: "owned in N leagues" counts are over the leagues that
                   loaded — if some were throttled, say so instead of showing a subset as the whole. */}
-              {rankings ? <PartialNote loaded={rankings.leaguesLoaded} total={rankings.leaguesTotal} onRetry={loadRankings} /> : null}
+              {rankings ? <PartialNote loaded={rankings.leaguesLoaded} total={rankings.leaguesTotal} loading={rankAuto.retrying} onRetry={loadRankings} /> : null}
               <FlatList
                 style={styles.grow}
                 data={rankingsData}
@@ -411,7 +451,7 @@ export default function PlayersScreen({ onOpenPlayer }) {
               <SortRow value={listSort} onChange={setListSort} />
               {/* Honest exposure: "N leagues" per row counts only the leagues we could read. Nulling `mine`
                   re-triggers the load effect (device-first, backend fallback). */}
-              {mine ? <PartialNote loaded={mine.leaguesLoaded} total={mine.leaguesTotal} onRetry={() => setMine(null)} /> : null}
+              {mine ? <PartialNote loaded={mine.leaguesLoaded} total={mine.leaguesTotal} loading={mineAuto.retrying} onRetry={reloadMine} /> : null}
               <FlatList
                 data={mineData}
                 keyExtractor={(p) => p.id}
@@ -479,8 +519,8 @@ export default function PlayersScreen({ onOpenPlayer }) {
           onClose={() => setAddAcross(null)}
           onDone={() => {
             setAddAcross(null);
-            // Reflect the add: the player is no longer free, so refetch the tab.
-            if (tab === 'free') { setFree(null); bestAvailablePreferDevice(format).then(setFree).catch((e) => setError(e.message)); }
+            // Reflect the add: the player is no longer free, so refetch the board (kept on screen while it revalidates).
+            if (tab === 'free') loadFree();
           }}
         />
       ) : null}

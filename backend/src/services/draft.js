@@ -33,6 +33,15 @@ const { createMemo } = require('../lib/memo');
 // it so those don't each fire a fresh draftResults read — and concurrent callers coalesce.
 const draftOpenMemo = createMemo({ ttlMs: config.mflCacheTtlMs });
 
+// Once a league's free agency is confirmed OPEN (its draft is complete, or there's no draft on file at
+// all), it does NOT re-close for the season — so remember that verdict for hours and skip the per-league
+// draftResults+calendar reads on every later free-agent / waiver fan-out. This is the dominant repeat
+// cost of the Free Agents board for a many-league user; a CLOSED verdict is never cached here (it must
+// stay on the short memo so it flips to open the moment the draft finishes). `key` includes the cookie,
+// so it's per-session; a 6h window still self-heals for the rare mid-season draft.
+const FA_OPEN_TTL_MS = 6 * 60 * 60 * 1000;
+const faOpenUntil = new Map(); // key -> expiry ms
+
 function resolvePlayer(byId, id, enr) {
   const p = playersLib.resolve(byId, id);
   return { id: p.id, name: p.name, position: p.position, team: p.team, value: enr.value(id), age: enr.age(id) };
@@ -347,7 +356,10 @@ function buildPickClock(draft, status, clockConfig) {
 // stays CLOSED (erring toward "not open" only delays a real alert — the 5-min memo self-heals — vs. the
 // worse failure of flagging the whole pre/mid-draft pool as claimable).
 function freeAgencyOpen(cookie, token, league) {
-  return draftOpenMemo.get(`${cookie || ''}:${league.leagueId}`, async () => {
+  const key = `${cookie || ''}:${league.leagueId}`;
+  const until = faOpenUntil.get(key);
+  if (until && until > Date.now()) return Promise.resolve(true); // confirmed open this session → no reads
+  return draftOpenMemo.get(key, async () => {
     const draft = await loadDraft(cookie, token, league).catch(() => null);
     // Prefer the loaded draft's resolved start; if the grid didn't load at all, read the calendar
     // directly so a future draft still closes FA.
@@ -361,6 +373,9 @@ function freeAgencyOpen(cookie, token, league) {
     }
     if (startMs != null) return false; // a known (past) draft we couldn't confirm complete → stay closed
     return true; // no draft on file anywhere → established in-season league → FA open
+  }).then((open) => {
+    if (open) faOpenUntil.set(key, Date.now() + FA_OPEN_TTL_MS); // stays open all season → cache the verdict
+    return open;
   });
 }
 

@@ -30,6 +30,8 @@ const PATHS = {
   tray: ['M4.5 13 H8 L9.6 15.5 H14.4 L16 13 H19.5', 'M4.5 13 L7.2 5.5 H16.8 L19.5 13 V19 H4.5 Z'],
   // Two swapping arrows.
   swap: ['M6 9 H17.5', 'M14.5 6 L18 9 L14.5 12', 'M18 15 H6.5', 'M9.5 12 L6 15 L9.5 18'],
+  // Waivers: two VERTICAL arrows (one up, one down) — matches the nav bar's waivers icon.
+  waivers: ['M8.5 20 V5', 'M5.5 8 L8.5 5 L11.5 8', 'M15.5 4 V19', 'M12.5 16 L15.5 19 L18.5 16'],
   // Lightning bolt (device / live read).
   bolt: ['M13 3 L6 13 H11 L11 21 L18 11 H13 Z'],
   // Crosshair target (a draft on the clock / scheduled).
@@ -48,6 +50,12 @@ const PATHS = {
   calendar: ['M5 6 H19 V19 H5 Z', 'M5 9.5 H19', 'M8.5 4 V7', 'M15.5 4 V7'],
   // Dollar sign (value / market): an S-curve with a vertical bar through it.
   dollar: ['M15.5 8 C15.5 5.6 13.6 4.5 12 4.5 C9.8 4.5 8.5 5.9 8.5 7.7 C8.5 9.5 10.2 10.3 12 10.8 C13.8 11.3 15.5 12.2 15.5 14.1 C15.5 16 14.1 17.5 12 17.5 C10.2 17.5 8.5 16.5 8.5 14', 'M12 2.5 V19.5'],
+  // Price tag (trade block): a tag body + its punch hole.
+  tag: ['M12.5 4 H20 V11.5 L11.5 20 L4 12.5 Z', 'M16.4 6.9 A1.2 1.2 0 1 1 16.4 9.3 A1.2 1.2 0 1 1 16.4 6.9'],
+  // Magnifying glass (search / find): lens + handle.
+  search: ['M10.5 5 A5.5 5.5 0 1 1 10.5 16 A5.5 5.5 0 1 1 10.5 5', 'M14.6 14.6 L20 20'],
+  // Pause (draft clock paused): two vertical bars.
+  pause: ['M9 5 V19', 'M15 5 V19'],
 };
 
 const NAMES = Object.keys(PATHS);
