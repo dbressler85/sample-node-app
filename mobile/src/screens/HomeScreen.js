@@ -114,11 +114,73 @@ const HOME_STALE_MS = 45 * 1000;
 // than showing pre-action state through the throttle (keep the values for an instant paint).
 onCacheInvalidate(() => { homeCache.at = 0; });
 
+// Live subscribers (mounted HomeScreens). warmHome() streams each field update to them so a fan-out
+// kicked off BEFORE HomeScreen mounts (at login — see warmHome) still flows into the screen's state
+// once it mounts, instead of only landing in the silent snapshot.
+const homeListeners = new Set();
+function subscribeHome(fn) { homeListeners.add(fn); return () => homeListeners.delete(fn); }
+function patchHome(patch) {
+  Object.assign(homeCache, patch);
+  for (const fn of homeListeners) fn(patch);
+}
+
 // Clear the in-memory snapshot on logout / session loss so the next account never sees the
 // previous one's Home. Called from App alongside the on-disk cache clear.
 export function resetHomeCache() {
   homeCache = { leagues: null, statuses: null, drafts: null, onDeck: null, watchAlerts: null, at: 0 };
   refreshInFlight = false;
+}
+
+// THE Home fan-out, as a module function so it can start BEFORE HomeScreen mounts. App fires this
+// the instant login succeeds (handleLoggedIn) — so the ~2s login ceremony, the first-run welcome
+// modal, and the push-permission prompt are all spent LOADING the cross-league triage instead of
+// sitting idle until the user finishes with them. Results stream to homeCache + disk + any mounted
+// HomeScreen (via patchHome). Guarded by refreshInFlight so App's login kick and HomeScreen's own
+// mount/focus refresh can't double-run it. Fail-soft throughout.
+export async function warmHome() {
+  if (refreshInFlight) return;
+  refreshInFlight = true;
+  patchHome({ busy: true, error: null });
+  try {
+    const res = await api.leaguesList();
+    // Home reflects all of the account's leagues, already pinned-first from the server.
+    const list = (res.leagues || []).map((l) => ({ leagueId: l.leagueId, name: l.name }));
+    patchHome({ leagues: list });
+    setValue('leagues', list);
+
+    // Drafts / On Deck / Watchlist alerts — independent background reads (fail-soft), written through
+    // to the shared caches so opening those views from Home paints instantly.
+    draftsPreferDevice().then((d) => { const f = sortHomeDrafts((d.drafts || []).filter(isDraftActionable)); patchHome({ drafts: f }); setValue('drafts', d); }).catch(() => {});
+    api.onDeck().then((d) => { patchHome({ onDeck: d }); setValue('ondeck', d); }).catch(() => {});
+    api.watchlistAlerts().then((r) => { patchHome({ watchAlerts: r.alerts || [] }); }).catch(() => {});
+
+    patchHome({ progress: { done: 0, total: list.length } });
+    const collected = {};
+    await runPool(list, CONCURRENCY, async (lg) => {
+      try {
+        const t = await leagueTriagePreferDevice(lg.leagueId);
+        collected[lg.leagueId] = { name: t.name, status: t.status, items: t.items, phase: t.phase, dynasty: t.dynasty, tradeDeadline: t.tradeDeadline };
+      } catch (e) {
+        collected[lg.leagueId] = { name: lg.name, status: 'error', items: [] };
+      }
+      // Emit the accumulating map (a fresh object each time so React re-renders) + progress.
+      patchHome({ statuses: { ...collected }, progress: { done: Object.keys(collected).length, total: list.length } });
+    });
+    // Keep only current leagues, then persist + stamp the refresh so a quick overlay return repaints.
+    const pruned = {};
+    for (const lg of list) if (collected[lg.leagueId]) pruned[lg.leagueId] = collected[lg.leagueId];
+    patchHome({ statuses: pruned, at: Date.now() });
+    setValue('statuses', pruned);
+
+    // Only NOW (visible league cards loaded) warm the Players tab — its cross-league gather is heavy
+    // and firing it during the triage fan-out steals MFL concurrency from the cards being waited on.
+    api.playerRankings('value', null, '1qb').then((r) => setValue('players:rankings:value:all:1qb', r)).catch(() => {});
+  } catch (e) {
+    patchHome({ error: e.message });
+  } finally {
+    patchHome({ progress: null, busy: false });
+    refreshInFlight = false;
+  }
 }
 
 export default function HomeScreen({ active = true, demoMode, onOpenLineup, onOpenLeague, onOpenLeagues, onOpenPortfolio, onOpenWaivers, onOpenTrades, onOpenTradeInbox, onOpenDraft, onOpenDraftHub, onOpenOnDeck, onOpenPlayer, onOpenSettings, onOpenProfile, onLogout }) {
@@ -143,7 +205,6 @@ export default function HomeScreen({ active = true, demoMode, onOpenLineup, onOp
   const [error, setError] = useState(null);
   const [booting, setBooting] = useState(!homeCache.leagues); // in-memory data → paint immediately, no spinner
   const [busy, setBusy] = useState(false); // a refresh cycle is in flight
-  const running = useRef(false);
 
   // 1) Instant paint from disk cache, then always revalidate in the background.
   // The refresh is non-blocking (paints cached immediately, updates when ready) and
@@ -179,70 +240,27 @@ export default function HomeScreen({ active = true, demoMode, onOpenLineup, onOp
     wasActiveRef.current = active;
   }, [active, refresh]);
 
-  // 2) Refresh: fetch the league list, then stream each league's status.
-  const refresh = useCallback(async () => {
-    if (running.current || refreshInFlight) return;
-    running.current = true;
-    refreshInFlight = true;
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await api.leaguesList();
-      // Home reflects all of the account's leagues, already pinned-first from the server.
-      const list = (res.leagues || []).map((l) => ({ leagueId: l.leagueId, name: l.name }));
-      setLeagues(list);
-      homeCache.leagues = list;
-      setValue('leagues', list);
+  // 2) Refresh delegates to the module-level warmHome() — the SAME fan-out App also kicks off at
+  // login. warmHome streams its field updates to the subscription effect below (and to homeCache +
+  // disk), and self-guards against double-running, so this is safe to call from mount/focus even if
+  // a login-time warm is already in flight.
+  const refresh = useCallback(() => { warmHome(); }, []);
 
-      // Drafts: Home is an action list, so only surface drafts that actually need
-      // you now — on the clock, live, or starting within ~3 days. A draft a month
-      // out isn't an action; it lives in the Draft Hub (and On Deck). News moved
-      // off Home entirely — it's on the Players → News tab.
-      // Write-through to the shared SWR cache keys so opening the Draft Hub / On Deck from
-      // here paints Home's already-fetched data instantly instead of cold-loading.
-      draftsPreferDevice().then((d) => { const f = sortHomeDrafts((d.drafts || []).filter(isDraftActionable)); setDrafts(f); homeCache.drafts = f; setValue('drafts', d); }).catch(() => {});
-
-      // On Deck — time-sorted deadlines across leagues (the proactive layer).
-      api.onDeck().then((d) => { setOnDeck(d); homeCache.onDeck = d; setValue('ondeck', d); }).catch(() => {});
-
-      // Watchlist alerts — a player you track just became a free agent or was put on the
-      // block by another owner. Background, best-effort; empty (fast) if you track no one.
-      api.watchlistAlerts().then((r) => { const a = r.alerts || []; setWatchAlerts(a); homeCache.watchAlerts = a; }).catch(() => {});
-
-      setProgress({ done: 0, total: list.length });
-      const collected = {};
-      await runPool(list, CONCURRENCY, async (lg) => {
-        try {
-          const t = await leagueTriagePreferDevice(lg.leagueId);
-          collected[lg.leagueId] = { name: t.name, status: t.status, items: t.items, phase: t.phase, dynasty: t.dynasty, tradeDeadline: t.tradeDeadline };
-        } catch (e) {
-          collected[lg.leagueId] = { name: lg.name, status: 'error', items: [] };
-        }
-        setStatuses((prev) => ({ ...prev, [lg.leagueId]: collected[lg.leagueId] }));
-        setProgress((p) => (p ? { done: p.done + 1, total: p.total } : p));
-      });
-      // Keep only current leagues, then persist (in-memory + disk) and stamp the refresh so
-      // a quick return from an overlay repaints this instead of reloading.
-      const pruned = {};
-      for (const lg of list) if (collected[lg.leagueId]) pruned[lg.leagueId] = collected[lg.leagueId];
-      setStatuses(pruned);
-      homeCache.statuses = pruned;
-      homeCache.at = Date.now();
-      setValue('statuses', pruned);
-
-      // Only NOW (visible league cards loaded) warm the Players tab. Its cross-league gather
-      // (a roster + free-agent read per league) is heavy; firing it during the triage fan-out
-      // stole MFL concurrency slots from the cards the user was waiting on — the dominant cause
-      // of a slow first LIVE Home load. Deferred here it no longer competes with the first paint.
-      api.playerRankings('value', null, '1qb').then((res) => setValue('players:rankings:value:all:1qb', res)).catch(() => {});
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setProgress(null);
-      setBusy(false);
-      refreshInFlight = false;
-      running.current = false;
-    }
+  // Adopt warmHome's streaming updates — whether it was started here (mount/focus) or by App at
+  // login before this screen mounted. Each patch carries only the fields that changed.
+  useEffect(() => {
+    const off = subscribeHome((patch) => {
+      if ('leagues' in patch) setLeagues(patch.leagues);
+      if ('statuses' in patch) setStatuses(patch.statuses);
+      if ('drafts' in patch) setDrafts(patch.drafts);
+      if ('onDeck' in patch) setOnDeck(patch.onDeck);
+      if ('watchAlerts' in patch) setWatchAlerts(patch.watchAlerts);
+      if ('progress' in patch) setProgress(patch.progress);
+      if ('error' in patch) setError(patch.error);
+      if ('busy' in patch) setBusy(patch.busy);
+      if ('leagues' in patch || 'statuses' in patch) setBooting(false);
+    });
+    return off;
   }, []);
 
   // Derive everything from the (current) leagues + their statuses.
