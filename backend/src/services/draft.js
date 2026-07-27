@@ -379,6 +379,30 @@ function freeAgencyOpen(cookie, token, league) {
   });
 }
 
+// The "why free agency is locked" reason attributable to THIS league's DRAFT — null when a draft isn't
+// the blocker (open, complete, or no draft on file). Mirrors freeAgencyOpen's read but returns the human
+// string the waiver UI shows, so a draft-pending league's lock explains itself ("Draft hasn't happened
+// yet…") instead of a bare, undebuggable lock. Same reason wording as the cross-league waiverLocks map.
+async function draftLockReason(cookie, token, league) {
+  if (config.demoMode) return null;
+  try {
+    const draft = await loadDraft(cookie, token, league).catch(() => null);
+    // Prefer the loaded draft's resolved start; if the grid didn't load, read the calendar directly so a
+    // future draft still reads as "scheduled".
+    const startMs = draft && draft.startTime ? Date.parse(draft.startTime)
+      : await draftStartMs(cookie, league).catch(() => null);
+    if (startMs != null && startMs > Date.now()) return 'Draft hasn’t happened yet — free agency opens after the draft.';
+    if (draft) {
+      const st = statusOf(draft, slotsFor(draft));
+      if (st === 'in_progress') return 'Draft in progress — free agency is locked until it finishes.';
+      if (st === 'scheduled') return 'Draft hasn’t happened yet — free agency opens after the draft.';
+    }
+    return null; // complete draft or none on file → the draft isn't what's holding FA closed
+  } catch (e) {
+    return null;
+  }
+}
+
 // All leagues' draft state — for "which drafts are scheduled / live / my turn". `deviceReads` (optional)
 // maps leagueId -> { draftResults, calendar } the DEVICE fetched straight from MFL, so the per-league
 // draftResults+calendar fan-out leaves the shared IP (docs/DEVICE_ORIGIN_MFL.md); the status/order logic
@@ -767,4 +791,4 @@ async function saveDraftList(cookie, token, leagueId, ids) {
   return getDraftList(cookie, token, leagueId);
 }
 
-module.exports = { getOverview, getLeague, makePick, upcomingPicksByFranchise, freeAgencyOpen, getPickInventory, getDraftList, saveDraftList };
+module.exports = { getOverview, getLeague, makePick, upcomingPicksByFranchise, freeAgencyOpen, draftLockReason, getPickInventory, getDraftList, saveDraftList };

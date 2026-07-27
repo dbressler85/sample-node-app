@@ -1315,7 +1315,7 @@ async function leagueSuggestionOne(cookie, token, league) {
         // this-week/this-year points, the pending queue, and the calendar/draft posture signals. This
         // is the wizard's first-paint HOT PATH, so nothing here runs sequentially (the enrichment used
         // to chain settings→format→batch→pending→posture→lockReason, which made a single league slow).
-        const [roster, fas, waiverRun, enr, points, pend, calLock, faOpen] = await Promise.all([
+        const [roster, fas, waiverRun, enr, points, pend, calLock, faOpen, draftReason] = await Promise.all([
           rosterService.getRoster(cookie, league.leagueId),
           loadFreeAgents(cookie, league, settings),
           config.demoMode ? Promise.resolve(null) : nextWaiverRun(cookie, league).catch(() => null),
@@ -1324,6 +1324,10 @@ async function leagueSuggestionOne(cookie, token, league) {
           reconciledPending(cookie, token, league, byId).catch(() => []),
           config.demoMode ? Promise.resolve(null) : calendarLock(cookie, league).catch(() => null),
           config.demoMode ? Promise.resolve(true) : draftService.freeAgencyOpen(cookie, token, league).catch(() => false),
+          // The draft-attributable lock reason (parallel with faOpen, sharing its cached draft reads) so a
+          // draft-pending league's lock still explains itself ("Draft hasn't happened yet…"). Without this
+          // the calendar-only reason lost the DRAFT case, leaving a bare, undebuggable lock.
+          config.demoMode ? Promise.resolve(null) : draftService.draftLockReason(cookie, token, league).catch(() => null),
         ]);
 
         // Posture — waiverPosture's rules, inlined so its reads (calLock/faOpen above) joined the batch
@@ -1336,7 +1340,9 @@ async function leagueSuggestionOne(cookie, token, league) {
           const faOpenNow = !calLock && faOpen;
           const hasUpcomingRun = waiverRun != null && waiverRun > Date.now();
           waiverState = faOpenNow ? 'fa_open' : hasUpcomingRun ? 'waivers_soon' : 'locked';
-          lockReason = waiverState === 'locked' ? calLock : null;
+          // Calendar reason first (direct), the draft state as the fallback — mirrors the cross-league
+          // waiverLocks map so the wizard and the landing agree on why a league is locked.
+          lockReason = waiverState === 'locked' ? (calLock || draftReason) : null;
         }
         const locked = waiverState === 'locked';
 
