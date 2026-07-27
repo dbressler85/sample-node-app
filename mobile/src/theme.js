@@ -10,7 +10,7 @@ export const colors = {
   bg: '#080B15', // Midnight Ink — app ground (deepened for crest/gold contrast)
   card: '#141C30', // Console surface
   cardAlt: '#1B2540', // Console, raised/active
-  border: '#28324D', // Hairline
+  border: '#2E2C4E', // Hairline — a neutral biased toward the ambient violet (chosen, not default grey), so every card/divider edge carries a faint decorative tint
   scrim: 'rgba(5,8,15,0.72)', // modal / sheet backdrop (one value, not three ad-hoc ones)
   text: '#EAF0FB',
   textDim: '#93A2BE',

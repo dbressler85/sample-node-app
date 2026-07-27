@@ -41,8 +41,19 @@ export function CrestWatermark({ size = 190, style }) {
 const styles = StyleSheet.create({
   titleWrap: { alignSelf: 'flex-start' },
   title: { color: colors.text, fontSize: 27, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.2 },
-  // Short decorative violet accent rule under each screen title (ornament, not an action).
-  titleRule: { height: 3, width: 34, borderRadius: 2, backgroundColor: colors.violet, marginTop: 5, opacity: 0.92 },
+  // Short decorative violet accent rule under each screen title (ornament, not an action) — wider and
+  // brighter than before, with a soft violet halo, so the ambient accent reads as intentional.
+  titleRule: {
+    height: 4,
+    width: 46,
+    borderRadius: 2,
+    backgroundColor: colors.violet,
+    marginTop: 6,
+    shadowColor: colors.violet,
+    shadowOpacity: 0.7,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 0 },
+  },
   value: { fontWeight: '900', color: colors.gold, fontVariant: ['tabular-nums'], letterSpacing: -0.5 },
   wm: { position: 'absolute', right: -34, top: -26, opacity: 0.05 },
 });
