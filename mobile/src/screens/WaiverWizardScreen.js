@@ -5,6 +5,7 @@ import { colors, positionColors } from '../theme';
 import { displayLg } from '../typography';
 import AvailabilityBadge from '../components/AvailabilityBadge';
 import ValueDelta from '../components/ValueDelta';
+import NeonSign from '../components/NeonSign';
 import useAndroidBack from '../useAndroidBack';
 
 // Wizard that walks league-to-league with a suggested pickup (best add + smart
@@ -188,7 +189,10 @@ export default function WaiverWizardScreen({ leagues, onBack, onOpenPlayer }) {
 
         {current.locked ? (
           <View style={styles.lockedPanel}>
-            <Text style={styles.lockedTitle}>🔒 Waivers locked</Text>
+            <View style={styles.lockedTitleRow}>
+              <NeonSign glyph="lock" color="warn" grade="inline" size={16} />
+              <Text style={styles.lockedTitle}>Waivers locked</Text>
+            </View>
             <Text style={styles.lockedText}>{current.lockReason || 'Free agency isn’t running in this league right now.'}</Text>
           </View>
         ) : (
@@ -395,7 +399,10 @@ function Summary({ results, onBack }) {
                   + {r.add}{r.bid ? ` · $${r.bid}` : ''}
                 </Text>
               ) : r.action === 'locked' ? (
-                <Text style={styles.summaryLocked}>🔒 locked</Text>
+                <View style={styles.summaryLockedRow}>
+                  <NeonSign glyph="lock" color="warn" grade="inline" size={12} />
+                  <Text style={styles.summaryLocked}>locked</Text>
+                </View>
               ) : (
                 <Text style={styles.summarySkip}>skipped</Text>
               )}
@@ -455,7 +462,9 @@ const styles = StyleSheet.create({
   changeRow: { paddingTop: 8 },
   changeText: { color: colors.accent, fontSize: 13, fontWeight: '700' },
   lockedPanel: { backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.warn, padding: 16, marginTop: 16 },
+  lockedTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   lockedTitle: { color: colors.warn, fontSize: 15, fontWeight: '900' },
+  summaryLockedRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   lockedText: { color: colors.textDim, fontSize: 13, marginTop: 6, lineHeight: 18 },
   posChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, padding: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   posChip: { paddingHorizontal: 11, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bg },

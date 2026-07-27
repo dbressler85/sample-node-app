@@ -40,6 +40,12 @@ const PATHS = {
   cross: ['M12 5 V19', 'M5 12 H19'],
   // Warning bang (a lineup we couldn't verify).
   bang: ['M12 4 L21 20 H3 Z', 'M12 10 V15', 'M12 17.6 V17.9'],
+  // Padlock (waivers locked): body + shackle + keyhole.
+  lock: ['M6.5 10.5 H17.5 V19.5 H6.5 Z', 'M8.5 10.5 V8 A3.5 3.5 0 0 1 15.5 8 V10.5', 'M12 13.8 V16.2'],
+  // A ring dot (free agency open / draft live — a lit "go" light). Two half-arcs so it closes cleanly.
+  dot: ['M12 8 A4 4 0 1 1 12 16 A4 4 0 1 1 12 8'],
+  // Calendar (draft not started / seasonal marker): frame, header divider, two binding legs.
+  calendar: ['M5 6 H19 V19 H5 Z', 'M5 9.5 H19', 'M8.5 4 V7', 'M15.5 4 V7'],
 };
 
 const NAMES = Object.keys(PATHS);

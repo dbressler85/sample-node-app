@@ -5,6 +5,7 @@ import { colors, positionColors } from '../theme';
 import { displayLg } from '../typography';
 import ErrorView from '../components/ErrorView';
 import LeagueContext from '../components/LeagueContext';
+import NeonSign from '../components/NeonSign';
 import useAndroidBack from '../useAndroidBack';
 import { Value } from '../components/Brand';
 
@@ -143,17 +144,23 @@ export default function DraftListScreen({ league, onBack, onOpenPlayer }) {
 
       {/* Live status + who's next off your list */}
       <View style={[styles.statusBar, onClockMine && styles.statusBarLive]}>
-        <Text style={[styles.statusLabel, onClockMine && { color: colors.gold }]}>
-          {onClockMine
-            ? `🟢 You're on the clock · pick ${data.onClock.round}.${String(data.onClock.pick).padStart(2, '0')}`
+        {(() => {
+          const s = onClockMine
+            ? { glyph: 'target', neon: 'gold', text: `You're on the clock · pick ${data.onClock.round}.${String(data.onClock.pick).padStart(2, '0')}` }
             : status === 'in_progress'
-            ? '⏳ Draft is live'
+            ? { glyph: 'dot', neon: 'good', text: 'Draft is live' }
             : status === 'scheduled'
-            ? '🗓 Draft not started'
+            ? { glyph: 'calendar', neon: 'accent', text: 'Draft not started' }
             : status === 'complete'
-            ? '✓ Draft complete'
-            : 'No active draft'}
-        </Text>
+            ? { glyph: 'check', neon: 'good', text: 'Draft complete' }
+            : { glyph: null, text: 'No active draft' };
+          return (
+            <View style={styles.statusLabelRow}>
+              {s.glyph ? <NeonSign glyph={s.glyph} color={s.neon} grade="inline" size={14} /> : null}
+              <Text style={[styles.statusLabel, onClockMine && { color: colors.gold }]}>{s.text}</Text>
+            </View>
+          );
+        })()}
         {nextUp ? (
           <Text style={styles.nextUp} numberOfLines={1}>
             Auto-picks next: <Text style={styles.nextUpName}>{nextUp.name}</Text> ({nextUp.position})
@@ -323,6 +330,7 @@ const styles = StyleSheet.create({
   explainText: { color: colors.textDim, fontSize: 12, lineHeight: 17 },
   statusBar: { marginHorizontal: 16, marginTop: 8, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, paddingHorizontal: 12, paddingVertical: 9 },
   statusBarLive: { borderColor: colors.gold, backgroundColor: colors.gold + '14' },
+  statusLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   statusLabel: { color: colors.text, fontSize: 13, fontWeight: '800' },
   nextUp: { color: colors.textDim, fontSize: 12, marginTop: 3 },
   nextUpName: { color: colors.good, fontWeight: '800' },

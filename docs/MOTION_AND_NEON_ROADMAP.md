@@ -14,11 +14,13 @@ throughline, not competing to-do lists.
 > (this build): the `NeonSign` engine + flicker + glyph/word set + neon `NeonSparks`, the full
 > **Punctuation register** (Celebrate → neon moment signs + sparks, emoji retired), and the
 > high-traffic **inline sweep** (On Deck type icons, Home deadline/watch/inbox/all-clear, the shared
-> `DeviceNote` bolt, Scores close-game bolt, League/Profile trophy). Part 2 (next build, needs
-> on-device tuning per §7): the remaining **status-icon sets** (waiver `🟢/🔒`, draft `🗓`) which
-> need new glyphs (dot/lock/calendar) + per-widget restructuring, and the **trophy hero cups**
-> (Trophy Case, Playoff Bracket empty/champion) sized live. Pure-text marks (`★ ☆ ›`) are kept and
-> tinted, per §3.7.
+> `DeviceNote` bolt, Scores close-game bolt, League/Profile trophy). **Part 2 landed** — the
+> remaining **status-icon sets** are now neon: waiver open/soon/locked (new `dot`/`lock` glyphs +
+> `hourglass`), draft on-clock/live/scheduled/complete (`target`/`dot`/`calendar`/`check`), the
+> trade-inbox seasonal `calendar`, and the counter-offer `undo` arrows; the **trophy hero cups**
+> (Trophy Case card + empty, Playoff Bracket empty + champion) are neon `trophy` signs. That clears
+> the last rendered emoji from the app — only pure-text marks (`★ ☆ ›`, kept and tinted per §3.7)
+> and a couple of historical code comments remain. On-device sizing of the hero cups is a §7 tune item.
 >
 > **Phase 5 (threshold + texture) — Threshold landed.** The approved neon crest is now `NeonCrest`
 > (react-native-svg: two-tone tubes, lit + colored-dull-unlit states, flicker ignition, reduce-motion

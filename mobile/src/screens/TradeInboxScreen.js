@@ -10,6 +10,7 @@ import InfoDot from '../components/InfoDot';
 import ErrorView from '../components/ErrorView';
 import TradeColumns from '../components/TradeColumns';
 import Reveal from '../components/Reveal';
+import NeonSign from '../components/NeonSign';
 import useAndroidBack from '../useAndroidBack';
 
 // Cross-league trade inbox: every pending incoming offer across all your leagues,
@@ -218,7 +219,10 @@ export default function TradeInboxScreen({ active = true, onBack, onOpenLeague, 
       ) : null}
       {data && data.seasonal ? (
         <View style={styles.seasonBanner}>
-          <Text style={styles.seasonLabel}>🗓  {data.seasonal.label}</Text>
+          <View style={styles.seasonLabelRow}>
+            <NeonSign glyph="calendar" color="accent" grade="inline" size={14} />
+            <Text style={styles.seasonLabel}>{data.seasonal.label}</Text>
+          </View>
           <Text style={styles.seasonMsg}>{data.seasonal.message}</Text>
         </View>
       ) : null}
@@ -360,9 +364,12 @@ function OfferCard({ offer, busy, onRespond, onOpenLeague, onCounter, onManualCo
         <Pressable style={({ pressed }) => [styles.counterBtn, pressed && { opacity: 0.7 }]} onPress={onCounter} disabled={busy}>
           {/* Label reflects what the smart counter WILL do: balance an offer that's
               against you, or ask for a sweetener on one that's already fair/in your favor. */}
-          <Text style={styles.counterBtnText}>
-            {offer.analysis.net < 0 ? '↩ Counter to balance it' : '↩ Counter — ask for a bit more'}
-          </Text>
+          <View style={styles.counterBtnRow}>
+            <NeonSign glyph="undo" color="accent" grade="inline" size={13} />
+            <Text style={styles.counterBtnText}>
+              {offer.analysis.net < 0 ? 'Counter to balance it' : 'Counter — ask for a bit more'}
+            </Text>
+          </View>
         </Pressable>
       ) : null}
       {onManualCounter ? (
@@ -417,6 +424,7 @@ const styles = StyleSheet.create({
   bottomLine: { marginTop: 10, backgroundColor: colors.bg, borderLeftWidth: 3, borderRadius: 8, paddingHorizontal: 11, paddingVertical: 9 },
   bottomLineText: { fontSize: 13, fontWeight: '800', lineHeight: 18 },
   counterBtn: { marginTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, paddingTop: 10, alignItems: 'center' },
+  counterBtnRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   counterBtnText: { color: colors.accent, fontSize: 14, fontWeight: '800' },
   manualBtn: { marginTop: 8, alignItems: 'center' },
   manualBtnText: { color: colors.textDim, fontSize: 13, fontWeight: '700' },
@@ -432,7 +440,8 @@ const styles = StyleSheet.create({
   emptyTitle: { color: colors.text, fontSize: 17, fontWeight: '800', marginBottom: 8 },
   emptyText: { color: colors.textDim, fontSize: 14, textAlign: 'center', paddingHorizontal: 20 },
   seasonBanner: { marginHorizontal: 16, marginTop: 10, backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, borderLeftWidth: 3, borderLeftColor: colors.gold, padding: 12 },
-  seasonLabel: { color: colors.gold, fontSize: 12, fontWeight: '800', letterSpacing: 0.4, textTransform: 'uppercase', marginBottom: 4 },
+  seasonLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
+  seasonLabel: { color: colors.gold, fontSize: 12, fontWeight: '800', letterSpacing: 0.4, textTransform: 'uppercase' },
   seasonMsg: { color: colors.textDim, fontSize: 13, lineHeight: 18 },
   startWrap: { marginTop: 8, paddingTop: 18, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
   startTitle: { color: colors.text, fontSize: 15, fontWeight: '900', letterSpacing: 0.3, textTransform: 'uppercase' },
