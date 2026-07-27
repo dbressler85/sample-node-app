@@ -319,15 +319,20 @@ export default function App() {
   };
 
   function renderTabContent(key, active) {
+    // A tab covered by an overlay is NOT visible. Treat it as inactive so (a) live polls pause, and
+    // (b) closing the overlay gives its cached-resource hooks a focus edge (active false→true) that
+    // revalidates anything a write marked stale. Without this, a mutation done in an overlay — e.g.
+    // submitting claims in the Waiver Wizard — left the tab beneath it "active" the whole time, so it
+    // never refetched and kept showing pre-action state (stale Pending, overview, Under Center).
+    const uncovered = active && overlayStack.length === 0;
     switch (key) {
       case 'scores':
-        // A tab covered by an overlay is not visible — treat it as inactive so its live poll pauses.
-        return <ScoresScreen active={active && overlayStack.length === 0} onOpenLineup={openLineup} />;
+        return <ScoresScreen active={uncovered} onOpenLineup={openLineup} />;
       case 'waivers':
         return (
           <WaiversScreen
             key={`w-${waiversTarget ? `${waiversTarget.leagueId}-${waiversTarget.position || ''}-${waiversTarget.sort || ''}` : 'all'}`}
-            active={active}
+            active={uncovered}
             initialLeagueId={waiversTarget ? waiversTarget.leagueId : null}
             initialPosition={waiversTarget ? waiversTarget.position : null}
             initialSort={waiversTarget ? waiversTarget.sort : null}
@@ -337,11 +342,11 @@ export default function App() {
           />
         );
       case 'players':
-        return <PlayersScreen active={active} onOpenPlayer={openPlayer} />;
+        return <PlayersScreen active={uncovered} onOpenPlayer={openPlayer} />;
       case 'trades':
         return (
           <TradeInboxScreen
-            active={active}
+            active={uncovered}
             onOpenLeague={openTrades}
             onProposeInLeague={(league) => openTrades(league, 'propose')}
             onOpenBlock={openBlock}
@@ -351,12 +356,12 @@ export default function App() {
           />
         );
       case 'lineups':
-        return <LineupsScreen active={active} onOpenLineup={openLineup} onStartWizard={openWizard} />;
+        return <LineupsScreen active={uncovered} onOpenLineup={openLineup} onStartWizard={openWizard} />;
       case 'home':
       default:
         return (
           <HomeScreen
-            active={active}
+            active={uncovered}
             demoMode={demoMode}
             onOpenLineup={openLineup}
             onOpenLeague={openRoster}
