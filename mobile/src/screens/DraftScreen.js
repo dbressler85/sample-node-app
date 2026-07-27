@@ -76,8 +76,10 @@ const PoolRow = React.memo(function PoolRow({ p, rank, myTurn, canPick, isPickin
 // drafted player or the slot's status (on the clock / upcoming). My picks and the on-clock slot are
 // highlighted. Memoized — a poll tick only re-renders the slots whose props actually change. Tapping a
 // made pick opens the player's profile to scout it.
-const BoardRow = React.memo(function BoardRow({ s, isClock, onScout }) {
+const BoardRow = React.memo(function BoardRow({ s, isClock, onScout, onTradePick }) {
   const player = s.player;
+  // An unmade slot is a tradeable pick: show a trade glyph — shop it if it's mine, else trade for it.
+  const canTrade = !player && s.pickToken && onTradePick;
   return (
     <Pressable
       style={[styles.bRow, s.mine && styles.bRowMine, isClock && styles.bRowClock]}
@@ -102,6 +104,16 @@ const BoardRow = React.memo(function BoardRow({ s, isClock, onScout }) {
           <Text style={[styles.bStatus, isClock && styles.bStatusClock]}>{isClock ? 'On the clock' : 'Upcoming'}</Text>
         )}
       </View>
+      {canTrade ? (
+        <Pressable
+          onPress={() => onTradePick(s)}
+          hitSlop={10}
+          style={({ pressed }) => [styles.bTrade, pressed && { opacity: 0.6 }]}
+          accessibilityLabel={s.mine ? 'Shop this pick' : 'Trade for this pick'}
+        >
+          <Text style={styles.bTradeIcon}>⇄</Text>
+        </Pressable>
+      ) : null}
     </Pressable>
   );
 });
@@ -244,6 +256,15 @@ export default function DraftScreen({ league, demoMode, covered = false, onBack,
   }, [data]);
   const clockOverall = data && data.onClock ? data.onClock.overall : null;
 
+  // Trade an unmade board pick: if it's MINE, shop it (open the desk with it on my side); if it's a
+  // rival's, start a trade FOR it (their team as partner, the pick on the you-get side + a suggested
+  // give). Reuses the desk's existing seeds — same wiring as the roster/pick-capital pick trade.
+  const onTradePick = useCallback((s) => {
+    if (!onOpenTrades || !s || !s.pickToken) return;
+    if (s.mine) onOpenTrades(league, 'propose', { sendPickToken: s.pickToken });
+    else onOpenTrades({ leagueId: league.leagueId, name: league.name }, 'propose', { targetPlayerId: s.pickToken, partnerFranchiseId: String(s.franchiseId) });
+  }, [onOpenTrades, league]);
+
   // A draft pick is irreversible, so confirm before committing (the pool rows now open
   // a profile on tap, and the explicit Draft button routes through here).
   // A pick is irreversible, so route it through a confirm sheet (with an optional note that MFL
@@ -337,7 +358,7 @@ export default function DraftScreen({ league, demoMode, covered = false, onBack,
           removeClippedSubviews
           stickySectionHeadersEnabled={false}
           renderItem={({ item }) => (
-            <BoardRow s={item} isClock={clockOverall != null && item.overall === clockOverall} onScout={onOpenPlayer} />
+            <BoardRow s={item} isClock={clockOverall != null && item.overall === clockOverall} onScout={onOpenPlayer} onTradePick={onOpenTrades ? onTradePick : undefined} />
           )}
           renderSectionHeader={({ section }) => (
             <View style={styles.bSectionHead}>
@@ -558,6 +579,9 @@ const styles = StyleSheet.create({
   bPlayerMeta: { color: colors.textDim, fontSize: 12, marginLeft: 8 },
   bStatus: { color: colors.textDim, fontSize: 13, fontStyle: 'italic', marginTop: 3 },
   bStatusClock: { color: colors.gold, fontStyle: 'normal', fontWeight: '800' },
+  // Trade glyph on an unmade board pick. Trade is an ACTION → accent (per the color law), not violet.
+  bTrade: { marginLeft: 8, width: 34, height: 34, borderRadius: 8, borderWidth: 1, borderColor: colors.accent, backgroundColor: 'rgba(79,140,255,0.10)', alignItems: 'center', justifyContent: 'center' },
+  bTradeIcon: { color: colors.accent, fontSize: 17, fontWeight: '900' },
   error: { color: colors.bad, textAlign: 'center', marginTop: 12, marginHorizontal: 24 },
   retry: { marginTop: 16, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingHorizontal: 24, paddingVertical: 10 },
   retryText: { color: colors.accent, fontWeight: '700' },

@@ -26,7 +26,7 @@ const OUTLOOK_COLOR = {
   Balanced: colors.accent,
 };
 
-export default function PickInventoryScreen({ onBack, onShopPicks, onGetPicks }) {
+export default function PickInventoryScreen({ onBack, onShopPicks, onGetPicks, onTradePick }) {
   // Device-first: the per-league assets/futureDraftPicks/draftResults fan-out runs on-device, falling
   // back to the backend on any device-read failure.
   const { data, error, refreshing, loading, reload } = useCachedResource('pickInventory', () => pickInventoryPreferDevice());
@@ -63,7 +63,7 @@ export default function PickInventoryScreen({ onBack, onShopPicks, onGetPicks })
           stickySectionHeadersEnabled={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={reload} tintColor={colors.accent} />}
           renderSectionHeader={({ section }) => <LeagueHeader league={section.league} onShopPicks={onShopPicks} onGetPicks={onGetPicks} />}
-          renderItem={({ item }) => <PickRow p={item} />}
+          renderItem={({ item }) => <PickRow p={item} onTradePick={onTradePick} />}
           renderSectionFooter={({ section }) =>
             section.league.count === 0 ? <Text style={styles.leagueEmpty}>No picks — all traded away.</Text> : null
           }
@@ -125,8 +125,10 @@ function LeagueHeader({ league, onShopPicks, onGetPicks }) {
   );
 }
 
-function PickRow({ p }) {
+function PickRow({ p, onTradePick }) {
   const rc = ROUND_COLOR[p.round] || colors.textDim;
+  // Every pick here is yours — the trade glyph shops it (opens the desk with it on your side).
+  const canTrade = p.token && onTradePick;
   return (
     <View style={[styles.row, { borderLeftColor: rc, borderLeftWidth: 3 }]}>
       <View style={[styles.roundBadge, { backgroundColor: rc + '22', borderColor: rc }]}>
@@ -140,6 +142,16 @@ function PickRow({ p }) {
         {p.acquiredFrom ? <Text style={styles.meta} numberOfLines={1}>from {p.acquiredFrom}</Text> : null}
       </View>
       {p.value != null ? <Value size={15}>{p.value}</Value> : null}
+      {canTrade ? (
+        <Pressable
+          onPress={() => onTradePick(p)}
+          hitSlop={10}
+          style={({ pressed }) => [styles.tradeBtn, pressed && { opacity: 0.6 }]}
+          accessibilityLabel="Shop this pick"
+        >
+          <Text style={styles.tradeIcon}>⇄</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -176,5 +188,8 @@ const styles = StyleSheet.create({
   pickLabel: { color: colors.text, fontSize: 15, fontWeight: '700' },
   tag: { color: colors.gold, fontSize: 10, fontWeight: '900' },
   meta: { color: colors.textDim, fontSize: 12, marginTop: 2 },
+  // Trade glyph — trade is an ACTION → accent (color law), not the decorative violet.
+  tradeBtn: { marginLeft: 10, width: 32, height: 32, borderRadius: 8, borderWidth: 1, borderColor: colors.accent, backgroundColor: 'rgba(79,140,255,0.10)', alignItems: 'center', justifyContent: 'center' },
+  tradeIcon: { color: colors.accent, fontSize: 16, fontWeight: '900' },
   emptyText: { color: colors.textDim, fontSize: 14, textAlign: 'center' },
 });

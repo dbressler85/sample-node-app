@@ -509,6 +509,10 @@ async function getLeague(cookie, token, leagueId, { position } = {}) {
     franchiseName: ownerName(s.franchiseId),
     mine: s.franchiseId === league.franchiseId,
     player: s.playerId ? resolvePlayer(byId, s.playerId, enr) : null,
+    // An UNMADE slot is a tradeable draft pick — carry its trade token (same DP_ scheme as
+    // upcomingPicksByFranchise, so it matches the token the trade desk lists) so the board can open a
+    // trade FOR it (if it's not yours) or shop it (if it is). A made pick is a player, not an asset.
+    pickToken: !s.playerId && s.round && s.pick ? `DP_${s.round - 1}_${s.pick - 1}` : null,
   }));
   const status = statusOf(draft, slots);
   const clock = onClockSlot(status, slots);

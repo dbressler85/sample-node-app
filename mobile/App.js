@@ -437,6 +437,7 @@ export default function App() {
             onBack={popOverlay}
             onShopPicks={({ leagueId, name }) => openPickTradeFinder(leagueId, name, 'shop')}
             onGetPicks={({ leagueId, name }) => openPickTradeFinder(leagueId, name, 'acquire')}
+            onTradePick={(p) => openTrades({ leagueId: p.leagueId, name: p.leagueName }, 'propose', { sendPickToken: p.token })}
           />
         );
       case 'pickTradeFinder':
