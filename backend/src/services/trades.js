@@ -1215,4 +1215,123 @@ async function effectiveDeadline(cookie, token, league) {
   return { at: ms, date: new Date(ms).toISOString().slice(0, 10), source: 'mfl' };
 }
 
-module.exports = { getOverview, getLeague, getLeagueFit, respond, propose, analyze, crossLeaguePreview, crossLeaguePropose, suggestFor, askFor, fullDealFor, counterFor, nextTradeDeadline, effectiveDeadline, tradeFitSummary, tradeBaitByFranchise, personalAnalyze, tagNotes };
+// Greedily pack the highest-value assets from `assets` until their sum reaches `target` (the minimal
+// over-the-target set, or all of them if they can't reach it). Used to seed a fair pick/player package
+// for the Pick Capital shop/acquire flows — a starting point the owner tweaks on the desk.
+function packToValue(assets, target) {
+  const sorted = assets.slice().filter((a) => (a.value || 0) > 0).sort((a, b) => (b.value || 0) - (a.value || 0));
+  const out = [];
+  let sum = 0;
+  for (const a of sorted) {
+    if (sum >= target && out.length) break;
+    out.push(a);
+    sum += a.value || 0;
+  }
+  return { assets: out, value: sum };
+}
+
+// Pick-oriented partner targeting — the engine behind the Pick Capital dashboard's shop/acquire flows.
+// Given an INTENT for ONE league, rank the rivals as trade partners and pre-build a suggested deal:
+//   • 'shop'    — cash draft picks for a proven player. Best partners are REBUILDING teams holding an
+//                 aging-but-valuable vet (they crave picks; I crave their win-now asset). Suggested
+//                 deal: I SEND picks (~ the vet's value), I RECEIVE that vet.
+//   • 'acquire' — accumulate picks. Best partners are WIN-NOW teams sitting on pick equity (they'll
+//                 spend picks on a proven player). Suggested deal: I SEND a player they need (~ their
+//                 best pick's value), I RECEIVE that pick.
+// Reuses the desk's building blocks: tradeData (rosters/values/needs/outlook), assetsByFranchise (pick
+// equity), asset()/analyze(). Returns ranked partners, each with a ready-to-open, value-balanced deal.
+async function pickPartners(cookie, token, leagueId, intent) {
+  const mode = intent === 'shop' ? 'shop' : 'acquire';
+  const data = await tradeData(cookie, token, leagueId);
+  const { league, byId, enr, roster, rawPartners, ns, teamOutlook } = data;
+  const myFid = String(league.franchiseId);
+  const [assetsMap, demoMyPicks] = await Promise.all([
+    picksLib.assetsByFranchise(cookie, league).catch(() => null),
+    // Demo has no `assets` export, so seed MY picks from the fixture (partners' picks stay empty in demo).
+    config.demoMode ? picksLib.franchisePicks(cookie, league).catch(() => []) : Promise.resolve(null),
+  ]);
+  const picksAssetsFor = (fid) => {
+    const fromAssets = assetsMap && (assetsMap[String(fid)] || assetsMap[mfl.fid(fid)]);
+    if (fromAssets) return fromAssets.map((p) => asset(p.token, byId, enr)).filter((a) => a.kind === 'pick');
+    if (config.demoMode && String(fid) === myFid && demoMyPicks) return demoMyPicks.map((p) => asset(p.token, byId, enr)).filter((a) => a.kind === 'pick');
+    return [];
+  };
+
+  const myPlayers = [...(roster.starters || []), ...(roster.bench || [])]
+    .map((p) => asset(p.id, byId, enr)).filter((a) => a.value != null);
+  const myPicks = picksAssetsFor(myFid);
+  const myNeeds = (ns[myFid] || {}).needs || [];
+  const OLD_AGE = 26; // "aging vet" floor — a productive player past his dynasty-value peak
+
+  const rows = [];
+  for (const pt of rawPartners) {
+    const fid = String(pt.franchiseId);
+    const ol = teamOutlook[fid] || {};
+    const outlook = ol.outlook || null;
+    const theirNeeds = (ns[fid] || {}).needs || [];
+    const theirPicks = picksAssetsFor(fid);
+    let deal = null;
+    let fit = 0;
+    let reason = '';
+
+    if (mode === 'acquire') {
+      // Win-now teams with pick equity: target their best pick, pay with a player they need. A
+      // REBUILDING team hoards its picks, so it's never an acquire target — skip it.
+      const bestPick = theirPicks.slice().sort((a, b) => (b.value || 0) - (a.value || 0))[0];
+      if (!bestPick || outlook === 'Rebuilding') continue;
+      const pickEquity = theirPicks.reduce((s, p) => s + (p.value || 0), 0);
+      const preferred = myPlayers.filter((p) => theirNeeds.includes(p.position));
+      const send = packToValue(preferred.length ? preferred : myPlayers, bestPick.value || 0);
+      if (!send.assets.length) continue;
+      const winNow = outlook === 'Win-now window';
+      fit = (winNow ? 100 : outlook === 'Balanced' ? 40 : 20) + Math.min(60, pickEquity / 3) + (preferred.length ? 15 : 0);
+      reason = `${winNow ? 'Win-now' : outlook || 'This'} team · ${theirPicks.length} pick${theirPicks.length === 1 ? '' : 's'} in hand${preferred.length ? ` · thin at ${theirNeeds[0]}` : ''}`;
+      deal = { send: send.assets, receive: [bestPick] };
+    } else {
+      // Rebuilding teams with an aging, still-valuable vet: target that vet, pay with my picks. Only a
+      // genuine aging asset qualifies — a young stud isn't a "shop my picks" target, and a WIN-NOW team
+      // won't sell its vets — so require an old-enough, valuable vet on a non-win-now team.
+      if (!myPicks.length || outlook === 'Win-now window') continue;
+      const theirPlayers = (pt.roster || []).map((id) => ({ ...asset(id, byId, enr), age: enr.age(id) }))
+        .filter((a) => a.kind === 'player' && a.value != null);
+      const vets = theirPlayers.filter((p) => (p.age || 0) >= OLD_AGE && (p.value || 0) >= 15);
+      if (!vets.length) continue;
+      const target = vets.slice().sort((a, b) => (b.value || 0) - (a.value || 0))[0];
+      const send = packToValue(myPicks, target.value || 0);
+      if (!send.assets.length) continue;
+      const rebuilding = outlook === 'Rebuilding';
+      fit = (rebuilding ? 100 : outlook === 'Balanced' ? 40 : 20) + Math.min(60, (target.value || 0) / 3) + ((target.age || 0) >= OLD_AGE ? 20 : 0);
+      reason = `${rebuilding ? 'Rebuilding' : outlook || 'This'} team · ${target.name.split(',')[0]}${target.age ? ` (${target.age})` : ''} could be had for picks`;
+      deal = { send: send.assets, receive: [{ id: target.id, name: target.name, position: target.position, kind: 'player', value: target.value }] };
+    }
+
+    // Value verdict from MY perspective (acquire = what I receive), same math as the desk preview.
+    const analysis = analyze(deal.receive, deal.send);
+    const strip = (a) => ({ id: a.id, name: a.name, position: a.position, kind: a.kind, value: a.value });
+    rows.push({
+      franchiseId: fid,
+      name: pt.name,
+      outlook,
+      avgAge: ol.avgAge != null ? ol.avgAge : null,
+      reason,
+      fit: Math.round(fit),
+      deal: {
+        send: deal.send.map(strip),
+        receive: deal.receive.map(strip),
+        sendValue: analysis.sendValue,
+        receiveValue: analysis.acquireValue,
+        verdict: analysis.verdict,
+      },
+    });
+  }
+  rows.sort((a, b) => b.fit - a.fit);
+  return {
+    leagueId: league.leagueId,
+    name: league.name,
+    intent: mode,
+    myNeeds,
+    partners: rows.slice(0, 6),
+  };
+}
+
+module.exports = { getOverview, getLeague, getLeagueFit, respond, propose, analyze, crossLeaguePreview, crossLeaguePropose, suggestFor, askFor, fullDealFor, counterFor, pickPartners, nextTradeDeadline, effectiveDeadline, tradeFitSummary, tradeBaitByFranchise, personalAnalyze, tagNotes };

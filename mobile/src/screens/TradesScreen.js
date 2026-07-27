@@ -352,6 +352,22 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
       startCounter({ id: seed.counterOfferId });
       return;
     }
+    // Pre-seeded suggested deal from Pick Capital's shop/acquire flow: BOTH sides prefilled. sendTokens
+    // resolve against my players+picks, receiveTokens against the chosen partner's assets — so the desk
+    // opens on the exact deal the shortlist proposed, ready to tweak or send.
+    if (seed.sendTokens && seed.sendTokens.length) {
+      const mineAll = [...(data.myPlayers || []), ...(data.myPicks || [])];
+      const wantSend = new Set(seed.sendTokens.map(String));
+      const pickedSend = mineAll.filter((a) => wantSend.has(String(a.id)));
+      if (pickedSend.length) setSend(Object.fromEntries(pickedSend.map((a) => [a.id, a])));
+      const partnerD = (data.partners || []).find((p) => p.franchiseId === seed.partnerFranchiseId);
+      if (seed.receiveTokens && seed.receiveTokens.length && partnerD) {
+        const wantRecv = new Set(seed.receiveTokens.map(String));
+        const pickedRecv = (partnerD.players || []).filter((a) => wantRecv.has(String(a.id)));
+        if (pickedRecv.length) setReceive(Object.fromEntries(pickedRecv.map((a) => [a.id, a])));
+      }
+      return;
+    }
     // "Shop <my player>" from On the Block: pre-load him on the SEND side and select the
     // suggested partner (defaulted in load()). The user then picks what to ask for.
     if (seed.sendPlayerId) {

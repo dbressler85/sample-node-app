@@ -34,6 +34,7 @@ import OnTheBlockScreen from './src/screens/OnTheBlockScreen';
 import DraftScreen from './src/screens/DraftScreen';
 import DraftHubScreen from './src/screens/DraftHubScreen';
 import PickInventoryScreen from './src/screens/PickInventoryScreen';
+import PickTradeFinderScreen from './src/screens/PickTradeFinderScreen';
 import CompareScreen from './src/screens/CompareScreen';
 import PlayoffBracketScreen from './src/screens/PlayoffBracketScreen';
 import TrophyCaseScreen from './src/screens/TrophyCaseScreen';
@@ -298,6 +299,9 @@ export default function App() {
   const openDraft = (league) => pushOverlay({ type: 'draft', league });
   const openDraftHub = () => pushOverlay({ type: 'draftHub' });
   const openPickInventory = () => pushOverlay({ type: 'pickInventory' });
+  // Pick Capital → shop/acquire flow: a ranked-partner shortlist for a pick-oriented deal, whose rows
+  // open the trade desk pre-seeded on the suggested deal.
+  const openPickTradeFinder = (leagueId, name, intent) => pushOverlay({ type: 'pickTradeFinder', leagueId, name, intent });
   const openCompare = (seedPlayer) => pushOverlay({ type: 'compare', seedPlayer });
   const openDraftList = (league) => pushOverlay({ type: 'draftList', league });
   const openLeagues = () => pushOverlay({ type: 'leagues' });
@@ -428,7 +432,23 @@ export default function App() {
       case 'draftHub':
         return <DraftHubScreen covered={covered} onBack={popOverlay} onOpenDraft={openDraft} onOpenPicks={openPickInventory} />;
       case 'pickInventory':
-        return <PickInventoryScreen onBack={popOverlay} />;
+        return (
+          <PickInventoryScreen
+            onBack={popOverlay}
+            onShopPicks={({ leagueId, name }) => openPickTradeFinder(leagueId, name, 'shop')}
+            onGetPicks={({ leagueId, name }) => openPickTradeFinder(leagueId, name, 'acquire')}
+          />
+        );
+      case 'pickTradeFinder':
+        return (
+          <PickTradeFinderScreen
+            leagueId={o.leagueId}
+            name={o.name}
+            intent={o.intent}
+            onBack={popOverlay}
+            onOpenDeal={(deal) => openTrades({ leagueId: o.leagueId, name: o.name }, 'propose', deal)}
+          />
+        );
       case 'leagues':
         return <LeaguesScreen onBack={popOverlay} onOpenLeague={openLeagueHub} onOpenDraftHub={openDraftHub} />;
       case 'league':

@@ -70,6 +70,17 @@ router.get('/leagues/:leagueId/trades/suggest', async (req, res, next) => {
   }
 });
 
+// GET /api/leagues/:leagueId/trades/pick-partners?intent=shop|acquire — ranked trade partners for a
+// pick-oriented deal, each with a pre-built suggested deal. 'shop' = cash my picks for a vet (rebuilding
+// partners with aging value); 'acquire' = get picks for a player (win-now partners holding pick equity).
+router.get('/leagues/:leagueId/trades/pick-partners', async (req, res, next) => {
+  try {
+    res.json(await trades.pickPartners(req.mflCookie, req.account, req.params.leagueId, req.query.intent));
+  } catch (err) {
+    next(err);
+  }
+});
+
 // POST /api/leagues/:leagueId/trade-deadline — set/clear the manual trade deadline. Body:
 // { deadline: 'YYYY-MM-DD' | null }. MFL has no machine-readable deadline, so the owner enters it.
 router.post('/leagues/:leagueId/trade-deadline', (req, res, next) => {
