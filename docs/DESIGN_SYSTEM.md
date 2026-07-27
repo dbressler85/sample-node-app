@@ -11,9 +11,9 @@ consume the tokens, never raw values. When a screen and this doc disagree, **thi
 open a PR against the screen, not against the doc (unless the system itself is changing, in
 which case change the doc first).
 
-> **Status:** ratified 2026-07. The color law and the glow recipe are settled. Open decisions
-> are tracked at the bottom (§13) — notably Watch-yellow (Neon Lime now, Acid held as an
-> on-device alternate).
+> **Status:** ratified 2026-07. The color law and the glow recipe are settled. Watch-yellow is now
+> settled too — **Acid Yellow `#E4F24A`** ships (the earlier Neon Lime `#D6F84E` was dropped after
+> seeing both in-row on device). Remaining follow-ups are tracked at the bottom (§13).
 
 ---
 
@@ -35,7 +35,7 @@ borders.
 
 | Today | Problem | Fix |
 |---|---|---|
-| Watchlist star is **gold** | "Watch" isn't value → dilutes gold | Watch → **Neon Lime** (§2.4) |
+| Watchlist star is **gold** | "Watch" isn't value → dilutes gold | Watch → **Acid Yellow** (§2.4) |
 | Trade SENT direction is **gold** (`TradesScreen.js`) | Direction isn't value | SENT → `textDim` / `warn` |
 | Avatar rings, watch counts are **gold** | Account chrome isn't value | → `accent` or neutral |
 | Value-lens toggle is **gold** (`PlayersScreen.js`) | A control isn't value | → `accent` like every other toggle |
@@ -85,13 +85,13 @@ recipe (§3)**, not from a second set of hexes.
 |---|---|---|---|
 | `target` → `good` | `#2FD196` | Target this player | Same hex as `good` |
 | `avoid` → `bad` | `#FF6470` | Avoid this player | Same hex as `bad` |
-| **`watch`** | **`#D6F84E`** | On your watchlist | **Neon Lime — new.** Alternate: Acid `#E4F24A` (§13) |
+| **`watch`** | **`#E4F24A`** | On your watchlist | **Acid Yellow.** (Neon Lime `#D6F84E` was the earlier pick, dropped — §13) |
 
-**Why lime for watch:** it must separate cleanly from the three warm tones it will sit beside —
-gold `#F3C14A` (~44°), warn `#FFA23A` (~30°) — while staying unmistakably "yellow." Lime (~74°)
-gives the widest warm separation. It is **~83° of hue away** from target-green (~157°), so there
-is zero collision risk with Target even though both are "greenish-bright." (Acid `#E4F24A`, ~64°,
-is the warmer fallback if Lime reads too chartreuse on device.)
+**Why a yellow for watch:** it must separate cleanly from the two warm tones it will sit beside —
+gold `#F3C14A` (~44°), warn `#FFA23A` (~30°) — while staying unmistakably "yellow." Acid `#E4F24A`
+(~64°) gives a wide warm separation while reading as a true yellow rather than chartreuse. It is well
+clear of target-green (~157°), so there is zero collision risk with Target even though both are
+"bright." (Neon Lime `#D6F84E`, ~74°, was the first candidate but read too chartreuse in-row on device.)
 
 **Avoid rows must not dim to opacity.** Today `faRowAvoid` drops the whole row to `opacity:0.55`,
 killing legibility and the tap target. Signal avoid with the **red glow recipe** (edge + wash),
@@ -317,7 +317,7 @@ export const colors = {
   text:'#EAF0FB', textDim:'#93A2BE', onAccent:'#08101E',
   accent:'#4F8CFF', gold:'#F3C14A', goldLite:'#FCE38F', goldDeep:'#7A5A18',
   good:'#2FD196', bad:'#FF6470', warn:'#FFA23A',
-  watch:'#D6F84E',            // Neon Lime (alternate: '#E4F24A' Acid — §13)
+  watch:'#E4F24A',            // Acid Yellow (Neon Lime '#D6F84E' dropped — §13)
   // aliases: target === good, avoid === bad (same hex, tag-tier meaning)
 };
 export const positionColors = { QB:'#FF6E8E', RB:'#3ED9A2', WR:'#5C9BFF', TE:'#F5C451', PK:'#B98CFF', DEF:'#8AA0C0' };
@@ -350,9 +350,9 @@ typography helpers; then spacing/radius sweeps) — no need for one giant PR.
 
 ## 13. Open decisions & follow-ups
 
-- **Watch-yellow hue** — shipping **Neon Lime `#D6F84E`** now. **Acid `#E4F24A`** is held as the
-  warmer alternate; re-evaluate once both are seen on a real device build against gold in-row.
-  Swap is a one-line token change either way.
+- **Watch-yellow hue** — **settled: Acid Yellow `#E4F24A`.** Neon Lime `#D6F84E` was the first
+  candidate but read too chartreuse against gold in-row on device; dropped. (`theme.js`/`neon.js`
+  `watch` token is `#E4F24A`.)
 - **Icon migration (emoji → vector)** — §11; sized as its own batch, not blocking the token work.
 - **`hot` tag variants** — if the neon accents want extra punch beyond the glow recipe, add
   brighter `*Hot` stroke variants for the tag tier only (base status hues stay put). Defer until
@@ -368,5 +368,5 @@ typography helpers; then spacing/radius sweeps) — no need for one giant PR.
   (§2.6/§10); route titles/labels through the Oswald helpers (§4); make numbers tabular (§4.3).
 - **Batch 3 (states + targets):** the shared Loading/Error/Empty views (§10) — including the
   "network-error-disguised-as-empty" fix; sweep sub-44px targets and reduce-motion (§8/§9).
-- **Then:** watch → Neon Lime with the glow recipe; avoid-row off opacity onto the red glow;
+- **Then:** watch → Acid Yellow with the glow recipe; avoid-row off opacity onto the red glow;
   icon migration.

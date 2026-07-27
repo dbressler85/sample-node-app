@@ -13,6 +13,7 @@ import Pulse from '../components/Pulse';
 import Reveal from '../components/Reveal';
 import PartialNote from '../components/PartialNote';
 import DeviceNote from '../components/DeviceNote';
+import PopChip from '../components/PopChip';
 import useActFlash from '../useActFlash';
 import { ScreenTitle, Value } from '../components/Brand';
 
@@ -613,9 +614,7 @@ function PosFilter({ pos, setPos, rankType, setRankType }) {
   return (
     <View style={styles.posRow}>
       {POSITIONS.map(([k, label]) => (
-        <Pressable key={label} style={[styles.posChip, pos === k && styles.posChipActive]} onPress={() => setPos(k)}>
-          <Text style={[styles.posChipText, pos === k && { color: colors.text }]}>{label}</Text>
-        </Pressable>
+        <PopChip key={label} active={pos === k} onPress={() => setPos(k)} style={styles.posChip} activeStyle={styles.posChipActive} textStyle={styles.posChipText} activeTextStyle={{ color: colors.text }} label={label} />
       ))}
       {setRankType ? (
         <Pressable
@@ -698,9 +697,7 @@ function SortRow({ value, onChange }) {
     <View style={styles.newsSortRow}>
       <Text style={styles.newsSortLabel}>Sort</Text>
       {LIST_SORTS.map(([k, label]) => (
-        <Pressable key={k} style={[styles.newsSortChip, value === k && styles.newsSortChipActive]} onPress={() => onChange(k)}>
-          <Text style={[styles.newsSortText, value === k && { color: colors.text }]}>{label}</Text>
-        </Pressable>
+        <PopChip key={k} active={value === k} onPress={() => onChange(k)} style={styles.newsSortChip} activeStyle={styles.newsSortChipActive} textStyle={styles.newsSortText} activeTextStyle={{ color: colors.text }} label={label} />
       ))}
     </View>
   );
