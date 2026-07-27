@@ -11,6 +11,7 @@ const nflLib = require('../lib/nfl');
 const leaguesService = require('./leagues');
 const rosterService = require('./roster');
 const { mapLeagues } = require('../lib/safe');
+const { withRetry } = require('../lib/retry');
 const standingLib = require('../lib/standing');
 const pointsMaps = require('../lib/pointsMaps');
 const playerTags = require('../store/playerTags');
@@ -31,8 +32,10 @@ async function gather(cookie, token) {
     await mapLeagues(
       leagues,
       // Exposure only needs MY valued players by bucket, not the all-franchise strength build —
-      // the light enriched read skips the rival fetch + strength/picks/summary.
-      (l) => rosterService.myRosterEnriched(cookie, l.leagueId).then((roster) => (roster ? { league: l, roster } : null)),
+      // the light enriched read skips the rival fetch + strength/picks/summary. Retry a transient
+      // throttle before dropping the league — a dropped roster silently removes it from every
+      // exposure count (the "owned in 8/8 when I'm in 15" bug applied to My Players).
+      (l) => withRetry(() => rosterService.myRosterEnriched(cookie, l.leagueId)).then((roster) => (roster ? { league: l, roster } : null)),
       null,
       'exposure.roster'
     )
@@ -42,6 +45,12 @@ async function gather(cookie, token) {
 
 async function getExposure(cookie, token) {
   const { totalLeagues, rosters } = await gather(cookie, token);
+  // Exposure counts (and the % below) are over the leagues we could actually read. When a throttle
+  // drops one, we say so via partial/leaguesLoaded instead of silently deflating every player's
+  // exposure against the full total — the "N of 15 leagues loaded" honesty contract.
+  const leaguesLoaded = rosters.length;
+  const partial = leaguesLoaded < totalLeagues;
+  const denom = leaguesLoaded || totalLeagues;
   // Season-to-date points + this week's projection, under the owner's primary league's scoring —
   // surfaced on every My Players row (same numbers the rest of the Players screen shows).
   const league0 = rosters[0] ? rosters[0].league : null;
@@ -84,7 +93,7 @@ async function getExposure(cookie, token) {
       ...p,
       count: p.leagues.length,
       startingCount: p.leagues.filter((l) => l.starting).length,
-      exposurePct: totalLeagues ? Math.round((p.leagues.length / totalLeagues) * 100) : 0,
+      exposurePct: denom ? Math.round((p.leagues.length / denom) * 100) : 0,
       seasonPoints: points.season.get(String(p.id)) ?? null,
       weekProjection: points.proj.get(String(p.id)) ?? null,
       tag: tags[String(p.id)] || null,
@@ -94,6 +103,11 @@ async function getExposure(cookie, token) {
 
   return {
     totalLeagues,
+    // Honesty flags: counts above are over leaguesLoaded of leaguesTotal. When partial, the app shows
+    // "N of {leaguesTotal} leagues loaded" instead of presenting the exposure map as complete.
+    leaguesTotal: totalLeagues,
+    leaguesLoaded,
+    partial,
     players,
     summary: {
       uniquePlayers: players.length,

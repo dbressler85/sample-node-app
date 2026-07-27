@@ -96,6 +96,18 @@ async function getOnDeck(cookie, token) {
         items.push(item);
       }
     }
+    // Honesty (docs/UX_GUARDRAILS): a league whose lineup read FAILED comes back as { error } with no
+    // status, so the loop above skips it — leaving a league we couldn't check looking exactly like one
+    // that's fine. Surface it as its own action so "unknown" never masquerades as "optimal". Tied to
+    // the same lock deadline so it sorts alongside the real lineup items.
+    for (const l of locks.leagues) {
+      if (l.status || !l.error) continue; // a real status (handled above) or a healthy read → not this
+      items.push({
+        type: 'lineup_unknown', kind: 'action', leagueId: l.leagueId, leagueName: l.name, at: locks.kickoff,
+        status: 'error', action: 'lineup', label: 'Lineup status unavailable',
+        detail: "Couldn't load your lineup for this league — open it to confirm your starters before lock.",
+      });
+    }
   }
   // Waiver runs on deck are TWO things, shown distinctly:
   //   • leagues where you already have claims in (any run time), and

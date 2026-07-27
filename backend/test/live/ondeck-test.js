@@ -29,6 +29,10 @@ lineupsService.getOverview = async () => ({
     // League I: your only QB is out/on bye — the QB slot can't be filled by any healthy player.
     // Under Center must carry a record for this and deep-link to the QB waiver board by projection.
     { leagueId: 'I', name: 'League I', status: 'incomplete', unfillable: [{ name: 'QB', eligible: ['QB'] }], unfillablePositions: ['QB'] },
+    // League J: the lineup read FAILED (throttle) — the overview returns { error } with NO status. On
+    // Deck must surface this as a distinct "couldn't check" item, not silently drop it (a lineup we
+    // couldn't verify must never look identical to an optimal one — the honesty contract).
+    { leagueId: 'J', name: 'League J', error: 'MFL 429' },
   ],
 });
 waiversService.getPending = async () => ({
@@ -91,6 +95,11 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   assert(wipe && wipe.replacements, 'wiped-position league surfaces a lineup record with a replacements deep-link');
   assert(wipe.replacements.leagueId === 'I' && wipe.replacements.positions.join(',') === 'QB' && wipe.replacements.sort === 'projection', `replacements deep-link targets the QB waiver board by projection, got ${JSON.stringify(wipe.replacements)}`);
   assert(/QB/.test(wipe.label) && /out or on bye/i.test(wipe.detail), `wiped-position item names the position, got ${JSON.stringify({ label: wipe.label, detail: wipe.detail })}`);
+  // League J: a FAILED lineup read (error, no status) surfaces as an honest "couldn't check" action,
+  // tied to the same kickoff — never silently dropped so "unknown" can't masquerade as "optimal".
+  const unknown = r.items.find((i) => i.type === 'lineup_unknown' && i.leagueId === 'J');
+  assert(unknown && unknown.kind === 'action' && unknown.action === 'lineup' && unknown.status === 'error', `failed lineup read surfaces as a lineup_unknown action, got ${JSON.stringify(unknown)}`);
+  assert(unknown.at === soon && /unavailable/i.test(unknown.label), `lineup_unknown is tied to the lock kickoff and labeled as unavailable, got ${JSON.stringify({ at: unknown.at, label: unknown.label })}`);
   // League E: 2 claims already IN → NOT on deck. On Deck is action-only; a submitted claim needs
   // nothing further from you (its status lives on the Waivers → Pending tab), so it's excluded.
   assert(!types.includes('waiver_run:E'), 'claims-already-in league is not surfaced on On Deck (action-only)');

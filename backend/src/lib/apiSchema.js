@@ -220,6 +220,11 @@ const Profile = z.object({
       relation: z.string(),
     })
   ),
+  // Honesty meta: the cross-league card covers leaguesLoaded of leaguesTotal (partial when a throttle
+  // dropped a league) — the app surfaces "N of M leagues" instead of presenting the map as complete.
+  leaguesTotal: z.number(),
+  leaguesLoaded: z.number(),
+  partial: z.boolean(),
   actions: z.object({
     addLeagues: z.array(z.any()),
     dropLeagues: z.array(z.any()),
@@ -302,6 +307,11 @@ const OnDeck = z.object({
 // GET /api/players/exposure — every league you roster each player in.
 const Exposure = z.object({
   players: z.array(PlayerIdentity),
+  // Honesty meta: exposure counts are over leaguesLoaded of leaguesTotal (partial when a throttle
+  // dropped a league) — My Players surfaces "N of M leagues" instead of a false-complete count.
+  leaguesTotal: z.number(),
+  leaguesLoaded: z.number(),
+  partial: z.boolean(),
 });
 
 // GET /api/players/search — universe search results.

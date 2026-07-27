@@ -463,6 +463,12 @@ function assembleExposure(perLeagueRosters, enrichDict, totalLeagues) {
     .sort((a, b) => b.count - a.count || (b.value || 0) - (a.value || 0));
   return {
     totalLeagues: total,
+    // Shape parity with the backend exposure contract. The device path is all-or-nothing (any dropped
+    // league rejects → backend fallback, which carries the real partial flags), so a device success is
+    // always complete — but emit the fields anyway so consumers read one uniform shape.
+    leaguesTotal: total,
+    leaguesLoaded: rosters.length,
+    partial: rosters.length < total,
     players,
     summary: { uniquePlayers: players.length, multiLeague: players.filter((p) => p.count > 1).length },
   };
