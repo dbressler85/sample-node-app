@@ -13,16 +13,22 @@ import {
 import { api } from '../api';
 import { saveSession } from '../auth';
 import { colors } from '../theme';
-import HubMark from '../components/HubMark';
+import NeonCrest, { CREST_IGNITE_MS } from '../components/NeonCrest';
 import FieldBackdrop from '../components/FieldBackdrop';
 import PressableScale from '../components/PressableScale';
+import useReducedMotion from '../useReducedMotion';
 import { displayXL, displayLabel } from '../typography';
 
-export default function LoginScreen({ onLoggedIn }) {
+export default function LoginScreen({ onLoggedIn, justLoggedOut = false }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  const reduced = useReducedMotion();
+  // The crest's neon state (docs/MOTION_AND_NEON_ROADMAP.md §2.1). It rests UNLIT (dull glass) on a
+  // fresh login and IGNITES when sign-in succeeds. Arriving here straight from a logout, it starts
+  // LIT and flickers OUT — the mirror ("in mirrors out").
+  const [ignited, setIgnited] = useState(justLoggedOut);
   // Ask the backend whether it's in demo mode, so the hint is honest in a live
   // deploy instead of always claiming any credentials work.
   const [demoMode, setDemoMode] = useState(null); // null = unknown yet
@@ -42,6 +48,14 @@ export default function LoginScreen({ onLoggedIn }) {
     }).start();
   }, [intro]);
 
+  // Logout mirror: hold the lit sign a confident beat as the login flies back in, then flicker it out
+  // to the resting unlit glass. Reduce-motion drops it straight to unlit.
+  useEffect(() => {
+    if (!justLoggedOut) return undefined;
+    const t = setTimeout(() => setIgnited(false), reduced ? 0 : 460);
+    return () => clearTimeout(t);
+  }, [justLoggedOut, reduced]);
+
   const fade = { opacity: intro };
   const rise = { transform: [{ translateY: intro.interpolate({ inputRange: [0, 1], outputRange: [18, 0] }) }] };
   const pop = { transform: [{ scale: intro.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1] }) }] };
@@ -53,10 +67,13 @@ export default function LoginScreen({ onLoggedIn }) {
     try {
       const { token, demoMode } = await api.login(username.trim(), password);
       await saveSession(token);
-      onLoggedIn({ demoMode });
+      // Threshold ceremony: the crest ignites, holds a beat, then hand off to the app fly-out. Keep
+      // `busy` set through the ignition so the button can't be re-tapped mid-ceremony (no finally).
+      setIgnited(true);
+      const wait = reduced ? 0 : CREST_IGNITE_MS + 260;
+      setTimeout(() => onLoggedIn({ demoMode }), wait);
     } catch (e) {
       setError(e.message);
-    } finally {
       setBusy(false);
     }
   }
@@ -66,7 +83,7 @@ export default function LoginScreen({ onLoggedIn }) {
       <FieldBackdrop hero />
       <View style={styles.inner}>
         <Animated.View style={[styles.lockup, fade, pop]}>
-          <HubMark size={104} />
+          <NeonCrest size={104} ignited={ignited} />
         </Animated.View>
 
         <Animated.View style={[fade, rise]}>

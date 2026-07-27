@@ -1,6 +1,11 @@
 import React from 'react';
-import { View, Image, StyleSheet } from 'react-native';
+import { View, StyleSheet, Dimensions } from 'react-native';
 import Svg, { Defs, LinearGradient, RadialGradient, Stop, Rect, Line, G } from 'react-native-svg';
+import NeonCrest from './NeonCrest';
+
+// Ambient watermark size — a fixed fraction of the screen (this crest sits behind content and never
+// needs to reflow, so one measure at module load is enough).
+const WM_SIZE = Math.round(Dimensions.get('window').width * 0.72);
 
 // The app-wide backdrop: faint gridiron yard-lines and a ghosted crest watermark over one of two
 // grounds. Gold now means VALUE (docs/DESIGN_SYSTEM.md §1), so it can't also be the wallpaper —
@@ -51,18 +56,15 @@ function FieldBackdrop({ hero = false, watermark = true }) {
         </G>
       </Svg>
 
-      {/* Ghosted crest watermark — the REAL app crest, not a hand-drawn stand-in. It's
-          the transparent adaptive-icon, so the navy shield body melts into the navy field
-          and only the gold rim, crown, and DC monogram ghost through. Sits high, behind
-          the gold glow, aspect-preserved so it never squishes. */}
+      {/* Ghosted crest watermark — the neon Regent Crest in its UNLIT state (dull, desaturated glass,
+          no glow), held at very low opacity. A powered-down sign in the wall: present and on-brand,
+          but quiet enough to sit behind content and never leak championship gold as decoration (the
+          color law). The lit crest stays exclusive to the login lockup + ignition. */}
       {watermark ? (
         <View style={styles.wmWrap}>
-          <Image
-            source={require('../../assets/adaptive-icon.png')}
-            style={styles.wmImg}
-            resizeMode="contain"
-            fadeDuration={0}
-          />
+          <View style={styles.wmImg}>
+            <NeonCrest size={WM_SIZE} ignited={false} animate={false} />
+          </View>
         </View>
       ) : null}
     </View>
@@ -73,7 +75,7 @@ const styles = StyleSheet.create({
   // Centered vertically, biased up into the content area (the tab bar eats the bottom, so
   // true screen-center reads low). paddingBottom pulls the crest above the mathematical middle.
   wmWrap: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', paddingBottom: '14%' },
-  wmImg: { width: '74%', aspectRatio: 1, opacity: 0.06 },
+  wmImg: { opacity: 0.13 },
 });
 
 export default React.memo(FieldBackdrop);
