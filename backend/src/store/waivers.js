@@ -47,4 +47,16 @@ function remove(token, leagueId, seed, claimId) {
   return removed;
 }
 
-module.exports = { list, add, remove };
+// Reorder the queue to match `orderedIds` (a desired sequence of claim ids). Claims not named in
+// the list keep their relative order and sink to the bottom — so a partial/stale order never drops
+// a claim. Stable sort preserves that. Returns the reordered array.
+function reorder(token, leagueId, seed, orderedIds) {
+  const arr = ensure(token, leagueId, seed);
+  const rank = new Map((orderedIds || []).map((id, i) => [String(id), i]));
+  const at = (c) => (rank.has(String(c.id)) ? rank.get(String(c.id)) : Number.POSITIVE_INFINITY);
+  arr.sort((a, b) => at(a) - at(b));
+  persist.touch();
+  return arr;
+}
+
+module.exports = { list, add, remove, reorder };

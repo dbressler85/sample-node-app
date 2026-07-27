@@ -966,6 +966,68 @@ async function cancel(cookie, token, leagueId, claimId) {
   return { canceled: claimId, board: await getBoard(cookie, token, leagueId, {}) };
 }
 
+// Reorder the PICKS within one MFL waiver round to a new priority order by resubmitting the whole
+// round with REPLACE (MFL has no "move one pick" call — same mechanism as cancel). Pick order in a
+// round is the processing priority for conditional/contingent bids, so this is how you say "try this
+// claim before that one". `order` is the desired sequence of pick INDICES into the round's current
+// picks; any picks not named are appended in their existing order so nothing is dropped.
+async function reorderMflRound({ cookie, league, system, round, order }) {
+  const reqs = await mflRepo.pendingWaivers(league, cookie);
+  const req = reqs.find((r) => r.system === system && r.round === round);
+  if (!req) return;
+  const named = order.filter((i) => Number.isInteger(i) && i >= 0 && i < req.picks.length);
+  const seen = new Set(named);
+  const seq = [...named, ...req.picks.map((_, i) => i).filter((i) => !seen.has(i))];
+  // No actual change → skip the write (avoid a pointless MFL round-trip / rejection risk).
+  if (seq.every((i, k) => i === k)) return;
+  const picks = seq.map((i) => req.picks[i]);
+  const asToken = (p) =>
+    system === 'faab'
+      ? `${p.add}_${Math.round(Number(p.bid) || 0)}_${p.drop || '0000'}`
+      : `${p.add}_${p.drop || '0000'}`;
+  const PICKS = picks.map(asToken).join(',');
+  const command = system === 'faab' ? 'blindBidWaiverRequest' : 'waiverRequest';
+  const params = { host: league.host, cookie, L: league.leagueId, ROUND: round, PICKS, REPLACE: 1 };
+  try {
+    await mfl.importRequest(command, params);
+  } catch (e) {
+    const detail = mfl.errorDetail(e);
+    console.warn(`[waivers] MFL rejected reorder — L=${league.leagueId} system=${system} round=${round} — ${detail}`);
+    const err = new Error(`MyFantasyLeague rejected the reorder: ${detail}`);
+    err.status = e.status || 502;
+    err.detail = detail;
+    throw err;
+  }
+}
+
+// Reorder a league's pending claims to `orderedIds` (the desired top-to-bottom sequence of claim ids
+// as shown in the app). Demo reorders the local store; live groups the MFL-sourced ids by round and
+// resubmits each round in the requested relative order (cross-round moves aren't a thing on MFL).
+async function reorder(cookie, token, leagueId, orderedIds) {
+  const ids = Array.isArray(orderedIds) ? orderedIds : [];
+  if (config.demoMode) {
+    store.reorder(token, leagueId, demo.pendingClaims(leagueId), ids);
+    return { reordered: true, board: await getBoard(cookie, token, leagueId, {}) };
+  }
+  const league = await findLeague(cookie, leagueId);
+  // Group the requested order by (system, round), preserving the requested relative order of picks.
+  const groups = new Map();
+  for (const id of ids) {
+    const m = /^mfl-(faab|fcfs)-(\d+)-(\d+)$/.exec(String(id));
+    if (!m) continue;
+    const key = `${m[1]}-${m[2]}`;
+    if (!groups.has(key)) groups.set(key, { system: m[1], round: Number(m[2]), order: [] });
+    groups.get(key).order.push(Number(m[3]));
+  }
+  for (const g of groups.values()) {
+    await reorderMflRound({ cookie, league, system: g.system, round: g.round, order: g.order });
+  }
+  // Mirror the order locally too (app-submitted claims are stored), then refresh reads.
+  store.reorder(token, leagueId, [], ids);
+  invalidate(cookie, leagueId);
+  return { reordered: true, board: await getBoard(cookie, token, leagueId, {}) };
+}
+
 // Cross-league "best available": top free agents across all your leagues, each
 // annotated with which leagues he's available in and under what system.
 // `deviceReads` (optional) maps leagueId -> the raw `freeAgents` export units the DEVICE fetched
@@ -1488,4 +1550,4 @@ async function recentResults(cookie, _token) {
   return { results: per.flat() };
 }
 
-module.exports = { getBoard, getOverview, getSuggestions, getLeagueSuggestion, preview, submit, previewMulti, submitMulti, cancel, getBestAvailable, getPending, freeAgentIds, invalidate, nextWaiverRun, reconciledPending, recentResults };
+module.exports = { getBoard, getOverview, getSuggestions, getLeagueSuggestion, preview, submit, previewMulti, submitMulti, cancel, reorder, getBestAvailable, getPending, freeAgentIds, invalidate, nextWaiverRun, reconciledPending, recentResults };
