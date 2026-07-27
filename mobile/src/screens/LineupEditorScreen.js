@@ -94,7 +94,9 @@ export default function LineupEditorScreen({ league, onBack, onOpenWaivers }) {
       </View>
     );
   }
-  if (error) {
+  // Only take over with the error view when there's NO lineup to show. A failed background refetch
+  // after a seeded paint keeps the shown lineup (non-destructive — UX_GUARDRAILS C4).
+  if (error && !detail) {
     return (
       <View style={[styles.container, styles.center]}>
         <Text style={styles.error}>{error}</Text>
