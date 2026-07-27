@@ -8,12 +8,22 @@ import useAndroidBack from '../useAndroidBack';
 import useCachedResource from '../useCachedResource';
 import { Value } from '../components/Brand';
 
-// Your draft-pick capital across every league in one place: current-year picks (still in the
-// draft grid) and future-season picks, value-tagged and grouped by year. Read-only — a
-// scouting view of what you hold; trading picks stays on the trade desk.
+// Your draft-pick capital, grouped BY LEAGUE (richest capital first) so it reads as "what you hold,
+// and in which window" — not a flat cross-league pile of picks that told you nothing about where to
+// act. Each league card carries its team context: your outlook (win-now / rebuilding / ascending),
+// roster age, and format. Trading picks stays on the trade desk (a shop/acquire flow lands here next).
 
 // A round → tint, so a 1st reads hotter than a 4th at a glance.
 const ROUND_COLOR = { 1: colors.gold, 2: colors.accent, 3: colors.good, 4: colors.textDim };
+
+// Outlook → tint. These are the same team-state buckets the trade desk uses: win-now reads urgent
+// (warm), ascending reads as upward growth (green), rebuilding stays muted, balanced is neutral-blue.
+const OUTLOOK_COLOR = {
+  'Win-now window': colors.warn,
+  Ascending: colors.good,
+  Rebuilding: colors.textDim,
+  Balanced: colors.accent,
+};
 
 export default function PickInventoryScreen({ onBack }) {
   // Device-first: the per-league assets/futureDraftPicks/draftResults fan-out runs on-device, falling
@@ -22,11 +32,7 @@ export default function PickInventoryScreen({ onBack }) {
   useAndroidBack(useCallback(() => { onBack(); return true; }, [onBack]));
 
   const summary = data && data.summary;
-  const sections = ((data && data.byYear) || []).map((y) => ({
-    title: y.year ? String(y.year) : 'Undated',
-    value: y.value,
-    data: y.picks,
-  }));
+  const sections = ((data && data.byLeague) || []).map((l) => ({ league: l, data: l.picks }));
 
   return (
     <View style={styles.container}>
@@ -38,7 +44,7 @@ export default function PickInventoryScreen({ onBack }) {
       {summary ? (
         <Text style={styles.subtitle}>
           {summary.total} pick{summary.total === 1 ? '' : 's'} · {summary.firsts} first{summary.firsts === 1 ? '' : 's'}
-          {summary.acquired ? ` · ${summary.acquired} acquired` : ''} · {summary.totalValue.toLocaleString()} value
+          {summary.acquired ? ` · ${summary.acquired} acquired` : ''} · {summary.totalValue.toLocaleString()} value · {summary.leagues} league{summary.leagues === 1 ? '' : 's'}
         </Text>
       ) : null}
 
@@ -55,15 +61,48 @@ export default function PickInventoryScreen({ onBack }) {
           contentContainerStyle={styles.list}
           stickySectionHeadersEnabled={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={reload} tintColor={colors.accent} />}
-          renderSectionHeader={({ section }) => (
-            <View style={styles.sectionRow}>
-              <Text style={[styles.section, displayLabel()]}>{section.title}</Text>
-              <Text style={styles.sectionVal}>{section.value.toLocaleString()} value</Text>
-            </View>
-          )}
+          renderSectionHeader={({ section }) => <LeagueHeader league={section.league} />}
           renderItem={({ item }) => <PickRow p={item} />}
+          renderSectionFooter={({ section }) =>
+            section.league.count === 0 ? <Text style={styles.leagueEmpty}>No picks — all traded away.</Text> : null
+          }
         />
       )}
+    </View>
+  );
+}
+
+// The per-league card header: league name + total pick value, then a context chip row (outlook,
+// roster age, format) so the picks below read in the context of where this team actually is.
+function LeagueHeader({ league }) {
+  const c = league.context || {};
+  const outlookColor = OUTLOOK_COLOR[c.outlook] || colors.textDim;
+  return (
+    <View style={styles.leagueHead}>
+      <View style={styles.leagueTop}>
+        <Text style={[styles.leagueName, displayLabel()]} numberOfLines={1}>{league.leagueName}</Text>
+        <View style={styles.leagueVal}>
+          <Value size={17}>{(league.value || 0).toLocaleString()}</Value>
+          <Text style={styles.leagueValCap}>capital</Text>
+        </View>
+      </View>
+      <Text style={styles.leagueMeta}>
+        {league.count} pick{league.count === 1 ? '' : 's'}{league.firsts ? ` · ${league.firsts} first${league.firsts === 1 ? '' : 's'}` : ''}
+      </Text>
+      <View style={styles.chips}>
+        {c.outlook ? (
+          <View style={[styles.chip, { borderColor: outlookColor }]}>
+            <View style={[styles.dot, { backgroundColor: outlookColor }]} />
+            <Text style={[styles.chipText, { color: outlookColor }]}>{c.outlook}</Text>
+          </View>
+        ) : null}
+        {c.avgAge != null ? (
+          <View style={styles.chip}><Text style={styles.chipTextDim}>avg age {c.avgAge}</Text></View>
+        ) : null}
+        {c.scoringLabel ? (
+          <View style={styles.chip}><Text style={styles.chipTextDim}>{c.scoringLabel}</Text></View>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -80,10 +119,7 @@ function PickRow({ p }) {
           {p.label}
           {p.kind === 'upcoming' ? <Text style={styles.tag}>  THIS YEAR</Text> : null}
         </Text>
-        <Text style={styles.meta} numberOfLines={1}>
-          {p.leagueName}
-          {p.acquiredFrom ? ` · from ${p.acquiredFrom}` : ''}
-        </Text>
+        {p.acquiredFrom ? <Text style={styles.meta} numberOfLines={1}>from {p.acquiredFrom}</Text> : null}
       </View>
       {p.value != null ? <Value size={15}>{p.value}</Value> : null}
     </View>
@@ -98,9 +134,19 @@ const styles = StyleSheet.create({
   title: { color: colors.text, fontSize: 20, fontWeight: '900' },
   subtitle: { color: colors.textDim, fontSize: 13, textAlign: 'center', marginTop: 4 },
   list: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 32 },
-  sectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 14, marginBottom: 8 },
-  section: { color: colors.text, fontSize: 15, fontWeight: '900', letterSpacing: 0.4 },
-  sectionVal: { color: colors.textDim, fontSize: 12, fontWeight: '700' },
+  // Per-league card header.
+  leagueHead: { marginTop: 18, marginBottom: 10 },
+  leagueTop: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
+  leagueName: { color: colors.text, fontSize: 16, fontWeight: '900', letterSpacing: 0.4, flex: 1, marginRight: 12 },
+  leagueVal: { alignItems: 'flex-end' },
+  leagueValCap: { color: colors.textDim, fontSize: 10, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase', marginTop: -2 },
+  leagueMeta: { color: colors.textDim, fontSize: 12, marginTop: 3 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 8 },
+  chip: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3, marginRight: 7, marginBottom: 6 },
+  dot: { width: 6, height: 6, borderRadius: 3, marginRight: 5 },
+  chipText: { fontSize: 11, fontWeight: '800', letterSpacing: 0.2 },
+  chipTextDim: { color: colors.textDim, fontSize: 11, fontWeight: '700' },
+  leagueEmpty: { color: colors.textDim, fontSize: 13, fontStyle: 'italic', paddingVertical: 6 },
   row: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 12, marginBottom: 8 },
   roundBadge: { width: 38, paddingVertical: 3, borderRadius: 6, borderWidth: 1, alignItems: 'center', marginRight: 10 },
   roundText: { fontSize: 11, fontWeight: '800' },

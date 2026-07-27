@@ -332,9 +332,11 @@ const Drafts = z.object({
   ),
 });
 
-// GET /api/picks — your cross-league draft-pick inventory, grouped by year.
+// GET /api/picks — your cross-league draft-pick inventory. Primary grouping is byLeague (one card per
+// league, richest capital first, with team context); byYear is kept for the at-a-glance year totals.
 const PickInventory = z.object({
   summary: z.object({ total: z.number(), totalValue: z.number(), firsts: z.number(), leagues: z.number() }),
+  byLeague: z.array(z.object({ leagueId: z.string(), leagueName: z.string(), value: z.number(), picks: z.array(z.object({ token: z.string(), label: z.string() })) })).optional(),
   byYear: z.array(z.object({ year: z.number().nullable(), picks: z.array(z.object({ token: z.string(), label: z.string() })) })),
 });
 

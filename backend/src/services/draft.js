@@ -653,16 +653,32 @@ async function getPickInventory(cookie, token, { deviceReads = null } = {}) {
       const dr = deviceReads ? deviceReads[String(league.leagueId)] : null;
       // Authoritative source: MFL's `assets` export (post-trade ownership + owner names in the
       // description). Falls back to composing draftResults (current) + futureDraftPicks (future).
-      const [assetsMap, future, upcomingMap, names] = await Promise.all([
+      // The two extra reads (roster summary + format) give the league CARD its context — my outlook
+      // (win-now / rebuilding / ascending), roster age, and format — the same signals the trade desk
+      // and draft board already show. Fail-soft: a missed context read just drops that card's chips.
+      const [assetsMap, future, upcomingMap, names, teamSummary, fmt] = await Promise.all([
         picksLib.assetsByFranchise(cookie, league, dr && dr.assets).catch(() => null),
         picksLib.franchisePicks(cookie, league, league.franchiseId, dr && dr.futureDraftPicks).catch(() => []),
         upcomingPicksByFranchise(cookie, token, league, dr && dr.draftResults).catch(() => ({})),
         leaguesService.franchiseNames(cookie, league).catch(() => new Map()),
+        rosterService.getRoster(cookie, league.leagueId).then((r) => r.summary).catch(() => null),
+        leagueFormat.format(cookie, league).catch(() => null),
       ]);
 
+      const context = {
+        outlook: teamSummary ? teamSummary.outlook : null,
+        avgAge: teamSummary ? teamSummary.avgAge : null,
+        coreAge: teamSummary ? teamSummary.coreAge : null,
+        strengthLabel: teamSummary ? teamSummary.strengthLabel : null,
+        superflex: fmt ? fmt.numQbs >= 2 : null,
+        tep: fmt ? !!fmt.tep : null,
+        scoringLabel: fmt ? leagueFormat.label(fmt) : null,
+      };
+
+      let rows;
       const mine = assetsMap && (assetsMap[myFid] || assetsMap[rawFid]);
       if (mine) {
-        return mine.map((p) => {
+        rows = mine.map((p) => {
           const acquired = p.kind === 'future' && p.originalOwner && mfl.fid(p.originalOwner) !== myFid;
           return {
             ...base, token: p.token, label: p.label, year: p.year, round: p.round, pick: p.pick,
@@ -671,29 +687,30 @@ async function getPickInventory(cookie, token, { deviceReads = null } = {}) {
             acquiredFrom: acquired ? (p.from || `Franchise ${p.originalOwner}`) : null,
           };
         });
+      } else {
+        // Fallback (incl. demo): current-year (draft grid) then future-season (futureDraftPicks).
+        const upcoming = upcomingMap[rawFid] || [];
+        rows = upcoming.map((p) => ({
+          ...base, token: p.token, label: p.label, year: p.year, round: p.round, pick: p.pick || null,
+          value: picksLib.value(p.label), kind: 'upcoming', acquiredFrom: null,
+        }));
+        for (const p of future) {
+          // FP_<originalOwner>_<year>_<round>: a pick whose original owner isn't me was acquired.
+          const m = /^FP_(\d+)_/.exec(String(p.token));
+          const owner = m ? mfl.fid(m[1]) : myFid;
+          const acquired = owner !== myFid;
+          rows.push({
+            ...base, token: p.token, label: p.label, year: p.year, round: p.round, pick: null,
+            value: picksLib.value(p.label), kind: 'future',
+            acquiredFrom: acquired ? (names.get(owner) || names.get(String(Number(owner))) || `Franchise ${owner}`) : null,
+          });
+        }
       }
-
-      // Fallback (incl. demo): current-year (draft grid) then future-season (futureDraftPicks).
-      const upcoming = upcomingMap[rawFid] || [];
-      const rows = upcoming.map((p) => ({
-        ...base, token: p.token, label: p.label, year: p.year, round: p.round, pick: p.pick || null,
-        value: picksLib.value(p.label), kind: 'upcoming', acquiredFrom: null,
-      }));
-      for (const p of future) {
-        // FP_<originalOwner>_<year>_<round>: a pick whose original owner isn't me was acquired.
-        const m = /^FP_(\d+)_/.exec(String(p.token));
-        const owner = m ? mfl.fid(m[1]) : myFid;
-        const acquired = owner !== myFid;
-        rows.push({
-          ...base, token: p.token, label: p.label, year: p.year, round: p.round, pick: null,
-          value: picksLib.value(p.label), kind: 'future',
-          acquiredFrom: acquired ? (names.get(owner) || names.get(String(Number(owner))) || `Franchise ${owner}`) : null,
-        });
-      }
-      return rows;
+      return { base, context, rows };
     })
   );
-  const picks = per.flat().sort((a, b) => (a.year || 0) - (b.year || 0) || (a.round || 0) - (b.round || 0) || (b.value || 0) - (a.value || 0));
+  const pickSort = (a, b) => (a.year || 0) - (b.year || 0) || (a.round || 0) - (b.round || 0) || (b.value || 0) - (a.value || 0);
+  const picks = per.flatMap((l) => l.rows).sort(pickSort);
   const byYear = [];
   for (const p of picks) {
     let g = byYear.find((x) => x.year === p.year);
@@ -701,6 +718,23 @@ async function getPickInventory(cookie, token, { deviceReads = null } = {}) {
     g.picks.push(p);
     g.value += p.value || 0;
   }
+  // Primary grouping for the dashboard: one card PER LEAGUE, richest pick capital first. Each carries
+  // the league's team context so the owner sees "these picks, in this window" together — a flat
+  // cross-league list of picks (the old byYear-only view) didn't tell them where to act.
+  const byLeague = per
+    .map((l) => {
+      const rows = l.rows.slice().sort(pickSort);
+      return {
+        leagueId: l.base.leagueId,
+        leagueName: l.base.leagueName,
+        context: l.context,
+        picks: rows,
+        value: rows.reduce((s, p) => s + (p.value || 0), 0),
+        count: rows.length,
+        firsts: rows.filter((p) => p.round === 1).length,
+      };
+    })
+    .sort((a, b) => (b.value || 0) - (a.value || 0) || a.leagueName.localeCompare(b.leagueName));
   const summary = {
     total: picks.length,
     totalValue: picks.reduce((s, p) => s + (p.value || 0), 0),
@@ -708,7 +742,7 @@ async function getPickInventory(cookie, token, { deviceReads = null } = {}) {
     acquired: picks.filter((p) => p.acquiredFrom).length,
     leagues: leagues.length,
   };
-  return { summary, byYear, picks };
+  return { summary, byLeague, byYear, picks };
 }
 
 // Read MFL's own `myDraftList` export, so a live owner who set a list on MFL's site sees it here on
