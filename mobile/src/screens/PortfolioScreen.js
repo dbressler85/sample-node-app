@@ -12,6 +12,7 @@ import Reveal from '../components/Reveal';
 import AnimatedNumber from '../components/AnimatedNumber';
 import PartialNote from '../components/PartialNote';
 import DeviceNote from '../components/DeviceNote';
+import { toast } from '../components/Toast';
 
 // Chart width = screen minus the body padding (16×2) and card padding (16×2).
 const CHART_W = Dimensions.get('window').width - 64;
@@ -31,8 +32,6 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
   // Device-first: the per-league roster fan-out runs on-device (its own IP), the backend only aggregates;
   // silently falls back to the backend's own resilient fan-out on any device-read failure. `_source` tags it.
   const { data: d, error: fetchError, refreshing, reload } = useCachedResource('portfolio', () => portfolioPreferDevice());
-  const [shopError, setShopError] = useState(null); // a failed shop toggle surfaces here, separate from the fetch error
-  const error = fetchError || shopError;
   const [posFilter, setPosFilter] = useState(null); // tap an allocation segment to filter holdings by position
   const [showAllHoldings, setShowAllHoldings] = useState(false); // Top holdings: 12 by default, expand to the full book
   const [holdView, setHoldView] = useState('value'); // Top holdings ranking: 'value' (biggest bets) | 'exposure' (most leagues)
@@ -56,7 +55,7 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
     setBaitOverride((m) => ({ ...m, [h.id]: next }));
     api.portfolioShop(h.id, next, h.leagueIds).catch(() => {
       setBaitOverride((m) => ({ ...m, [h.id]: cur }));
-      setShopError('Could not update trade bait');
+      toast('Could not update trade bait'); // non-destructive: the row already reverted; never blank the page
     });
   }, []);
 
@@ -66,7 +65,7 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
     setUntagged((s) => new Set(s).add(id));
     api.setTag(id, null).catch(() => {
       setUntagged((s) => { const n = new Set(s); n.delete(id); return n; });
-      setShopError('Could not remove tag');
+      toast('Could not remove tag'); // non-destructive: the untag already reverted
     });
   }, []);
   // Your-tags filters + sort.
@@ -87,11 +86,13 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
     [baitOverride, onOpenPlayer, toggleShop] // eslint-disable-line react-hooks/exhaustive-deps
   );
 
-  if (error) {
+  // Only take over with the error view when there's NO book to show. A failed background refetch while
+  // the portfolio is painted keeps it on screen (non-destructive — UX_GUARDRAILS C4).
+  if (fetchError && !d) {
     return (
       <View style={[styles.container, styles.center]}>
-        <Text style={styles.error}>{error}</Text>
-        <Pressable onPress={() => { setShopError(null); reload(); }} style={styles.retry}><Text style={styles.retryText}>Retry</Text></Pressable>
+        <Text style={styles.error}>{fetchError}</Text>
+        <Pressable onPress={() => reload()} style={styles.retry}><Text style={styles.retryText}>Retry</Text></Pressable>
       </View>
     );
   }

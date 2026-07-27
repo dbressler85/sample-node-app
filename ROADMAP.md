@@ -481,10 +481,9 @@ Remaining, in rough priority order:
     the full spinner is gated on `!board`, a small inline "refreshing" hint shows while a shown board
     reloads, and a failed refetch is non-destructive. Filter/sort toggles and the post-cancel reload no
     longer blank the list.
-  - **P2 · PortfolioScreen error takeover** (`if (error)` not gated on `!d`). A transient background
-    refetch error — or a failed optimistic shop toggle (which already reverts the row) — throws the
-    whole populated portfolio to a full-screen error. Gate as `if (fetchError && !d)`; route `shopError`
-    to a toast. *(S — also a UX-guardrail C4 non-destructive-error regression.)*
+  - [x] **P2 · PortfolioScreen error takeover** — DONE. Full-screen error now gated `if (fetchError && !d)`
+    so a failed background refetch keeps the painted book; the failed shop-toggle / untag paths route to a
+    toast (the row already reverts) instead of tripping the page-level error.
   - **P2 · PlayersScreen Watch tab** (`setWatch(null)` on open) nulls the list every open → spinner,
     unlike sibling Mine/News/Free tabs which keep prior data. Drop the null; refetch in the background
     (mirror `reloadMine`). *(S.)*
@@ -492,8 +491,8 @@ Remaining, in rough priority order:
     seeding, so each open cold-loads a full spinner though the data rarely changes (every other overlay
     repaints instantly from the surviving resource store). Migrate the three to `useCachedResource`
     (or seed via `peekResource`). *(S–M each.)*
-  - **P3 · LineupEditorScreen error gate** (`if (error)` not `if (error && !detail)`): a failed refetch
-    after a seeded paint replaces the shown lineup with an error view. One-line fix. *(S.)*
+  - [x] **P3 · LineupEditorScreen error gate** — DONE. Gated `if (error && !detail)` so a failed refetch
+    after a seeded paint keeps the shown lineup instead of an error view.
   Systemic: the two error-gate bugs (Portfolio, LineupEditor) are the same `if (error)` →
   `if (error && !data)` class; the three overlay cold-loads are the same "not on the resource store"
   class. Fixing all seven closes the pattern across the app.
