@@ -10,6 +10,7 @@ const demo = require('../demo/fixtures');
 const mfl = require('./mfl');
 const mflRepo = require('./mflRepo');
 const { logDegrade } = require('./safe');
+const { withRetry } = require('./retry');
 
 // Estimated dynasty value (0-100 scale) for a draft pick from its label. This is a model, not a
 // market price, but it now follows a real dynasty PICK CURVE instead of a flat per-round number:
@@ -93,7 +94,7 @@ async function franchisePicks(cookie, league, franchiseId = league.franchiseId, 
     if (deviceFuture) {
       arr = mfl.toArray(deviceFuture);
     } else {
-      const res = await mfl.exportRequest('futureDraftPicks', { host: league.host, cookie, L: league.leagueId, FRANCHISE: fid });
+      const res = await withRetry(() => mfl.exportRequest('futureDraftPicks', { host: league.host, cookie, L: league.leagueId, FRANCHISE: fid }));
       arr = mfl.toArray(res && res.futureDraftPicks && res.futureDraftPicks.franchise);
     }
     const fr = arr.find((f) => String(f.id) === fid) || arr[0];
@@ -123,7 +124,7 @@ async function franchisePicks(cookie, league, franchiseId = league.franchiseId, 
 async function franchisePicksMap(cookie, league) {
   if (config.demoMode) return {};
   try {
-    const res = await mfl.exportRequest('futureDraftPicks', { host: league.host, cookie, L: league.leagueId });
+    const res = await withRetry(() => mfl.exportRequest('futureDraftPicks', { host: league.host, cookie, L: league.leagueId }));
     const arr = mfl.toArray(res && res.futureDraftPicks && res.futureDraftPicks.franchise);
     const out = {};
     for (const fr of arr) {

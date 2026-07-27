@@ -7,6 +7,7 @@
 // it's large and MFL asks clients not to pull it repeatedly.
 
 const mfl = require('./mfl');
+const { withRetry } = require('./retry');
 const config = require('../config');
 const demo = require('../demo/fixtures');
 const persist = require('../store/persist');
@@ -129,7 +130,7 @@ async function refresh(cookie) {
     const since = Math.floor(base.at / 1000);
     let changed;
     try {
-      const res = await mfl.exportRequest('players', { cookie, DETAILS: 1, SINCE: since });
+      const res = await withRetry(() => mfl.exportRequest('players', { cookie, DETAILS: 1, SINCE: since }));
       changed = mfl.toArray(res && res.players && res.players.player);
     } catch (e) {
       // MFL returns an ERROR (not an empty list) when nothing changed since SINCE, e.g.
@@ -145,7 +146,7 @@ async function refresh(cookie) {
     return commit(merged);
   }
 
-  const res = await mfl.exportRequest('players', { cookie, DETAILS: 1 });
+  const res = await withRetry(() => mfl.exportRequest('players', { cookie, DETAILS: 1 }));
   const byId = new Map();
   for (const p of mfl.toArray(res && res.players && res.players.player)) byId.set(String(p.id), mapLivePlayer(p));
   return commit(byId);

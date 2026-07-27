@@ -124,7 +124,9 @@ async function tradeBaits(league, cookie, params = {}) {
 // envelope unwrap is single-sourced in the shared mflRead core so the device parses this read with
 // the SAME code the backend uses here (device-origin spike — docs/DEVICE_ORIGIN_MFL.md).
 async function transactions(league, cookie, params = {}) {
-  const res = await read('transactions', league, cookie, params);
+  // Retry a transient throttle: feeds the per-league Waiver Activity (won/lost results) and the
+  // "you won a player" push — a dropped read silently omits a league's results.
+  const res = await withRetry(() => read('transactions', league, cookie, params));
   return mflRead.reads.transactions.parse(res);
 }
 
@@ -186,7 +188,9 @@ function normPendingRequest(req, system) {
 // live under `blindBidWaiverRequest`, FCFS priority under `waiverRequest`. Returns a normalized
 // array (usually 0 or 1). Each item carries the waiver `round`, which is otherwise hard to source.
 async function pendingWaivers(league, cookie, params = {}) {
-  const res = await read('pendingWaivers', league, cookie, params);
+  // Retry a transient throttle: feeds the per-league pending-claims list + the lost-bid reconciliation
+  // on the Waiver Activity tab — a dropped read silently omits a league's pending/lost claims.
+  const res = await withRetry(() => read('pendingWaivers', league, cookie, params));
   const pw = (res && res.pendingWaivers) || {};
   return [
     ...mfl.toArray(pw.blindBidWaiverRequest).map((r) => normPendingRequest(r, 'faab')),
@@ -241,7 +245,9 @@ function assetsFromRaw(rawFranchises) {
   return mfl.toArray(rawFranchises).map(normFranchiseAssets);
 }
 async function assets(league, cookie, params = {}) {
-  const res = await read('assets', league, cookie, params);
+  // Retry a transient throttle: the authoritative pick source for the cross-league Pick Inventory —
+  // a dropped read silently understates a league's pick capital.
+  const res = await withRetry(() => read('assets', league, cookie, params));
   return assetsFromRaw(mflRead.reads.assets.parse(res));
 }
 
