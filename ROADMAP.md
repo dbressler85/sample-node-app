@@ -471,17 +471,16 @@ Remaining, in rough priority order:
   (never skips the fetch), so there's no stale-after-action surprise — the trap
   that sank the earlier time-based Home gate. *(Not applied to Scores — it's live
   and freshness matters. Draft Hub and Trade Inbox could get the same treatment.)*
-- [ ] **Stale-while-revalidate SWEEP — the remaining blank-on-reload screens.** (2026-07-27 audit:
+- [~] **Stale-while-revalidate SWEEP — the remaining blank-on-reload screens.** (2026-07-27 audit:
   ~23/30 screens already keep prior data; **7 still show a full-screen spinner / blank while prior
   values exist**.) Principle: keep the old values on screen and revalidate in the background (a thin
   top "refreshing" hint at most); reserve the blocking spinner for a genuine cold first-load with no
   cached data. In rough priority:
-  - **P1 · WaiversScreen league board** (`WaiversScreen.js`, `BoardView` spinner gated on `loading`,
-    not `!board`; board is bespoke local state, not on the resource store). Every position filter and
-    every Value↔Proj sort toggle — plus each post-`cancelClaim` reload — blanks the whole board to a
-    centered spinner. Gate the spinner on `!board`, keep the prior list during revalidate, ideally
-    seed/prime per `leagueId+position+sort` (the overview beside it already does `loading && !overview`).
-    *(Effort M — the most frequent, most jarring one.)*
+  - [x] **P1 · WaiversScreen league board** — DONE. The board now seeds instantly from a per
+    `leagueId+position+sort` resource-store key and keeps the prior board on screen during revalidate;
+    the full spinner is gated on `!board`, a small inline "refreshing" hint shows while a shown board
+    reloads, and a failed refetch is non-destructive. Filter/sort toggles and the post-cancel reload no
+    longer blank the list.
   - **P2 · PortfolioScreen error takeover** (`if (error)` not gated on `!d`). A transient background
     refetch error — or a failed optimistic shop toggle (which already reverts the row) — throws the
     whole populated portfolio to a full-screen error. Gate as `if (fetchError && !d)`; route `shopError`
