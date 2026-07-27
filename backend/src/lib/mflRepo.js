@@ -39,7 +39,9 @@ async function rosters(league, cookie, params = {}) {
 
 // `leagueStandings` export -> per-franchise standings rows.
 async function standings(league, cookie, params = {}) {
-  const res = await read('leagueStandings', league, cookie, params);
+  // Retry a transient throttle: fanned out per league on the scoreboard/league detail + the playoff
+  // seeding read — a dropped read blanks a league's record/rank instead of just retrying.
+  const res = await withRetry(() => read('leagueStandings', league, cookie, params));
   return mflRead.reads.standings.parse(res);
 }
 
@@ -58,13 +60,17 @@ async function playoffBrackets(league, cookie, params = {}) {
 // NOTE: when a caller also needs other league-level attributes (waiver flags, roster size, …),
 // it must read the raw `league` export itself — this reader only surfaces the franchise array.
 async function leagueFranchises(league, cookie, params = {}) {
-  const res = await read('league', league, cookie, params);
+  // Retry a transient throttle: the franchise directory (team names) is read per league on the scoreboard,
+  // rosters tab, and trade views — an unretried 429 blanks every team to "Team 0041" for that request.
+  const res = await withRetry(() => read('league', league, cookie, params));
   return mfl.toArray(res && res.league && res.league.franchises && res.league.franchises.franchise);
 }
 
 // `pendingTrades` export -> the pending trade offers (usually scoped with FRANCHISE).
 async function pendingTrades(league, cookie, params = {}) {
-  const res = await read('pendingTrades', league, cookie, params);
+  // Retry a transient throttle: fanned out per league for the Home trade-offer count + the trade inbox —
+  // a dropped read silently omits a league's incoming offers. (Retry lives here now, so callers don't wrap.)
+  const res = await withRetry(() => read('pendingTrades', league, cookie, params));
   return mfl.toArray(res && res.pendingTrades && res.pendingTrades.pendingTrade);
 }
 
@@ -78,7 +84,10 @@ async function liveScoring(league, cookie, params = {}) {
 
 // `freeAgents` export -> the league unit(s); each nests player[] the caller flattens.
 async function freeAgentUnits(league, cookie, params = {}) {
-  const res = await read('freeAgents', league, cookie, params);
+  // Retry a transient throttle: the Players "Free Agents" tab fans this out across every league, and it
+  // also backs the memoized free-agent id set (watchlist "now free" + claim validation) — a swallowed
+  // empty would drop a league's pool or reject a valid add. (Retry lives here now, so callers don't wrap.)
+  const res = await withRetry(() => read('freeAgents', league, cookie, params));
   return mflRead.reads.freeAgents.parse(res);
 }
 
@@ -93,13 +102,17 @@ async function draftResults(league, cookie, params = {}) {
 
 // `playerScores` export -> per-player fantasy scores (league-scoped; pass W and PLAYERS).
 async function playerScores(league, cookie, params = {}) {
-  const res = await read('playerScores', league, cookie, params);
+  // Retry a transient throttle: read per league for the player card's actual/prior-year points and the
+  // cross-league points maps — a dropped read leaves a hole in the scoring line instead of retrying.
+  const res = await withRetry(() => read('playerScores', league, cookie, params));
   return mfl.toArray(res && res.playerScores && res.playerScores.playerScore);
 }
 
 // `projectedScores` export -> per-player projected points (league-scoped; optionally W).
 async function projectedScores(league, cookie, params = {}) {
-  const res = await read('projectedScores', league, cookie, params);
+  // Retry a transient throttle: fanned out for lineup projections, the waiver best-available ranking, the
+  // points maps, and the player card — a dropped read silently zeroes a league's projections.
+  const res = await withRetry(() => read('projectedScores', league, cookie, params));
   return mfl.toArray(res && res.projectedScores && res.projectedScores.playerScore);
 }
 
@@ -113,13 +126,18 @@ async function schedule(league, cookie, params = {}) {
 
 // `calendar` export -> league calendar events (waiver/lock windows, etc.).
 async function calendar(league, cookie, params = {}) {
-  const res = await read('calendar', league, cookie, params);
+  // Retry a transient throttle: the calendar's DRAFT_START anchors the draft board (paired in the same
+  // read as the now-retried draftResults), and its waiver windows drive the trade-deadline + waiver-lock
+  // logic — an unretried 429 breaks the draft board or misreads a window. (Retry lives here now.)
+  const res = await withRetry(() => read('calendar', league, cookie, params));
   return mflRead.reads.calendar.parse(res);
 }
 
 // `tradeBait` export -> the trade-bait board (note the envelope pluralizes: tradeBaits.tradeBait).
 async function tradeBaits(league, cookie, params = {}) {
-  const res = await read('tradeBait', league, cookie, params);
+  // Retry a transient throttle: fanned out across leagues for the trade-block browse + the "who's shopping
+  // my players" scan — a dropped read silently omits a league's block.
+  const res = await withRetry(() => read('tradeBait', league, cookie, params));
   return mfl.toArray(res && res.tradeBaits && res.tradeBaits.tradeBait);
 }
 

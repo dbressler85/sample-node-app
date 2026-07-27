@@ -6,6 +6,7 @@
 
 const mfl = require('../lib/mfl');
 const mflRepo = require('../lib/mflRepo');
+const { withRetry } = require('../lib/retry');
 const config = require('../config');
 const demo = require('../demo/fixtures');
 const leaguePrefs = require('../store/leaguePrefs');
@@ -53,7 +54,9 @@ async function listLeagues(cookie) {
   const cached = getFresh(leaguesCache, cookie);
   if (cached) return cached;
 
-  const res = await mfl.exportRequest('myleagues', { cookie, FRANCHISE_NAMES: 1 });
+  // The account's root league list — every screen depends on it, and it's cached, so a transient throttle
+  // here would otherwise fail the whole request (no leagues → blank app) until the next call. Retry it.
+  const res = await withRetry(() => mfl.exportRequest('myleagues', { cookie, FRANCHISE_NAMES: 1 }));
   const leagues = mfl.toArray(res && res.leagues && res.leagues.league).map(normalize);
   setEntry(leaguesCache, cookie, leagues);
   return leagues;
