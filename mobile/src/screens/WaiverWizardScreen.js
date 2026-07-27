@@ -109,14 +109,17 @@ export default function WaiverWizardScreen({ leagues, onBack, onOpenPlayer }) {
     if (current) for (const c of current.candidates) m.set(c.id, c);
     return m;
   }, [current && current.leagueId]);
-  const benchById = useMemo(() => {
+  // The drop can be ANY rostered player — starter or bench (you'll often drop a bye-week starting
+  // DEF/K to stream). Resolve against the full roster, falling back to the droppable bench list.
+  const rosterList = useMemo(() => (current ? current.roster || current.bench || [] : []), [current && current.leagueId]);
+  const rosterById = useMemo(() => {
     const m = new Map();
-    if (current) for (const b of current.bench) m.set(b.id, b);
+    for (const p of rosterList) m.set(p.id, p);
     return m;
-  }, [current && current.leagueId]);
+  }, [rosterList]);
 
   const add = addId ? candById.get(addId) : null;
-  const drop = dropId ? benchById.get(dropId) : null;
+  const drop = dropId ? rosterById.get(dropId) : null;
   const isFaab = current && current.system === 'faab';
   const dropRequired = !!(current && current.rosterFull);
   const bidNum = bid != null && bid !== '' ? Number(bid) : null;
@@ -183,7 +186,7 @@ export default function WaiverWizardScreen({ leagues, onBack, onOpenPlayer }) {
     if (!claims.length) return;
     setSubmitting(true);
     try {
-      const names = [...queue.map((q) => q.add.name), ...(valid && add ? [add.name] : [])].map((n) => n.split(',')[0]);
+      const names = [...queue.map((q) => q.add.name), ...(valid && add ? [add.name] : [])].map((n) => shortName(n));
       if (claims.length === 1) await api.submitClaim(current.leagueId, claims[0]);
       else await api.submitMultiClaim(current.leagueId, claims);
       advance({ leagueId: current.leagueId, name: current.name, action: 'claimed', add: names.join(', '), count: names.length, bid: isFaab ? totalSpend : null });
@@ -265,6 +268,28 @@ export default function WaiverWizardScreen({ leagues, onBack, onOpenPlayer }) {
           </View>
         ) : (
         <>
+        {/* ALREADY SUBMITTED HERE — claims already in for this league, reconciled with MFL so a bid
+            you placed on the MFL site (tagged) shows up too. Read-only context before you add more. */}
+        {current.submitted && current.submitted.length ? (
+          <View style={styles.submittedStrip}>
+            <Text style={styles.submittedTitle}>
+              {current.submitted.length} already submitted here
+            </Text>
+            {current.submitted.map((c) => (
+              <View key={c.id} style={styles.submittedRow}>
+                <Text style={styles.submittedText} numberOfLines={1}>
+                  <Text style={styles.submittedAdd}>+ {c.add ? shortName(c.add.name) : '—'}</Text>
+                  {c.add && c.add.position ? <Text style={styles.submittedMeta}>{`  ${c.add.position}`}</Text> : null}
+                  {c.bid != null ? <Text style={styles.submittedBid}>{`  $${c.bid}`}</Text> : null}
+                  {c.priority != null ? <Text style={styles.submittedBid}>{`  #${c.priority}`}</Text> : null}
+                  {c.drop ? <Text style={styles.submittedMeta}>{`  · − ${shortName(c.drop.name)}`}</Text> : null}
+                </Text>
+                {c.source === 'mfl' ? <Text style={styles.mflTag}>MFL</Text> : null}
+              </View>
+            ))}
+          </View>
+        ) : null}
+
         {/* ADD */}
         <Text style={styles.fieldLabel}>Add</Text>
         {add ? (
@@ -298,11 +323,12 @@ export default function WaiverWizardScreen({ leagues, onBack, onOpenPlayer }) {
           </View>
         ) : null}
 
-        {/* DROP */}
+        {/* DROP — any rostered player is droppable (you'll often stream a bye-week starting DEF/K).
+            The picker shows the whole roster grouped by position, starters labeled but selectable. */}
         <Text style={styles.fieldLabel}>{dropRequired ? 'Drop (required — roster full)' : 'Drop (optional)'}</Text>
         <Pressable style={styles.dropBox} onPress={() => setChangingDrop((v) => !v)}>
           <Text style={styles.dropText}>
-            {drop ? `− ${drop.name.split(',')[0]}${drop.value != null ? ` (${drop.value})` : ''}` : 'None'}
+            {drop ? `− ${shortName(drop.name)}${drop.value != null ? ` (${drop.value})` : ''}` : 'None'}
           </Text>
           <Text style={styles.changeText}>{changingDrop ? 'Close' : 'Change'}</Text>
         </Pressable>
@@ -313,18 +339,11 @@ export default function WaiverWizardScreen({ leagues, onBack, onOpenPlayer }) {
                 <Text style={styles.benchName}>None (add without dropping)</Text>
               </Pressable>
             ) : null}
-            {current.bench.map((b) => (
-              <Pressable
-                key={b.id}
-                style={[styles.pickRow, b.id === dropId && styles.pickRowOn]}
-                onPress={() => { setDropId(b.id); setChangingDrop(false); }}
-              >
-                <Text style={styles.benchName}>
-                  {b.name.split(',')[0]} <Text style={styles.benchMeta}>{b.position} · {b.value}</Text>
-                </Text>
-              </Pressable>
-            ))}
-            {current.bench.length === 0 ? <Text style={styles.benchName}>No bench players to drop.</Text> : null}
+            <RosterDropList
+              roster={rosterList}
+              dropId={dropId}
+              onSelect={(id) => { setDropId(id); setChangingDrop(false); }}
+            />
           </View>
         ) : null}
 
@@ -366,9 +385,9 @@ export default function WaiverWizardScreen({ leagues, onBack, onOpenPlayer }) {
             {queue.map((q) => (
               <View key={q.addId} style={styles.queueRow}>
                 <Text style={styles.queueName} numberOfLines={1}>
-                  + {q.add.name.split(',')[0]}
+                  + {shortName(q.add.name)}
                   <Text style={styles.queueMeta}>
-                    {`  ${q.add.position}`}{q.drop ? ` · − ${q.drop.name.split(',')[0]}` : ''}{q.bid != null ? ` · $${q.bid}` : ''}
+                    {`  ${q.add.position}`}{q.drop ? ` · − ${shortName(q.drop.name)}` : ''}{q.bid != null ? ` · $${q.bid}` : ''}
                   </Text>
                 </Text>
                 <Pressable onPress={() => removeFromQueue(q.addId)} hitSlop={8}>
@@ -432,6 +451,19 @@ export default function WaiverWizardScreen({ leagues, onBack, onOpenPlayer }) {
   );
 }
 
+// "Fields, Justin" → "Fields J." — last name + first initial, so same-surname players are
+// distinguishable at a glance (the wizard used to show the last name alone).
+function shortName(name) {
+  const parts = String(name || '').split(',');
+  const last = (parts[0] || '').trim();
+  const first = (parts[1] || '').trim();
+  return first ? `${last} ${first[0]}.` : last;
+}
+// Shared identity meta: NFL team · bye week — carried on every wizard player (add + rostered).
+function teamByeLine(p) {
+  return [p.team, p.bye != null ? `bye ${p.bye}` : null].filter(Boolean).join(' · ');
+}
+
 function PlayerLine({ p, showValue, compact, onOpenPlayer }) {
   const posColor = positionColors[p.position] || colors.textDim;
   const Wrap = onOpenPlayer ? Pressable : View;
@@ -443,12 +475,13 @@ function PlayerLine({ p, showValue, compact, onOpenPlayer }) {
       </View>
       <View style={{ flex: 1 }}>
         <View style={styles.nameRow}>
-          <Text style={styles.playerName} numberOfLines={1}>{p.name.split(',')[0]}</Text>
+          <Text style={styles.playerName} numberOfLines={1}>{shortName(p.name)}</Text>
           <AvailabilityBadge availability={p.availability} style={{ marginLeft: 6 }} />
         </View>
         <Text style={styles.playerMeta} numberOfLines={1}>
           {[
             p.team,
+            p.bye != null ? `bye ${p.bye}` : null,
             p.projection != null ? `proj ${p.projection}` : null,
             p.ownership != null ? `${p.ownership}% rost` : null,
             p.trend ? `+${(p.trend / 1000).toFixed(1)}k adds` : null,
@@ -457,6 +490,48 @@ function PlayerLine({ p, showValue, compact, onOpenPlayer }) {
       </View>
       {showValue && p.value != null ? <Text style={styles.playerValue}>{p.value}</Text> : null}
     </Wrap>
+  );
+}
+
+// The drop picker: the WHOLE roster grouped by position (headers), starters labeled but still
+// selectable (you can drop a starter — e.g. stream a bye-week DEF/K). Sorted server-side by
+// position then value, so within each group your best players sit on top.
+function RosterDropList({ roster, dropId, onSelect }) {
+  if (!roster || !roster.length) return <Text style={styles.benchName}>No rostered players to drop.</Text>;
+  let lastPos = null;
+  return (
+    <View>
+      {roster.map((p) => {
+        const header = p.position !== lastPos ? p.position : null;
+        lastPos = p.position;
+        return (
+          <View key={p.id}>
+            {header ? <Text style={styles.posGroupHeader}>{header}</Text> : null}
+            <RosterRow p={p} selected={p.id === dropId} onPress={() => onSelect(p.id)} />
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+function RosterRow({ p, selected, onPress }) {
+  const posColor = positionColors[p.position] || colors.textDim;
+  return (
+    <Pressable style={[styles.rosterRow, selected && styles.pickRowOn]} onPress={onPress}>
+      <View style={[styles.posBadgeSm, { backgroundColor: posColor + '22', borderColor: posColor }]}>
+        <Text style={[styles.posSm, { color: posColor }]}>{p.position}</Text>
+      </View>
+      <View style={{ flex: 1 }}>
+        <View style={styles.nameRow}>
+          <Text style={styles.rosterName} numberOfLines={1}>{shortName(p.name)}</Text>
+          {p.starter ? <Text style={styles.starterTag}>STARTER</Text> : null}
+          <AvailabilityBadge availability={p.availability} style={{ marginLeft: 6 }} />
+        </View>
+        <Text style={styles.rosterMeta} numberOfLines={1}>{teamByeLine(p) || '—'}</Text>
+      </View>
+      {p.value != null ? <Text style={styles.rosterValue}>{p.value}</Text> : null}
+    </Pressable>
   );
 }
 
@@ -566,6 +641,24 @@ const styles = StyleSheet.create({
   pickRowOn: { backgroundColor: colors.cardAlt },
   benchName: { color: colors.text, fontSize: 14, paddingVertical: 12, paddingHorizontal: 4 },
   benchMeta: { color: colors.textDim, fontSize: 12 },
+  // Already-submitted claims strip (reconciled with MFL).
+  submittedStrip: { backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.accent + '55', paddingHorizontal: 12, paddingTop: 8, paddingBottom: 8, marginTop: 4, marginBottom: 4 },
+  submittedTitle: { color: colors.accent, fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 6 },
+  submittedRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 },
+  submittedText: { color: colors.text, fontSize: 14, flex: 1, marginRight: 8 },
+  submittedAdd: { color: colors.good, fontWeight: '800' },
+  submittedMeta: { color: colors.textDim, fontSize: 13, fontWeight: '600' },
+  submittedBid: { color: colors.gold, fontSize: 13, fontWeight: '800' },
+  mflTag: { color: colors.accent, fontSize: 9, fontWeight: '900', borderWidth: 1, borderColor: colors.accent, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, overflow: 'hidden' },
+  // Full-roster drop picker rows, grouped by position.
+  posGroupHeader: { color: colors.textDim, fontSize: 11, fontWeight: '900', letterSpacing: 0.6, textTransform: 'uppercase', paddingHorizontal: 10, paddingTop: 10, paddingBottom: 2 },
+  rosterRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 9, paddingHorizontal: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+  posBadgeSm: { width: 36, paddingVertical: 2, borderRadius: 6, borderWidth: 1, alignItems: 'center', marginRight: 10 },
+  posSm: { fontSize: 10, fontWeight: '800' },
+  rosterName: { color: colors.text, fontSize: 14, fontWeight: '700', flexShrink: 1 },
+  starterTag: { color: colors.textDim, fontSize: 9, fontWeight: '900', letterSpacing: 0.4, borderWidth: 1, borderColor: colors.border, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, marginLeft: 6, overflow: 'hidden' },
+  rosterMeta: { color: colors.textDim, fontSize: 12, marginTop: 2 },
+  rosterValue: { color: colors.gold, fontSize: 14, fontWeight: '900', marginLeft: 10 },
   dropBox: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 14 },
   dropText: { color: colors.text, fontSize: 14, fontWeight: '600' },
   bidRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },

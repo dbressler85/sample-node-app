@@ -175,6 +175,9 @@ function makeFreeAgent(id, byId, scoring, statMap, ctx, system, settings, livePr
     onWaivers: system !== 'free',
     clearTime: system !== 'free' ? settings.clearTime || null : null,
     availability: availabilityLib.resolve(base, ctx.statusMap, ctx.byeMap, ctx.week),
+    // The team's bye WEEK number (regardless of the current week) — availability only flags BYE
+    // during the bye itself, but the wizard shows the upcoming bye on every player.
+    bye: ctx.byeMap && ctx.byeMap[base.team] != null ? Number(ctx.byeMap[base.team]) : null,
   };
 }
 
@@ -394,7 +397,7 @@ async function getBoard(cookie, token, leagueId, { position, sort } = {}) {
 async function loadClaimCtx(cookie, token, leagueId) {
   const league = await findLeague(cookie, leagueId);
   const settings = await loadSettings(league, cookie);
-  const [byId, roster, enr, faIds] = await Promise.all([
+  const [byId, roster, enr, faIds0] = await Promise.all([
     playersLib.load(cookie),
     rosterService.getRoster(cookie, leagueId),
     enrichmentLib.snapshot(await leagueFormat.format(cookie, league), cookie),
@@ -402,6 +405,16 @@ async function loadClaimCtx(cookie, token, leagueId) {
   ]);
   // Free-agent set is validated in live too (from MFL freeAgents), not only in demo — so
   // you can't submit a claim for a player who's on another roster.
+  // An EMPTY set here is almost never real on the submit path: the wizard/board just offered a
+  // valid free agent to claim. It means a throttled `freeAgents` read got cached as [] (faIdsMemo),
+  // which would reject EVERY add as "not available in this league" (the exact sticky-empty failure
+  // the buildFreeAgentIds comment warns about). Drop that poisoned entry and re-read once, fresh,
+  // before trusting it — so a transient throttle can't block a legitimate claim.
+  let faIds = faIds0;
+  if (!config.demoMode && faIds.length === 0) {
+    faIdsMemo.invalidate(`${cookie}|${league.leagueId}`);
+    faIds = await freeAgentIds(cookie, league);
+  }
   const available = new Set(faIds);
   const rosterIds = new Set([...roster.starters, ...roster.bench, ...roster.ir, ...roster.taxi].map((p) => p.id));
   // Are transactions LOCKED (a waiver claim window) or OPEN (immediate free agency)? Locked when
@@ -1199,11 +1212,17 @@ async function getOverview(cookie, token, { deviceReads = null } = {}) {
 async function leagueSuggestionOne(cookie, token, league, resolveLockReason) {
       try {
         const settings = await loadSettings(league, cookie);
-        const [roster, fas, waiverRun] = await Promise.all([
+        // byId + ctx (bye map) are loaded alongside so the wizard can carry NFL team, injury status,
+        // and bye week on every player, and reconcile already-submitted claims (incl. ones placed on
+        // MFL directly). byId/ctxFor are cached, so this adds no real cost.
+        const [byId, ctx, roster, fas, waiverRun] = await Promise.all([
+          playersLib.load(cookie),
+          ctxFor(cookie),
           rosterService.getRoster(cookie, league.leagueId),
           loadFreeAgents(cookie, league, settings),
           config.demoMode ? Promise.resolve(null) : nextWaiverRun(cookie, league).catch(() => null),
         ]);
+        const byeOf = (team) => (ctx.byeMap && ctx.byeMap[team] != null ? Number(ctx.byeMap[team]) : null);
         let freeAgents = fas;
         if (!config.demoMode) freeAgents = freeAgents.filter((p) => p.name && !/^Player \d+$/.test(p.name));
         freeAgents.sort((a, b) => (b.value || 0) - (a.value || 0));
@@ -1214,12 +1233,42 @@ async function leagueSuggestionOne(cookie, token, league, resolveLockReason) {
         // pick a different player — not just the single best add.
         const candidates = freeAgents.slice(0, 30).map((p) => ({
           id: p.id, name: p.name, position: p.position, team: p.team,
-          value: p.value, projection: p.projection, trend: p.trend, ownership: p.ownership, availability: p.availability,
+          value: p.value, projection: p.projection, trend: p.trend, ownership: p.ownership, availability: p.availability, bye: p.bye,
         }));
-        const bench = roster.bench
-          .slice()
-          .sort((a, b) => (a.value || 0) - (b.value || 0))
-          .map((p) => ({ id: p.id, name: p.name, position: p.position, value: p.value }));
+
+        // Position-then-value grouping so the wizard can show the whole depth chart at a glance
+        // when choosing a drop. Starters are shown (marked, not droppable); bench is droppable.
+        const POS_ORDER = { QB: 0, RB: 1, WR: 2, TE: 3, PK: 4, DEF: 5 };
+        const posRank = (pos) => (POS_ORDER[pos] != null ? POS_ORDER[pos] : 9);
+        const byPosThenValue = (a, b) => posRank(a.position) - posRank(b.position) || (b.value || 0) - (a.value || 0);
+        const toRow = (p, starter) => ({
+          id: p.id, name: p.name, position: p.position, team: p.team, value: p.value,
+          availability: p.availability, bye: byeOf(p.team), starter,
+        });
+        const rosterView = [...roster.starters.map((p) => toRow(p, true)), ...roster.bench.map((p) => toRow(p, false))].sort(byPosThenValue);
+        // `bench` = the droppable set the wizard resolves a chosen drop against (kept for the
+        // recommendation + the drop picker's selection map).
+        const bench = roster.bench.map((p) => toRow(p, false)).sort(byPosThenValue);
+
+        // Claims ALREADY submitted in this league — reconciled with MFL's authoritative queue so a
+        // bid you placed on the MFL site (not just in-app) shows up too. Surfaced in the wizard so you
+        // can see what's in before adding more. Fail-soft (never blocks a suggestion).
+        let submitted = [];
+        try {
+          const pend = await reconciledPending(cookie, token, league, byId);
+          submitted = pend
+            .filter((c) => (c.status || 'pending') === 'pending')
+            .map((c) => ({
+              id: c.id,
+              add: c.add ? { id: c.add.id, name: c.add.name, position: c.add.position } : null,
+              drop: c.drop ? { id: c.drop.id, name: c.drop.name, position: c.drop.position } : null,
+              bid: c.bid != null ? c.bid : null,
+              priority: c.priority != null ? c.priority : null,
+              source: c.source === 'mfl' ? 'mfl' : 'app',
+            }));
+        } catch (e) {
+          submitted = [];
+        }
 
         const top = candidates[0] || null;
         let recommended = null;
@@ -1267,6 +1316,8 @@ async function leagueSuggestionOne(cookie, token, league, resolveLockReason) {
           recommended: locked ? null : recommended,
           candidates,
           bench,
+          roster: rosterView,
+          submitted,
         };
       } catch (e) {
         return { leagueId: league.leagueId, name: league.name, error: e.message };
