@@ -19,7 +19,8 @@ const WM_SIZE = Math.round(Dimensions.get('window').width * 0.72);
 // container without measuring. Purely decorative — never intercepts touches.
 // Memoized: props are stable (the app renders it with none, login with a fixed `hero`), so the
 // heavy static SVG shouldn't re-render on every unrelated App state change (tab/overlay/etc.).
-function FieldBackdrop({ hero = false, watermark = true }) {
+function FieldBackdrop({ hero = false, watermark = true, atmosphere = true }) {
+  const ambient = !hero;
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
       <Svg style={StyleSheet.absoluteFill} viewBox="0 0 100 100" preserveAspectRatio="none">
@@ -40,6 +41,19 @@ function FieldBackdrop({ hero = false, watermark = true }) {
             <Stop offset="0.72" stopColor="#080D1A" />
             <Stop offset="1" stopColor="#05070E" />
           </RadialGradient>
+          {/* DECORATIVE atmosphere — Electric Violet woven into the ground so the whole app reads with
+              more color depth (feedback: it felt blue/white heavy). Non-semantic: this is wallpaper, it
+              never marks anything. A faint overall wash + a richer off-center bloom for depth. */}
+          <RadialGradient id="fbVioletWash" cx="0.5" cy="0.5" r="0.95">
+            <Stop offset="0" stopColor="#8B5CF6" stopOpacity="0.09" />
+            <Stop offset="0.62" stopColor="#8B5CF6" stopOpacity="0.025" />
+            <Stop offset="1" stopColor="#8B5CF6" stopOpacity="0" />
+          </RadialGradient>
+          <RadialGradient id="fbVioletBloom" cx="0.84" cy="0.12" r="0.6">
+            <Stop offset="0" stopColor="#9E6BFF" stopOpacity="0.16" />
+            <Stop offset="0.55" stopColor="#8B5CF6" stopOpacity="0.05" />
+            <Stop offset="1" stopColor="#8B5CF6" stopOpacity="0" />
+          </RadialGradient>
           {/* edge vignette so the corners fall away and the content floats (ambient only) */}
           <RadialGradient id="fbVignette" cx="0.5" cy="0.42" r="0.75">
             <Stop offset="0.55" stopColor="#000000" stopOpacity="0" />
@@ -47,7 +61,15 @@ function FieldBackdrop({ hero = false, watermark = true }) {
           </RadialGradient>
         </Defs>
         <Rect x="0" y="0" width="100" height="100" fill={hero ? 'url(#fbHero)' : 'url(#fbInk)'} />
-        {hero ? null : <Rect x="0" y="0" width="100" height="100" fill="url(#fbVignette)" />}
+        {ambient ? <Rect x="0" y="0" width="100" height="100" fill="url(#fbVignette)" /> : null}
+        {/* Violet atmosphere sits above the vignette so the edge-darkening doesn't swallow it; skipped on
+            the login (`atmosphere={false}`) to keep its gold-lit "dark room" pure. */}
+        {ambient && atmosphere ? (
+          <>
+            <Rect x="0" y="0" width="100" height="100" fill="url(#fbVioletWash)" />
+            <Rect x="0" y="0" width="100" height="100" fill="url(#fbVioletBloom)" />
+          </>
+        ) : null}
         {/* faint yard-lines */}
         <G stroke="rgba(255,255,255,0.03)" strokeWidth="0.35">
           {[16, 30, 44, 58, 72, 86].map((y) => (

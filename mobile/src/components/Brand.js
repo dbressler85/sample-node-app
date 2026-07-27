@@ -1,15 +1,21 @@
 import React from 'react';
-import { Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { colors } from '../theme';
 import { displayXL } from '../typography';
 
 // Shared "broadcast" treatment so the flair stays consistent in one place.
 // ScreenTitle: condensed, uppercase, tracked — the lower-third look, now in the bundled
-// Oswald display face (falls back to the system face until it loads). Value:
+// Oswald display face (falls back to the system face until it loads), under a short DECORATIVE
+// violet accent rule (non-semantic ornament — ties every header to the ambient violet). Value:
 // championship-gold, tabular numerals for columns (kept in the system face for alignment).
 export function ScreenTitle({ children, style }) {
-  return <Text style={[styles.title, displayXL(), style]}>{children}</Text>;
+  return (
+    <View style={styles.titleWrap}>
+      <Text style={[styles.title, displayXL(), style]}>{children}</Text>
+      <View style={styles.titleRule} />
+    </View>
+  );
 }
 
 export function Value({ children, size = 22, color = colors.gold, style }) {
@@ -33,7 +39,10 @@ export function CrestWatermark({ size = 190, style }) {
 }
 
 const styles = StyleSheet.create({
+  titleWrap: { alignSelf: 'flex-start' },
   title: { color: colors.text, fontSize: 27, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.2 },
+  // Short decorative violet accent rule under each screen title (ornament, not an action).
+  titleRule: { height: 3, width: 34, borderRadius: 2, backgroundColor: colors.violet, marginTop: 5, opacity: 0.92 },
   value: { fontWeight: '900', color: colors.gold, fontVariant: ['tabular-nums'], letterSpacing: -0.5 },
   wm: { position: 'absolute', right: -34, top: -26, opacity: 0.05 },
 });
