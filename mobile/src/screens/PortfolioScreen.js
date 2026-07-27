@@ -11,6 +11,7 @@ import PressableScale from '../components/PressableScale';
 import Reveal from '../components/Reveal';
 import AnimatedNumber from '../components/AnimatedNumber';
 import PartialNote from '../components/PartialNote';
+import DeviceNote from '../components/DeviceNote';
 
 // Chart width = screen minus the body padding (16×2) and card padding (16×2).
 const CHART_W = Dimensions.get('window').width - 64;
@@ -164,7 +165,7 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
           <AnimatedNumber value={d.totals.rosterValue} style={styles.totalValue} />
           <ChangeLine change={d.change} />
           <PartialNote loaded={d.totals.teams} total={d.totals.leagues} onRetry={reload} />
-          {d._source === 'device' ? <Text style={styles.deviceNote}>⚡ Rosters live from MFL on-device · {d.totals.leagues} league{d.totals.leagues === 1 ? '' : 's'}</Text> : null}
+          {d._source === 'device' ? <DeviceNote text={`Rosters live from MFL on-device · ${d.totals.leagues} league${d.totals.leagues === 1 ? '' : 's'}`} /> : null}
           {d.history && d.history.length >= 2 ? (
             <View style={styles.chartWrap}>
               <Sparkline
@@ -670,7 +671,6 @@ const styles = StyleSheet.create({
   holdCardBottom: { backgroundColor: colors.card, borderBottomLeftRadius: 16, borderBottomRightRadius: 16, borderWidth: 1, borderTopWidth: 0, borderColor: colors.border, paddingHorizontal: 16, paddingBottom: 16, paddingTop: 4, marginBottom: 14 },
   totalValue: { color: colors.gold, fontSize: 40, fontWeight: '900', letterSpacing: -1, marginTop: 2 },
   totalLabel: { color: colors.textDim, fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
-  deviceNote: { color: colors.accent, fontSize: 11, fontWeight: '700', marginTop: 8 },
   change: { fontSize: 15, fontWeight: '900', marginTop: 4 },
   changePct: { fontSize: 14, fontWeight: '800' },
   changeWindow: { color: colors.textDim, fontSize: 13, fontWeight: '700' },

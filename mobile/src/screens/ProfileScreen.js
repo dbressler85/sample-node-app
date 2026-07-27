@@ -5,6 +5,7 @@ import { colors } from '../theme';
 import { displayLg, displayLabel } from '../typography';
 import useAndroidBack from '../useAndroidBack';
 import Sparkline from '../components/Sparkline';
+import NeonSign from '../components/NeonSign';
 
 // The signed-in manager's home base: who you are, your portfolio at a glance, the shape of
 // your leagues (outlook mix), your personal activity (tags / watchlist), and the account
@@ -126,7 +127,7 @@ export default function ProfileScreen({ onBack, onOpenPortfolio, onOpenSettings,
 
         {/* Account actions */}
         <View style={styles.card}>
-          {onOpenTrophies ? <ActionRow label="🏆 Trophy Case" onPress={onOpenTrophies} /> : null}
+          {onOpenTrophies ? <ActionRow label="Trophy Case" icon={{ glyph: 'trophy', color: 'gold' }} onPress={onOpenTrophies} /> : null}
           <ActionRow label="Settings" onPress={onOpenSettings} />
           <ActionRow label="Help & how it works" onPress={onOpenHelp} />
           <ActionRow label="Log out" onPress={onLogout} destructive last />
@@ -147,10 +148,13 @@ function Mix({ label, value, color }) {
   );
 }
 
-function ActionRow({ label, onPress, destructive, last }) {
+function ActionRow({ label, onPress, destructive, last, icon }) {
   return (
     <Pressable style={({ pressed }) => [styles.actionRow, !last && styles.actionRowBorder, pressed && { opacity: 0.7 }]} onPress={onPress}>
-      <Text style={[styles.actionText, destructive && { color: colors.bad }]}>{label}</Text>
+      <View style={styles.actionLeft}>
+        {icon ? <NeonSign grade="inline" glyph={icon.glyph} color={icon.color} size={15} /> : null}
+        <Text style={[styles.actionText, destructive && { color: colors.bad }]}>{label}</Text>
+      </View>
       {!destructive ? <Text style={styles.actionChev}>›</Text> : null}
     </Pressable>
   );
@@ -182,6 +186,7 @@ const styles = StyleSheet.create({
   mix: { flex: 1, backgroundColor: colors.bg, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
   mixValue: { fontSize: 22, fontWeight: '900' },
   mixLabel: { color: colors.textDim, fontSize: 11, fontWeight: '600', marginTop: 3 },
+  actionLeft: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
   actionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14 },
   actionRowBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   actionText: { color: colors.text, fontSize: 15, fontWeight: '700' },

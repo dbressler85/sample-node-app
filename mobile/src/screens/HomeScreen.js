@@ -10,6 +10,7 @@ import Pulse from '../components/Pulse';
 import PressableScale from '../components/PressableScale';
 import AnimatedNumber from '../components/AnimatedNumber';
 import GearIcon from '../components/GearIcon';
+import NeonSign from '../components/NeonSign';
 import InfoDot from '../components/InfoDot';
 
 const CONCURRENCY = 4;
@@ -378,7 +379,7 @@ export default function HomeScreen({ active = true, demoMode, onOpenLineup, onOp
                       style={({ pressed }) => [styles.deadlineRow, pressed && { opacity: 0.7 }]}
                       onPress={() => onOpenLeague({ leagueId: x.leagueId, name: x.name })}
                     >
-                      <Text style={styles.deadlineIcon}>⏳</Text>
+                      <View style={styles.deadlineIcon}><NeonSign grade="inline" glyph="hourglass" color="warn" size={18} /></View>
                       <View style={{ flex: 1 }}>
                         <Text style={styles.deadlineName} numberOfLines={1}>{x.name}</Text>
                         <Text style={styles.deadlineSub} numberOfLines={1}>Last day to trade · {x.dl.date}</Text>
@@ -398,7 +399,7 @@ export default function HomeScreen({ active = true, demoMode, onOpenLineup, onOp
                     style={({ pressed }) => [styles.watchRow, pressed && { opacity: 0.7 }]}
                     onPress={() => onOpenPlayer(g.playerId)}
                   >
-                    <Text style={styles.watchIcon}>⭐</Text>
+                    <View style={styles.watchIcon}><NeonSign grade="inline" glyph="star" color="watch" size={18} /></View>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.watchName} numberOfLines={1}>{g.name}</Text>
                       <Text style={[styles.watchSub, g.type === 'free' && { color: colors.good }]} numberOfLines={1}>
@@ -425,9 +426,10 @@ export default function HomeScreen({ active = true, demoMode, onOpenLineup, onOp
               onPress={onOpenTradeInbox}
             >
               <View style={{ flex: 1 }}>
-                <Text style={styles.inboxName}>
-                  {portfolio.tradeOffers ? '📥 Trade inbox' : '🔁 Trades'}
-                </Text>
+                <View style={styles.inboxTitleRow}>
+                  <NeonSign grade="inline" glyph={portfolio.tradeOffers ? 'tray' : 'swap'} color="accent" size={15} />
+                  <Text style={styles.inboxName}>{portfolio.tradeOffers ? 'Trade inbox' : 'Trades'}</Text>
+                </View>
                 <Text style={styles.inboxSub} numberOfLines={1}>
                   {portfolio.tradeOffers
                     ? `${portfolio.tradeOffers} offer${portfolio.tradeOffers === 1 ? '' : 's'} across your leagues`
@@ -441,7 +443,10 @@ export default function HomeScreen({ active = true, demoMode, onOpenLineup, onOp
                 silent rather than replacing a working screen with a scary error + zeros. */}
             {error && leagues.length === 0 ? <Text style={styles.error}>{error}</Text> : null}
             {onDeck && onDeck.summary && onDeck.summary.actions === 0 && !loading ? (
-              <Text style={styles.clear}>🎉 Nothing needs you right now.</Text>
+              <View style={styles.clearRow}>
+                <NeonSign grade="inline" glyph="check" color="good" size={16} />
+                <Text style={styles.clear}>Nothing needs you right now.</Text>
+              </View>
             ) : null}
           </View>
         }
@@ -589,7 +594,8 @@ const styles = StyleSheet.create({
   rowLeague: { color: colors.text, fontSize: 14, fontWeight: '600', flex: 1, marginRight: 10 },
   rowAction: { color: colors.accent, fontSize: 13, fontWeight: '700' },
   error: { color: colors.bad, marginVertical: 8 },
-  clear: { color: colors.textDim, textAlign: 'center', marginTop: 30, fontSize: 15 },
+  clear: { color: colors.textDim, fontSize: 15 },
+  clearRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 30 },
   teamRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: 10 },
   allLeaguesRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 16, marginTop: 20 },
   allLeaguesText: { color: colors.accent, fontSize: 15, fontWeight: '800' },
@@ -603,11 +609,11 @@ const styles = StyleSheet.create({
   onDeckName: { color: colors.text, fontSize: 15, fontWeight: '900', letterSpacing: 0.2 },
   onDeckSub: { color: colors.textDim, fontSize: 12, marginTop: 3 },
   watchRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, paddingVertical: 12, paddingHorizontal: 14, marginBottom: 8 },
-  watchIcon: { fontSize: 16, marginRight: 12 },
+  watchIcon: { marginRight: 12, alignItems: 'center', justifyContent: 'center' },
   watchName: { color: colors.text, fontSize: 15, fontWeight: '700' },
   watchSub: { color: colors.textDim, fontSize: 12, marginTop: 2 },
   deadlineRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, paddingVertical: 12, paddingHorizontal: 14, marginBottom: 8 },
-  deadlineIcon: { fontSize: 16, marginRight: 12 },
+  deadlineIcon: { marginRight: 12, alignItems: 'center', justifyContent: 'center' },
   deadlineName: { color: colors.text, fontSize: 15, fontWeight: '700' },
   deadlineSub: { color: colors.textDim, fontSize: 12, marginTop: 2 },
   deadlinePill: { color: colors.textDim, backgroundColor: colors.cardAlt, fontSize: 12, fontWeight: '800', paddingHorizontal: 9, paddingVertical: 4, borderRadius: 6, overflow: 'hidden', marginLeft: 8 },
@@ -615,6 +621,7 @@ const styles = StyleSheet.create({
   viewAll: { alignItems: 'center', paddingVertical: 10, marginBottom: 4 },
   viewAllText: { color: colors.accent, fontSize: 13, fontWeight: '700' },
   inboxRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 14, marginTop: 12 },
+  inboxTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   inboxName: { color: colors.text, fontSize: 15, fontWeight: '800' },
   inboxSub: { color: colors.textDim, fontSize: 12, marginTop: 3 },
   draftRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: 8 },

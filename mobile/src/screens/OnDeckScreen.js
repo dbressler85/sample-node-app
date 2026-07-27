@@ -6,20 +6,23 @@ import { displayLg } from '../typography';
 import useAndroidBack from '../useAndroidBack';
 import usePoll from '../usePoll';
 import useCachedResource from '../useCachedResource';
+import NeonSign from '../components/NeonSign';
 
 // On Deck — the proactive, time-sorted view of what needs you next across every
 // league. Draft clocks (now), lineup locks (next kickoff), scheduled drafts, and
 // waiver runs, soonest first. Tapping an item jumps to the place you'd act.
 
+// Each type → a steady neon sign (roadmap §3.7 inline grade — lit, no flicker). `color` is a neon
+// color key resolved by NeonSign; `tint` is the matching hex for the "when" countdown text.
 const TYPE = {
-  draft_clock: { icon: '🎯', tint: colors.gold },
-  draft_start: { icon: '🎯', tint: colors.accent },
-  lineup_lock: { icon: '⚑', tint: colors.warn },
-  lineup_unknown: { icon: '⚠', tint: colors.warn }, // lineup read failed — "couldn't check", not "all good"
-  waiver_run: { icon: '⇄', tint: colors.accent },
-  trade_offer: { icon: '🤝', tint: colors.accent },
-  trade_deadline: { icon: '⏳', tint: colors.bad },
-  ir_violation: { icon: '🚑', tint: colors.bad },
+  draft_clock: { glyph: 'target', color: 'gold', tint: colors.gold },
+  draft_start: { glyph: 'target', color: 'accent', tint: colors.accent },
+  lineup_lock: { glyph: 'flag', color: 'warn', tint: colors.warn },
+  lineup_unknown: { glyph: 'bang', color: 'warn', tint: colors.warn }, // lineup read failed — "couldn't check", not "all good"
+  waiver_run: { glyph: 'swap', color: 'accent', tint: colors.accent },
+  trade_offer: { glyph: 'tray', color: 'accent', tint: colors.accent },
+  trade_deadline: { glyph: 'hourglass', color: 'bad', tint: colors.bad },
+  ir_violation: { glyph: 'cross', color: 'bad', tint: colors.bad },
 };
 
 // Human "time until" for an ISO timestamp. Near times count down; far ones show
@@ -138,7 +141,8 @@ export default function OnDeckScreen({ covered = false, onBack, onOpenLineup, on
           }
           ListEmptyComponent={
             <View style={styles.emptyWrap}>
-              <Text style={styles.emptyTitle}>🎉 All clear</Text>
+              <NeonSign grade="inline" glyph="check" color="good" size={34} accessibilityLabel="All clear" />
+              <Text style={[styles.emptyTitle, { marginTop: 10 }]}>All clear</Text>
               <Text style={styles.emptyText}>Nothing needs you and nothing’s coming up across your leagues.</Text>
             </View>
           }
@@ -149,7 +153,7 @@ export default function OnDeckScreen({ covered = false, onBack, onOpenLineup, on
 }
 
 function DeadlineRow({ item, onPress }) {
-  const t = TYPE[item.type] || { icon: '•', tint: colors.textDim };
+  const t = TYPE[item.type] || { glyph: 'bang', color: 'cold', tint: colors.textDim };
   const when = item.now ? 'NOW' : countdown(item.at) || item.atLabel || null;
   const whenColor = item.now ? colors.gold : item.type === 'lineup_lock' ? colors.warn : colors.textDim;
   // Waiver rows read their status from claim state: claims-in (good) vs window-open-no-claims (warn).
@@ -157,7 +161,7 @@ function DeadlineRow({ item, onPress }) {
   const detailColor = isWaiver ? (item.hasClaims ? colors.good : colors.warn) : colors.textDim;
   return (
     <Pressable style={({ pressed }) => [styles.row, item.now && styles.rowNow, pressed && { opacity: 0.75 }]} onPress={onPress}>
-      <Text style={[styles.icon, { color: t.tint }]}>{t.icon}</Text>
+      <View style={styles.icon}><NeonSign grade="inline" glyph={t.glyph} color={t.color} size={20} /></View>
       <View style={{ flex: 1 }}>
         <Text style={styles.label} numberOfLines={1}>
           {item.label}
@@ -182,7 +186,7 @@ const styles = StyleSheet.create({
   sectionHeader: { color: colors.accent, fontSize: 13, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 10, marginBottom: 8 },
   row: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 15, marginBottom: 8 },
   rowNow: { borderColor: colors.gold, backgroundColor: colors.cardAlt },
-  icon: { fontSize: 18, width: 30, textAlign: 'center', marginRight: 8 },
+  icon: { width: 30, alignItems: 'center', justifyContent: 'center', marginRight: 8 },
   label: { color: colors.text, fontSize: 15, fontWeight: '800' },
   league: { color: colors.textDim, fontSize: 13, fontWeight: '600' },
   detail: { color: colors.textDim, fontSize: 12, marginTop: 3 },

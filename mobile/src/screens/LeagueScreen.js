@@ -3,6 +3,8 @@ import { View, Text, StyleSheet, Pressable, FlatList, ScrollView, ActivityIndica
 import { colors, positionColors } from '../theme';
 import { displayLg } from '../typography';
 import ErrorView from '../components/ErrorView';
+import DeviceNote from '../components/DeviceNote';
+import NeonSign from '../components/NeonSign';
 import useAndroidBack from '../useAndroidBack';
 import useCachedResource from '../useCachedResource';
 import { leagueTeamsPreferDevice, standingsPreferDevice, transactionsPreferDevice } from '../mflDevice';
@@ -27,10 +29,11 @@ export default function LeagueScreen({ league, onBack, onOpenPlayer, onOpenPlayo
         <Text style={[styles.title, displayLg()]} numberOfLines={1}>{league.name}</Text>
         {onOpenPlayoffs ? (
           <Pressable onPress={() => onOpenPlayoffs(league)} hitSlop={10} style={styles.bracketBtn}>
-            <Text style={styles.bracketBtnText}>🏆 Bracket</Text>
+            <NeonSign grade="inline" glyph="trophy" color="gold" size={14} />
+            <Text style={styles.bracketBtnText}>Bracket</Text>
           </Pressable>
         ) : (
-          <View style={{ width: 66 }} />
+          <View style={{ width: 78 }} />
         )}
       </View>
 
@@ -69,7 +72,7 @@ function StandingsTab({ leagueId }) {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={reload} tintColor={colors.accent} />}
       ListHeaderComponent={
         <View>
-          {data._source === 'device' ? <Text style={styles.deviceNote}>⚡ Standings live from MFL on-device</Text> : null}
+          {data._source === 'device' ? <DeviceNote center text="Standings live from MFL on-device" /> : null}
           <View style={styles.stHead}>
             <Text style={[styles.stRank, styles.stHeadText]}>#</Text>
             <Text style={[styles.stTeam, styles.stHeadText]}>Team</Text>
@@ -113,7 +116,7 @@ function RostersTab({ leagueId, onOpenPlayer }) {
   return (
     <View style={{ flex: 1 }}>
       {data._source === 'device' ? (
-        <Text style={styles.deviceNote}>⚡ Rosters live from MFL on-device · {teams.length} teams</Text>
+        <DeviceNote center text={`Rosters live from MFL on-device · ${teams.length} teams`} />
       ) : null}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
         {teams.map((t) => {
@@ -172,7 +175,7 @@ function TransactionsTab({ leagueId, onOpenPlayer }) {
       keyExtractor={(t) => t.id}
       contentContainerStyle={styles.list}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={reload} tintColor={colors.accent} />}
-      ListHeaderComponent={data._source === 'device' ? <Text style={styles.deviceNote}>⚡ Transactions live from MFL on-device</Text> : null}
+      ListHeaderComponent={data._source === 'device' ? <DeviceNote center text="Transactions live from MFL on-device" /> : null}
       renderItem={({ item }) => (
         <View style={styles.txn}>
           <View style={styles.txnTop}>
@@ -209,7 +212,7 @@ const styles = StyleSheet.create({
   topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 },
   back: { color: colors.accent, fontSize: 16, fontWeight: '600', width: 66 },
   title: { color: colors.text, fontSize: 17, fontWeight: '900', flex: 1, textAlign: 'center' },
-  bracketBtn: { width: 66, alignItems: 'flex-end' },
+  bracketBtn: { width: 78, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4 },
   bracketBtnText: { color: colors.gold, fontSize: 13, fontWeight: '800' },
   segment: { flexDirection: 'row', marginHorizontal: 16, backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 3, marginTop: 6, marginBottom: 4 },
   seg: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
@@ -235,7 +238,6 @@ const styles = StyleSheet.create({
 
   // rosters
   chipRow: { paddingHorizontal: 16, gap: 8, paddingVertical: 6 },
-  deviceNote: { color: colors.accent, fontSize: 11, fontWeight: '700', textAlign: 'center', paddingTop: 6 },
   teamChip: { backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 7, maxWidth: 170 },
   teamChipOn: { backgroundColor: colors.cardAlt, borderColor: colors.accent },
   teamChipName: { color: colors.textDim, fontSize: 13, fontWeight: '700' },
