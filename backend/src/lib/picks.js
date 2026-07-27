@@ -31,7 +31,15 @@ const PICK_DECAY = 0.93; // ~7% drop per overall slot — early 1sts stay premiu
 const TEAMS_ASSUMED = 12;
 const curveValue = (overall) => Math.max(2, Math.round(PICK_BASE * Math.pow(PICK_DECAY, Math.max(0, overall - 1))));
 
-function value(label) {
+// `value(label, token, enr)` — the single source of truth for a pick's dynasty value. When an
+// enrichment snapshot is supplied it prefers FantasyCalc's FORMAT-AWARE, per-slot pick value (SF/TEP/PPR
+// baked in, market-anchored); otherwise (or when FC doesn't cover that pick) it falls back to the local
+// convex curve below. `token` is the pick's trade token (DP_/FP_) — FC keys current-draft picks by it.
+function value(label, token, enr) {
+  if (enr && typeof enr.pickValue === 'function') {
+    const fc = enr.pickValue(label, token);
+    if (fc != null) return Math.max(2, Math.round(fc));
+  }
   const s = String(label);
   // Known-slot picks read "2026 1.11" (round.pick); future picks read "2027 1st".
   const slot = /\b(\d+)\.(\d{1,2})\b/.exec(s);

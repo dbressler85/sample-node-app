@@ -413,11 +413,14 @@ The plumbing, MFL correctness, and format detection are strong, and the trade *m
 are good; the ceiling is held down by one recurring gap (the app reasons in dynasty ASSET value, never
 win-now / rest-of-season) plus two narrower correctness issues. Ranked by value-to-effort:
 
-- [ ] **Format-aware pick values (P1).** `lib/picks.js` `value()` is a single format-blind curve — no
-  superflex / TE-premium premium and no rookie-class strength. In SF the 1.01 is a top-5 asset but is
-  priced like a 1QB pick, and this flows straight into the trade brain (`pickPartners`). Pull
-  FantasyCalc's per-format per-pick values (the enrichment layer already fetches per `{numQbs, ppr}`),
-  or at minimum apply the SF/TEP premium to first-round picks. *(Effort low–med, high impact.)*
+- [x] **Format-aware pick values (P1).** DONE. FantasyCalc lists draft picks alongside players
+  (position `"PICK"`), format-aware and per-slot, keyed by our own token scheme (`mflId: "DP_0_0"`).
+  `enrichment` now captures those pick rows (by token + a label/round crosswalk for future picks), and
+  `picks.value(label, token, enr)` prefers FantasyCalc's format-aware value, falling back to the local
+  curve only when FC doesn't cover a pick. All four pick-value sites (trade `asset()`, roster chips,
+  Pick Capital, trade-bait) pass `enr`, so the trade brain + displays agree and are format-correct — an
+  SF early-1st is no longer priced like a 1QB pick. Backend-only (deploys on merge); `pick-value-format-test`
+  covers token-join, format-awareness, round fallback, and curve non-regression.
 - [ ] **Blend standings/record into outlook (P1).** `roster.js` `computeOutlook` assigns
   win-now/rebuild from dynasty-value strength + core age only, so a 2-8 team with a stacked-but-
   underperforming roster reads "Win-now." Fold in real W-L / points (needs `leagueStandings`). *(Low

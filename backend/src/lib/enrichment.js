@@ -113,6 +113,37 @@ async function getFantasyCalc(format) {
   try { return await p; } finally { fcInflight.delete(key); }
 }
 
+// FantasyCalc lists draft PICKS alongside players (position "PICK"), FORMAT-AWARE and per-slot, e.g.
+// { name: "2026 Pick 1.01", mflId: "DP_0_0", position: "PICK" }. The mflId is already our own token
+// scheme, so current-draft picks join by token via the `value` map above. For future-year picks we
+// also index by parsed label (exact slot + a round-level average) so a token that doesn't match FC
+// can still resolve. Returns { year, round, pick|null } or null.
+function parsePickName(name) {
+  const s = String(name || '');
+  const ym = /\b(20\d{2})\b/.exec(s);
+  if (!ym) return null;
+  const slot = /\b(\d+)\.(\d{1,2})\b/.exec(s); // "1.01"
+  if (slot) return { year: ym[1], round: Number(slot[1]), pick: Number(slot[2]) };
+  const ord = /\b(\d+)\s*(?:st|nd|rd|th)\b/i.exec(s); // "1st"
+  if (ord) return { year: ym[1], round: Number(ord[1]), pick: null };
+  return null;
+}
+
+// FantasyCalc pick value for one of OUR pick tokens/labels (already normalized to 0-100), or null when
+// FC doesn't cover it (→ caller falls back to the local curve). Token first (exact join for current
+// picks), then exact-slot label, then the round-level average (covers future picks named by round).
+function pickValueFromFc(fc, label, token) {
+  if (token != null && fc.value.has(String(token))) return fc.value.get(String(token));
+  const pk = parsePickName(label);
+  if (!pk) return null;
+  if (pk.pick != null) {
+    const exact = `${pk.year} ${pk.round}.${String(pk.pick).padStart(2, '0')}`;
+    if (fc.pickByLabel.has(exact)) return fc.pickByLabel.get(exact);
+  }
+  const rk = `${pk.year}|${pk.round}`;
+  return fc.pickRound.has(rk) ? fc.pickRound.get(rk) : null;
+}
+
 async function buildFantasyCalc(format, key, hit) {
   const value = new Map();
   const age = new Map();
@@ -120,6 +151,8 @@ async function buildFantasyCalc(format, key, hit) {
   const pos = new Map();
   const sleeperToMfl = new Map();
   const mflToSleeper = new Map(); // reverse crosswalk — drives the profile headshot (Sleeper CDN)
+  const pickByLabel = new Map(); // "2026 1.01" -> normalized value (for label joins)
+  const pickRoundAcc = new Map(); // "2027|1" -> { sum, n } → round-level average (future picks)
   try {
     const url = `https://api.fantasycalc.com/values/current?isDynasty=true&numQbs=${format.numQbs}&ppr=${format.ppr}`;
     const rows = await fetchJson(url);
@@ -131,21 +164,35 @@ async function buildFantasyCalc(format, key, hit) {
       const mflId = p.mflId != null && p.mflId !== '' ? String(p.mflId) : null;
       const sleeperId = p.sleeperId != null && p.sleeperId !== '' ? String(p.sleeperId) : null;
       if (sleeperId && mflId) { sleeperToMfl.set(sleeperId, mflId); mflToSleeper.set(mflId, sleeperId); }
+      const norm = maxVal > 0 && r.value != null ? Math.max(1, Math.round((Number(r.value) / maxVal) * 100)) : null;
+      // Draft picks: index by parsed label too, so future-year picks (whose token won't match FC's)
+      // still resolve. Current picks also keep the token join via the `value` map below (mflId="DP_…").
+      if (String(p.position).toUpperCase() === 'PICK' && norm != null) {
+        const pk = parsePickName(p.name);
+        if (pk) {
+          if (pk.pick != null) pickByLabel.set(`${pk.year} ${pk.round}.${String(pk.pick).padStart(2, '0')}`, norm);
+          const rk = `${pk.year}|${pk.round}`;
+          const acc = pickRoundAcc.get(rk) || { sum: 0, n: 0 };
+          acc.sum += norm; acc.n += 1; pickRoundAcc.set(rk, acc);
+        }
+      }
       if (!mflId) continue;
-      if (maxVal > 0 && r.value != null) value.set(mflId, Math.max(1, Math.round((Number(r.value) / maxVal) * 100)));
+      if (norm != null) value.set(mflId, norm);
       if (r.overallRank != null) rank.set(mflId, Number(r.overallRank));
       if (p.position) pos.set(mflId, String(p.position).toUpperCase());
       const a = p.maybeAge != null ? Number(p.maybeAge) : NaN;
       if (Number.isFinite(a) && a > 0) age.set(mflId, Math.round(a * 10) / 10);
     }
-    console.log(`[enrichment] fantasycalc format=${key} rows=${list.length} values=${value.size}`);
+    console.log(`[enrichment] fantasycalc format=${key} rows=${list.length} values=${value.size} picks=${pickByLabel.size}`);
   } catch (e) {
     console.log(`[enrichment] fantasycalc format=${key} error=${e.message}`);
     // Don't overwrite good data with an empty result on a transient failure —
     // keep serving the last-good snapshot (even if a bit stale) and retry later.
     if (hit) return hit;
   }
-  const entry = { at: Date.now(), value, age, rank, pos, sleeperToMfl, mflToSleeper };
+  const pickRound = new Map();
+  for (const [rk, acc] of pickRoundAcc) pickRound.set(rk, Math.max(1, Math.round(acc.sum / acc.n)));
+  const entry = { at: Date.now(), value, age, rank, pos, sleeperToMfl, mflToSleeper, pickByLabel, pickRound };
   fcCache.set(key, entry);
   return entry;
 }
@@ -291,6 +338,9 @@ async function buildLive(format, cookie) {
     ownership: (id) => (owned.has(String(id)) ? owned.get(String(id)) : null), // MFL topOwns site-wide %
     sleeperId: (id) => fc.mflToSleeper.get(String(id)) || null, // Sleeper player id, for the headshot
     rank: (id) => fc.rank.get(String(id)) || null,
+    // FantasyCalc's format-aware pick value for one of our pick tokens/labels (0-100), or null when FC
+    // doesn't cover it → picksLib.value falls back to the local curve.
+    pickValue: (label, token) => pickValueFromFc(fc, label, token),
   };
 }
 
@@ -312,6 +362,7 @@ async function buildDemo(format, cookie) {
     ownership: (id) => demo.ownership(id),
     sleeperId: (id) => demo.sleeperId(id),
     rank: () => null,
+    pickValue: () => null, // demo has no FantasyCalc pick data → picks use the local curve
   };
 }
 

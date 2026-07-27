@@ -64,10 +64,11 @@ async function tradeBaitByFranchise(cookie, token, league) {
   return map;
 }
 
-// Pick value comes from the shared model in lib/picks (picksLib.value) so the roster's pick
-// chips and the trade desk always agree. Kept as a thin local alias for readability below.
-function pickValue(label) {
-  return picksLib.value(label);
+// Pick value comes from the shared model in lib/picks (picksLib.value) so the roster's pick chips and
+// the trade desk always agree. Passing the token + enrichment snapshot makes it FORMAT-AWARE: it uses
+// FantasyCalc's per-slot pick value for the league's format when available, else the local curve.
+function pickValue(label, token, enr) {
+  return picksLib.value(label, token, enr);
 }
 
 // Blind-bidding budget (FAAB) is tradeable in most leagues; MFL represents an amount of it
@@ -104,7 +105,7 @@ function asset(tok, byId, enr) {
   }
   if (t.startsWith('pick:') || t.startsWith('FP_') || t.startsWith('DP_')) {
     const label = t.startsWith('pick:') ? t.slice(5) : picksLib.labelForToken(t);
-    return { kind: 'pick', id: t, name: label, position: 'PICK', team: null, value: pickValue(label) };
+    return { kind: 'pick', id: t, name: label, position: 'PICK', team: null, value: pickValue(label, t, enr) };
   }
   const p = playersLib.resolve(byId, t);
   return { kind: 'player', id: p.id, name: p.name, position: p.position, team: p.team, value: enr.value(p.id) };
