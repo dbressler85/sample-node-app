@@ -128,9 +128,9 @@ export default function LoginScreen({ onLoggedIn, justLoggedOut = false }) {
 
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      {/* The SAME dark "Deep Ink" ground the app uses — no hero gold, no embedded crest watermark.
-          A dark room; the only light comes from the sign itself. */}
-      <FieldBackdrop watermark={false} />
+      {/* The SAME dark "Deep Ink" ground the app uses — no hero gold, no embedded crest watermark, and
+          no violet atmosphere: a true dark room where the only light comes from the sign itself. */}
+      <FieldBackdrop watermark={false} atmosphere={false} />
 
       <View style={styles.inner}>
         <Animated.View style={[styles.lockup, fade, pop]}>

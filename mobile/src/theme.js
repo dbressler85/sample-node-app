@@ -23,6 +23,12 @@ export const colors = {
   bad: '#FF6470', // negative / loss / destructive — also the "avoid" tag hue
   warn: '#FFA23A', // caution / deadline — orange, kept distinct from gold
   watch: '#FFE94A', // Neon Yellow — the watchlist/target tag. Balanced R/G so it reads pure yellow (no green cast), still distinct from value gold + orange warn.
+  // DECORATIVE ambient accent — NON-SEMANTIC. Electric Violet enriches the palette (backdrop glow +
+  // decorative structure: eyebrows, dividers, rails, ambient watermark, decorative tags). It is
+  // unclaimed by the color law, so it must NEVER mark an action, state, or value (those stay
+  // blue/green-red-orange/gold). Purely atmosphere + ornament.
+  violet: '#8B5CF6',
+  violetDim: '#6E54B8', // a muted violet for hairlines/rails where full-chroma would shout
 };
 
 export const positionColors = {
@@ -42,6 +48,7 @@ export const rgb = {
   bad: '255,100,112',
   warn: '255,162,58',
   watch: '255,233,74',
+  violet: '139,92,246',
 };
 
 // 4-based spacing scale — no raw padding/margin/gap literals in screens.
