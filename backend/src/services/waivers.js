@@ -345,22 +345,33 @@ function claimView(claim, byId) {
 
 async function getBoard(cookie, token, leagueId, { position, sort } = {}) {
   const league = await findLeague(cookie, leagueId);
-  const settings = await loadSettings(league, cookie);
-  const [byId, roster] = await Promise.all([playersLib.load(cookie), rosterService.getRoster(cookie, leagueId)]);
+  // Phase 1: independent base reads in parallel — league settings, the player DB, my roster, and the
+  // current week (keys this-year points).
+  const [settings, byId, roster, week] = await Promise.all([
+    loadSettings(league, cookie),
+    playersLib.load(cookie),
+    rosterService.getRoster(cookie, leagueId),
+    config.demoMode ? Promise.resolve(demo.week()) : nflLib.currentWeek(cookie).catch(() => null),
+  ]);
+  // Phase 2: everything that depends on phase 1, ALSO in parallel — free agents, this-league scoring,
+  // the pending queue, and recent results are mutually independent MFL exports, so they must not
+  // serialize (each serial read paid the request-throttle stagger on every board open/refresh).
+  const [rawFreeAgents, points, pending, rawResults] = await Promise.all([
+    loadFreeAgents(cookie, league, settings),
+    pointsMaps.maps(cookie, league, week),
+    reconciledPending(cookie, token, league, byId),
+    config.demoMode ? Promise.resolve(demo.waiverResults(leagueId)) : liveWaiverResults(cookie, league, byId),
+  ]);
 
-  let freeAgents = await loadFreeAgents(cookie, league, settings);
   // Drop entities whose name didn't resolve (team defenses / non-player ids show
   // up as "Player 0800" and clutter the live board).
-  if (!config.demoMode) freeAgents = freeAgents.filter((p) => p.name && !/^Player \d+$/.test(p.name));
+  let freeAgents = config.demoMode ? rawFreeAgents : rawFreeAgents.filter((p) => p.name && !/^Player \d+$/.test(p.name));
   // Normalize the position filter so a "K" (or "Def"/"DST") request matches the canonical stored
   // position ("PK"/"DEF") — otherwise a kicker filter matched nothing (kickers are stored as PK).
   const posFilter = position ? playersLib.normalizePosition(position) : null;
   if (posFilter) freeAgents = freeAgents.filter((p) => p.position === posFilter);
-
   // Season-to-date points for each free agent (under this league's scoring), so the board can rank
   // by who's actually producing this year — the sortable "current-year point total" streamers want.
-  const week = config.demoMode ? demo.week() : await nflLib.currentWeek(cookie).catch(() => null);
-  const points = await pointsMaps.maps(cookie, league, week);
   for (const p of freeAgents) p.seasonPoints = points.season.get(String(p.id)) ?? null;
 
   const SORT_KEYS = { projection: 'projection', season: 'seasonPoints', trend: 'trend', ownership: 'ownership', value: 'value' };
@@ -381,9 +392,9 @@ async function getBoard(cookie, token, leagueId, { position, sort } = {}) {
     (a, b) => tagRank(a) - tagRank(b) || (b[key] || 0) - (a[key] || 0) || (b.projection || 0) - (a.projection || 0)
   );
 
-  // Reconcile the local claim store with MFL's authoritative pending waivers (see reconciledPending).
-  const pending = await reconciledPending(cookie, token, league, byId);
-  const results = (config.demoMode ? demo.waiverResults(leagueId) : await liveWaiverResults(cookie, league, byId)).map(normResult);
+  // `pending` (reconciled with MFL's authoritative queue) and `rawResults` came from the phase-2
+  // parallel batch above — normalize the results here.
+  const results = rawResults.map(normResult);
 
   return {
     leagueId: league.leagueId,

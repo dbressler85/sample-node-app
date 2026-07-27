@@ -294,7 +294,6 @@ export default function App() {
   const openWizard = (leagues, mode) => pushOverlay({ type: 'lineupWizard', leagues, mode });
   const openWaiverWizard = (leagues) => pushOverlay({ type: 'waiverWizard', leagues });
   const openTrades = (league, initialTab, seed) => pushOverlay({ type: 'trades', league, initialTab, seed });
-  const openTradeInbox = () => pushOverlay({ type: 'tradeInbox' });
   const openBlock = () => pushOverlay({ type: 'block' });
   const openDraft = (league) => pushOverlay({ type: 'draft', league });
   const openDraftHub = () => pushOverlay({ type: 'draftHub' });
@@ -405,17 +404,6 @@ export default function App() {
         return <WaiverWizardScreen leagues={o.leagues} onBack={popOverlay} onOpenPlayer={openPlayer} />;
       case 'trades':
         return <TradesScreen league={o.league} initialTab={o.initialTab} seed={o.seed} onBack={popOverlay} onOpenPlayer={openPlayer} onOpenRoster={openRoster} />;
-      case 'tradeInbox':
-        return (
-          <TradeInboxScreen
-            onBack={popOverlay}
-            onOpenLeague={openTrades}
-            onProposeInLeague={(league) => openTrades(league, 'propose')}
-            onOpenBlock={openBlock}
-            onCounter={(ctx) => openTrades({ leagueId: ctx.leagueId, name: ctx.name }, 'propose', { counterOfferId: ctx.offerId })}
-            onOpenPlayer={openPlayer}
-          />
-        );
       case 'block':
         return (
           <OnTheBlockScreen
@@ -484,7 +472,7 @@ export default function App() {
             onOpenLineup={openLineup}
             onOpenDraft={openDraft}
             onOpenWaivers={(league) => openWaivers({ leagueId: league.leagueId, position: league.position, sort: league.sort })}
-            onOpenTradeInbox={openTradeInbox}
+            onOpenTradeInbox={() => { popOverlay(); setTab('trades'); }}
             onOpenRoster={openRoster}
           />
         );

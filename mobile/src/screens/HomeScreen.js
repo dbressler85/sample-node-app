@@ -3,6 +3,7 @@ import { View, Text, FlatList, StyleSheet, Pressable, RefreshControl, ActivityIn
 import { api } from '../api';
 import { draftsPreferDevice, leagueTriagePreferDevice } from '../mflDevice';
 import { getValue, setValue, onCacheInvalidate } from '../cache';
+import { primeResource } from '../useCachedResource';
 import { colors } from '../theme';
 import { displayLabel } from '../typography';
 import { ScreenTitle } from '../components/Brand';
@@ -150,9 +151,11 @@ export async function warmHome() {
     setValue('leagues', list);
 
     // Drafts / On Deck / Watchlist alerts — independent background reads (fail-soft), written through
-    // to the shared caches so opening those views from Home paints instantly.
-    draftsPreferDevice().then((d) => { const f = sortHomeDrafts((d.drafts || []).filter(isDraftActionable)); patchHome({ drafts: f }); setValue('drafts', d); }).catch(() => {});
-    api.onDeck().then((d) => { patchHome({ onDeck: d }); setValue('ondeck', d); }).catch(() => {});
+    // to the shared caches so opening those views from Home paints instantly. prime the IN-MEMORY store
+    // too (not just disk): Draft Hub / On Deck read via useCachedResource, and without an in-memory hit
+    // they take the cold path and re-run the whole cross-league fan-out seconds after Home already did.
+    draftsPreferDevice().then((d) => { const f = sortHomeDrafts((d.drafts || []).filter(isDraftActionable)); patchHome({ drafts: f }); setValue('drafts', d); primeResource('drafts', d); }).catch(() => {});
+    api.onDeck().then((d) => { patchHome({ onDeck: d }); setValue('ondeck', d); primeResource('ondeck', d); }).catch(() => {});
     api.watchlistAlerts().then((r) => { patchHome({ watchAlerts: r.alerts || [] }); }).catch(() => {});
 
     patchHome({ progress: { done: 0, total: list.length } });
@@ -399,7 +402,7 @@ export default function HomeScreen({ active = true, demoMode, onOpenLineup, onOp
                     <Pressable
                       key={x.leagueId}
                       style={({ pressed }) => [styles.deadlineRow, pressed && { opacity: 0.7 }]}
-                      onPress={() => onOpenLeague({ leagueId: x.leagueId, name: x.name })}
+                      onPress={() => onOpenTrades({ leagueId: x.leagueId, name: x.name })}
                     >
                       <View style={styles.deadlineIcon}><NeonSign grade="inline" glyph="hourglass" color="warn" size={18} /></View>
                       <View style={{ flex: 1 }}>
