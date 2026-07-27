@@ -1192,14 +1192,11 @@ async function getOverview(cookie, token, { deviceReads = null } = {}) {
 // bench asset — required when the roster is full), and a suggested FAAB bid, plus
 // a shortlist of alternate candidates and the bench for swapping the drop. The
 // wizard walks these, letting the owner tweak each before submitting.
-async function getSuggestions(cookie, token) {
-  const leagues = await leaguesService.listLeagues(cookie);
-  // Lock REASONS (draft-pending / calendar) for the leagues that are truly locked. The lock DECISION
-  // is made per-league below from the calendar-aware posture — a 'waivers_soon' league is NOT locked
-  // even if FA is closed right now, so the wizard can still queue claims for the upcoming run.
-  const locks = await waiverLocks(cookie, token);
-  const out = await Promise.all(
-    leagues.map(async (league) => {
+// One league's wizard suggestion: best add + smart drop + FAAB bid + a position-diverse shortlist.
+// Extracted so the wizard can load it PER LEAGUE (progressive) instead of blocking on all N at once.
+// `resolveLockReason` yields the "why it's locked" string — the batch path passes the pre-computed
+// cross-league lock map; the standalone (per-league) path resolves it on its own via calendarLock.
+async function leagueSuggestionOne(cookie, token, league, resolveLockReason) {
       try {
         const settings = await loadSettings(league, cookie);
         const [roster, fas, waiverRun] = await Promise.all([
@@ -1251,7 +1248,7 @@ async function getSuggestions(cookie, token) {
         // Only a truly 'locked' league (no open FA, no upcoming run) drops its recommendation.
         const { waiverState } = await waiverPosture(cookie, token, league, settings, waiverRun);
         const locked = waiverState === 'locked';
-        const lockReason = locked ? (locks.get(String(league.leagueId)) || null) : null;
+        const lockReason = locked && resolveLockReason ? await resolveLockReason() : null;
 
         return {
           leagueId: league.leagueId,
@@ -1274,7 +1271,17 @@ async function getSuggestions(cookie, token) {
       } catch (e) {
         return { leagueId: league.leagueId, name: league.name, error: e.message };
       }
-    })
+}
+
+// All leagues at once (kept for compatibility). The mobile wizard now loads league-by-league via
+// getLeagueSuggestion so the first step paints fast instead of waiting on the whole fan-out.
+async function getSuggestions(cookie, token) {
+  const leagues = await leaguesService.listLeagues(cookie);
+  // Lock REASONS (draft-pending / calendar) for the leagues that are truly locked, computed once
+  // cross-league and handed to each per-league call.
+  const locks = await waiverLocks(cookie, token);
+  const out = await Promise.all(
+    leagues.map((league) => leagueSuggestionOne(cookie, token, league, () => Promise.resolve(locks.get(String(league.leagueId)) || null)))
   );
   const summary = {
     total: out.length,
@@ -1286,6 +1293,19 @@ async function getSuggestions(cookie, token) {
     locked: out.filter((l) => l.locked).length,
   };
   return { leagues: out, summary };
+}
+
+// ONE league's wizard suggestion, for the progressive wizard. Resolves its own lock reason (calendarLock)
+// rather than the cross-league waiverLocks fan-out, so a single step costs only that league's reads.
+async function getLeagueSuggestion(cookie, token, leagueId) {
+  const leagues = await leaguesService.listLeagues(cookie);
+  const league = leagues.find((l) => String(l.leagueId) === String(leagueId));
+  if (!league) {
+    const err = new Error(`League ${leagueId} not found for this account`);
+    err.status = 404;
+    throw err;
+  }
+  return leagueSuggestionOne(cookie, token, league, () => calendarLock(cookie, league).catch(() => null));
 }
 
 // All pending claims + recent results across leagues, for one activity view. Pending is reconciled
@@ -1350,4 +1370,4 @@ async function recentResults(cookie, _token) {
   return { results: per.flat() };
 }
 
-module.exports = { getBoard, getOverview, getSuggestions, preview, submit, previewMulti, submitMulti, cancel, getBestAvailable, getPending, freeAgentIds, invalidate, nextWaiverRun, reconciledPending, recentResults };
+module.exports = { getBoard, getOverview, getSuggestions, getLeagueSuggestion, preview, submit, previewMulti, submitMulti, cancel, getBestAvailable, getPending, freeAgentIds, invalidate, nextWaiverRun, reconciledPending, recentResults };
