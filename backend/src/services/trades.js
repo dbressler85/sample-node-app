@@ -603,9 +603,11 @@ async function getLeague(cookie, token, leagueId) {
 // surplus). Powers the "Suggest" button and the seeded offer when you start from a player.
 async function suggestFor(cookie, token, leagueId, targetId, partnerFranchiseId) {
   const data = await tradeData(cookie, token, leagueId);
-  const { league, enr, roster, ns } = data;
+  const { league, byId, enr, roster, ns } = data;
   const tid = String(targetId);
-  const targetValue = enr.value(tid) || 0;
+  // Value the target via asset() so it works for a PICK token too (trade FOR a pick you don't own),
+  // not just a player id — a player resolves to its dynasty value, a pick to its pick-curve value.
+  const targetValue = asset(tid, byId, enr).value || 0;
   const partnerNeeds = (ns[String(partnerFranchiseId)] || {}).needs || [];
   const baitMap = await tradeBaitByFranchise(cookie, token, league);
   const myBait = baitMap.get(String(league.franchiseId)) || new Set();

@@ -115,5 +115,13 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   assert(give2.length === 1 && give2[0].id === 'rb', `near-equal value → fit (RB) breaks the tie, got ${JSON.stringify(give2.map((g) => g.name))}`);
   console.log('✓ suggestGive: closeness beats need-fitting overpay; fit still wins a near-tie');
 
+  // suggestFor also values a PICK target — "trade FOR a pick you don't own" (the draft board's pick
+  // trade icon). A pick token resolves to its pick-curve value, so a fair give package is suggested.
+  const pickSug = await trades.suggestFor(CK, TOK, '1000', 'FP_0002_2027_1', '0002');
+  console.log('pick-target suggest:', JSON.stringify({ tv: pickSug.targetValue, give: pickSug.give.map((g) => `${g.name} $${g.value}`) }));
+  assert(pickSug.targetValue > 0, `a pick target is valued off the pick curve, got ${pickSug.targetValue}`);
+  assert(pickSug.give.length >= 1 && pickSug.giveValue > 0, 'a give package is suggested to acquire the pick');
+  console.log('✓ suggestFor values a PICK target — trade-for-a-pick is seeded with a suggestion');
+
   console.log('\nTRADE FIT HARNESS PASSED');
 })().catch((e) => { console.error(e.message); process.exit(1); });
