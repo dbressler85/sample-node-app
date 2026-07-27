@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -25,7 +25,7 @@ import NeonSign from '../components/NeonSign';
 import useActFlash from '../useActFlash';
 import usePopScale from '../usePopScale';
 import useAndroidBack from '../useAndroidBack';
-import useCachedResource from '../useCachedResource';
+import useCachedResource, { primeResource } from '../useCachedResource';
 import { ScreenTitle } from '../components/Brand';
 
 const SORTS = [
@@ -36,6 +36,29 @@ const SORTS = [
   { key: 'trend', label: 'Trend' },
 ];
 
+// Drop one claim from a pending payload ({ summary:{pending}, pending:[…], results:[…] }), returning a
+// new object (or the same one if nothing matched). Used for the optimistic cancel below.
+function removeClaim(p, cid, lid) {
+  if (!p || !Array.isArray(p.pending)) return p;
+  const kept = p.pending.filter((c) => !(c.id === cid && c.leagueId === lid));
+  if (kept.length === p.pending.length) return p;
+  return { ...p, pending: kept, summary: { ...p.summary, pending: Math.max(0, ((p.summary && p.summary.pending) || 0) - 1) } };
+}
+
+// Filter just-canceled claims out of a freshly-fetched pending payload. MFL's queue can still echo a
+// canceled bid for a beat after the REPLACE resubmit; without this, the reconcile refetch would make
+// the row we just removed flicker back in. `cancels` is a Map(key → expiry) — expired keys are pruned.
+function pruneCanceled(res, cancels) {
+  if (!res || !Array.isArray(res.pending) || cancels.size === 0) return res;
+  const now = Date.now();
+  for (const [k, exp] of cancels) if (exp <= now) cancels.delete(k);
+  if (cancels.size === 0) return res;
+  const kept = res.pending.filter((c) => !cancels.has(`${c.leagueId}-${c.id}`));
+  if (kept.length === res.pending.length) return res;
+  const removed = res.pending.length - kept.length;
+  return { ...res, pending: kept, summary: { ...res.summary, pending: Math.max(0, ((res.summary && res.summary.pending) || 0) - removed) } };
+}
+
 export default function WaiversScreen({ active = true, initialLeagueId, initialPosition, initialSort, onStartWizard, onOpenPlayer, onOpenLineup }) {
   // Landing overview via the shared hook: instant paint on remount (survives the tab-switch
   // unmount), throttled reloads, and it keeps the list on a failed refresh. `loadOverview`
@@ -44,7 +67,19 @@ export default function WaiversScreen({ active = true, initialLeagueId, initialP
   // Pending claims go through the same cached hook so switching to the Pending tab paints the last
   // snapshot INSTANTLY (the screen unmounts on every tab switch, so a bare fetch showed a cold
   // full-screen spinner every single time). It revalidates in the background and after a claim.
-  const { data: pending, reload: loadPending } = useCachedResource('waivers:pending', () => api.waiverPending(), { active });
+  // Claims the user just canceled: key `${lid}-${cid}` → expiry ms. We drop a canceled row instantly
+  // and keep it dropped through the reconcile grace window (MFL can echo it back for a beat).
+  const recentCancels = useRef(new Map());
+  // In-flight cancels — a hard guard against a double-tap firing a SECOND DELETE. That matters for
+  // correctness, not just polish: an MFL claim id encodes its index in the round, and the first cancel
+  // resubmits the round WITHOUT that pick, shifting every later index — so a second DELETE at the old
+  // index would cancel the WRONG claim.
+  const cancelingRef = useRef(new Set());
+  const { data: pending, reload: loadPending, setData: setPending } = useCachedResource(
+    'waivers:pending',
+    async () => pruneCanceled(await api.waiverPending(), recentCancels.current),
+    { active },
+  );
   const [segment, setSegment] = useState('leagues'); // 'leagues' | 'pending'
   // A league drill-in: the per-league board. Set from a card tap or a Home
   // deep-link (initialLeagueId), which lands the user straight on that board.
@@ -121,13 +156,32 @@ export default function WaiversScreen({ active = true, initialLeagueId, initialP
   }
 
   async function cancelClaim(cid, lid) {
+    const key = `${lid}-${cid}`;
+    if (cancelingRef.current.has(key)) return; // already canceling this one — ignore the repeat tap
+    cancelingRef.current.add(key);
+    // Reflect the action IMMEDIATELY (docs/UX_GUARDRAILS.md): drop the row now instead of waiting on the
+    // MFL round-trip + the slow reconcile refetch (that lag was the "I clicked cancel and nothing
+    // happened" report). Keep it dropped through the grace window so the reconcile can't flicker it back.
+    recentCancels.current.set(key, Date.now() + 12000);
+    const prevPending = pending;
+    const next = removeClaim(pending, cid, lid);
+    setPending(next);
+    primeResource('waivers:pending', next); // keep the survive-remount snapshot in step with the view
+    toast('Claim canceled');
     try {
       await api.cancelClaim(lid, cid);
-      loadPending();
+      loadPending(); // reconcile in the background; pruneCanceled keeps the canceled row from returning
       loadOverview();
       if (openLeagueId) loadBoard(); // reflect the removed claim in the board's claims strip
     } catch (e) {
+      // Non-destructive (docs/UX_GUARDRAILS.md): the cancel didn't take, so put the row back exactly as
+      // it was and let the user try again, rather than leaving a phantom "canceled" that's still live.
+      recentCancels.current.delete(key);
+      setPending(prevPending);
+      primeResource('waivers:pending', prevPending);
       appAlert('Could not cancel', e.message);
+    } finally {
+      cancelingRef.current.delete(key);
     }
   }
 
