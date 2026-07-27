@@ -4,6 +4,7 @@ import { api } from '../api';
 import { colors } from '../theme';
 import { displayLg } from '../typography';
 import ErrorView from '../components/ErrorView';
+import NeonSign from '../components/NeonSign';
 import useAndroidBack from '../useAndroidBack';
 import useCachedResource from '../useCachedResource';
 
@@ -85,7 +86,7 @@ export default function PlayoffBracketScreen({ league, onBack }) {
           contentContainerStyle={styles.center}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={reload} tintColor={colors.accent} />}
         >
-          <Text style={styles.emptyEmoji}>🏆</Text>
+          <NeonSign glyph="trophy" color="gold" grade="inline" size={56} style={styles.emptyEmoji} />
           <Text style={styles.emptyTitle}>No playoff bracket yet</Text>
           <Text style={styles.emptyText}>Brackets appear once the postseason is seeded. Check back when the fantasy playoffs begin.</Text>
         </ScrollView>
@@ -94,7 +95,10 @@ export default function PlayoffBracketScreen({ league, onBack }) {
           {data.champion ? (
             <View style={styles.champBanner}>
               <Text style={styles.champLabel}>{data.champion.title || 'League Champion'}</Text>
-              <Text style={styles.champName} numberOfLines={1}>🏆 {data.champion.name}</Text>
+              <View style={styles.champNameRow}>
+                <NeonSign glyph="trophy" color="gold" grade="inline" size={18} />
+                <Text style={styles.champName} numberOfLines={1}>{data.champion.name}</Text>
+              </View>
             </View>
           ) : null}
 
@@ -132,7 +136,8 @@ const styles = StyleSheet.create({
   subtitle: { color: colors.textDim, fontSize: 13, fontWeight: '700', paddingHorizontal: 16, paddingBottom: 6 },
   champBanner: { marginHorizontal: 12, marginBottom: 8, backgroundColor: 'rgba(243,193,74,0.10)', borderWidth: 1, borderColor: colors.gold, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 14, alignItems: 'center' },
   champLabel: { color: colors.gold, fontSize: 11, fontWeight: '800', letterSpacing: 1, textTransform: 'uppercase' },
-  champName: { color: colors.text, fontSize: 16, fontWeight: '900', marginTop: 2 },
+  champNameRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 2 },
+  champName: { color: colors.text, fontSize: 16, fontWeight: '900' },
   center: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
   emptyEmoji: { fontSize: 44, marginBottom: 12 },
   emptyTitle: { color: colors.text, fontSize: 18, fontWeight: '800', marginBottom: 6 },

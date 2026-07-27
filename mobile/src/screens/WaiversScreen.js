@@ -20,6 +20,7 @@ import ValueDelta from '../components/ValueDelta';
 import { toast } from '../components/Toast';
 import ErrorView from '../components/ErrorView';
 import Reveal from '../components/Reveal';
+import NeonSign from '../components/NeonSign';
 import useAndroidBack from '../useAndroidBack';
 import useCachedResource from '../useCachedResource';
 import { ScreenTitle } from '../components/Brand';
@@ -259,17 +260,18 @@ function runLabel(ms) {
 // The league's pickup posture → a clear, color-coded banner. Three distinct states.
 function stateInfo(item) {
   if (item.waiverState === 'fa_open') {
-    return { icon: '🟢', label: 'Free agency open', sub: 'Add anyone now — processes immediately', color: colors.good };
+    return { glyph: 'dot', neon: 'good', label: 'Free agency open', sub: 'Add anyone now — processes immediately', color: colors.good };
   }
   if (item.waiverState === 'waivers_soon') {
     return {
-      icon: '⏳',
+      glyph: 'hourglass',
+      neon: 'accent',
       label: item.nextWaiverRun != null ? `Waivers process ${runLabel(item.nextWaiverRun)}` : 'Waiver cycle running',
       sub: 'Claims you place queue now and process at the run',
       color: colors.accent,
     };
   }
-  return { icon: '🔒', label: 'Waivers closed', sub: item.lockReason || 'No open free agency and no upcoming waiver run', color: colors.textDim };
+  return { glyph: 'lock', neon: 'cold', label: 'Waivers closed', sub: item.lockReason || 'No open free agency and no upcoming waiver run', color: colors.textDim };
 }
 
 function LeagueCard({ item, onPress }) {
@@ -295,7 +297,10 @@ function LeagueCard({ item, onPress }) {
         <SystemBadge system={item.system} />
       </View>
       <View style={[styles.stateBanner, { backgroundColor: st.color + '18', borderColor: st.color + '55' }]}>
-        <Text style={[styles.stateLabel, { color: st.color }]}>{st.icon}  {st.label}</Text>
+        <View style={styles.stateLabelRow}>
+          <NeonSign glyph={st.glyph} color={st.neon} grade="inline" size={15} />
+          <Text style={[styles.stateLabel, { color: st.color }]}>{st.label}</Text>
+        </View>
         <Text style={styles.stateSub} numberOfLines={2}>{st.sub}</Text>
       </View>
       <Text style={styles.ovMeta}>
@@ -717,6 +722,7 @@ const styles = StyleSheet.create({
   ovName: { color: colors.text, fontSize: 16, fontWeight: '700', flex: 1, marginRight: 10 },
   ovMeta: { color: colors.textDim, fontSize: 12, fontWeight: '700', marginTop: 8 },
   stateBanner: { marginTop: 8, borderRadius: 10, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 7 },
+  stateLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   stateLabel: { fontSize: 13, fontWeight: '900' },
   stateSub: { color: colors.textDim, fontSize: 11, fontWeight: '600', marginTop: 2 },
   ovTop3: { color: colors.textDim, fontSize: 12, marginTop: 6 },

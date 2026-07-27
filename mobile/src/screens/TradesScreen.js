@@ -8,6 +8,7 @@ import { celebrate } from '../components/Celebrate';
 import { toast } from '../components/Toast';
 import TradeColumns from '../components/TradeColumns';
 import Reveal from '../components/Reveal';
+import NeonSign from '../components/NeonSign';
 import useAndroidBack from '../useAndroidBack';
 import { peekResource, primeResource } from '../useCachedResource';
 
@@ -533,7 +534,10 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
         <ScrollView contentContainerStyle={[styles.list, { paddingBottom: footerH + 24 }]}>
           {counterInfo ? (
             <View style={styles.counterBanner}>
-              <Text style={styles.counterTitle}>↩ Countering their offer</Text>
+              <View style={styles.counterTitleRow}>
+                <NeonSign glyph="undo" color="accent" grade="inline" size={13} />
+                <Text style={styles.counterTitle}>Countering their offer</Text>
+              </View>
               <Text style={styles.counterText}>{counterInfo.rationale}</Text>
             </View>
           ) : dealNote ? (
@@ -811,7 +815,10 @@ function OfferCard({ offer, busy, onAccept, onReject, onWithdraw, onCounter, onO
       )}
       {onCounter ? (
         <Pressable style={({ pressed }) => [styles.counterBtn, pressed && { opacity: 0.7 }]} onPress={() => onCounter(offer)} disabled={busy}>
-          <Text style={styles.counterBtnText}>↩ Counter with a balanced offer</Text>
+          <View style={styles.counterBtnRow}>
+            <NeonSign glyph="undo" color="accent" grade="inline" size={13} />
+            <Text style={styles.counterBtnText}>Counter with a balanced offer</Text>
+          </View>
         </Pressable>
       ) : null}
     </View>
@@ -980,9 +987,11 @@ const styles = StyleSheet.create({
   fitNeed: { color: colors.bad, fontSize: 10, fontWeight: '800' },
   fitSurp: { color: colors.good, fontSize: 10, fontWeight: '800' },
   counterBanner: { backgroundColor: colors.cardAlt, borderRadius: 12, borderWidth: 1, borderColor: colors.accent, padding: 12, marginBottom: 6 },
-  counterTitle: { color: colors.accent, fontSize: 13, fontWeight: '900', marginBottom: 3 },
+  counterTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 3 },
+  counterTitle: { color: colors.accent, fontSize: 13, fontWeight: '900' },
   counterText: { color: colors.text, fontSize: 13, lineHeight: 18 },
   counterBtn: { marginTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, paddingTop: 10, alignItems: 'center' },
+  counterBtnRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   counterBtnText: { color: colors.accent, fontSize: 14, fontWeight: '800' },
   reviewBtn: { marginTop: 10, borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
   reviewBtnText: { color: colors.textDim, fontSize: 13, fontWeight: '800' },

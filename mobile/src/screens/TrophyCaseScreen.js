@@ -4,6 +4,7 @@ import { api } from '../api';
 import { colors } from '../theme';
 import { displayLg } from '../typography';
 import ErrorView from '../components/ErrorView';
+import NeonSign from '../components/NeonSign';
 import useAndroidBack from '../useAndroidBack';
 import useCachedResource, { primeResource } from '../useCachedResource';
 
@@ -18,7 +19,7 @@ function TrophyCard({ trophy, onRemove }) {
       onLongPress={() => onRemove(trophy)}
       delayLongPress={350}
     >
-      <Text style={styles.cup}>🏆</Text>
+      <NeonSign glyph="trophy" color="gold" grade="inline" size={40} style={styles.cup} />
       <Text style={styles.year}>{trophy.year}</Text>
       <Text style={styles.team} numberOfLines={2}>{trophy.team}</Text>
       <Text style={styles.league} numberOfLines={2}>{trophy.leagueName}</Text>
@@ -49,7 +50,7 @@ export default function TrophyCaseScreen({ onBack }) {
       const n = (res.added || []).length;
       if (n) {
         const lines = res.added.map((t) => `${t.year} · ${t.leagueName}`).join('\n');
-        Alert.alert(`Found ${n} title${n === 1 ? '' : 's'}! 🏆`, lines);
+        Alert.alert(`Found ${n} title${n === 1 ? '' : 's'}!`, lines);
       } else {
         Alert.alert('All caught up', 'No new championships found in your MyFantasyLeague playoff history.');
       }
@@ -134,7 +135,7 @@ export default function TrophyCaseScreen({ onBack }) {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={reload} tintColor={colors.accent} />}
           ListEmptyComponent={
             <View style={styles.empty}>
-              <Text style={styles.emptyCup}>🏆</Text>
+              <NeonSign glyph="trophy" color="gold" grade="inline" size={64} style={styles.emptyCup} />
               <Text style={styles.emptyTitle}>No trophies yet</Text>
               <Text style={styles.emptyText}>Add a championship you’ve won — team, league, and year. Every title, all in one case.</Text>
               <Pressable onPress={() => setAdding(true)} style={styles.emptyAdd}><Text style={styles.emptyAddText}>＋ Add your first title</Text></Pressable>
@@ -194,14 +195,14 @@ const styles = StyleSheet.create({
   grid: { padding: 12, paddingBottom: 40 },
   row: { gap: 12, marginBottom: 12 },
   card: { flex: 1, backgroundColor: colors.card, borderRadius: 16, borderWidth: 1, borderColor: colors.border, borderTopColor: colors.gold, borderTopWidth: 3, padding: 16, alignItems: 'center' },
-  cup: { fontSize: 40 },
+  cup: { marginBottom: 4 },
   year: { color: colors.gold, fontSize: 15, fontWeight: '900', marginTop: 6, fontVariant: ['tabular-nums'] },
   team: { color: colors.text, fontSize: 15, fontWeight: '800', textAlign: 'center', marginTop: 4 },
   league: { color: colors.textDim, fontSize: 12, fontWeight: '600', textAlign: 'center', marginTop: 2 },
   hint: { color: colors.textDim, fontSize: 12, textAlign: 'center', marginTop: 6, fontStyle: 'italic' },
 
   empty: { alignItems: 'center', paddingHorizontal: 20 },
-  emptyCup: { fontSize: 52, marginBottom: 10, opacity: 0.9 },
+  emptyCup: { marginBottom: 12 },
   emptyTitle: { color: colors.text, fontSize: 18, fontWeight: '800', marginBottom: 6 },
   emptyText: { color: colors.textDim, fontSize: 14, textAlign: 'center', lineHeight: 20, marginBottom: 16 },
   emptyAdd: { backgroundColor: colors.gold, borderRadius: 12, paddingHorizontal: 18, paddingVertical: 11 },

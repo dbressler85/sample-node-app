@@ -89,7 +89,7 @@ export const HELP = [
     body: [
       'During games the scoreboard shows your live score, a projected final (current points plus the projections of players still to play), and a win probability.',
       'Win probability is estimated from the projected final margin, with uncertainty that shrinks as more of your players finish. “final” appears once every player is locked.',
-      'A ⚡ marks a close game (a coin-flip-ish win probability).',
+      'A neon bolt marks a close game (a coin-flip-ish win probability).',
     ],
   },
 ];

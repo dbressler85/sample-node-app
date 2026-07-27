@@ -34,8 +34,8 @@ export default function ScoresScreen({ onOpenLineup, active = true }) {
   const hasUnlocked = !!(data && data.games && data.games.some((g) => !g.locked));
   usePoll(reload, 45000, hasUnlocked && active);
 
-  // Celebrate (or commiserate) when matchups go final — a 🏆 for a win, a deadpan
-  // 💀 for a loss. First-seen tracking keyed by league+week+result, persisted to
+  // Celebrate (or commiserate) when matchups go final — a neon trophy moment for a win, a
+  // deadpan broken-sign "L" for a loss. First-seen tracking keyed by league+week+result, persisted to
   // disk, so a result fires its moment exactly once and never re-fires when you
   // reopen the tab or the board polls again. A mixed week shows the dominant mood.
   const seenRef = useRef(null);
