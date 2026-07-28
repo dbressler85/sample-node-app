@@ -139,6 +139,12 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
   // active metric so the dominant sector reads first in either lens.
   const allocPctOf = (a) => (holdView === 'exposure' && a.sharePct != null ? a.sharePct : a.pct);
   const allocView = d.allocation ? [...d.allocation].sort((a, b) => allocPctOf(b) - allocPctOf(a)) : [];
+  // Only render well-formed arbitrage rows — an item must carry the player name and BOTH league
+  // legs (name + numeric value). Guards against a stale/older-shape cached payload rendering as
+  // ghost rows (position badge + Shop with no name/value), which reads as "broken".
+  const arbItems = (d.arbitrage || []).filter(
+    (a) => a && a.id && a.name && a.high && a.low && Number.isFinite(a.high.value) && Number.isFinite(a.low.value) && a.high.name && a.low.name
+  );
 
   // The Top-holdings list is the one unbounded part of this screen (a player per league you hold
   // him in → potentially hundreds of rows once "Show all" is on). Drive it through a FlatList so
@@ -235,10 +241,10 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
         {/* Cross-league arbitrage — the same player is worth more in one of your leagues than another
             (format + league size drive it), so that's where to shop him. Only shown when you actually
             have a gap worth acting on. */}
-        {d.arbitrage && d.arbitrage.length ? (
+        {arbItems.length ? (
           <View style={styles.card}>
             <Text style={[styles.cardTitle, displayLabel()]}>Cross-league arbitrage</Text>
-            {d.arbitrage.map((a, i) => {
+            {arbItems.map((a, i) => {
               const baited = a.id in arbBait ? arbBait[a.id] : !!a.baited;
               return (
                 <Reveal key={a.id} delay={Math.min(i, 6) * 45}>
