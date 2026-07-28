@@ -22,7 +22,7 @@ export default function LeagueContext({ context }) {
   return (
     <View style={styles.card}>
       <View style={styles.chipRow}>
-        <Chip label={superflex ? 'Superflex' : '1QB'} tone={superflex ? 'accent' : undefined} />
+        <Chip label={superflex ? '2QB' : '1QB'} tone={superflex ? 'accent' : undefined} />
         {pprLabel ? <Chip label={pprLabel} /> : null}
         {/* TE-premium from EITHER trigger: a TE reception bump shows the per-rec amount; a mandated
             2nd TE starter shows "TE-premium · 2 TE". Either way it's flagged wherever format shows. */}

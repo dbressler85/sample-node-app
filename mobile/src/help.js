@@ -8,8 +8,8 @@ export const HELP = [
     title: 'Where player values come from',
     body: [
       'Player values come from FantasyCalc, a community consensus of dynasty trade value. We pull them live and normalize to a 0–100 scale, so the most valuable player sits near 100 and everyone else is relative to that.',
-      'Values are format-aware: they’re fetched separately for 1QB vs Superflex and for your league’s PPR, because a QB is worth far more when you can start two. Each league is priced in its own format automatically.',
-      'Draft picks are valued by FantasyCalc too — per slot and format-aware (a Superflex 1.01 is worth far more than a 1QB one), on the same 0–100 scale. Future picks whose exact slot isn’t known yet fall back to a round-level average, discounted a little for being further out. “Trending” uses Sleeper add/drop momentum, not value.',
+      'Values are format-aware: they’re fetched separately for 1QB vs 2QB (a.k.a. Superflex), for your league’s PPR, and for TE-premium, because a QB is worth far more when you can start two — and a TE is worth more when he scores extra per catch. Each league is priced in its own format automatically.',
+      'Draft picks are valued by FantasyCalc too — per slot and format-aware (a 2QB 1.01 is worth far more than a 1QB one), on the same 0–100 scale. Future picks whose exact slot isn’t known yet fall back to a round-level average, discounted a little for being further out. “Trending” uses Sleeper add/drop momentum, not value.',
       'These are model estimates, not a market price — great for comparing, but your league’s tastes still matter.',
       'Values and pick prices are provided by FantasyCalc (FantasyCalc.com); tap the FantasyCalc.com credit shown on value screens to visit them.',
     ],
@@ -54,9 +54,9 @@ export const HELP = [
     id: 'format',
     title: 'League format & the value lens',
     body: [
-      'Leagues differ in two ways that move dynasty value most: how many QBs you can start (1QB vs Superflex/2QB) and PPR. A QB is worth far more in Superflex.',
+      'Leagues differ in a few ways that move dynasty value most: how many QBs you can start (1QB vs 2QB / Superflex), PPR, and whether tight ends score a premium per catch. A QB is worth far more in 2QB; a TE is worth more in TE-premium.',
       'The app detects each league’s format from its starting lineup and scoring rules, and prices that league accordingly.',
-      'On the Players screen, the value lens toggle (1QB / Superflex) lets you re-price and re-sort the entire player pool through either market, so you can compare across formats.',
+      'On the Players screen, the value-lens toggles (1QB / 2QB, and TE-premium on/off) let you re-price and re-sort the entire player pool through either market, so you can compare across formats.',
     ],
   },
   {

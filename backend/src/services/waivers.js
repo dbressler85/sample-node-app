@@ -1048,9 +1048,9 @@ async function reorder(cookie, token, leagueId, orderedIds) {
 // `format` (optional) re-prices the cross-league board through a single value lens ('1qb' | 'sf')
 // so the Free Agents tab can match the Players screen's SF↔1QB toggle. Null uses the neutral market
 // (docs/DATA_SOURCES.md Q3).
-async function getBestAvailable(cookie, token, { deviceReads = null, format = null } = {}) {
+async function getBestAvailable(cookie, token, { deviceReads = null, format = null, tep = false } = {}) {
   const leagues = await leaguesService.orderedLeagues(cookie, token);
-  const [byId, enr, ctx] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(leagueFormat.lensFormat(format), cookie), ctxFor(cookie)]);
+  const [byId, enr, ctx] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(leagueFormat.lensFormat(format, tep), cookie), ctxFor(cookie)]);
   // Season-to-date points + this week's projection, under the owner's primary league's scoring — the
   // key streaming signal for free agents (who to grab this week), on every row.
   const points = await pointsMaps.maps(cookie, leagues[0] || null, ctx.week);

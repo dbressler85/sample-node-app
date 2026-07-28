@@ -12,7 +12,7 @@ router.use(requireSession);
 // `?format=1qb|sf` re-prices the list through that value lens (matches the Players screen toggle).
 router.get('/watchlist', async (req, res, next) => {
   try {
-    res.json(checkResponse(schemas.Watchlist, await watchlist.getWatchlist(req.mflCookie, req.account, { format: req.query.format || null }), 'GET /watchlist'));
+    res.json(checkResponse(schemas.Watchlist, await watchlist.getWatchlist(req.mflCookie, req.account, { format: req.query.format || null, tep: req.query.tep }), 'GET /watchlist'));
   } catch (err) {
     next(err);
   }

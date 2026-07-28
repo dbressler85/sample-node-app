@@ -279,8 +279,8 @@ export function draftsPreferDevice() {
 // lighter per-user device reads (rosters/assets/draft) stay device-origin; only the heavy pool reverts.
 // The wrappers keep their names + `format` passthrough so the screens/prefetch are unchanged; they simply
 // resolve to the backend GET, which the value lens (?format=) still flows through.
-export function bestAvailablePreferDevice(format) {
-  return api.bestAvailable(format);
+export function bestAvailablePreferDevice(format, tep) {
+  return api.bestAvailable(format, tep);
 }
 export function waiversOverviewPreferDevice() {
   return api.waiversOverview();
