@@ -1311,7 +1311,7 @@ async function getOverview(cookie, token, { deviceReads = null } = {}) {
 // Extracted so the wizard can load it PER LEAGUE (progressive) instead of blocking on all N at once.
 // `resolveLockReason` yields the "why it's locked" string — the batch path passes the pre-computed
 // cross-league lock map; the standalone (per-league) path resolves it on its own via calendarLock.
-async function leagueSuggestionOne(cookie, token, league) {
+async function leagueSuggestionOne(cookie, token, league, { seedAddId = null } = {}) {
       try {
         const draftService = require('./draft'); // lazy require — avoids a waivers↔draft cycle
         // Phase 1: independent base reads in PARALLEL — league settings, format (SF/PPR/TEP, also keys
@@ -1371,7 +1371,26 @@ async function leagueSuggestionOne(cookie, token, league) {
           id: p.id, name: p.name, position: p.position, team: p.team,
           value: p.value, projection: p.projection, trend: p.trend, ownership: p.ownership, availability: p.availability, bye: p.bye,
         }));
-        const top = candidates[0] || null;
+        // When the wizard is SEEDED with a specific player (the "claim in N leagues" hand-off), make him
+        // the recommended add for this league — pulled to the front of the candidate list (fetched into
+        // it if he's outside the top 30) — so the wizard opens on HIM with a smart drop/bid, not the
+        // generic best-available. Falls back to the best add if he isn't a free agent here.
+        let top = candidates[0] || null;
+        if (seedAddId) {
+          const inList = candidates.find((c) => String(c.id) === String(seedAddId));
+          if (inList) {
+            candidates.splice(candidates.indexOf(inList), 1);
+            candidates.unshift(inList);
+            top = inList;
+          } else {
+            const fa = freeAgents.find((p) => String(p.id) === String(seedAddId));
+            if (fa) {
+              const seedCand = { id: fa.id, name: fa.name, position: fa.position, team: fa.team, value: fa.value, projection: fa.projection, trend: fa.trend, ownership: fa.ownership, availability: fa.availability, bye: fa.bye };
+              candidates.unshift(seedCand);
+              top = seedCand;
+            }
+          }
+        }
         // Suggested drop is add-position aware so it never proposes cutting your lone K/DEF unless the
         // pickup replaces that slot (a manual pick can still drop anyone).
         const drop = suggestDrop(roster, top ? top.position : null);
@@ -1508,7 +1527,7 @@ async function getSuggestions(cookie, token) {
 
 // ONE league's wizard suggestion, for the progressive wizard. Resolves its own lock reason (calendarLock)
 // rather than the cross-league waiverLocks fan-out, so a single step costs only that league's reads.
-async function getLeagueSuggestion(cookie, token, leagueId) {
+async function getLeagueSuggestion(cookie, token, leagueId, { seedAddId = null } = {}) {
   const leagues = await leaguesService.listLeagues(cookie);
   const league = leagues.find((l) => String(l.leagueId) === String(leagueId));
   if (!league) {
@@ -1516,7 +1535,7 @@ async function getLeagueSuggestion(cookie, token, leagueId) {
     err.status = 404;
     throw err;
   }
-  return leagueSuggestionOne(cookie, token, league);
+  return leagueSuggestionOne(cookie, token, league, { seedAddId });
 }
 
 // All pending claims + recent results across leagues, for one activity view. Pending is reconciled

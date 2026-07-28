@@ -41,7 +41,7 @@ router.get('/waivers/suggestions', async (req, res, next) => {
 // on demand (current + prefetch next) so the first step paints fast instead of blocking on every league.
 router.get('/leagues/:leagueId/waivers/suggestion', async (req, res, next) => {
   try {
-    res.json(await waivers.getLeagueSuggestion(req.mflCookie, req.account, req.params.leagueId));
+    res.json(await waivers.getLeagueSuggestion(req.mflCookie, req.account, req.params.leagueId, { seedAddId: req.query.seedAddId || null }));
   } catch (err) {
     next(err);
   }

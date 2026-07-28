@@ -19,6 +19,7 @@ const leaguesService = require('./leagues');
 const rosterService = require('./roster');
 const leagueContext = require('../lib/leagueContext');
 const leagueFormat = require('../lib/leagueformat');
+const playerhubService = require('./playerhub');
 const baitStore = require('../store/tradebait');
 const playerTags = require('../store/playerTags');
 const watchlist = require('../store/watchlist');
@@ -491,4 +492,37 @@ async function remove(cookie, token, leagueId, playerId) {
   return { ok: true, onBlock: false, leagueId: String(leagueId), id, synced };
 }
 
-module.exports = { getBlock, getBlockEditor, saveBlock, getMarket, getMarketLeagues, getMarketLeague, leagueIds, add, remove };
+// Every league where the signed-in owner ROSTERS this player, each with the format context (lineup /
+// scoring / superflex / TE-premium), my team's outlook there, and whether he's ALREADY on that
+// league's trade bait — the data behind the "add to trade bait" wizard launched from a player. Checking
+// a league then calls add() (read-modify-write), so he's appended to that league's existing block.
+async function leaguesForPlayer(cookie, token, playerId) {
+  const id = String(playerId);
+  const byId = await playersLib.load(cookie);
+  const base = playersLib.resolve(byId, id);
+  const player = { id, name: base.name, position: base.position, team: base.team };
+  const g = await playerhubService.gather(cookie, token);
+  // gather's light roster buckets hold player OBJECTS ({id,...}); normalize to id strings either way.
+  const pid = (p) => String(p && typeof p === 'object' ? p.id : p);
+  const owned = (g.data || []).filter(({ roster }) => roster &&
+    [...(roster.starters || []), ...(roster.bench || []), ...(roster.ir || []), ...(roster.taxi || [])].some((p) => pid(p) === id));
+  const leagues = await Promise.all(
+    owned.map(async ({ league }) => {
+      const [context, summary, bait] = await Promise.all([
+        leagueContext.build(cookie, league).catch(() => null),
+        rosterService.getRoster(cookie, league.leagueId).then((r) => r.summary || null).catch(() => null),
+        leagueIds(cookie, token, league.leagueId).then((b) => b.ids || []).catch(() => []),
+      ]);
+      return {
+        leagueId: String(league.leagueId),
+        name: league.name,
+        // Shape matches the mobile LeagueContext component (format chips + the "Your team" line).
+        context: context ? { ...context, team: summary } : summary ? { team: summary } : null,
+        onBait: bait.map(String).includes(id),
+      };
+    })
+  );
+  return { player, leagues, total: leagues.length };
+}
+
+module.exports = { getBlock, getBlockEditor, saveBlock, getMarket, getMarketLeagues, getMarketLeague, leagueIds, leaguesForPlayer, add, remove };

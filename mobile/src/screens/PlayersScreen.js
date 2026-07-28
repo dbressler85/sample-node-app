@@ -100,7 +100,7 @@ function sortNews(list, key) {
   return arr.sort((a, b) => (SEV_RANK[b.severity] || 0) - (SEV_RANK[a.severity] || 0) || (b.startingCount - a.startingCount) || (b.affectedCount - a.affectedCount));
 }
 
-export default function PlayersScreen({ onOpenPlayer }) {
+export default function PlayersScreen({ onOpenPlayer, onStartWaiverWizard }) {
   const [query, setQuery] = useState('');
   const [searchRes, setSearchRes] = useState(null);
   const [tab, setTab] = useState('rankings');
@@ -523,6 +523,9 @@ export default function PlayersScreen({ onOpenPlayer }) {
         <AddAcrossSheet
           player={addAcross}
           onClose={() => setAddAcross(null)}
+          // Hand the checked leagues + player to the waiver wizard to review each add/drop/bid before
+          // filing — no auto-picked drop that you then have to go fix on the Waivers tab.
+          onReview={onStartWaiverWizard ? (player, stubs) => { setAddAcross(null); onStartWaiverWizard(stubs, player.id); } : undefined}
           onDone={() => {
             setAddAcross(null);
             // Reflect the add: the player is no longer free, so refetch the board (kept on screen while it revalidates).

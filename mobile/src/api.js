@@ -236,13 +236,15 @@ export const api = {
   blockEditor: () => request('/api/tradebait/editor'),
   saveBlock: (leagueId, tokens, note) => request(`/api/leagues/${leagueId}/tradebait`, { method: 'POST', body: { tokens, note } }),
   leagueBait: (leagueId) => request(`/api/leagues/${leagueId}/tradebait`),
+  // Leagues where I roster this player (format + outlook + already-on-block), for the "shop him" wizard.
+  tradebaitForPlayer: (playerId) => request(`/api/tradebait/for-player/${playerId}`),
   addBait: (leagueId, playerId, note) => request(`/api/leagues/${leagueId}/tradebait/${playerId}`, { method: 'POST', body: { note } }),
   removeBait: (leagueId, playerId) => request(`/api/leagues/${leagueId}/tradebait/${playerId}`, { method: 'DELETE' }),
 
   waiversOverview: () => request('/api/waivers/overview'),
   waiverSuggestions: () => request('/api/waivers/suggestions'),
   // ONE league's wizard suggestion — the wizard loads these lazily (current + prefetch next).
-  waiverSuggestion: (leagueId) => request(`/api/leagues/${leagueId}/waivers/suggestion`),
+  waiverSuggestion: (leagueId, seedAddId) => request(`/api/leagues/${leagueId}/waivers/suggestion${seedAddId ? `?seedAddId=${encodeURIComponent(seedAddId)}` : ''}`),
   // `format` ('1qb'|'sf') re-prices the board through that value lens (matches the Players toggle).
   // NOTE (A-10): the free-agent POOL is fetched here on the BACKEND, not on-device — it's the one heavy
   // read (thousands/league) and is league-shareable, so the backend's cross-user cache serves it more
