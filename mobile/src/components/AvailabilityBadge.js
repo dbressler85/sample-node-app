@@ -1,6 +1,6 @@
 import React from 'react';
 import { Text, StyleSheet } from 'react-native';
-import { colors } from '../theme';
+import { colors, size } from '../theme';
 
 // Small colored pill for a player's game status. Renders nothing when ACTIVE.
 const COLOR = {
@@ -24,7 +24,7 @@ export default function AvailabilityBadge({ availability, style }) {
 
 const styles = StyleSheet.create({
   badge: {
-    fontSize: 10,
+    fontSize: size.micro,
     fontWeight: '800',
     borderWidth: 1,
     borderRadius: 5,

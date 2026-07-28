@@ -74,6 +74,9 @@ export default function TradeAcrossSheet({ player, onClose, onCraft, onStartWiza
                   key={l.leagueId}
                   style={({ pressed }) => [styles.row, pressed && { opacity: 0.7 }]}
                   onPress={() => setSelected((s) => { const n = new Set(s); n.has(l.leagueId) ? n.delete(l.leagueId) : n.add(l.leagueId); return n; })}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: on }}
+                  accessibilityLabel={`${l.name}, held by ${l.partnerName}`}
                 >
                   <View style={[styles.check, on && styles.checkOn]}>{on ? <Text style={styles.checkMark}>✓</Text> : null}</View>
                   <View style={{ flex: 1 }}>

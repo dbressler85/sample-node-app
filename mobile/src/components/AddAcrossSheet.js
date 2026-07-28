@@ -84,7 +84,14 @@ export default function AddAcrossSheet({ player, onClose, onDone, onReview }) {
             {preview.leagues.map((l) => {
               const on = selected.has(l.leagueId);
               return (
-                <Pressable key={l.leagueId} style={styles.addRow} onPress={() => toggle(l.leagueId)}>
+                <Pressable
+                  key={l.leagueId}
+                  style={styles.addRow}
+                  onPress={() => toggle(l.leagueId)}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: on }}
+                  accessibilityLabel={l.name}
+                >
                   <View style={[styles.check, on && styles.checkOn]}>{on ? <Text style={styles.checkMark}>✓</Text> : null}</View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.addLeague} numberOfLines={1}>{l.name}</Text>

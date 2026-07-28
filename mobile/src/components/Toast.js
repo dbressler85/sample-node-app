@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Animated } from 'react-native';
+import { View, Text, StyleSheet, Animated, AccessibilityInfo } from 'react-native';
 import { colors } from '../theme';
+import useReducedMotion from '../useReducedMotion';
 
 // On-theme, non-blocking toast — the replacement for immersion-breaking white `Alert` popups on a
 // plain success/info. A tiny global bus mirrors celebrate(): `toast('16 assets shopped')` from
@@ -23,6 +24,7 @@ export function ToastHost() {
   const [t, setT] = useState(null);
   const anim = useRef(new Animated.Value(0)).current;
   const timer = useRef(null);
+  const reduced = useReducedMotion();
 
   useEffect(() => {
     emit = (payload) => setT({ ...payload, id: `${Date.now()}-${Math.random()}` });
@@ -31,14 +33,22 @@ export function ToastHost() {
 
   useEffect(() => {
     if (!t) return undefined;
-    anim.setValue(0);
-    Animated.spring(anim, { toValue: 1, useNativeDriver: true, friction: 8, tension: 80 }).start();
+    // The toast is pointerEvents="none", so a screen reader can't land on it — announce the
+    // confirmation text explicitly so VoiceOver/TalkBack still hears "done" messages.
+    if (t.message) AccessibilityInfo.announceForAccessibility(t.message);
+    // Reduce-motion: skip the spring/slide, just show it (Punctuation register is decorative).
+    if (reduced) {
+      anim.setValue(1);
+    } else {
+      anim.setValue(0);
+      Animated.spring(anim, { toValue: 1, useNativeDriver: true, friction: 8, tension: 80 }).start();
+    }
     clearTimeout(timer.current);
     timer.current = setTimeout(() => {
-      Animated.timing(anim, { toValue: 0, duration: 260, useNativeDriver: true }).start(() => setT(null));
+      Animated.timing(anim, { toValue: 0, duration: reduced ? 0 : 260, useNativeDriver: true }).start(() => setT(null));
     }, 2600);
     return () => clearTimeout(timer.current);
-  }, [t, anim]);
+  }, [t, anim, reduced]);
 
   if (!t) return null;
   const tone = TONE[t.tone] || TONE.success;

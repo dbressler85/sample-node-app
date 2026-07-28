@@ -77,7 +77,15 @@ export default function TradeBaitSheet({ player, onClose, onDone }) {
                 const already = !!l.onBait;
                 const on = already || selected.has(l.leagueId);
                 return (
-                  <Pressable key={l.leagueId} style={styles.row} onPress={() => (already ? null : toggle(l.leagueId))} disabled={already}>
+                  <Pressable
+                    key={l.leagueId}
+                    style={styles.row}
+                    onPress={() => (already ? null : toggle(l.leagueId))}
+                    disabled={already}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: on, disabled: already }}
+                    accessibilityLabel={already ? `${l.name}, already on the block` : l.name}
+                  >
                     <View style={styles.rowHead}>
                       <View style={[styles.check, on && styles.checkOn, already && styles.checkLocked]}>
                         {on ? <Text style={styles.checkMark}>✓</Text> : null}

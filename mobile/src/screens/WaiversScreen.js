@@ -16,7 +16,7 @@ import {
 import { appAlert } from "../components/AppAlert";
 import { api } from '../api';
 import { waiversOverviewPreferDevice } from '../mflDevice';
-import { colors, positionColors } from '../theme';
+import { colors, positionColors, size } from '../theme';
 import { celebrate } from '../components/Celebrate';
 import AvailabilityBadge from '../components/AvailabilityBadge';
 import ValueDelta from '../components/ValueDelta';
@@ -775,7 +775,7 @@ function Center({ children }) {
 function FilterChip({ label, active, onPress, sortStyle }) {
   const scale = usePopScale(active); // Texture: pop when this filter/sort chip becomes active (§2.3)
   return (
-    <Pressable onPress={onPress} hitSlop={6}>
+    <Pressable onPress={onPress} hitSlop={10} accessibilityRole="button" accessibilityState={{ selected: active }} accessibilityLabel={label}>
       <Animated.View style={[styles.filterChip, active && styles.filterChipActive, sortStyle && styles.sortChip, { transform: [{ scale }] }]}>
         <Text style={[styles.filterText, active && { color: colors.text }]}>{label}</Text>
       </Animated.View>
@@ -784,7 +784,12 @@ function FilterChip({ label, active, onPress, sortStyle }) {
 }
 function Stepper({ onPress, label }) {
   return (
-    <Pressable style={styles.stepper} onPress={onPress}>
+    <Pressable
+      style={styles.stepper}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label === '+' ? 'Increase bid' : 'Decrease bid'}
+    >
       <Text style={styles.stepperText}>{label}</Text>
     </Pressable>
   );
@@ -792,7 +797,7 @@ function Stepper({ onPress, label }) {
 const SYS = { faab: { label: 'FAAB', color: colors.accent }, fcfs: { label: 'FCFS', color: colors.warn }, free: { label: 'Free agent', color: colors.good } };
 function SystemBadge({ system, small }) {
   const s = SYS[system] || SYS.free;
-  return <Text style={[styles.sysBadge, { color: s.color, borderColor: s.color }, small && { fontSize: 9 }]}>{s.label}</Text>;
+  return <Text style={[styles.sysBadge, { color: s.color, borderColor: s.color }, small && styles.sysBadgeSmall]}>{s.label}</Text>;
 }
 function SystemInline({ system }) {
   const s = SYS[system] || SYS.free;
@@ -821,7 +826,7 @@ const styles = StyleSheet.create({
   stateLabel: { fontSize: 13, fontWeight: '900' },
   stateSub: { color: colors.textDim, fontSize: 11, fontWeight: '600', marginTop: 2 },
   ovTop3: { color: colors.textDim, fontSize: 12, marginTop: 6 },
-  lockBadge: { color: colors.warn, fontSize: 10, fontWeight: '900', borderWidth: 1, borderColor: colors.warn, borderRadius: 5, paddingHorizontal: 6, paddingVertical: 1, overflow: 'hidden' },
+  lockBadge: { color: colors.warn, fontSize: size.micro, fontWeight: '900', borderWidth: 1, borderColor: colors.warn, borderRadius: 5, paddingHorizontal: 6, paddingVertical: 1, overflow: 'hidden' },
   lockReason: { color: colors.warn, fontSize: 12, marginTop: 6, lineHeight: 16 },
   ovBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 },
   ovCount: { color: colors.text, fontSize: 13, fontWeight: '700' },
@@ -890,7 +895,8 @@ const styles = StyleSheet.create({
   resultLeague: { color: colors.textDim, fontSize: 12, marginTop: 2 },
   empty: { color: colors.textDim, textAlign: 'center', marginTop: 24 },
   error: { color: colors.bad, textAlign: 'center' },
-  sysBadge: { fontSize: 10, fontWeight: '900', borderWidth: 1, borderRadius: 5, paddingHorizontal: 6, paddingVertical: 1, overflow: 'hidden' },
+  sysBadge: { fontSize: size.micro, fontWeight: '900', borderWidth: 1, borderRadius: 5, paddingHorizontal: 6, paddingVertical: 1, overflow: 'hidden' },
+  sysBadgeSmall: { fontSize: size.micro, paddingHorizontal: 5 },
   // sheet
   backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: colors.scrim, justifyContent: 'flex-end' },
   kav: { width: '100%' },
@@ -906,7 +912,7 @@ const styles = StyleSheet.create({
   benchName: { color: colors.text, fontSize: 14 },
   benchMeta: { color: colors.textDim, fontSize: 12 },
   bidRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  stepper: { width: 40, height: 40, borderRadius: 10, backgroundColor: colors.cardAlt, alignItems: 'center', justifyContent: 'center' },
+  stepper: { width: 44, height: 44, borderRadius: 10, backgroundColor: colors.cardAlt, alignItems: 'center', justifyContent: 'center' },
   stepperText: { color: colors.text, fontSize: 20, fontWeight: '900' },
   bidInput: { backgroundColor: colors.cardAlt, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14, color: colors.text, fontSize: 18, fontWeight: '800', minWidth: 70, textAlign: 'center' },
   budgetAfter: { color: colors.textDim, fontSize: 12, fontWeight: '600' },

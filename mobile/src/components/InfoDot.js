@@ -12,7 +12,7 @@ export default function InfoDot({ id, size = 14, color = colors.textDim, style }
   if (!topic) return null;
   return (
     <>
-      <Pressable onPress={() => setOpen(true)} hitSlop={12} style={style} accessibilityRole="button" accessibilityLabel={`How this works: ${topic.title}`}>
+      <Pressable onPress={() => setOpen(true)} hitSlop={16} style={style} accessibilityRole="button" accessibilityLabel={`How this works: ${topic.title}`}>
         <Text style={[styles.dot, { fontSize: size, color }]}>ⓘ</Text>
       </Pressable>
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
@@ -36,7 +36,7 @@ export default function InfoDot({ id, size = 14, color = colors.textDim, style }
 
 const styles = StyleSheet.create({
   dot: { fontWeight: '700' },
-  backdrop: { flex: 1, backgroundColor: '#000A', alignItems: 'center', justifyContent: 'center', padding: 24 },
+  backdrop: { flex: 1, backgroundColor: colors.scrim, alignItems: 'center', justifyContent: 'center', padding: 24 },
   sheet: { width: '100%', maxWidth: 440, backgroundColor: colors.card, borderRadius: 16, borderWidth: 1, borderColor: colors.border, padding: 20 },
   title: { color: colors.text, fontSize: 17, fontWeight: '900', marginBottom: 12 },
   para: { color: colors.textDim, fontSize: 14, lineHeight: 20, marginBottom: 10 },

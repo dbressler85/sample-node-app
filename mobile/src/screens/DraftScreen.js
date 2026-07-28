@@ -63,6 +63,8 @@ const PoolRow = React.memo(function PoolRow({ p, rank, myTurn, canPick, isPickin
               style={({ pressed }) => [styles.avDraftBtn, pressed && { opacity: 0.7 }]}
               onPress={() => onDraft(p)}
               disabled={pickingActive}
+              accessibilityRole="button"
+              accessibilityLabel={`Draft ${p.name}`}
             >
               <Text style={styles.avDraftTxt}>Draft</Text>
             </Pressable>
@@ -344,11 +346,11 @@ export default function DraftScreen({ league, demoMode, covered = false, onBack,
         <View style={styles.center}><Text style={styles.empty}>No draft in this league.</Text></View>
       ) : (
         <>
-        <View style={styles.tabRow}>
-          <Pressable style={[styles.tab, tab === 'pick' && styles.tabActive]} onPress={() => setTab('pick')}>
+        <View style={styles.tabRow} accessibilityRole="tablist">
+          <Pressable style={[styles.tab, tab === 'pick' && styles.tabActive]} onPress={() => setTab('pick')} accessibilityRole="tab" accessibilityState={{ selected: tab === 'pick' }} accessibilityLabel="Pick">
             <Text style={[styles.tabText, tab === 'pick' && styles.tabTextActive]}>Pick</Text>
           </Pressable>
-          <Pressable style={[styles.tab, tab === 'board' && styles.tabActive]} onPress={() => setTab('board')}>
+          <Pressable style={[styles.tab, tab === 'board' && styles.tabActive]} onPress={() => setTab('board')} accessibilityRole="tab" accessibilityState={{ selected: tab === 'board' }} accessibilityLabel="Board">
             <Text style={[styles.tabText, tab === 'board' && styles.tabTextActive]}>Board</Text>
           </Pressable>
         </View>
@@ -630,7 +632,7 @@ const styles = StyleSheet.create({
   avIdentity: { flex: 1, flexDirection: 'row', alignItems: 'center' },
   avIdentityFlex: { flex: 1 },
   avIdentityRow: { flexDirection: 'row', alignItems: 'center' },
-  avDraftBtn: { marginLeft: 10, backgroundColor: colors.gold, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 7, minWidth: 58, alignItems: 'center' },
+  avDraftBtn: { marginLeft: 10, backgroundColor: colors.gold, borderRadius: 8, paddingHorizontal: 14, minWidth: 58, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   avDraftTxt: { color: colors.bg, fontSize: 13, fontWeight: '900' },
   avRank: { color: colors.textDim, fontSize: 13, fontWeight: '800', width: 22 },
   avName: { color: colors.text, fontSize: 15, fontWeight: '700' },
