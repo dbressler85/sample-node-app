@@ -14,9 +14,9 @@ const nflLib = require('../lib/nfl');
 const newsLib = require('../lib/news');
 const demo = require('../demo/fixtures');
 const leaguesService = require('./leagues');
-const rosterService = require('./roster');
 const waiversService = require('./waivers');
 const draftService = require('./draft');
+const playerhubService = require('./playerhub');
 const tradesService = require('./trades');
 const standingLib = require('../lib/standing');
 const pointsMaps = require('../lib/pointsMaps');
@@ -32,24 +32,14 @@ async function ctxFor(cookie) {
   return { week, statusMap, byeMap };
 }
 
-// My roster + free-agent set per league (the cross-league "where does he stand" data),
-// plus whether the league's draft has been held (free agency isn't live until then).
+// My roster + free-agent set per league (the cross-league "where does he stand" data), plus whether
+// the league's draft has been held (free agency isn't live until then). Delegates to the player hub's
+// MEMOIZED cross-league gather — identical fan-out — so the Watch tab is INSTANT once the user has hit
+// Rankings/Free-agents (which warm the same memo). Previously this re-ran the whole per-league fan-out
+// from scratch every time, which is why Watch loaded slowly while the other Players tabs were instant.
 async function gather(cookie, token) {
-  const leagues = await leaguesService.orderedLeagues(cookie, token);
-  const data = await Promise.all(
-    leagues.map(async (league) => {
-      const [roster, faIds, draftOpen] = await Promise.all([
-        // relationIn only needs bucket membership by id (via standing), not the enriched
-        // all-franchise build — so the LIGHT my-roster read suffices, and it shares the
-        // Players-screen HTTP cache key instead of triggering a separate all-franchise fetch.
-        rosterService.myRosterLight(cookie, league.leagueId).catch(() => null),
-        waiversService.freeAgentIds(cookie, league).catch(() => []),
-        draftService.freeAgencyOpen(cookie, token, league),
-      ]);
-      return { league, roster, faSet: new Set(faIds), draftOpen };
-    })
-  );
-  return data.filter((d) => d.roster);
+  const { data } = await playerhubService.gather(cookie, token);
+  return data;
 }
 
 // Where a watched player stands in one league — the watchlist's labels over the shared
