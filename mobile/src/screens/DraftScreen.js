@@ -1,6 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, FlatList, SectionList, ActivityIndicator, Modal, TextInput } from 'react-native';
 import { appAlert } from "../components/AppAlert";
+import { toast } from '../components/Toast';
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import { displayLg, displayLabel } from '../typography';
@@ -201,6 +202,9 @@ export default function DraftScreen({ league, demoMode, covered = false, onBack,
 
   useAndroidBack(useCallback(() => { onBack(); return true; }, [onBack]));
 
+  const dataRef = useRef(data);
+  dataRef.current = data;
+
   const load = useCallback(async () => {
     setError(null);
     try {
@@ -208,7 +212,10 @@ export default function DraftScreen({ league, demoMode, covered = false, onBack,
       setData(d);
       primeResource(boardKey, d);
     } catch (e) {
-      setError(e.message);
+      // Non-destructive: if a live board is already up, a failed background refresh
+      // (poll) must NOT paint a red banner over it — keep the last board, toast once.
+      if (dataRef.current) toast('Couldn’t refresh — showing the last update');
+      else setError(e.message);
     } finally {
       setLoading(false);
     }
@@ -332,8 +339,6 @@ export default function DraftScreen({ league, demoMode, covered = false, onBack,
         <Text style={[styles.title, displayLg()]} numberOfLines={1}>{league.name}</Text>
         <View style={{ width: 44 }} />
       </View>
-
-      {error ? <Text style={styles.error}>{error}</Text> : null}
 
       {data && data.status === 'none' ? (
         <View style={styles.center}><Text style={styles.empty}>No draft in this league.</Text></View>
@@ -535,7 +540,7 @@ export default function DraftScreen({ league, demoMode, covered = false, onBack,
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  backdrop: { flex: 1, backgroundColor: colors.scrim, justifyContent: 'flex-end' },
   sheet: { backgroundColor: colors.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, borderTopWidth: 1, borderColor: colors.border },
   sheetTitle: { color: colors.text, fontSize: 18, fontWeight: '900' },
   sheetMeta: { color: colors.textDim, fontSize: 13, marginTop: 4 },

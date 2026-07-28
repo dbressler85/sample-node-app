@@ -7,6 +7,7 @@ import useAndroidBack from '../useAndroidBack';
 import { peekResource, primeResource } from '../useCachedResource';
 import Sparkline from '../components/Sparkline';
 import NeonSign from '../components/NeonSign';
+import ErrorView from '../components/ErrorView';
 
 // The signed-in manager's home base: who you are, your portfolio at a glance, the shape of
 // your leagues (outlook mix), your personal activity (tags / watchlist), and the account
@@ -33,9 +34,8 @@ export default function ProfileScreen({ onBack, onOpenPortfolio, onOpenSettings,
 
   if (error && !me) {
     return (
-      <View style={[styles.container, styles.center]}>
-        <Text style={styles.error}>{error}</Text>
-        <Pressable onPress={() => { setError(null); load(); }} style={styles.retry}><Text style={styles.retryText}>Retry</Text></Pressable>
+      <View style={styles.container}>
+        <ErrorView message={error} onRetry={() => { setError(null); load(); }} />
       </View>
     );
   }

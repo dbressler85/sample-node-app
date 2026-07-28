@@ -66,6 +66,7 @@ export default function AddAcrossSheet({ player, onClose, onDone, onReview }) {
   return (
     <Pressable style={styles.backdrop} onPress={onClose}>
       <Pressable style={styles.sheet} onPress={() => {}}>
+        <View style={styles.grabber} />
         <Text style={styles.sheetTitle}>Add {player.name} across leagues</Text>
         {error ? (
           <View style={{ paddingVertical: 20, alignItems: 'center' }}>
@@ -115,7 +116,8 @@ export default function AddAcrossSheet({ player, onClose, onDone, onReview }) {
 }
 
 const styles = StyleSheet.create({
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: colors.scrim, justifyContent: 'flex-end' },
+  grabber: { alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: colors.border, marginBottom: 12 },
   sheet: { backgroundColor: colors.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, borderTopWidth: 1, borderColor: colors.border },
   sheetTitle: { color: colors.text, fontSize: 18, fontWeight: '900', marginBottom: 6 },
   empty: { color: colors.textDim, fontSize: 14, paddingVertical: 20, textAlign: 'center' },

@@ -96,6 +96,7 @@ function PlayerPicker({ slot, players, assignments, slotIndex, onPick, onClose }
   return (
     <Pressable style={styles.sheetBackdrop} onPress={onClose}>
       <Pressable style={styles.sheet} onPress={() => {}}>
+        <View style={styles.grabber} />
         <Text style={styles.sheetTitle}>
           {slot.name} · {slot.eligible.join(' / ')}
         </Text>
@@ -145,7 +146,8 @@ const styles = StyleSheet.create({
   slotProj: { color: colors.text, fontSize: 15, fontWeight: '800', marginRight: 8 },
   slotEmpty: { color: colors.bad, fontSize: 14, flex: 1, fontStyle: 'italic' },
   slotChev: { color: colors.textDim, fontSize: 20 },
-  sheetBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  sheetBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: colors.scrim, justifyContent: 'flex-end' },
+  grabber: { alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: colors.border, marginBottom: 12 },
   sheet: { backgroundColor: colors.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, borderTopWidth: 1, borderColor: colors.border },
   sheetTitle: { color: colors.text, fontSize: 15, fontWeight: '800', marginBottom: 12 },
   cand: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },

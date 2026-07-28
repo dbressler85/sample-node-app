@@ -5,6 +5,7 @@ import { api } from '../api';
 import { colors } from '../theme';
 import { displayLg, displayLabel } from '../typography';
 import useAndroidBack from '../useAndroidBack';
+import ErrorView from '../components/ErrorView';
 import { peekResource, primeResource } from '../useCachedResource';
 
 // The push channels, in display order. `key` matches the backend pref key.
@@ -34,11 +35,14 @@ export default function SettingsScreen({ onBack, onOpenHelp, onLogout }) {
 
   useAndroidBack(useCallback(() => { onBack(); return true; }, [onBack]));
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setError(null);
     api.pushPrefs()
       .then((r) => { const p = r.prefs || {}; setPrefs(p); primeResource('settings:pushPrefs', p); })
       .catch((e) => setError(e.message));
   }, []);
+
+  useEffect(() => { load(); }, [load]);
 
   const toggle = useCallback((key) => {
     setPrefs((cur) => {
@@ -66,9 +70,13 @@ export default function SettingsScreen({ onBack, onOpenHelp, onLogout }) {
           Choose what reaches your phone. Notifications only fire while your MFL login is active.
         </Text>
 
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+        {/* Save-path errors are non-destructive (switches still show); the initial-load
+            failure is a dead-end, so route it to a retryable ErrorView instead. */}
+        {prefs != null && error ? <Text style={styles.error}>{error}</Text> : null}
 
-        {prefs == null && !error ? (
+        {prefs == null && error ? (
+          <ErrorView message={error} onRetry={load} />
+        ) : prefs == null ? (
           <View style={styles.center}><ActivityIndicator color={colors.accent} size="large" /></View>
         ) : (
           <View style={styles.card}>

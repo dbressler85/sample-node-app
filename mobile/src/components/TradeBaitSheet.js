@@ -56,6 +56,7 @@ export default function TradeBaitSheet({ player, onClose, onDone }) {
   return (
     <Pressable style={styles.backdrop} onPress={onClose}>
       <Pressable style={styles.sheet} onPress={() => {}}>
+        <View style={styles.grabber} />
         <Text style={styles.sheetTitle}>Shop {player.name}</Text>
         <Text style={styles.sheetSub}>Put him on your trade block in the leagues you choose.</Text>
         {error ? (
@@ -108,7 +109,8 @@ export default function TradeBaitSheet({ player, onClose, onDone }) {
 }
 
 const styles = StyleSheet.create({
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: colors.scrim, justifyContent: 'flex-end' },
+  grabber: { alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: colors.border, marginBottom: 12 },
   sheet: { backgroundColor: colors.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, borderTopWidth: 1, borderColor: colors.border },
   sheetTitle: { color: colors.text, fontSize: 18, fontWeight: '900' },
   sheetSub: { color: colors.textDim, fontSize: 13, marginTop: 3, marginBottom: 8 },
