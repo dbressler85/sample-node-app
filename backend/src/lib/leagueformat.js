@@ -36,7 +36,9 @@ function startersSpec(cookie, league) {
   if (config.demoMode) {
     const slots = (demo.lineupRequirements(league.leagueId) || []).map((r) => ({ ...r, min: r.count || 1, max: r.count || 1 }));
     const demoTotal = demo.starterTotal ? demo.starterTotal(league.leagueId) : null;
-    return Promise.resolve({ slots, total: demoTotal != null ? demoTotal : slots.reduce((s, r) => s + (r.count || 0), 0) });
+    // Demo values are format-flat (no FantasyCalc), so league size doesn't move them — a standard 12
+    // keeps the format object complete without affecting demo output.
+    return Promise.resolve({ slots, total: demoTotal != null ? demoTotal : slots.reduce((s, r) => s + (r.count || 0), 0), teams: 12 });
   }
   return startersMemo.get(`${cookie}|${league.leagueId}`, () => buildStartersSpec(cookie, league));
 }
@@ -67,7 +69,12 @@ async function buildStartersSpec(cookie, league) {
   const total = totalAttr && totalAttr > 0 ? totalAttr : slots.reduce((s, r) => s + (r.max || 0), 0);
   const sumMax = slots.reduce((s, r) => s + (r.max || 0), 0);
   if (total !== sumMax) console.log(`[leagueformat] league=${league.leagueId} total starters=${total} (sum of position maxes=${sumMax} — min-max lineup)`);
-  return { slots, total };
+  // League size (franchise count). The `league` export's `franchises` node carries a `count` attr;
+  // fall back to counting the franchise list. Feeds FantasyCalc's `numTeams` so values reflect the
+  // league's real scarcity (a 10-teamer values depth differently than a 14/16).
+  const franchisesNode = res && res.league && res.league.franchises;
+  const teams = mfl.num(franchisesNode && franchisesNode.count) || mfl.toArray(franchisesNode && franchisesNode.franchise).length || null;
+  return { slots, total, teams };
 }
 
 // Normalized starting-lineup requirements: [{ name, eligible[], count, min, max }].
@@ -186,24 +193,26 @@ async function format(cookie, league) {
 
 async function buildFormat(cookie, league) {
   if (config.demoMode) {
-    const reqs = await requirements(cookie, league);
+    const spec = await startersSpec(cookie, league);
+    const reqs = spec.slots;
     const s = demo.scoring(league.leagueId) || {};
     const ppr = s.ppr != null ? s.ppr : 1;
     // The demo scoring fixture states the TE bump as `tePremium` (extra points per TE
     // reception); tePpr is the TE's total per-reception points.
     const tePpr = s.tePpr != null ? s.tePpr : ppr + (s.tePremium || 0);
     const teStarters = teStarterCount(reqs);
-    return { numQbs: numQbs(reqs), ppr, tePpr, teStarters, tep: tePpr > ppr || teStarters >= 2, pprDetected: true };
+    return { numQbs: numQbs(reqs), ppr, tePpr, teStarters, tep: tePpr > ppr || teStarters >= 2, numTeams: spec.teams, pprDetected: true };
   }
-  // Roster requirements and scoring rules are independent reads — fetch in parallel.
-  const [reqs, rules] = await Promise.all([requirements(cookie, league), scoringRules(cookie, league)]);
+  // Roster requirements (with league size) and scoring rules are independent reads — fetch in parallel.
+  const [spec, rules] = await Promise.all([startersSpec(cookie, league), scoringRules(cookie, league)]);
+  const reqs = spec.slots;
   const ppr = rules.detected ? rules.ppr : 1;
   const tePpr = rules.detected ? rules.tePpr : null;
   const teStarters = teStarterCount(reqs);
   // TE-premium if EITHER the TE gets a bigger per-reception bump than the base PPR, OR the lineup
   // mandates two tight-end starters — both make TEs scarce/valuable and both must surface as "TEP".
   const tep = (tePpr != null && tePpr > ppr) || teStarters >= 2;
-  return { numQbs: numQbs(reqs), ppr, tePpr, teStarters, tep, pprDetected: !!rules.detected };
+  return { numQbs: numQbs(reqs), ppr, tePpr, teStarters, tep, numTeams: spec.teams, pprDetected: !!rules.detected };
 }
 
 // --- draft pick-clock settings (auto-detected from the `league` export) ------

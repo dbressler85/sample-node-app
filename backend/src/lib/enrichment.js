@@ -91,23 +91,30 @@ function bucketPpr(v, fallback) {
   if (v >= 0.5) return 0.5;
   return 0;
 }
+// FantasyCalc prices by league size too; bucket to the common team counts it serves so we don't
+// fragment the cache on odd sizes. Default 12 (the modal league, and FantasyCalc's own default).
+function bucketTeams(v) {
+  if (!Number.isFinite(v) || v <= 0) return 12;
+  return [8, 10, 12, 14, 16].reduce((best, n) => (Math.abs(n - v) < Math.abs(best - v) ? n : best), 12);
+}
 function normalizeFormat(f) {
   const numQbs = Number(f && f.numQbs) === 2 ? 2 : 1;
   const ppr = bucketPpr(Number(f && f.ppr), 1); // FantasyCalc accepts 0 / 0.5 / 1; default full PPR
   const fcPpr = ppr > 1 ? 1 : ppr; // FantasyCalc caps at 1
   const tePpr = bucketPpr(Number(f && f.tePpr), ppr); // TE per-reception points (>= ppr means premium)
-  return { numQbs, ppr: fcPpr, tePpr };
+  const numTeams = bucketTeams(Number(f && f.numTeams));
+  return { numQbs, ppr: fcPpr, tePpr, numTeams };
 }
 function formatKey(f) {
-  return `${f.numQbs}|${f.ppr}|${f.tePpr}`;
+  return `${f.numQbs}|${f.ppr}|${f.tePpr}|${f.numTeams}`;
 }
 
 // FantasyCalc values for one format (values normalized to 0-100), plus age, rank,
 // and the Sleeper->MFL crosswalk (crosswalk is identical across formats).
 async function getFantasyCalc(format) {
-  // FantasyCalc only varies by numQbs + ppr (no TE-premium param), so key on those —
+  // FantasyCalc varies by numQbs + ppr + numTeams (no TE-premium param), so key on those —
   // TE premium is applied afterward as a value multiplier.
-  const key = `${format.numQbs}|${format.ppr}`;
+  const key = `${format.numQbs}|${format.ppr}|${format.numTeams}`;
   const hit = fcCache.get(key);
   if (hit && Date.now() - hit.at < FC_TTL_MS) return hit;
   if (fcInflight.has(key)) return fcInflight.get(key); // a fetch for this format is already running — share it
@@ -157,7 +164,7 @@ async function buildFantasyCalc(format, key, hit) {
   const pickByLabel = new Map(); // "2026 1.01" -> normalized value (for label joins)
   const pickRoundAcc = new Map(); // "2027|1" -> { sum, n } → round-level average (future picks)
   try {
-    const url = `https://api.fantasycalc.com/values/current?isDynasty=true&numQbs=${format.numQbs}&ppr=${format.ppr}`;
+    const url = `https://api.fantasycalc.com/values/current?isDynasty=true&numQbs=${format.numQbs}&ppr=${format.ppr}&numTeams=${format.numTeams}`;
     const rows = await fetchJson(url);
     const list = Array.isArray(rows) ? rows : [];
     let maxVal = 0;
