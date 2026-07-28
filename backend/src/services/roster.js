@@ -34,29 +34,66 @@ function enrich(player, ctx) {
   };
 }
 
-// Dynasty outlook from TWO signals, not age alone:
+// Dynasty outlook from THREE signals, not age alone:
 //   * strengthPct — where this roster's total value ranks among the league's teams
-//     (0..1; 1.0 = the strongest roster). "Are you actually good?"
+//     (0..1; 1.0 = the strongest roster). "Are you actually good on paper?"
 //   * coreAge — average age of the five most valuable players. "Which way is the
 //     window pointing?"
-// Age-only was misleading: two young teams looked identical even if one was stacked
-// and the other threadbare. Blending strength fixes that. Four exhaustive buckets so
-// they always sum to your league count:
-//   Win-now window — strong roster, core not young → contend now (urgent if aging).
+//   * recordPct — where this team's actual W-L / points ranks in the standings
+//     (0..1; 1.0 = best record). "Is THIS season still live?" — null in the preseason
+//     or when standings can't be read, so it only ever refines the roster-based read.
+// Age+strength alone misread season reality: a stacked veteran roster sitting at 2-8 read
+// "Win-now window" even though this year is already lost, and a middling roster on a real
+// playoff run got no credit for it. Record fixes both. Four exhaustive buckets so they
+// always sum to your league count:
+//   Win-now window — strong roster (or a middling one that's WINNING), core not young.
 //   Ascending      — young core that isn't bottom-tier → a winner is forming.
 //   Rebuilding     — bottom-half roster → accumulate youth & picks.
-//   Balanced       — middling on both axes.
-// When strength is unknown (can't read the league's other rosters), it degrades to
-// an age lean (young → Ascending, else Balanced) rather than guessing win-now/rebuild.
-function computeOutlook(coreAge, strengthPct) {
+//   Balanced       — middling on both axes (incl. a stacked roster whose season is lost).
+// When strength is unknown it degrades to an age lean; when record is unknown it degrades
+// to the roster-only read (identical to before), so nothing regresses without standings.
+function computeOutlook(coreAge, strengthPct, recordPct) {
   if (coreAge == null) return 'Balanced';
   const strong = strengthPct != null && strengthPct >= 0.55;
   const weak = strengthPct != null && strengthPct <= 0.45;
   const young = coreAge <= 24.5;
-  if (strong && !young) return 'Win-now window';
+  // Season reality, only when we have a played record. Both thresholds are conservative "thirds":
+  // out-of-it = bottom third of the standings; contending (used only to PROMOTE a middling roster to
+  // win-now) = top third, so a merely-.500 team doesn't get bumped.
+  const outOfIt = recordPct != null && recordPct <= 0.34;
+  const contendingRecord = recordPct != null && recordPct >= 0.66;
+
+  // Stacked veteran roster: contend now — UNLESS the record says the season's already gone,
+  // in which case pushing win-now chips is the wrong call (→ Balanced / consider retooling).
+  if (strong && !young) return outOfIt ? 'Balanced' : 'Win-now window';
   if (young && !weak) return 'Ascending';
   if (weak) return 'Rebuilding';
+  // Middling roster (neither strong nor weak) riding a top-third record → a real buy-now window.
+  if (contendingRecord && !young) return 'Win-now window';
   return 'Balanced';
+}
+
+// Percentile of each franchise by ACTUAL season record — win% (ties = half a win), tie-broken by
+// points-for — 0..1 where 1.0 = the best record in the league. Returns a Map(id → pct); empty when
+// standings are unreadable or no games have been played yet (preseason), so outlook cleanly falls
+// back to the roster-only read. Works on both live and demo standings rows (h2hw/h2hl/h2ht/pf).
+function recordPctByFranchise(standingsRows) {
+  const rows = Array.isArray(standingsRows) ? standingsRows : [];
+  const scored = rows.map((f) => {
+    const w = mfl.num(f && f.h2hw) || 0;
+    const l = mfl.num(f && f.h2hl) || 0;
+    const t = mfl.num(f && f.h2ht) || 0;
+    const games = w + l + t;
+    // Rank key: win% dominates, points-for breaks ties (both scaled so pf never outweighs a win).
+    return { id: String(f && f.id), games, key: (games ? (w + 0.5 * t) / games : 0) * 1e6 + (mfl.num(f && f.pf) || 0) };
+  });
+  const map = new Map();
+  if (scored.length < 2 || !scored.some((s) => s.games > 0)) return map; // preseason / unreadable
+  for (const s of scored) {
+    const atOrBelow = scored.filter((o) => o.key <= s.key).length;
+    map.set(s.id, atOrBelow / scored.length);
+  }
+  return map;
 }
 
 // Roster strength as a plain qualitative tag from where its value ranks in the league — the
@@ -72,14 +109,14 @@ function strengthLabel(strengthPct) {
 
 // Team-level dynasty snapshot: total asset value, average age, core age, this
 // roster's strength percentile in its league, and the blended outlook.
-function teamSummary(all, strengthPct) {
+function teamSummary(all, strengthPct, recordPct) {
   const valued = all.filter((p) => p.value != null);
   const rosterValue = valued.reduce((s, p) => s + p.value, 0);
   const avgAge = valued.length ? Math.round((valued.reduce((s, p) => s + (p.age || 0), 0) / valued.length) * 10) / 10 : null;
   const core = valued.slice().sort((a, b) => b.value - a.value).slice(0, 5);
   const coreAge = core.length ? Math.round((core.reduce((s, p) => s + (p.age || 0), 0) / core.length) * 10) / 10 : null;
   const strength = strengthPct != null ? Math.round(strengthPct * 100) / 100 : null;
-  return { rosterValue, avgAge, coreAge, strengthPct: strength, strengthLabel: strengthLabel(strengthPct), outlook: computeOutlook(coreAge, strengthPct) };
+  return { rosterValue, avgAge, coreAge, strengthPct: strength, strengthLabel: strengthLabel(strengthPct), outlook: computeOutlook(coreAge, strengthPct, recordPct) };
 }
 
 // My roster's value rank among all franchises in the league (0..1; 1.0 = strongest).
@@ -198,7 +235,7 @@ function invalidate(cookie, leagueId) {
 // device-origin read where the franchises were fetched on-device (docs/DEVICE_ORIGIN_MFL.md). Pure over
 // its inputs (no MFL reads); `franchises` is the raw `rosters` export array (null in demo → demo buckets).
 function assembleRoster(league, franchises, ctx) {
-  const { byId, week, statusMap, byeMap, enr, picks = [] } = ctx;
+  const { byId, week, statusMap, byeMap, enr, picks = [], recordPct = null } = ctx;
   const src = myBuckets(franchises, league);
   const c = { week, statusMap, byeMap, enr };
   const map = (ids) => (ids || []).map((id) => enrich(players.resolve(byId, id), c));
@@ -217,7 +254,7 @@ function assembleRoster(league, franchises, ctx) {
   // Strength percentile: demo uses a fixture (no full league in fixtures); live ranks
   // my roster value against every franchise's, using the same enrichment snapshot.
   const strengthPct = config.demoMode ? demo.teamStrength(league.leagueId) : leagueStrengthPct(franchises, league.franchiseId, enr);
-  roster.summary = teamSummary([...roster.starters, ...roster.bench, ...roster.ir, ...roster.taxi], strengthPct);
+  roster.summary = teamSummary([...roster.starters, ...roster.bench, ...roster.ir, ...roster.taxi], strengthPct, recordPct);
   return roster;
 }
 
@@ -233,7 +270,7 @@ async function buildRoster(cookie, leagueId) {
   // Chain format -> snapshot inside the Promise.all so format's league/rules reads
   // (on a cold cache) overlap the roster/injury/bye/picks reads instead of running
   // serially ahead of them.
-  const [franchises, byId, statusMap, byeMap, picks, enr] = await Promise.all([
+  const [franchises, byId, statusMap, byeMap, picks, enr, standingsRows] = await Promise.all([
     allFranchiseRosters(league, cookie),
     players.load(cookie),
     config.demoMode ? Promise.resolve(demo.playerStatus()) : nflLib.injuryMap(cookie, week),
@@ -245,8 +282,12 @@ async function buildRoster(cookie, leagueId) {
       .map((p) => ({ token: p.token, label: p.label, year: p.year, round: p.round }))
       .sort((a, b) => (a.year || 9999) - (b.year || 9999) || (a.round || 99) - (b.round || 99))),
     leagueFormat.format(cookie, league).then((fmt) => enrichmentLib.snapshot(fmt, cookie)),
+    // Actual season record → outlook's "is this season live?" axis. Best-effort: a standings miss
+    // just means outlook falls back to the roster-only read (never blocks the roster).
+    (config.demoMode ? Promise.resolve(demo.standings(league.leagueId)) : mflRepo.standings(league, cookie)).catch(() => null),
   ]);
-  return assembleRoster(league, franchises, { byId, week, statusMap, byeMap, enr, picks });
+  const recordPct = recordPctByFranchise(standingsRows).get(String(league.franchiseId)) ?? null;
+  return assembleRoster(league, franchises, { byId, week, statusMap, byeMap, enr, picks, recordPct });
 }
 
 // Build my enriched roster (+ strength summary) from franchises the DEVICE fetched straight from MFL,
@@ -354,4 +395,4 @@ async function moveTaxi(cookie, token, leagueId, { promote = [], demote = [], dr
   return getRoster(cookie, leagueId);
 }
 
-module.exports = { getRoster, invalidate, computeOutlook, strengthLabel, leagueFranchises, myRosterLight, myRosterEnriched, rosterFromDeviceFranchises, assembleRoster, moveIr, moveTaxi };
+module.exports = { getRoster, invalidate, computeOutlook, recordPctByFranchise, strengthLabel, leagueFranchises, myRosterLight, myRosterEnriched, rosterFromDeviceFranchises, assembleRoster, moveIr, moveTaxi };
