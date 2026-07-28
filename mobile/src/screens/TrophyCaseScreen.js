@@ -218,7 +218,7 @@ const styles = StyleSheet.create({
   scrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', paddingHorizontal: 24 },
   sheet: { backgroundColor: colors.bg, borderRadius: 16, borderWidth: 1, borderColor: colors.border, padding: 18 },
   sheetTitle: { color: colors.text, fontSize: 17, fontWeight: '800', marginBottom: 12 },
-  label: { color: colors.textDim, fontSize: 12, fontWeight: '700', marginTop: 10, marginBottom: 4 },
+  label: { color: colors.violetText, fontSize: 12, fontWeight: '700', marginTop: 10, marginBottom: 4 },
   input: { borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, color: colors.text, fontSize: 15, paddingHorizontal: 12, paddingVertical: 10 },
   sheetActions: { flexDirection: 'row', gap: 10, marginTop: 18 },
   act: { flex: 1, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },

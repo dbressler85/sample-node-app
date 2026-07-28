@@ -47,7 +47,7 @@ const styles = StyleSheet.create({
   list: { padding: 16, paddingBottom: 40 },
   intro: { color: colors.textDim, fontSize: 14, lineHeight: 20, marginBottom: 16 },
   card: { backgroundColor: colors.card, borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 16, marginBottom: 12 },
-  cardTitle: { color: colors.text, fontSize: 16, fontWeight: '800', marginBottom: 10 },
+  cardTitle: { color: colors.violetText, fontSize: 16, fontWeight: '800', marginBottom: 10 },
   para: { color: colors.textDim, fontSize: 14, lineHeight: 20, marginBottom: 10 },
   footNote: { color: colors.textDim, fontSize: 12, textAlign: 'center', marginTop: 8, lineHeight: 17, fontStyle: 'italic' },
 });

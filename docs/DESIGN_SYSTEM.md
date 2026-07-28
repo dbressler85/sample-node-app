@@ -111,7 +111,7 @@ Rules: `bad` is **destructive/negative only** — a "caution" construction ratin
 not `bad` (they're currently collapsed). A **BYE is not an injury** — it must not share OUT/IR's
 `bad` red; give it `warn` or neutral so red keeps meaning "he's out."
 
-### 2.5b Structure accent — Electric Violet (`#8B5CF6` / label text `#A78BFA`)
+### 2.5b Structure accent — Electric Violet (`#8B5CF6` / label text `#9D7BF7`)
 
 **Ratified 2026-07 (was decorative).** Violet is now **semantic — the wayfinding/structure hue** (§1).
 It marks the app's **labeling scaffolding**: the uppercase Oswald **section labels** (§4.4), **card /
@@ -120,8 +120,12 @@ fixed, non-interactive text that organizes a screen and says *where you are*. Ow
 gives every "here's a new part of the page" cue one consistent color, distinct from value-gold,
 action-blue, and state green/red/orange.
 
-- **`violetText` `#A78BFA`** — the lighter shade for **label TEXT** (7.2:1 on `bg`, safely legible at
-  small tracked sizes). Section/card headers use this.
+- **`violetText` `#9D7BF7`** — the shade for **label TEXT** (6.2:1 on `bg`, safely legible at small
+  tracked sizes). A *denser, more saturated* violet than the original pastel `#A78BFA`, so the
+  scaffolding reads unmistakably **purple** (not a faint grey-blue) — the label layer is meant to be
+  felt as a throughline, not whispered. **Every** structural label routes through this: section /
+  category headers, card titles, sort/field labels, and side/eyebrow/lens micro-labels across all
+  screens — not a subset.
 - **`violet` `#8B5CF6`** — the full-chroma hue for **rules, fills, glow, and the crest watermark**
   (the screen-title rule, decorative marks).
 - **`violetDim` `#6E54B8`** — muted, for rails/hairlines where full chroma would shout.

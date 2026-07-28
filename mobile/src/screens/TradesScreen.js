@@ -997,7 +997,7 @@ function AssetRow({ asset, on, onPress, tint, compact }) {
 
 const styles = StyleSheet.create({
   sortRow: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginTop: 14, marginBottom: 2 },
-  sortLabel: { color: colors.textDim, fontSize: 11, fontWeight: '800', letterSpacing: 1, marginRight: 8 },
+  sortLabel: { color: colors.violetText, fontSize: 11, fontWeight: '800', letterSpacing: 1, marginRight: 8 },
   sortChip: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: colors.border, marginRight: 6 },
   sortChipOn: { backgroundColor: colors.cardAlt, borderColor: colors.accent },
   sortChipTxt: { color: colors.textDim, fontSize: 12, fontWeight: '700' },
@@ -1079,7 +1079,7 @@ const styles = StyleSheet.create({
   badge: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3 },
   badgeText: { fontSize: 11, fontWeight: '800' },
   side: { marginTop: 8 },
-  sideLabel: { color: colors.textDim, fontSize: 12, fontWeight: '800', marginBottom: 4 },
+  sideLabel: { color: colors.violetText, fontSize: 12, fontWeight: '800', marginBottom: 4 },
   sideRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 3 },
   dot: { width: 8, height: 8, borderRadius: 4, marginRight: 8 },
   sideName: { color: colors.text, fontSize: 14, fontWeight: '600', flex: 1 },

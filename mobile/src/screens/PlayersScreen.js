@@ -813,7 +813,7 @@ const styles = StyleSheet.create({
   // stranded a big blank rectangle on the left where the filter/sort rows below start, reading as an odd gap.)
   lensRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, gap: 10, paddingBottom: 6, paddingTop: 2 },
   lensLabelWrap: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  lensLabel: { color: colors.textDim, fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
+  lensLabel: { color: colors.violetText, fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
   lensToggle: { flexDirection: 'row', backgroundColor: colors.card, borderRadius: 8, borderWidth: 1, borderColor: colors.border, padding: 2 },
   lensSeg: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 6, borderWidth: 1, borderColor: 'transparent' },
   lensSegActive: { backgroundColor: colors.accent + '22', borderColor: colors.accent },
@@ -837,7 +837,7 @@ const styles = StyleSheet.create({
   quickAddText: { color: colors.good, fontSize: 12, fontWeight: '800' },
   newsSearchWrap: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, marginBottom: 6 },
   newsSortRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', rowGap: 6, paddingHorizontal: 16, gap: 8, marginBottom: 6 },
-  newsSortLabel: { color: colors.textDim, fontSize: 12, fontWeight: '700', marginRight: 2 },
+  newsSortLabel: { color: colors.violetText, fontSize: 12, fontWeight: '700', marginRight: 2 },
   newsSortChip: { backgroundColor: colors.card, borderRadius: 8, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 5 },
   newsSortChipActive: { backgroundColor: colors.cardAlt, borderColor: colors.accent },
   newsSortText: { color: colors.textDim, fontSize: 12, fontWeight: '700' },
