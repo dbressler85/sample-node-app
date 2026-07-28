@@ -251,6 +251,26 @@ export default function PlayerProfileScreen({ playerId, seed, onBack, onOpenTrad
           </View>
         ) : null}
 
+        {/* Win-now (redraft) value + 30-day value momentum, both from FantasyCalc — the dynasty number
+            is the future, these two are "this season" and "which way is he trending." */}
+        {p.winNow != null || p.valueTrend != null ? (
+          <View style={styles.lensValues}>
+            <View style={styles.lensValCell}>
+              <Text style={styles.lensValNum}>{p.winNow != null ? p.winNow : '—'}</Text>
+              <Text style={styles.lensValLabel}>Win-now value</Text>
+            </View>
+            <View style={styles.lensValDivider} />
+            <View style={styles.lensValCell}>
+              <Text style={[styles.lensValNum, p.valueTrend > 0 ? { color: colors.good } : p.valueTrend < 0 ? { color: colors.bad } : null]}>
+                {p.valueTrend != null && p.valueTrend !== 0
+                  ? `${p.valueTrend > 0 ? '▲' : '▼'} ${Math.abs(p.valueTrend)}`
+                  : p.valueTrend === 0 ? '◆ 0' : '—'}
+              </Text>
+              <Text style={styles.lensValLabel}>30-day trend</Text>
+            </View>
+          </View>
+        ) : null}
+
         {/* One control set: Target / Avoid tint your personal value (±10%); Watch tracks
             him on your watchlist. Tap an active Target/Avoid again to clear. */}
         <View style={styles.tagRow}>

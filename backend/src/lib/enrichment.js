@@ -163,12 +163,18 @@ async function buildFantasyCalc(format, key, hit) {
   const mflToSleeper = new Map(); // reverse crosswalk — drives the profile headshot (Sleeper CDN)
   const pickByLabel = new Map(); // "2026 1.01" -> normalized value (for label joins)
   const pickRoundAcc = new Map(); // "2027|1" -> { sum, n } → round-level average (future picks)
+  const winNow = new Map(); // mflId -> redraftValue normalized 0-100 (the win-now / this-season lens)
+  const trend30 = new Map(); // mflId -> 30-day value momentum, signed, on the dynasty 0-100 scale
   try {
     const url = `https://api.fantasycalc.com/values/current?isDynasty=true&numQbs=${format.numQbs}&ppr=${format.ppr}&numTeams=${format.numTeams}`;
     const rows = await fetchJson(url);
     const list = Array.isArray(rows) ? rows : [];
+    // Dynasty value and redraft (win-now) value are on different scales, so each is normalized to
+    // 0-100 by its OWN max — a win-now lens then reads "100 = the most valuable player to win THIS
+    // season," independent of the dynasty ranking. trend30Day is a delta, normalized on the dynasty scale.
     let maxVal = 0;
-    for (const r of list) maxVal = Math.max(maxVal, Number(r.value) || 0);
+    let maxRedraft = 0;
+    for (const r of list) { maxVal = Math.max(maxVal, Number(r.value) || 0); maxRedraft = Math.max(maxRedraft, Number(r.redraftValue) || 0); }
     for (const r of list) {
       const p = r.player || {};
       const mflId = p.mflId != null && p.mflId !== '' ? String(p.mflId) : null;
@@ -192,8 +198,14 @@ async function buildFantasyCalc(format, key, hit) {
       if (p.position) pos.set(mflId, String(p.position).toUpperCase());
       const a = p.maybeAge != null ? Number(p.maybeAge) : NaN;
       if (Number.isFinite(a) && a > 0) age.set(mflId, Math.round(a * 10) / 10);
+      // Win-now (redraft) value, normalized by its own max so it's a self-contained 0-100 lens.
+      if (maxRedraft > 0 && r.redraftValue != null) winNow.set(mflId, Math.max(1, Math.round((Number(r.redraftValue) / maxRedraft) * 100)));
+      // 30-day value momentum: FantasyCalc's raw delta scaled onto the dynasty 0-100 scale, sign kept.
+      if (maxVal > 0 && r.trend30Day != null && Number(r.trend30Day) !== 0) {
+        trend30.set(mflId, Math.round((Number(r.trend30Day) / maxVal) * 100 * 10) / 10);
+      }
     }
-    console.log(`[enrichment] fantasycalc format=${key} rows=${list.length} values=${value.size} picks=${pickByLabel.size}`);
+    console.log(`[enrichment] fantasycalc format=${key} rows=${list.length} values=${value.size} picks=${pickByLabel.size} winNow=${winNow.size}`);
   } catch (e) {
     console.log(`[enrichment] fantasycalc format=${key} error=${e.message}`);
     // Don't overwrite good data with an empty result on a transient failure —
@@ -202,7 +214,7 @@ async function buildFantasyCalc(format, key, hit) {
   }
   const pickRound = new Map();
   for (const [rk, acc] of pickRoundAcc) pickRound.set(rk, Math.max(1, Math.round(acc.sum / acc.n)));
-  const entry = { at: Date.now(), value, age, rank, pos, sleeperToMfl, mflToSleeper, pickByLabel, pickRound };
+  const entry = { at: Date.now(), value, age, rank, pos, sleeperToMfl, mflToSleeper, pickByLabel, pickRound, winNow, trend30 };
   fcCache.set(key, entry);
   return entry;
 }
@@ -343,6 +355,10 @@ async function buildLive(format, cookie) {
   return {
     // FantasyCalc already returns superflex-specific QB values; we only add TE premium.
     value: (id) => adjustValue(fc.value.has(String(id)) ? fc.value.get(String(id)) : null, posOf(id), format, false),
+    // Win-now (redraft) value on the same treatment — the "help me THIS season" lens.
+    winNow: (id) => adjustValue(fc.winNow.has(String(id)) ? fc.winNow.get(String(id)) : null, posOf(id), format, false),
+    // Real 30-day value momentum (signed, on the 0-100 scale), distinct from add-heat `trend`.
+    valueTrend: (id) => (fc.trend30.has(String(id)) ? fc.trend30.get(String(id)) : null),
     age: (id) => (fc.age.has(String(id)) ? fc.age.get(String(id)) : null),
     trend: (id) => trend.get(String(id)) || 0,
     ownership: (id) => (owned.has(String(id)) ? owned.get(String(id)) : null), // MFL topOwns site-wide %
@@ -364,6 +380,12 @@ async function buildDemo(format, cookie) {
       const d = demo.dynasty(id);
       return adjustValue(d && d.value != null ? d.value : null, posOf(id), format, true);
     },
+    // Demo has no separate redraft feed; mirror dynasty so the win-now lens is populated (flat).
+    winNow: (id) => {
+      const d = demo.dynasty(id);
+      return adjustValue(d && d.value != null ? d.value : null, posOf(id), format, true);
+    },
+    valueTrend: () => null, // demo has no 30-day value momentum
     age: (id) => {
       const d = demo.dynasty(id);
       return d && d.age != null ? d.age : null;
