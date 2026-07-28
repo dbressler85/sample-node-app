@@ -47,6 +47,26 @@ router.get('/tradebait/market', async (req, res, next) => {
   }
 });
 
+// GET /api/tradebait/market/leagues — the LIGHT league list for the market (no bait fetch), so the
+// screen paints instantly and pulls each league's blocks lazily on expand. Declared before the
+// :leagueId route so "leagues" matches this literal, not the param.
+router.get('/tradebait/market/leagues', async (req, res, next) => {
+  try {
+    res.json(await tradebait.getMarketLeagues(req.mflCookie, req.account));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/tradebait/market/:leagueId — one league's rival blocks (the stepped-load per-league fetch).
+router.get('/tradebait/market/:leagueId', async (req, res, next) => {
+  try {
+    res.json(await tradebait.getMarketLeague(req.mflCookie, req.account, req.params.leagueId));
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/leagues/:leagueId/tradebait — ids on the block in one league (to mark rosters).
 router.get('/leagues/:leagueId/tradebait', async (req, res, next) => {
   try {
