@@ -2,7 +2,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, Pressable, ActivityIndicator, RefreshControl } from 'react-native';
 import { api } from '../api';
 import { colors } from '../theme';
-import { displayLg, displayLabel } from '../typography';
+import { displayLabel } from '../typography';
+import { TopbarTitle } from '../components/Brand';
 import useAndroidBack from '../useAndroidBack';
 import { peekResource, primeResource } from '../useCachedResource';
 import Sparkline from '../components/Sparkline';
@@ -53,7 +54,7 @@ export default function ProfileScreen({ onBack, onOpenPortfolio, onOpenSettings,
     <View style={styles.container}>
       <View style={styles.topbar}>
         <Pressable onPress={onBack} hitSlop={10}><Text style={styles.back}>‹ Hub</Text></Pressable>
-        <Text style={[styles.title, displayLg()]}>Profile</Text>
+        <TopbarTitle>Profile</TopbarTitle>
         <View style={{ width: 60 }} />
       </View>
 

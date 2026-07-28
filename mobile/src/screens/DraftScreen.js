@@ -5,6 +5,7 @@ import { toast } from '../components/Toast';
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import { displayLg, displayLabel } from '../typography';
+import { TopbarTitle } from '../components/Brand';
 import PressableScale from '../components/PressableScale';
 import LeagueContext from '../components/LeagueContext';
 import NeonSign from '../components/NeonSign';
@@ -314,7 +315,7 @@ export default function DraftScreen({ league, demoMode, covered = false, onBack,
           <Pressable onPress={onBack} hitSlop={10}>
             <Text style={styles.back}>‹ Back</Text>
           </Pressable>
-          <Text style={[styles.title, displayLg()]} numberOfLines={1}>{league.name}</Text>
+          <TopbarTitle focused={!covered} numberOfLines={1}>{league.name}</TopbarTitle>
           {onOpenTrades ? (
             <Pressable onPress={() => onOpenTrades(league)} hitSlop={10}>
               <Text style={styles.tradesLink}>⇄ Trades</Text>
@@ -338,7 +339,7 @@ export default function DraftScreen({ league, demoMode, covered = false, onBack,
         <Pressable onPress={onBack} hitSlop={10}>
           <Text style={styles.back}>‹ Back</Text>
         </Pressable>
-        <Text style={[styles.title, displayLg()]} numberOfLines={1}>{league.name}</Text>
+        <TopbarTitle focused={!covered} numberOfLines={1}>{league.name}</TopbarTitle>
         <View style={{ width: 44 }} />
       </View>
 

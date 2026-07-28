@@ -1,7 +1,8 @@
 import React, { useCallback } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, RefreshControl, ActivityIndicator } from 'react-native';
 import { colors } from '../theme';
-import { displayLg, displayLabel } from '../typography';
+import { displayLabel } from '../typography';
+import { TopbarTitle } from '../components/Brand';
 import { draftsPreferDevice } from '../mflDevice';
 import ErrorView from '../components/ErrorView';
 import NeonSign from '../components/NeonSign';
@@ -59,7 +60,7 @@ export default function DraftHubScreen({ covered = false, onBack, onOpenDraft, o
         <Pressable onPress={onBack} hitSlop={10}>
           <Text style={styles.back}>‹ Hub</Text>
         </Pressable>
-        <Text style={[styles.title, displayLg()]}>Draft Hub</Text>
+        <TopbarTitle focused={!covered}>Draft Hub</TopbarTitle>
         <View style={{ width: 54 }} />
       </View>
       {summary ? (

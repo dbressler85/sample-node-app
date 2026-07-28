@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, ActivityIndic
 import { appAlert } from "../components/AppAlert";
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
-import { displayLg } from '../typography';
+import { TopbarTitle } from '../components/Brand';
 import AvailabilityBadge from '../components/AvailabilityBadge';
 import ValueDelta from '../components/ValueDelta';
 import NeonSign from '../components/NeonSign';
@@ -345,7 +345,7 @@ export default function WaiverWizardScreen({ leagues, seedAddId = null, onBack, 
         </View>
       ) : showBuilder ? (
       <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
-        <Text style={[styles.title, displayLg()]} numberOfLines={1}>{current.name}</Text>
+        <TopbarTitle numberOfLines={1}>{current.name}</TopbarTitle>
         <Text style={styles.subtitle}>
           <SystemBadge system={current.system} />
           {'  '}

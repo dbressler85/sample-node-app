@@ -3,13 +3,12 @@ import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, ActivityIndic
 import { appAlert } from "../components/AppAlert";
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
-import { displayLg } from '../typography';
 import ErrorView from '../components/ErrorView';
 import LeagueContext from '../components/LeagueContext';
 import NeonSign from '../components/NeonSign';
 import useAndroidBack from '../useAndroidBack';
 import usePoll from '../usePoll';
-import { Value } from '../components/Brand';
+import { Value, TopbarTitle } from '../components/Brand';
 
 // The owner's My Draft List for one league — a pre-draft (and during-draft) tool to narrow the
 // pool to who you actually want next. MFL auto-picks the top player still available on this list
@@ -288,7 +287,7 @@ function Header({ league, onBack }) {
     <View style={styles.topbar}>
       <Pressable onPress={onBack} hitSlop={10}><Text style={styles.back}>‹ Back</Text></Pressable>
       <View style={styles.titleWrap}>
-        <Text style={[styles.title, displayLg()]} numberOfLines={1}>My Draft List</Text>
+        <TopbarTitle numberOfLines={1}>My Draft List</TopbarTitle>
         <Text style={styles.sub} numberOfLines={1}>{league.name}</Text>
       </View>
       <View style={{ width: 54 }} />
