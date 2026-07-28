@@ -17,19 +17,22 @@ which case change the doc first).
 
 ---
 
-## 1. The one law: gold means value, neon means action
+## 1. The law: four hues, four jobs — never blurred
 
-Two accent tiers, and they must never blur:
+Each accent answers exactly one question, and they must never blur:
 
 - **Championship Gold `#F3C14A` = VALUE, and only value.** Dynasty value numbers, "best asset,"
   on-the-clock, the crest. If a thing on screen is gold, it is telling you *worth*. Nothing else
   gets to be gold.
-- **The neon tier = state & action.** Target / avoid / watch and the good / bad / warn states.
-  These are the living, glowing signals — they carry *what's happening* and *what you can do*,
-  not worth.
+- **The neon tier = state & action.** Signal Blue `#4F8CFF` for what you can *do* (interactive);
+  good / bad / warn + target / avoid / watch for *what's happening* (state). The living, glowing
+  signals — never worth.
+- **Electric Violet `#8B5CF6` = STRUCTURE / wayfinding.** The app's labeling scaffolding: section
+  headers, screen-title rules, category eyebrows — the fixed, non-interactive text that tells you
+  *where you are* and *how a screen is organized*. Violet answers "where am I," never "what's this
+  worth / what can I do / what's happening." (Promoted 2026-07 from decorative — see §2.5b.)
 
-Everything else in the palette is chrome: the navy ground, Signal Blue for interaction, text,
-borders.
+Everything else is chrome: the navy ground, text, borders.
 
 **What this fixes (leaks to remove):**
 
@@ -108,15 +111,26 @@ Rules: `bad` is **destructive/negative only** — a "caution" construction ratin
 not `bad` (they're currently collapsed). A **BYE is not an injury** — it must not share OUT/IR's
 `bad` red; give it `warn` or neutral so red keeps meaning "he's out."
 
-### 2.5b Decorative accent — Electric Violet (`#8B5CF6`, non-semantic)
+### 2.5b Structure accent — Electric Violet (`#8B5CF6` / label text `#A78BFA`)
 
-Violet is the app's **atmosphere/ornament** accent. It is **unclaimed by the color law** and must
-**never** mark an action, state, or value — those stay accent-blue / green‑red‑orange / gold. It only
-appears as decoration: the ambient backdrop glow (two blooms + a wash in `FieldBackdrop`), the screen‑
-title rule (`Brand.ScreenTitle`), and the neutral **hairline** (`border` is a violet‑biased grey, so
-every card/divider edge carries a faint tint — a *chosen* neutral, not a semantic mark). `violetDim`
-`#6E54B8` is for rails where full chroma would shout. Dose is deliberately felt, not shouted; if it ever
-competes with a semantic color for meaning, pull it back. Tokens: `violet`, `violetDim`, `rgb.violet`.
+**Ratified 2026-07 (was decorative).** Violet is now **semantic — the wayfinding/structure hue** (§1).
+It marks the app's **labeling scaffolding**: the uppercase Oswald **section labels** (§4.4), **card /
+section headers**, **category eyebrows**, and the **screen-title rule** (`Brand.ScreenTitle`) — the
+fixed, non-interactive text that organizes a screen and says *where you are*. Owning the label layer
+gives every "here's a new part of the page" cue one consistent color, distinct from value-gold,
+action-blue, and state green/red/orange.
+
+- **`violetText` `#A78BFA`** — the lighter shade for **label TEXT** (7.2:1 on `bg`, safely legible at
+  small tracked sizes). Section/card headers use this.
+- **`violet` `#8B5CF6`** — the full-chroma hue for **rules, fills, glow, and the crest watermark**
+  (the screen-title rule, decorative marks).
+- **`violetDim` `#6E54B8`** — muted, for rails/hairlines where full chroma would shout.
+
+**Not violet:** anything interactive (→ blue), any value (→ gold), any state (→ green/red/orange), and
+**data-grid column headers** inside dense tables (kept `textDim` so a table doesn't read as all-label).
+The **background is violet-free** — it was pulled back to a clean navy "Deep Ink" ground (2026-07) and
+the `border` hairline is a neutral navy `#28324D` again; violet earns its presence in the label layer,
+not the wallpaper. Tokens: `violet`, `violetText`, `violetDim`, `rgb.violet`.
 
 ### 2.6 The `onAccent` fix (the one real contrast bug)
 White on the bright `accent` fill computes to **3.22:1 — fails WCAG AA.** Primary buttons
@@ -200,9 +214,12 @@ Standings already does this — make it universal. `AnimatedNumber` and `display
 default.
 
 ### 4.4 Section label — one treatment everywhere
-Today there are 4+ (Home mixed-case 15/800; Profile uppercase 12; Settings uppercase accent 13;
-standings 11). **One** `SectionLabel`: `displayLabel()`, uppercase, `letterSpacing ~0.16em`,
-`size.caption` (12), `textDim`. Nothing else.
+**One** treatment: `displayLabel()` (Oswald), uppercase, `letterSpacing ~0.16em`, `size.caption` (12),
+in **`violetText`** — the structure hue (§1/§2.5b), so every section/card eyebrow reads as the same
+wayfinding signal. Shared `SectionLabel` component + the per-screen `cardTitle`/`sectionHeader`/
+`sectionLabel` styles all use it (converted 2026-07 from the old mix of `textDim`/`accent`/`gold`).
+Larger mixed-case *headings* (Home/Draft/Help ~15px `text`) are a separate type role and stay white;
+data-grid column headers stay `textDim` (§2.5b).
 
 ---
 

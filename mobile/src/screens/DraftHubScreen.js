@@ -164,7 +164,7 @@ const styles = StyleSheet.create({
   capitalLeft: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
   capitalText: { color: colors.text, fontSize: 14, fontWeight: '800' },
   list: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 32 },
-  section: { color: colors.textDim, fontSize: 12, fontWeight: '800', letterSpacing: 0.4, textTransform: 'uppercase', marginTop: 14, marginBottom: 8 },
+  section: { color: colors.violetText, fontSize: 12, fontWeight: '800', letterSpacing: 0.4, textTransform: 'uppercase', marginTop: 14, marginBottom: 8 },
   row: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 15, marginBottom: 8 },
   rowClock: { borderColor: colors.gold, backgroundColor: colors.cardAlt },
   name: { color: colors.text, fontSize: 15, fontWeight: '800' },
