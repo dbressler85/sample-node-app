@@ -67,13 +67,13 @@ function relationIn(roster, faSet, id, draftOpen) {
 
 // `format` (optional) re-prices the watchlist through a single value lens ('1qb' | 'sf') so the
 // Watch tab tracks the Players screen's SF↔1QB toggle; null uses the neutral market (docs/DATA_SOURCES.md Q3).
-async function getWatchlist(cookie, token, { format = null } = {}) {
+async function getWatchlist(cookie, token, { format = null, tep = false } = {}) {
   const ids = watchStore.list(token);
   if (!ids.length) return { players: [], totalLeagues: 0 };
 
   const [byId, enr, ctx] = await Promise.all([
     playersLib.load(cookie),
-    enrichmentLib.snapshot(leagueFormat.lensFormat(format), cookie),
+    enrichmentLib.snapshot(leagueFormat.lensFormat(format, tep), cookie),
     ctxFor(cookie),
   ]);
   const [data, rawNews] = await Promise.all([

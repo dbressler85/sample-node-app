@@ -218,7 +218,7 @@ export default function PlayerProfileScreen({ playerId, seed, onBack, onOpenTrad
               onPress={() =>
                 appAlert(
                   'Dynasty value',
-                  `A player's trade value on the dynasty market, priced for each league's format — Superflex and PPR raise a player's worth, so the same player is valued differently in each of your leagues.\n\n${
+                  `A player's trade value on the dynasty market, priced for each league's format — 2QB (Superflex) and PPR raise a player's worth, so the same player is valued differently in each of your leagues.\n\n${
                     p.valueRange && p.valueRange.min !== p.valueRange.max
                       ? `“${p.valueRange.min}–${p.valueRange.max} across leagues” is the spread: ${p.valueRange.min} in your lowest-valuing league, ${p.valueRange.max} in your highest. The big number is the value in the league you opened.`
                       : 'The number is this player’s value in the league you opened.'
@@ -246,7 +246,7 @@ export default function PlayerProfileScreen({ playerId, seed, onBack, onOpenTrad
             <View style={styles.lensValDivider} />
             <View style={styles.lensValCell}>
               <Text style={styles.lensValNum}>{p.values.sf != null ? p.values.sf : '—'}</Text>
-              <Text style={styles.lensValLabel}>Superflex value</Text>
+              <Text style={styles.lensValLabel}>2QB value</Text>
             </View>
           </View>
         ) : null}

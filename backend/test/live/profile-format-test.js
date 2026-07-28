@@ -63,7 +63,7 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   assert(byLeague.ONEQB.value === 33, `QB is 33 in 1QB (3000/9000), got ${byLeague.ONEQB.value}`);
   assert(byLeague.SUPERFLEX.value === 100, `QB is 100 in superflex (9500 max), got ${byLeague.SUPERFLEX.value}`);
   assert(byLeague.SUPERFLEX.value > byLeague.ONEQB.value, 'QB worth more in superflex than 1QB');
-  assert(/Superflex/.test(byLeague.SUPERFLEX.format) && /1QB/.test(byLeague.ONEQB.format), 'per-league format label shown');
+  assert(/2QB/.test(byLeague.SUPERFLEX.format) && /1QB/.test(byLeague.ONEQB.format), 'per-league format label shown');
   assert(prof.valueRange && prof.valueRange.min === 33 && prof.valueRange.max === 100, `valueRange spans 33-100, got ${JSON.stringify(prof.valueRange)}`);
   console.log('✓ profile shows format-aware per-league value + the spread across your formats');
 

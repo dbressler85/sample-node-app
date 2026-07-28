@@ -275,21 +275,27 @@ async function draftClockConfig(cookie, league) {
 // A short human label for a format, e.g. "Superflex · PPR" or "1QB · Half-PPR".
 function label(fmt) {
   if (!fmt) return null;
-  const qb = fmt.numQbs >= 2 ? 'Superflex' : '1QB';
+  const qb = fmt.numQbs >= 2 ? '2QB' : '1QB';
   const pprLabel = fmt.ppr >= 1 ? 'PPR' : fmt.ppr >= 0.5 ? 'Half-PPR' : 'Standard';
   // TE-premium covers BOTH triggers now (scoring bump OR a mandated 2nd TE), via fmt.tep.
   const te = fmt.tep || (fmt.tePpr != null && fmt.tePpr > fmt.ppr) ? ' · TE-premium' : '';
   return `${qb} · ${pprLabel}${te}`;
 }
 
-// Map a value-LENS keyword ('1qb' | 'sf') to a format for the enrichment snapshot, so a global list
-// screen (no single league to key on) can re-price its values through a chosen lens. Only numQbs varies
-// (PPR stays the dynasty-norm full PPR); an unrecognized lens returns undefined = enrichment's neutral
-// default snapshot. Shared so every list surface prices the same way (docs/DATA_SOURCES.md Q3).
-function lensFormat(lens) {
+// Map a value-LENS keyword ('1qb' | 'sf') + an independent TE-premium flag to a format for the
+// enrichment snapshot, so a global list screen (no single league to key on) can re-price its values
+// through a chosen lens. `tep` is orthogonal to the QB lens: on → TE-premium (tePpr 1.5, which the
+// enrichment turns into a TE value bump), off → flat. PPR stays the dynasty-norm full PPR. An
+// unrecognized lens with tep OFF returns undefined = enrichment's neutral default; with tep ON it
+// still returns a format so the TE-premium toggle works on its own. Shared so every list surface
+// prices the same way (docs/DATA_SOURCES.md Q3).
+function lensFormat(lens, tep) {
   const f = String(lens || '').toLowerCase();
-  if (f === 'sf' || f === 'superflex' || f === '2qb') return { numQbs: 2, ppr: 1, tePpr: 1 };
-  if (f === '1qb' || f === 'single') return { numQbs: 1, ppr: 1, tePpr: 1 };
+  const teOn = tep === true || tep === 1 || tep === '1' || tep === 'true';
+  const tePpr = teOn ? 1.5 : 1; // +0.5 per-reception for TEs → the enrichment applies a TE value premium
+  if (f === 'sf' || f === 'superflex' || f === '2qb') return { numQbs: 2, ppr: 1, tePpr };
+  if (f === '1qb' || f === 'single') return { numQbs: 1, ppr: 1, tePpr };
+  if (teOn) return { numQbs: 1, ppr: 1, tePpr }; // TE-premium selected without a QB lens → neutral 1QB + TEP
   return undefined;
 }
 const lensKey = (lens) => (lensFormat(lens) && lensFormat(lens).numQbs === 2 ? 'sf' : '1qb');

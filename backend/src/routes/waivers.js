@@ -51,7 +51,7 @@ router.get('/leagues/:leagueId/waivers/suggestion', async (req, res, next) => {
 // `?format=1qb|sf` re-prices the board through that value lens (matches the Players screen toggle).
 router.get('/waivers/best-available', async (req, res, next) => {
   try {
-    res.json(checkResponse(schemas.WaiversBest, await waivers.getBestAvailable(req.mflCookie, req.account, { format: req.query.format || null }), 'GET /waivers/best-available'));
+    res.json(checkResponse(schemas.WaiversBest, await waivers.getBestAvailable(req.mflCookie, req.account, { format: req.query.format || null, tep: req.query.tep }), 'GET /waivers/best-available'));
   } catch (err) {
     next(err);
   }
@@ -64,7 +64,7 @@ router.get('/waivers/best-available', async (req, res, next) => {
 router.post('/waivers/best-available', async (req, res, next) => {
   try {
     const { deviceReads } = req.body || {};
-    res.json(checkResponse(schemas.WaiversBest, await waivers.getBestAvailable(req.mflCookie, req.account, { deviceReads: deviceReads || null, format: req.query.format || null }), 'POST /waivers/best-available'));
+    res.json(checkResponse(schemas.WaiversBest, await waivers.getBestAvailable(req.mflCookie, req.account, { deviceReads: deviceReads || null, format: req.query.format || null, tep: req.query.tep }), 'POST /waivers/best-available'));
   } catch (err) {
     next(err);
   }

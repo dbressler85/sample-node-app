@@ -127,18 +127,21 @@ export const api = {
     return request(`/api/leagues/${leagueId}/waivers${qs ? `?${qs}` : ''}`);
   },
   // Player hub (M4)
-  playerSearch: (q, { position, status, format } = {}) => {
+  playerSearch: (q, { position, status, format, tep } = {}) => {
     const p = new URLSearchParams();
     if (q) p.set('q', q);
     if (position) p.set('position', position);
     if (status) p.set('status', status);
     if (format) p.set('format', format);
+    if (tep) p.set('tep', '1');
     return request(`/api/players/search?${p.toString()}`);
   },
-  playerRankings: (type = 'value', position, format, offset) => {
+  // `tep` (bool) is the independent TE-premium lens — orthogonal to the 1QB/2QB `format`.
+  playerRankings: (type = 'value', position, format, offset, tep) => {
     const p = new URLSearchParams({ type });
     if (position) p.set('position', position);
     if (format) p.set('format', format);
+    if (tep) p.set('tep', '1');
     if (offset) p.set('offset', String(offset));
     return request(`/api/players/rankings?${p.toString()}`);
   },
@@ -157,8 +160,14 @@ export const api = {
   // Scan MFL playoff history across your leagues and add every championship found (source auto).
   detectTrophies: () => request('/api/trophies/detect', { method: 'POST', body: {} }),
 
-  // Cross-league watchlist. `format` ('1qb'|'sf') re-prices the list through that value lens.
-  watchlist: (format) => request(`/api/watchlist${format ? `?format=${format}` : ''}`),
+  // Cross-league watchlist. `format` ('1qb'|'sf') + `tep` (bool) re-price the list through the value lens.
+  watchlist: (format, tep) => {
+    const p = new URLSearchParams();
+    if (format) p.set('format', format);
+    if (tep) p.set('tep', '1');
+    const qs = p.toString();
+    return request(`/api/watchlist${qs ? `?${qs}` : ''}`);
+  },
   watchlistAlerts: () => request('/api/watchlist/alerts'),
   // Target / Avoid personal tags (±10% personal-value overlay). tag: 'target'|'avoid'|null.
   tags: () => request('/api/tags'),
@@ -225,7 +234,13 @@ export const api = {
   // read (thousands/league) and is league-shareable, so the backend's cross-user cache serves it more
   // cheaply than every device re-downloading it on cellular. (The backend still exposes POST variants of
   // these two that accept device-supplied pools; the app no longer uses them.)
-  bestAvailable: (format) => request(`/api/waivers/best-available${format ? `?format=${format}` : ''}`),
+  bestAvailable: (format, tep) => {
+    const p = new URLSearchParams();
+    if (format) p.set('format', format);
+    if (tep) p.set('tep', '1');
+    const qs = p.toString();
+    return request(`/api/waivers/best-available${qs ? `?${qs}` : ''}`);
+  },
   waiverPending: () => request('/api/waivers/pending'),
   previewClaim: (leagueId, body) => request(`/api/leagues/${leagueId}/waivers/preview`, { method: 'POST', body }),
   submitClaim: (leagueId, body) => request(`/api/leagues/${leagueId}/waivers`, { method: 'POST', body }),

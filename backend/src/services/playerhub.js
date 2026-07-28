@@ -208,8 +208,8 @@ async function buildSets(cookie, token) {
   };
 }
 
-async function search(cookie, token, { q, position, status, format } = {}) {
-  const [byId, enr, ctx] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(lensFormat(format), cookie), ctxFor(cookie)]);
+async function search(cookie, token, { q, position, status, format, tep } = {}) {
+  const [byId, enr, ctx] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(lensFormat(format, tep), cookie), ctxFor(cookie)]);
   const ranks = computeRanks(byId, enr);
   const { myRostered, mineBy, freeBy, leagueCount, leaguesTotal, leaguesLoaded, partial, league0 } = await buildSets(cookie, token);
   const points = await pointsMaps.maps(cookie, league0, ctx.week);
@@ -236,8 +236,8 @@ async function search(cookie, token, { q, position, status, format } = {}) {
   return { total: light.length, format: lensFormat(format) && lensFormat(format).numQbs === 2 ? 'sf' : '1qb', players: players2, partial, leaguesTotal, leaguesLoaded };
 }
 
-async function rankings(cookie, token, { type = 'value', position, format, offset = 0, limit = 40 } = {}) {
-  const [byId, enr, ctx] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(lensFormat(format), cookie), ctxFor(cookie)]);
+async function rankings(cookie, token, { type = 'value', position, format, tep, offset = 0, limit = 40 } = {}) {
+  const [byId, enr, ctx] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(lensFormat(format, tep), cookie), ctxFor(cookie)]);
   const ranks = computeRanks(byId, enr);
   const { myRostered, mineBy, freeBy, leagueCount, leaguesTotal, leaguesLoaded, partial, league0 } = await buildSets(cookie, token);
   const points = await pointsMaps.maps(cookie, league0, ctx.week);

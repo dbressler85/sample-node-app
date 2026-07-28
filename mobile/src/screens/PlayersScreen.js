@@ -114,6 +114,7 @@ export default function PlayersScreen({ onOpenPlayer }) {
   const [error, setError] = useState(null);
   const [pos, setPos] = useState(null); // position filter (null = All), applies to rankings/search/mine
   const [format, setFormat] = useState('1qb'); // value lens: '1qb' | 'sf' — re-prices & resorts the board
+  const [tep, setTep] = useState(false); // TE-premium lens: independent on/off, orthogonal to the QB lens
   const [newsQuery, setNewsQuery] = useState(''); // in-tab News filter
   const [newsSort, setNewsSort] = useState('impact'); // News tab sort: 'impact' | 'recent'
   const [listSort, setListSort] = useState('default'); // secondary sort for Rankings/My Players/Watch
@@ -131,20 +132,21 @@ export default function PlayersScreen({ onOpenPlayer }) {
     }
     let alive = true;
     const timer = setTimeout(() => {
-      api.playerSearch(q, { position: pos, format }).then((r) => alive && setSearchRes(r)).catch((e) => alive && setError(e.message));
+      api.playerSearch(q, { position: pos, format, tep }).then((r) => alive && setSearchRes(r)).catch((e) => alive && setError(e.message));
     }, 300);
     return () => {
       alive = false;
       clearTimeout(timer);
     };
-  }, [query, pos, format]);
+  }, [query, pos, format, tep]);
 
-  const rankKey = `players:rankings:${rankType}:${pos || 'all'}:${format}`;
-  const freeKey = `players:free:${format}`; // free-agent board, per value lens — cached on the resource store
+  const tk = tep ? 'tep' : 'std'; // cache-key fragment for the TE-premium lens
+  const rankKey = `players:rankings:${rankType}:${pos || 'all'}:${format}:${tk}`;
+  const freeKey = `players:free:${format}:${tk}`; // free-agent board, per value lens — cached on the resource store
 
   const loadRankings = useCallback(async () => {
     try {
-      const res = await api.playerRankings(rankType, pos, format);
+      const res = await api.playerRankings(rankType, pos, format, undefined, tep);
       setRankings(res);
       // In-memory (survives the tab-switch unmount, throttles re-entry) + disk page 0. Later
       // pages append in-memory and are re-fetched on scroll.
@@ -153,7 +155,7 @@ export default function PlayersScreen({ onOpenPlayer }) {
     } catch (e) {
       setError(e.message);
     }
-  }, [rankType, pos, format, rankKey]);
+  }, [rankType, pos, format, tep, rankKey]);
 
   // Refetch My Players WITHOUT clearing the current list, so an auto-reload (below) fills in the leagues
   // a throttle dropped while the rows stay on screen and the loaded count just climbs.
@@ -165,10 +167,10 @@ export default function PlayersScreen({ onOpenPlayer }) {
   // repaints instantly from cache instead of blanking to a skeleton and re-running the heavy backend
   // fan-out every time. Fetches without clearing, so the current board stays up while it revalidates.
   const loadFree = useCallback(() => {
-    bestAvailablePreferDevice(format)
+    bestAvailablePreferDevice(format, tep)
       .then((res) => { setFree(res); primeResource(freeKey, res); setValue(freeKey, res); })
       .catch((e) => setError(e.message));
-  }, [format, freeKey]);
+  }, [format, tep, freeKey]);
 
   // Infinite scroll: fetch the next window and append. Guard on loadingMore so the
   // FlatList's onEndReached (which can fire repeatedly) only kicks off one fetch, and
@@ -177,7 +179,7 @@ export default function PlayersScreen({ onOpenPlayer }) {
     if (loadingMore || !rankings || !rankings.hasMore) return;
     setLoadingMore(true);
     try {
-      const res = await api.playerRankings(rankType, pos, format, rankings.players.length);
+      const res = await api.playerRankings(rankType, pos, format, rankings.players.length, tep);
       // Ignore a stale page if the rank type / filters changed while it was in flight.
       setRankings((cur) => {
         if (!(cur && cur.type === res.type && cur.position === res.position && cur.format === res.format)) return cur;
@@ -194,7 +196,7 @@ export default function PlayersScreen({ onOpenPlayer }) {
     } finally {
       setLoadingMore(false);
     }
-  }, [loadingMore, rankings, rankType, pos, format]);
+  }, [loadingMore, rankings, rankType, pos, format, tep]);
 
   // Rankings tab, stale-while-revalidate with the shared in-memory layer: returning to Players
   // (which fully unmounts on a tab switch) repaints the last list — including scrolled-in pages —
@@ -227,8 +229,8 @@ export default function PlayersScreen({ onOpenPlayer }) {
     // Watchlist changes as you star players elsewhere, so refetch each open — but WITHOUT clearing the
     // current list (mirror My Players), so the prior watch stays on screen while it revalidates instead
     // of blanking to a spinner. Re-prices when `format` changes too.
-    if (tab === 'watch') api.watchlist(format).then(setWatch).catch((e) => setError(e.message));
-  }, [tab, mine, news, format, reloadMine]);
+    if (tab === 'watch') api.watchlist(format, tep).then(setWatch).catch((e) => setError(e.message));
+  }, [tab, mine, news, format, tep, reloadMine]);
 
   // Free agents get the same stale-while-revalidate treatment as Rankings: paint the cached board at
   // once (instant re-entry), then refresh in the background if it's stale. The heavy cross-league
@@ -334,7 +336,7 @@ export default function PlayersScreen({ onOpenPlayer }) {
       {searching ? (
         <>
           <PosFilter pos={pos} setPos={setPos} />
-          <ValueLens format={format} setFormat={setFormat} />
+          <ValueLens format={format} setFormat={setFormat} tep={tep} setTep={setTep} />
           {searchRes && searchRes.players.length ? <SortRow value={listSort} onChange={setListSort} /> : null}
           {!searchRes ? (
             <PlayerListSkeleton />
@@ -370,7 +372,7 @@ export default function PlayersScreen({ onOpenPlayer }) {
                 <View style={styles.typeInfo}><InfoDot id="ranking" size={16} /></View>
               </View>
               <PosFilter pos={pos} setPos={setPos} rankType={rankType} setRankType={setRankType} />
-              <ValueLens format={format} setFormat={setFormat} />
+              <ValueLens format={format} setFormat={setFormat} tep={tep} setTep={setTep} />
               <SortRow value={listSort} onChange={setListSort} />
               {/* Honest partial-load signal: "owned in N leagues" counts are over the leagues that
                   loaded — if some were throttled, say so instead of showing a subset as the whole. */}
@@ -409,7 +411,7 @@ export default function PlayersScreen({ onOpenPlayer }) {
                     : 'Free agents available across your leagues.'}
                 </Text>
               </View>
-              <ValueLens format={format} setFormat={setFormat} />
+              <ValueLens format={format} setFormat={setFormat} tep={tep} setTep={setTep} />
               <PosFilter pos={pos} setPos={setPos} />
               <SortRow value={listSort} onChange={setListSort} />
               <FlatList
@@ -429,7 +431,7 @@ export default function PlayersScreen({ onOpenPlayer }) {
             </>
           ) : tab === 'watch' ? (
             <>
-              {watch && watch.players.length ? <ValueLens format={format} setFormat={setFormat} /> : null}
+              {watch && watch.players.length ? <ValueLens format={format} setFormat={setFormat} tep={tep} setTep={setTep} /> : null}
               {watch && watch.players.length ? <SortRow value={listSort} onChange={setListSort} /> : null}
               <FlatList
               data={watchData}
@@ -582,28 +584,34 @@ function PlayerRow({ p, rank, sub, tag, watched, showTrend, showWinNow, onTag, o
             </View>
           ) : null
         ) : p.value != null ? <Value size={16}>{p.value}</Value> : null}
-        {acts ? (
+        {acts || onQuickAdd ? (
           <View style={styles.actions}>
-            <Pressable hitSlop={13} onPress={() => onTag(p.id, t === 'target' ? null : 'target', t)} accessibilityLabel="Target">
-              <GlowChip active={t === 'target'} triplet={rgb.good}><TargetIcon size={18} color={t === 'target' ? colors.good : colors.textDim} /></GlowChip>
-            </Pressable>
-            <Pressable hitSlop={13} onPress={() => onTag(p.id, t === 'avoid' ? null : 'avoid', t)} accessibilityLabel="Avoid">
-              <GlowChip active={t === 'avoid'} triplet={rgb.bad}><AvoidIcon size={18} color={t === 'avoid' ? colors.bad : colors.textDim} /></GlowChip>
-            </Pressable>
-            <Pressable hitSlop={13} onPress={() => onWatch(p.id, !w)} accessibilityLabel="Watch">
-              <GlowChip active={w} triplet={rgb.watch}><WatchIcon size={18} color={w ? colors.watch : colors.textDim} filled={w} /></GlowChip>
-            </Pressable>
+            {acts ? (
+              <>
+                <Pressable hitSlop={13} onPress={() => onTag(p.id, t === 'target' ? null : 'target', t)} accessibilityLabel="Target">
+                  <GlowChip active={t === 'target'} triplet={rgb.good}><TargetIcon size={18} color={t === 'target' ? colors.good : colors.textDim} /></GlowChip>
+                </Pressable>
+                <Pressable hitSlop={13} onPress={() => onTag(p.id, t === 'avoid' ? null : 'avoid', t)} accessibilityLabel="Avoid">
+                  <GlowChip active={t === 'avoid'} triplet={rgb.bad}><AvoidIcon size={18} color={t === 'avoid' ? colors.bad : colors.textDim} /></GlowChip>
+                </Pressable>
+                <Pressable hitSlop={13} onPress={() => onWatch(p.id, !w)} accessibilityLabel="Watch">
+                  <GlowChip active={w} triplet={rgb.watch}><WatchIcon size={18} color={w ? colors.watch : colors.textDim} filled={w} /></GlowChip>
+                </Pressable>
+              </>
+            ) : null}
+            {/* +Add rides in the SAME row as the tag icons (not stacked below) so a free-agent row is
+                the same height as a rankings row. */}
+            {onQuickAdd ? (
+              <Pressable
+                onPress={onQuickAdd}
+                hitSlop={6}
+                style={({ pressed }) => [styles.quickAdd, pressed && { opacity: 0.7 }]}
+                accessibilityLabel={`Add ${p.name} across leagues`}
+              >
+                <Text style={styles.quickAddText}>+ Add{p.leagueCount > 1 ? ` ${p.leagueCount}` : ''}</Text>
+              </Pressable>
+            ) : null}
           </View>
-        ) : null}
-        {onQuickAdd ? (
-          <Pressable
-            onPress={onQuickAdd}
-            hitSlop={6}
-            style={({ pressed }) => [styles.quickAdd, pressed && { opacity: 0.7 }]}
-            accessibilityLabel={`Add ${p.name} across leagues`}
-          >
-            <Text style={styles.quickAddText}>+ Add{p.leagueCount > 1 ? ` ${p.leagueCount}` : ''}</Text>
-          </Pressable>
         ) : null}
       </View>
     </Pressable>
@@ -679,21 +687,34 @@ function PosFilter({ pos, setPos, rankType, setRankType }) {
   );
 }
 
-// Value lens: re-price (and, where value drives order, re-sort) the whole board
-// through a 1QB or Superflex market. QBs are worth far more in superflex.
-function ValueLens({ format, setFormat }) {
+// Value lens: re-price (and, where value drives order, re-sort) the whole board through a chosen
+// market. Two INDEPENDENT axes: the 1QB↔2QB segmented control (a QB is worth far more in 2QB), and a
+// TE-premium on/off pill (a TE is worth more when he scores extra per catch). They don't affect each
+// other — you can view 1QB + TE-premium, 2QB + TE-premium, either alone, or neither.
+function ValueLens({ format, setFormat, tep, setTep }) {
   return (
     <View style={styles.lensRow}>
       <View style={styles.lensLabelWrap}>
         <Text style={styles.lensLabel}>Value lens</Text>
         <InfoDot id="format" />
       </View>
-      <View style={styles.lensToggle}>
-        {[['1qb', '1QB'], ['sf', 'Superflex']].map(([k, label]) => (
-          <Pressable key={k} style={[styles.lensSeg, format === k && styles.lensSegActive]} onPress={() => setFormat(k)}>
-            <Text style={[styles.lensSegText, format === k && styles.lensSegTextActive]}>{label}</Text>
-          </Pressable>
-        ))}
+      <View style={styles.lensControls}>
+        <View style={styles.lensToggle}>
+          {[['1qb', '1QB'], ['sf', '2QB']].map(([k, label]) => (
+            <Pressable key={k} style={[styles.lensSeg, format === k && styles.lensSegActive]} onPress={() => setFormat(k)}>
+              <Text style={[styles.lensSegText, format === k && styles.lensSegTextActive]}>{label}</Text>
+            </Pressable>
+          ))}
+        </View>
+        <Pressable
+          style={[styles.tepToggle, tep && styles.tepToggleOn]}
+          onPress={() => setTep((v) => !v)}
+          accessibilityRole="switch"
+          accessibilityState={{ checked: tep }}
+          accessibilityLabel="TE premium"
+        >
+          <Text style={[styles.tepToggleText, tep && styles.tepToggleTextOn]}>TE PREM</Text>
+        </Pressable>
       </View>
     </View>
   );
@@ -798,6 +819,11 @@ const styles = StyleSheet.create({
   lensSegActive: { backgroundColor: colors.accent + '22', borderColor: colors.accent },
   lensSegText: { color: colors.textDim, fontSize: 12, fontWeight: '800' },
   lensSegTextActive: { color: colors.accent },
+  lensControls: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  tepToggle: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
+  tepToggleOn: { backgroundColor: colors.accent + '22', borderColor: colors.accent },
+  tepToggleText: { color: colors.textDim, fontSize: 12, fontWeight: '800', letterSpacing: 0.3 },
+  tepToggleTextOn: { color: colors.accent },
   // Combined lens + sort strip: one row, thin divider between the two groups.
   // Height-constrain the horizontal controls strip (like typeScroll/posScroll) — without this
   // a horizontal ScrollView in the flex column balloons vertically and centers its chips,

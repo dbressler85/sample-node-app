@@ -32,7 +32,7 @@ router.post('/players/:id/tag', (req, res, next) => {
 // GET /api/players/search?q=&position=&status=&format=  (status: mine|free|available; format: sf|1qb)
 router.get('/players/search', async (req, res, next) => {
   try {
-    res.json(checkResponse(schemas.Search, await hub.search(req.mflCookie, req.account, { q: req.query.q, position: req.query.position, status: req.query.status, format: req.query.format }), 'GET /players/search'));
+    res.json(checkResponse(schemas.Search, await hub.search(req.mflCookie, req.account, { q: req.query.q, position: req.query.position, status: req.query.status, format: req.query.format, tep: req.query.tep }), 'GET /players/search'));
   } catch (err) {
     next(err);
   }
@@ -41,7 +41,7 @@ router.get('/players/search', async (req, res, next) => {
 // GET /api/players/rankings?type=value|position|trending|rookies&position=&format=sf|1qb&offset=&limit=
 router.get('/players/rankings', async (req, res, next) => {
   try {
-    res.json(checkResponse(schemas.Rankings, await hub.rankings(req.mflCookie, req.account, { type: req.query.type, position: req.query.position, format: req.query.format, offset: req.query.offset, limit: req.query.limit }), 'GET /players/rankings'));
+    res.json(checkResponse(schemas.Rankings, await hub.rankings(req.mflCookie, req.account, { type: req.query.type, position: req.query.position, format: req.query.format, tep: req.query.tep, offset: req.query.offset, limit: req.query.limit }), 'GET /players/rankings'));
   } catch (err) {
     next(err);
   }

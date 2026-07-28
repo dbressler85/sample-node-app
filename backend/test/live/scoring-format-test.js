@@ -61,25 +61,25 @@ const lg = (id) => ({ leagueId: id, host: 'h', franchiseId: '0001' });
   assert(full.pprDetected === true, 'full-PPR detected from the real {$t} event/points shape');
   assert(full.ppr === 1, `ppr 1, got ${full.ppr}`);
   assert(full.numQbs === 2, 'superflex derived from slots');
-  assert(leagueFormat.label(full) === 'Superflex · PPR', `label, got "${leagueFormat.label(full)}"`);
+  assert(leagueFormat.label(full) === '2QB · PPR', `label, got "${leagueFormat.label(full)}"`);
 
   // Half-PPR, superflex.
   const half = await leagueFormat.format('ck', lg('HALF'));
   console.log('HALF:', JSON.stringify(half), '->', leagueFormat.label(half));
   assert(half.pprDetected === true && half.ppr === 0.5, `ppr 0.5, got ${half.ppr}`);
-  assert(leagueFormat.label(half) === 'Superflex · Half-PPR', `label, got "${leagueFormat.label(half)}"`);
+  assert(leagueFormat.label(half) === '2QB · Half-PPR', `label, got "${leagueFormat.label(half)}"`);
 
   // Full PPR base with a TE premium.
   const tep = await leagueFormat.format('ck', lg('TEP'));
   console.log('TEP:', JSON.stringify(tep), '->', leagueFormat.label(tep));
   assert(tep.ppr === 1 && tep.tePpr === 1.5, `ppr 1 / tePpr 1.5, got ${tep.ppr}/${tep.tePpr}`);
-  assert(leagueFormat.label(tep) === 'Superflex · PPR · TE-premium', `TE-prem label, got "${leagueFormat.label(tep)}"`);
+  assert(leagueFormat.label(tep) === '2QB · PPR · TE-premium', `TE-prem label, got "${leagueFormat.label(tep)}"`);
 
   // Standard (a reception-less rule set) -> detected with ppr 0.
   const std = await leagueFormat.format('ck', lg('STD'));
   console.log('STD:', JSON.stringify(std), '->', leagueFormat.label(std));
   assert(std.pprDetected === true && std.ppr === 0, `standard ppr 0, got ${std.ppr}`);
-  assert(leagueFormat.label(std) === 'Superflex · Standard', `standard label, got "${leagueFormat.label(std)}"`);
+  assert(leagueFormat.label(std) === '2QB · Standard', `standard label, got "${leagueFormat.label(std)}"`);
 
   // Legacy combined "coef*CC" string still parses via the fallback.
   const legacy = await leagueFormat.format('ck', lg('LEGACY'));
@@ -90,6 +90,15 @@ const lg = (id) => ({ leagueId: id, host: 'h', franchiseId: '0001' });
   const unknown = await leagueFormat.format('ck', lg('NONE'));
   console.log('NONE:', JSON.stringify(unknown));
   assert(unknown.pprDetected === false && unknown.ppr === 1, `falls back to full PPR undetected, got ${unknown.ppr}`);
+
+  // Value-lens mapping: the QB lens and the TE-premium flag are INDEPENDENT axes (Players screen toggles).
+  assert(JSON.stringify(leagueFormat.lensFormat('sf')) === JSON.stringify({ numQbs: 2, ppr: 1, tePpr: 1 }), '2QB lens, no TEP');
+  assert(leagueFormat.lensFormat('sf', true).tePpr === 1.5, '2QB + TEP raises tePpr');
+  assert(leagueFormat.lensFormat('1qb', '1').tePpr === 1.5, '1QB + TEP raises tePpr (string flag)');
+  assert(leagueFormat.lensFormat('1qb', false).tePpr === 1 && leagueFormat.lensFormat('1qb').numQbs === 1, 'TEP off leaves 1QB flat (back-compat)');
+  assert(leagueFormat.lensFormat(null, true) && leagueFormat.lensFormat(null, true).tePpr === 1.5, 'TEP alone (no QB lens) still returns a premium format');
+  assert(leagueFormat.lensFormat(null) === undefined, 'no lens + no TEP → neutral default (undefined)');
+  console.log('✓ value-lens QB axis and TE-premium axis are independent');
 
   console.log('\nSCORING-FORMAT DETECTION TEST PASSED');
 })().catch((e) => { console.error(e.message); process.exit(1); });
