@@ -120,7 +120,7 @@ export default function CompareScreen({ seedPlayer, onBack, onOpenPlayer }) {
           {results.slice(0, 6).map((r) => (
             <Pressable key={r.id} style={({ pressed }) => [styles.resultRow, pressed && { opacity: 0.7 }]} onPress={() => addPlayer(r.id)}>
               <Text style={styles.resultName} numberOfLines={1}>{r.name}</Text>
-              <Text style={styles.resultMeta}>{r.position} · {r.team}{r.value != null ? ` · ${r.value}` : ''}</Text>
+              <Text style={styles.resultMeta}>{r.position} · {r.team}{r.value != null ? <Text style={styles.resultValue}> · {r.value}</Text> : ''}</Text>
             </Pressable>
           ))}
         </View>
@@ -165,7 +165,7 @@ export default function CompareScreen({ seedPlayer, onBack, onOpenPlayer }) {
                   const isLead = lead != null && v === lead;
                   return (
                     <View key={p.id} style={styles.playerCol}>
-                      <Text style={[styles.cellVal, isLead && styles.cellLead]} numberOfLines={1}>
+                      <Text style={[styles.cellVal, isLead && (m.label === 'Value' ? styles.cellLeadValue : styles.cellLead)]} numberOfLines={1}>
                         {v == null ? '—' : m.fmt(v, p)}
                       </Text>
                     </View>
@@ -194,6 +194,7 @@ const styles = StyleSheet.create({
   resultRow: { paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   resultName: { color: colors.text, fontSize: 15, fontWeight: '700' },
   resultMeta: { color: colors.textDim, fontSize: 12, marginTop: 2 },
+  resultValue: { color: colors.gold, fontWeight: '800' },
   body: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 32 },
   headRow: { flexDirection: 'row', alignItems: 'flex-end', marginBottom: 8, borderBottomWidth: 1, borderBottomColor: colors.border, paddingBottom: 8 },
   labelCell: { width: 84 },
@@ -208,5 +209,6 @@ const styles = StyleSheet.create({
   sectionLabel: { color: colors.violetText, fontSize: 11, fontWeight: '900', letterSpacing: 0.5, textTransform: 'uppercase', marginTop: 16, marginBottom: 4, marginLeft: 2 },
   cellVal: { color: colors.text, fontSize: 14, fontWeight: '600', textAlign: 'center' },
   cellLead: { color: colors.good, fontWeight: '900' },
+  cellLeadValue: { color: colors.gold, fontWeight: '900' },
   emptyText: { color: colors.textDim, fontSize: 14, textAlign: 'center', lineHeight: 21 },
 });

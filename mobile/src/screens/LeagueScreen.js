@@ -248,7 +248,7 @@ const styles = StyleSheet.create({
   back: { color: colors.accent, fontSize: 16, fontWeight: '600', width: 66 },
   title: { color: colors.text, fontSize: 17, fontWeight: '900', flex: 1, textAlign: 'center' },
   bracketBtn: { width: 78, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4 },
-  bracketBtnText: { color: colors.gold, fontSize: 13, fontWeight: '800' },
+  bracketBtnText: { color: colors.accent, fontSize: 13, fontWeight: '800' },
   segment: { flexDirection: 'row', marginHorizontal: 16, backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 3, marginTop: 6, marginBottom: 4 },
   seg: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
   segActive: { backgroundColor: colors.cardAlt },
@@ -267,9 +267,9 @@ const styles = StyleSheet.create({
   stTeam: { flex: 1, color: colors.text, fontSize: 14, fontWeight: '700', marginRight: 8 },
   stTeamMine: { color: colors.accent },
   stRec: { width: 52, color: colors.textDim, fontSize: 13, fontWeight: '700', textAlign: 'right', fontVariant: ['tabular-nums'] },
-  stPf: { width: 62, color: colors.gold, fontSize: 13, fontWeight: '800', textAlign: 'right', fontVariant: ['tabular-nums'] },
-  playoffLine: { borderTopWidth: 1, borderTopColor: colors.gold, borderStyle: 'dashed', marginVertical: 6, alignItems: 'center' },
-  playoffText: { color: colors.gold, fontSize: 10, fontWeight: '800', letterSpacing: 1, marginTop: 3 },
+  stPf: { width: 62, color: colors.text, fontSize: 13, fontWeight: '800', textAlign: 'right', fontVariant: ['tabular-nums'] },
+  playoffLine: { borderTopWidth: 1, borderTopColor: colors.violet, borderStyle: 'dashed', marginVertical: 6, alignItems: 'center' },
+  playoffText: { color: colors.violetText, fontSize: 10, fontWeight: '800', letterSpacing: 1, marginTop: 3 },
 
   // rosters
   chipRow: { paddingHorizontal: 16, gap: 8, paddingVertical: 6 },
@@ -297,7 +297,7 @@ const styles = StyleSheet.create({
   // transactions
   txn: { backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 12, marginBottom: 8 },
   txnTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
-  txnType: { color: colors.accent, backgroundColor: colors.accent + '1A', borderRadius: 6, fontSize: 11, fontWeight: '800', paddingHorizontal: 7, paddingVertical: 2, overflow: 'hidden', marginRight: 8 },
+  txnType: { color: colors.violetText, backgroundColor: colors.violet + '22', borderRadius: 6, fontSize: 11, fontWeight: '800', paddingHorizontal: 7, paddingVertical: 2, overflow: 'hidden', marginRight: 8 },
   txnWho: { color: colors.text, fontSize: 13, fontWeight: '700', flex: 1 },
   txnTime: { color: colors.textDim, fontSize: 11, fontWeight: '600', marginLeft: 8 },
   txnAdd: { color: colors.good, fontSize: 13, fontWeight: '600', marginTop: 2 },

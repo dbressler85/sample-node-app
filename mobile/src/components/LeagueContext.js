@@ -80,5 +80,5 @@ const styles = StyleSheet.create({
   chipText: { fontSize: 11, fontWeight: '800', letterSpacing: 0.3 },
   line: { color: colors.text, fontSize: 12.5, lineHeight: 17 },
   lineLabel: { color: colors.textDim, fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
-  startTotal: { color: colors.gold, fontWeight: '900' },
+  startTotal: { color: colors.text, fontWeight: '900' },
 });

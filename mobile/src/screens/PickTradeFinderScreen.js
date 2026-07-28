@@ -19,7 +19,7 @@ const OUTLOOK_COLOR = {
   'Win-now window': colors.warn,
   Ascending: colors.good,
   Rebuilding: colors.textDim,
-  Balanced: colors.accent,
+  Balanced: colors.textDim,
 };
 // My-perspective value verdict → tint. Favorable reads as a win, unfavorable as a caution.
 const VERDICT = {
@@ -141,7 +141,7 @@ const styles = StyleSheet.create({
   title: { color: colors.text, fontSize: 20, fontWeight: '900' },
   subtitle: { color: colors.textDim, fontSize: 13, textAlign: 'center', marginTop: 4, paddingHorizontal: 16 },
   list: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 32 },
-  listHead: { color: colors.textDim, fontSize: 12, fontWeight: '700', marginTop: 8, marginBottom: 8, letterSpacing: 0.3 },
+  listHead: { color: colors.violetText, fontSize: 12, fontWeight: '700', marginTop: 8, marginBottom: 8, letterSpacing: 0.3 },
   card: { backgroundColor: colors.card, borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: 12 },
   cardTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   team: { color: colors.text, fontSize: 16, fontWeight: '900', letterSpacing: 0.3, flex: 1, marginRight: 10 },

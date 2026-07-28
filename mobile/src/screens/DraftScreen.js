@@ -160,7 +160,7 @@ const PickClock = React.memo(function PickClock({ pickClock, mine }) {
   const remaining = paused ? anchor.remainingMs : anchor.remainingMs - (now - anchor.at);
   const isOverdue = overdue || (!paused && remaining <= 0);
   const urgent = mine && !paused && !isOverdue && remaining <= 60 * 60 * 1000;
-  const tone = paused ? colors.accent : isOverdue ? colors.bad : urgent ? colors.warn : colors.gold;
+  const tone = paused ? colors.warn : isOverdue ? colors.bad : urgent ? colors.warn : colors.gold;
 
   return (
     <View style={[styles.pc, { borderColor: tone + '66', backgroundColor: tone + '14' }]}>
@@ -553,7 +553,7 @@ const styles = StyleSheet.create({
   sheetBtn: { flex: 1, alignItems: 'center', paddingVertical: 13, borderRadius: 12, borderWidth: 1, borderColor: colors.border },
   sheetBtnText: { color: colors.text, fontSize: 15, fontWeight: '800' },
   sheetBtnGo: { backgroundColor: colors.gold, borderColor: colors.gold },
-  sheetBtnGoText: { color: '#20180a' },
+  sheetBtnGoText: { color: colors.onAccent },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8 },
   back: { color: colors.accent, fontSize: 16, fontWeight: '600', width: 60 },
@@ -634,7 +634,7 @@ const styles = StyleSheet.create({
   avIdentityFlex: { flex: 1 },
   avIdentityRow: { flexDirection: 'row', alignItems: 'center' },
   avDraftBtn: { marginLeft: 10, backgroundColor: colors.gold, borderRadius: 8, paddingHorizontal: 14, minWidth: 58, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
-  avDraftTxt: { color: colors.bg, fontSize: 13, fontWeight: '900' },
+  avDraftTxt: { color: colors.onAccent, fontSize: 13, fontWeight: '900' },
   avRank: { color: colors.textDim, fontSize: 13, fontWeight: '800', width: 22 },
   avName: { color: colors.text, fontSize: 15, fontWeight: '700' },
   avMeta: { color: colors.textDim, fontSize: 12, marginTop: 2 },

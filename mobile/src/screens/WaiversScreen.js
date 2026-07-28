@@ -321,10 +321,10 @@ function stateInfo(item) {
   if (item.waiverState === 'waivers_soon') {
     return {
       glyph: 'hourglass',
-      neon: 'accent',
+      neon: 'warn',
       label: item.nextWaiverRun != null ? `Waivers process ${runLabel(item.nextWaiverRun)}` : 'Waiver cycle running',
       sub: 'Claims you place queue now and process at the run',
-      color: colors.accent,
+      color: colors.warn,
     };
   }
   return { glyph: 'lock', neon: 'cold', label: 'Waivers closed', sub: item.lockReason || 'No open free agency and no upcoming waiver run', color: colors.textDim };
@@ -878,14 +878,14 @@ const styles = StyleSheet.create({
   faRowTarget: { borderColor: colors.good, backgroundColor: colors.good + '12' },
   faRowAvoid: { borderColor: colors.bad, backgroundColor: colors.bad + '12' },
   faTagMark: { fontSize: 13, fontWeight: '900', marginLeft: 6 },
-  addBtnPill: { borderWidth: 1, borderColor: colors.good, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, marginLeft: 4 },
-  addBtn: { color: colors.good, fontSize: 12, fontWeight: '800' },
+  addBtnPill: { borderWidth: 1, borderColor: colors.accent, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, marginLeft: 4 },
+  addBtn: { color: colors.accent, fontSize: 12, fontWeight: '800' },
   leagueChoices: { marginTop: -4, marginBottom: 10, marginLeft: 12, gap: 6 },
   leagueChoice: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.cardAlt, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10 },
   leagueChoiceText: { color: colors.text, fontSize: 13, fontWeight: '600' },
   subsection: { color: colors.text, fontSize: 14, fontWeight: '800', marginTop: 12, marginBottom: 8 },
   pendRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: 10 },
-  pendAdd: { color: colors.good, fontSize: 15, fontWeight: '700' },
+  pendAdd: { color: colors.text, fontSize: 15, fontWeight: '700' },
   pendBid: { color: colors.accent, fontWeight: '900' },
   pendDrop: { color: colors.textDim, fontSize: 13, marginTop: 2 },
   pendLeague: { color: colors.accent, fontSize: 12, marginTop: 4, fontWeight: '600' },

@@ -151,16 +151,16 @@ const styles = StyleSheet.create({
 
   bracket: { paddingHorizontal: 12, paddingVertical: 8, gap: 14 },
   column: { width: 210 },
-  roundTitle: { color: colors.gold, fontSize: 14, fontWeight: '800', textAlign: 'center' },
+  roundTitle: { color: colors.violetText, fontSize: 14, fontWeight: '800', textAlign: 'center' },
   roundWeek: { color: colors.textDim, fontSize: 11, fontWeight: '600', textAlign: 'center', marginTop: 2, marginBottom: 8 },
   // Games centered vertically so later (smaller) rounds sit beside the middle of the prior column.
   games: { flex: 1, justifyContent: 'space-around', gap: 12, paddingTop: 2 },
 
   game: { backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, paddingVertical: 4, overflow: 'hidden' },
-  gameMine: { borderColor: colors.gold },
+  gameMine: { borderColor: colors.accent },
   gameDivider: { height: StyleSheet.hairlineWidth, backgroundColor: colors.border, marginHorizontal: 10 },
   teamRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 9, paddingHorizontal: 10 },
-  teamRowMine: { backgroundColor: 'rgba(243,193,74,0.08)' },
+  teamRowMine: { backgroundColor: 'rgba(79,140,255,0.08)' },
   teamRowEmpty: { opacity: 0.6 },
   seed: { width: 20, color: colors.textDim, fontSize: 11, fontWeight: '800', textAlign: 'center' },
   seedSpacer: { width: 20 },

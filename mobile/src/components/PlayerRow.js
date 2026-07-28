@@ -93,5 +93,5 @@ const styles = StyleSheet.create({
   bait: { marginLeft: 10, borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
   baitOn: { backgroundColor: colors.accent, borderColor: colors.accent },
   baitTxt: { color: colors.textDim, fontSize: 11, fontWeight: '800' },
-  baitTxtOn: { color: '#fff' },
+  baitTxtOn: { color: colors.onAccent },
 });

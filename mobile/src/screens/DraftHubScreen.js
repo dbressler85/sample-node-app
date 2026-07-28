@@ -174,7 +174,7 @@ const styles = StyleSheet.create({
   name: { color: colors.text, fontSize: 15, fontWeight: '800' },
   sub: { color: colors.textDim, fontSize: 12, marginTop: 3 },
   subClock: { color: colors.gold, fontSize: 12, marginTop: 3, fontWeight: '700' },
-  pickPill: { color: '#20180a', backgroundColor: colors.gold, fontSize: 11, fontWeight: '900', paddingHorizontal: 9, paddingVertical: 3, borderRadius: 6, overflow: 'hidden', letterSpacing: 0.5 },
+  pickPill: { color: colors.onAccent, backgroundColor: colors.gold, fontSize: 11, fontWeight: '900', paddingHorizontal: 9, paddingVertical: 3, borderRadius: 6, overflow: 'hidden', letterSpacing: 0.5 },
   chev: { color: colors.textDim, fontSize: 20, fontWeight: '700', marginLeft: 8 },
   error: { color: colors.bad, textAlign: 'center' },
   emptyText: { color: colors.textDim, fontSize: 14, textAlign: 'center' },

@@ -96,7 +96,7 @@ function Col({ label, assets, total, onOpenPlayer, align }) {
   const empty = !players.length && !groups.length;
   return (
     <View style={styles.col}>
-      <Text style={[styles.colLabel, right && styles.alignRight]}>{label}{total != null ? ` · ${total}` : ''}</Text>
+      <Text style={[styles.colLabel, right && styles.alignRight]}>{label}{total != null ? <Text> · <Text style={{ color: colors.gold }}>{total}</Text></Text> : ''}</Text>
       {empty ? <Text style={[styles.colEmpty, right && styles.alignRight]}>—</Text> : null}
       {players.map((a) => <PlayerRow key={a.id} asset={a} right={right} onOpenPlayer={onOpenPlayer} />)}
       {groups.map((g, gi) => (

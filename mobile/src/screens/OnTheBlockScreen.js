@@ -334,7 +334,7 @@ export default function OnTheBlockScreen({ onBack, onOpenPlayer, onOpenInbox, on
                         const on = sel.has(a.id);
                         return (
                           <Pressable key={a.id} style={styles.assetRow} onPress={() => toggleMarketAsset(key, a.id)}>
-                            <Checkbox on={on} tint={colors.good} />
+                            <Checkbox on={on} tint={colors.accent} />
                             <View style={[styles.dot, { backgroundColor: a.kind === 'pick' ? colors.accent : positionColors[a.position] || colors.textDim }]} />
                             <Pressable
                               style={{ flex: 1, minWidth: 0 }}
@@ -418,8 +418,8 @@ const styles = StyleSheet.create({
   teamName: { color: colors.text, fontSize: 14, fontWeight: '800', flex: 1, marginRight: 10 },
   teamVal: { color: colors.gold, fontSize: 14, fontWeight: '900' },
   teamNote: { color: colors.textDim, fontSize: 12, fontStyle: 'italic', marginTop: 3, lineHeight: 16 },
-  proposeBtn: { backgroundColor: colors.good, borderRadius: 10, paddingVertical: 11, alignItems: 'center', marginTop: 10 },
-  proposeTxt: { color: '#04140a', fontSize: 14, fontWeight: '900' },
+  proposeBtn: { backgroundColor: colors.accent, borderRadius: 10, paddingVertical: 11, alignItems: 'center', marginTop: 10 },
+  proposeTxt: { color: colors.onAccent, fontSize: 14, fontWeight: '900' },
   error: { color: colors.bad, textAlign: 'center', paddingVertical: 12 },
   emptyWrap: { paddingTop: 60, alignItems: 'center' },
   emptyTitle: { color: colors.text, fontSize: 17, fontWeight: '800', marginBottom: 8 },

@@ -22,10 +22,10 @@ import { ScreenTitle } from '../components/Brand';
 
 const STATUS = {
   risk: { label: 'Risk', color: colors.bad },
-  incomplete: { label: 'Empty slot', color: '#ff9d5c' },
+  incomplete: { label: 'Empty slot', color: colors.warn },
   unset: { label: 'Not set', color: colors.warn },
   suboptimal: { label: 'Points available', color: colors.warn },
-  optimal: { label: 'Optimal', color: colors.good },
+  optimal: { label: 'Optimal', color: colors.gold },
 };
 
 const MODES = [
@@ -220,7 +220,15 @@ function Row({ item, onPress }) {
 
       {warnings.length ? (
         <Text style={styles.warn} numberOfLines={2}>
-          ⚠ {warnings.map((w) => `${w.name.split(',')[0]} ${w.status}`).join(' · ')}
+          ⚠ {warnings.map((w, i) => {
+            // Bye ≠ injury: a bye-week gap is a caution (warn), an injury/OUT is a real loss (bad).
+            const isBye = /bye/i.test(w.status || '');
+            return (
+              <Text key={w.playerId || i} style={isBye ? { color: colors.warn } : null}>
+                {i > 0 ? ' · ' : ''}{w.name.split(',')[0]} {w.status}
+              </Text>
+            );
+          })}
         </Text>
       ) : null}
 
@@ -230,7 +238,7 @@ function Row({ item, onPress }) {
         ) : (
           <Text style={styles.pts}>
             <Text style={styles.ptsStrong}>{item.currentTotal}</Text>
-            <Text style={styles.ptsDim}> / {item.optimalTotal} opt</Text>
+            <Text style={[styles.ptsDim, { color: colors.gold }]}> / {item.optimalTotal} opt</Text>
           </Text>
         )}
         {item.status !== 'unset' && item.delta > 0 ? (
