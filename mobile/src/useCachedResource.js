@@ -36,7 +36,11 @@ export function primeResource(key, value, at) {
   store.prime(key, value, at);
 }
 
-export default function useCachedResource(key, fetcher, { staleMs = DEFAULT_STALE_MS, active = true } = {}) {
+// `revalidateOnMount` — for VOLATILE cross-league roll-ups (e.g. the drafts overview, whose "1 of 2
+// upcoming" can be a momentarily-partial read): always kick a SILENT background refetch when the
+// screen (re)mounts or refocuses, even if the painted snapshot is still within `staleMs`. The cache
+// still paints instantly; this just lets a stale/partial copy self-heal without a manual pull-to-refresh.
+export default function useCachedResource(key, fetcher, { staleMs = DEFAULT_STALE_MS, active = true, revalidateOnMount = false } = {}) {
   // Seed synchronously from the in-memory snapshot so a remount paints instantly, no null flash (C1).
   const [data, setData] = useState(() => (store.has(key) ? store.peek(key).value : null));
   const [error, setError] = useState(null);
@@ -80,7 +84,7 @@ export default function useCachedResource(key, fetcher, { staleMs = DEFAULT_STAL
       // reload when it's gone stale — a quick return never re-runs the fetch (C2). SILENT: no
       // pull spinner over the already-painted content (that background sync is what felt odd).
       setData(hit.value);
-      if (store.isStale(key, staleMs)) revalidate(false);
+      if (revalidateOnMount || store.isStale(key, staleMs)) revalidate(false);
       return () => { alive = false; };
     }
     // Cold: no in-memory value for this key. Paint disk cache (async), then always revalidate.
@@ -90,7 +94,7 @@ export default function useCachedResource(key, fetcher, { staleMs = DEFAULT_STAL
       if (alive) revalidate(false);
     });
     return () => { alive = false; };
-  }, [key, revalidate, staleMs]);
+  }, [key, revalidate, staleMs, revalidateOnMount]);
 
   // Under the keep-alive tab model a screen stays MOUNTED when you switch away, so the mount effect
   // above no longer re-runs when you come back — which is what used to give the post-write refetch
@@ -102,10 +106,10 @@ export default function useCachedResource(key, fetcher, { staleMs = DEFAULT_STAL
     if (active && !wasActive.current) {
       const hit = store.peek(key);
       if (hit) setData(hit.value);
-      if (store.isStale(key, staleMs)) revalidate(false);
+      if (revalidateOnMount || store.isStale(key, staleMs)) revalidate(false);
     }
     wasActive.current = active;
-  }, [active, key, staleMs, revalidate]);
+  }, [active, key, staleMs, revalidate, revalidateOnMount]);
 
   return {
     data,

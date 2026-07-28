@@ -81,6 +81,7 @@ export default function OnTheBlockScreen({ onBack, onOpenPlayer, onOpenInbox, on
   // Market per-league/team state.
   const [mExpanded, setMExpanded] = useState(() => new Set()); // collapsed by default
   const [mChecks, setMChecks] = useState({}); // `${leagueId}:${franchiseId}` -> Set of asset tokens
+  const [mLeagueData, setMLeagueData] = useState({}); // leagueId -> { teams, teamCount, context } | 'loading' | 'error' (stepped load)
 
   useAndroidBack(useCallback(() => { onBack(); return true; }, [onBack]));
 
@@ -99,12 +100,16 @@ export default function OnTheBlockScreen({ onBack, onOpenPlayer, onOpenInbox, on
   }, []);
   useEffect(() => { loadEditor(); }, [loadEditor]);
 
+  // Stepped market load: fetch only the LIGHT league list (no per-league bait reads) so the list
+  // paints instantly, then pull each league's rival blocks lazily on expand (toggleMarketLeague),
+  // prioritizing the league the user actually opens instead of blocking on an all-leagues fan-out.
   const loadMarket = useCallback(async () => {
     setError(null);
     try {
-      const m = await api.tradeMarket();
+      const m = await api.tradeMarketLeagues();
       setMarket(m);
       primeResource(MARKET_KEY, m);
+      setMLeagueData({}); // a fresh list drops any per-league blocks so an expand re-fetches
     } catch (e) {
       setError(e.message);
     } finally {
@@ -113,6 +118,17 @@ export default function OnTheBlockScreen({ onBack, onOpenPlayer, onOpenInbox, on
   }, []);
   const marketOnce = useRef(false);
   useEffect(() => { if (segment === 'market' && !marketOnce.current) { marketOnce.current = true; loadMarket(); } }, [segment, loadMarket]);
+
+  // Lazy-load one league's rival blocks (called on first expand). Skips a re-fetch if already loaded.
+  const loadMarketLeague = useCallback(async (id) => {
+    setMLeagueData((d) => (d[id] && d[id] !== 'error' ? d : { ...d, [id]: 'loading' }));
+    try {
+      const one = await api.tradeMarketLeague(id);
+      setMLeagueData((d) => ({ ...d, [id]: { teams: one.teams || [], teamCount: one.teamCount || 0, context: one.context || null } }));
+    } catch (e) {
+      setMLeagueData((d) => ({ ...d, [id]: 'error' }));
+    }
+  }, []);
 
   // Expand a My-Block league: seed its checked set + note from the editor, then lazy-load its roster.
   async function toggleLeague(lg) {
@@ -157,7 +173,10 @@ export default function OnTheBlockScreen({ onBack, onOpenPlayer, onOpenInbox, on
   }
 
   function toggleMarketLeague(id) {
+    const willOpen = !mExpanded.has(id);
     setMExpanded((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+    // Fetch this league's blocks on first open (prioritizes the league the user actually expands).
+    if (willOpen && (!mLeagueData[id] || mLeagueData[id] === 'error')) loadMarketLeague(id);
   }
   function toggleMarketAsset(key, tokenId) {
     setMChecks((c) => {
@@ -282,15 +301,22 @@ export default function OnTheBlockScreen({ onBack, onOpenPlayer, onOpenInbox, on
         >
           {(market && market.leagues || []).map((lg) => {
             const open = mExpanded.has(lg.leagueId);
+            const ld = mLeagueData[lg.leagueId];
+            const loaded = ld && ld !== 'loading' && ld !== 'error';
             return (
               <View key={lg.leagueId} style={styles.card}>
                 <Pressable style={styles.leagueRow} onPress={() => toggleMarketLeague(lg.leagueId)}>
                   <Text style={styles.leagueName} numberOfLines={1}>{lg.name}</Text>
-                  <Text style={styles.leagueCount}>{lg.teamCount} team{lg.teamCount === 1 ? '' : 's'}</Text>
+                  {loaded ? <Text style={styles.leagueCount}>{ld.teamCount} team{ld.teamCount === 1 ? '' : 's'}</Text> : null}
                   <Text style={styles.caret}>{open ? '⌄' : '›'}</Text>
                 </Pressable>
-                {open && lg.context ? <LeagueContext context={lg.context} /> : null}
-                {open ? lg.teams.map((team) => {
+                {open && ld === 'loading' ? <View style={styles.leagueLoading}><ActivityIndicator color={colors.accent} /></View> : null}
+                {open && ld === 'error' ? (
+                  <Pressable style={styles.leagueLoading} onPress={() => loadMarketLeague(lg.leagueId)}><Text style={styles.error}>Couldn’t load — tap to retry</Text></Pressable>
+                ) : null}
+                {open && loaded && ld.teamCount === 0 ? <Text style={styles.teamNote}>No other team is shopping anyone here right now.</Text> : null}
+                {open && loaded && ld.context ? <LeagueContext context={ld.context} /> : null}
+                {open && loaded ? ld.teams.map((team) => {
                   const key = `${lg.leagueId}:${team.franchiseId}`;
                   const sel = mChecks[key] || new Set();
                   return (
@@ -367,6 +393,7 @@ const styles = StyleSheet.create({
   leagueRow: { flexDirection: 'row', alignItems: 'center' },
   leagueName: { color: colors.text, fontSize: 14, fontWeight: '800', letterSpacing: 0.3, flex: 1, marginRight: 10, textTransform: 'uppercase' },
   leagueCount: { color: colors.textDim, fontSize: 12, fontWeight: '700', marginRight: 10 },
+  leagueLoading: { paddingVertical: 14, alignItems: 'center' },
   caret: { color: colors.textDim, fontSize: 18, fontWeight: '700', width: 14, textAlign: 'center' },
   assetRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
   checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', marginRight: 10 },

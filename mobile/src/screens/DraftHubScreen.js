@@ -33,7 +33,10 @@ export default function DraftHubScreen({ covered = false, onBack, onOpenDraft, o
   // Stale-while-revalidate: Home already fetched the drafts overview and wrote it to this same
   // 'drafts' cache key, so opening the hub from Home paints instantly, then revalidates. Device-first:
   // the per-league draftResults+calendar fan-out runs on-device, falling back to the backend.
-  const { data, error, refreshing, loading, reload } = useCachedResource('drafts', () => draftsPreferDevice());
+  // revalidateOnMount: the overview is volatile (a league's calendar/draftResults can read a beat late,
+  // so Home's cached copy might show "1 of 2 upcoming"). Always kick a silent refetch on open so a
+  // partial self-heals — no manual pull-to-refresh needed (testing feedback).
+  const { data, error, refreshing, loading, reload } = useCachedResource('drafts', () => draftsPreferDevice(), { revalidateOnMount: true });
 
   useAndroidBack(useCallback(() => { onBack(); return true; }, [onBack]));
 

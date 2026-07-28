@@ -228,6 +228,9 @@ export const api = {
   // Trade bait ("on the block") — centralized across leagues.
   tradeBait: () => request('/api/tradebait'),
   tradeMarket: () => request('/api/tradebait/market'),
+  // Stepped market load: the light league list, then one league's rival blocks on expand.
+  tradeMarketLeagues: () => request('/api/tradebait/market/leagues'),
+  tradeMarketLeague: (leagueId) => request(`/api/tradebait/market/${leagueId}`),
   // Block editor: light per-league list (current checked tokens + note); the roster checklist per
   // league comes from api.roster(). Save the whole league's block (players + picks) in one shot.
   blockEditor: () => request('/api/tradebait/editor'),

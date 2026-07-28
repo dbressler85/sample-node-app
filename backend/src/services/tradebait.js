@@ -280,52 +280,52 @@ async function getBlockDemo(cookie, token) {
 // The MARKET: what every OTHER franchise is shopping, across your leagues. Same MFL tradeBait read
 // as getBlock, but the rows that aren't yours — resolved to team names + player/pick names + values
 // so you can scan for targets. Live only (demo has no rival bait board).
+// One league's market: every OTHER franchise's block, priced through THIS league's format
+// (docs/DATA_SOURCES.md Q3), so a rival's superflex QB is valued as this league would pay. Split out
+// so the market can be fetched a league at a time (stepped load) as well as all-at-once.
+async function marketForLeague(cookie, token, league, { byId, ctx }) {
+  const [baits, names, context, enr] = await Promise.all([
+    mflRepo.tradeBaits(league, cookie, { INCLUDE_DRAFT_PICKS: 1 }).catch(() => []),
+    leaguesService.franchiseNames(cookie, league).catch(() => new Map()),
+    leagueContext.build(cookie, league).catch(() => null),
+    enrichmentLib.snapshot(await leagueFormat.format(cookie, league), cookie),
+  ]);
+  const teams = baits
+    .filter((b) => mfl.text(mfl.attr(b, 'franchise_id', 'franchiseId')) !== String(league.franchiseId))
+    .map((b) => {
+      const fid = mfl.text(mfl.attr(b, 'franchise_id', 'franchiseId'));
+      const assets = sortAssets(
+        baitTokens(b)
+          .map((tok) => {
+            const a = baitAsset(tok, byId, enr);
+            // Injury/bye status for players (rivals' AND — via getBlock — yours), so a scan of a
+            // rival's block shows who's actually deployable.
+            if (a.kind === 'player') a.availability = availabilityLib.resolve(playersLib.resolve(byId, a.id), ctx.statusMap, ctx.byeMap, ctx.week);
+            // My personal read on a rival's shopped player — is he a Target of mine? An Avoid? On
+            // my watchlist? — so I can spot a rival dangling someone I want.
+            return stampSignals(a, token);
+          })
+          .filter((a) => config.demoMode || a.kind === 'pick' || (a.name && !/^Player \d+$/.test(a.name)))
+      );
+      return {
+        franchiseId: fid,
+        name: names.get(fid) || `Team ${fid}`,
+        note: mfl.text(mfl.attr(b, 'inExchangeFor', 'in_exchange_for')) || null,
+        assets,
+        count: assets.length,
+        value: Math.round(assets.reduce((s, a) => s + (a.value || 0), 0)),
+      };
+    })
+    .filter((t) => t.count)
+    .sort((a, b) => b.value - a.value);
+  return { leagueId: String(league.leagueId), name: league.name, teams, teamCount: teams.length, context };
+}
+
 async function getMarket(cookie, token) {
   if (config.demoMode) return { leagues: [], totals: { teams: 0, assets: 0, leagues: 0 } };
   const leagues = await leaguesService.orderedLeagues(cookie, token);
   const [byId, ctx] = await Promise.all([playersLib.load(cookie), ctxFor(cookie)]);
-
-  const out = await Promise.all(
-    leagues.map(async (league) => {
-      // Price each league's market through ITS OWN format (docs/DATA_SOURCES.md Q3), so a rival's
-      // superflex QB is valued as this league would pay — not at the neutral 1QB market.
-      const [baits, names, context, enr] = await Promise.all([
-        mflRepo.tradeBaits(league, cookie, { INCLUDE_DRAFT_PICKS: 1 }).catch(() => []),
-        leaguesService.franchiseNames(cookie, league).catch(() => new Map()),
-        leagueContext.build(cookie, league).catch(() => null),
-        enrichmentLib.snapshot(await leagueFormat.format(cookie, league), cookie),
-      ]);
-      const teams = baits
-        .filter((b) => mfl.text(mfl.attr(b, 'franchise_id', 'franchiseId')) !== String(league.franchiseId))
-        .map((b) => {
-          const fid = mfl.text(mfl.attr(b, 'franchise_id', 'franchiseId'));
-          const assets = sortAssets(
-            baitTokens(b)
-              .map((tok) => {
-                const a = baitAsset(tok, byId, enr);
-                // Injury/bye status for players (rivals' AND — via getBlock — yours), so a scan of a
-                // rival's block shows who's actually deployable.
-                if (a.kind === 'player') a.availability = availabilityLib.resolve(playersLib.resolve(byId, a.id), ctx.statusMap, ctx.byeMap, ctx.week);
-                // My personal read on a rival's shopped player — is he a Target of mine? An Avoid? On
-                // my watchlist? — so I can spot a rival dangling someone I want.
-                return stampSignals(a, token);
-              })
-              .filter((a) => config.demoMode || a.kind === 'pick' || (a.name && !/^Player \d+$/.test(a.name)))
-          );
-          return {
-            franchiseId: fid,
-            name: names.get(fid) || `Team ${fid}`,
-            note: mfl.text(mfl.attr(b, 'inExchangeFor', 'in_exchange_for')) || null,
-            assets,
-            count: assets.length,
-            value: Math.round(assets.reduce((s, a) => s + (a.value || 0), 0)),
-          };
-        })
-        .filter((t) => t.count)
-        .sort((a, b) => b.value - a.value);
-      return { leagueId: String(league.leagueId), name: league.name, teams, teamCount: teams.length, context };
-    })
-  );
+  const out = await Promise.all(leagues.map((league) => marketForLeague(cookie, token, league, { byId, ctx })));
 
   const leaguesWithBait = out.filter((l) => l.teamCount);
   return {
@@ -336,6 +336,25 @@ async function getMarket(cookie, token) {
       leagues: leaguesWithBait.length,
     },
   };
+}
+
+// Stepped-load entry points — the market screen paints the league list INSTANTLY (this is just the
+// ordered leagues, no MFL bait fetch), then pulls each league's rival blocks lazily as it's expanded,
+// prioritizing the one the user opened. Turns a slow all-leagues-at-once fetch into an instant list
+// plus on-demand per-league reads (testing feedback).
+async function getMarketLeagues(cookie, token) {
+  if (config.demoMode) return { leagues: [] };
+  const leagues = await leaguesService.orderedLeagues(cookie, token);
+  return { leagues: leagues.map((l) => ({ leagueId: String(l.leagueId), name: l.name })) };
+}
+
+async function getMarketLeague(cookie, token, leagueId) {
+  if (config.demoMode) return { leagueId: String(leagueId), name: '', teams: [], teamCount: 0, context: null };
+  const leagues = await leaguesService.orderedLeagues(cookie, token);
+  const league = leagues.find((l) => String(l.leagueId) === String(leagueId));
+  if (!league) { const e = new Error(`League ${leagueId} not found for this account`); e.status = 404; throw e; }
+  const [byId, ctx] = await Promise.all([playersLib.load(cookie), ctxFor(cookie)]);
+  return marketForLeague(cookie, token, league, { byId, ctx });
 }
 
 // Light per-league editor list for MANAGING your block: EVERY league (so you can add to any), each
@@ -472,4 +491,4 @@ async function remove(cookie, token, leagueId, playerId) {
   return { ok: true, onBlock: false, leagueId: String(leagueId), id, synced };
 }
 
-module.exports = { getBlock, getBlockEditor, saveBlock, getMarket, leagueIds, add, remove };
+module.exports = { getBlock, getBlockEditor, saveBlock, getMarket, getMarketLeagues, getMarketLeague, leagueIds, add, remove };
