@@ -28,7 +28,7 @@
       "package": "com.dynastycentral.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#0A0F1C"
+        "backgroundColor": "#090F1F"
       },
       "backgroundColor": "#080B15",
       "allowBackup": false
