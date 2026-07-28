@@ -425,12 +425,14 @@ win-now / rest-of-season) plus two narrower correctness issues. Ranked by value-
   win-now/rebuild from dynasty-value strength + core age only, so a 2-8 team with a stacked-but-
   underperforming roster reads "Win-now." Fold in real W-L / points (needs `leagueStandings`). *(Low
   effort, roadmap-ready; half the buy/sell signal at the deadline.)*
-- [ ] **Win-now / rest-of-season value beside dynasty value on trades (P1).** `tradeMath.analyze`
+- [~] **Win-now / rest-of-season value beside dynasty value on trades (P1).** `tradeMath.analyze`
   drives the headline favorable/fair/unfavorable purely on dynasty value, so a contender is told a
   "sell the vet for a pick + youth" deal is *favorable* — correct for assets, backwards for their
   window. (`tradefit.js` already knows "startability isn't dynasty value" for hole-detection — apply
-  it to the verdict.) Carry a second ROS/win-now valuation and let team outlook decide which leads;
-  projections already exist for the optimizer. *(Med effort — the single highest-impact correctness fix.)*
+  it to the verdict.) **Foundation shipped:** FantasyCalc's redraft value is now carried through the
+  enrichment snapshot as `winNow` (self-normalized 0–100) and surfaced as a Win-now rankings lens +
+  a Win-now value on the player profile. **Remaining:** carry that second valuation into
+  `tradeMath.analyze` and let team outlook decide which lens leads the verdict. *(Med effort.)*
 - [ ] **Cross-league value arbitrage (P2).** The app tracks player exposure across leagues but never
   says "you roster him in 3 leagues — he's worth most in your SF league; shop him *there*." A
   differentiated, on-brand insight this cross-league app is uniquely positioned to own. *(Med effort.)*

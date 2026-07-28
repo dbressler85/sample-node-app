@@ -31,6 +31,7 @@ const TABS = [
 const isHttpUrl = (u) => typeof u === 'string' && /^https?:\/\//i.test(u);
 const RANK_TYPES = [
   ['value', 'Market value'],
+  ['winnow', 'Win-now'],
   ['myvalue', 'My value'],
   ['owned', 'Most owned'],
   ['trending', 'Trending'],
@@ -380,7 +381,7 @@ export default function PlayersScreen({ onOpenPlayer }) {
                 keyExtractor={(p) => p.id}
                 extraData={{ tagOverride, watchOverride, listSort }}
                 contentContainerStyle={styles.list}
-                renderItem={({ item, index }) => <Reveal delay={Math.min(index, 12) * 32} animate={index < 14}><PlayerRow p={item} rank={rankById[item.id]} tag={resolveTag(item)} watched={resolveWatch(item)} showTrend={rankType === 'trending'} {...rowActions} onPress={() => onOpenPlayer(item.id)} /></Reveal>}
+                renderItem={({ item, index }) => <Reveal delay={Math.min(index, 12) * 32} animate={index < 14}><PlayerRow p={item} rank={rankById[item.id]} tag={resolveTag(item)} watched={resolveWatch(item)} showTrend={rankType === 'trending'} showWinNow={rankType === 'winnow'} {...rowActions} onPress={() => onOpenPlayer(item.id)} /></Reveal>}
                 onEndReached={loadMoreRankings}
                 onEndReachedThreshold={0.5}
                 ListFooterComponent={
@@ -531,7 +532,7 @@ export default function PlayersScreen({ onOpenPlayer }) {
   );
 }
 
-function PlayerRow({ p, rank, sub, tag, watched, showTrend, onTag, onWatch, onQuickAdd, onPress }) {
+function PlayerRow({ p, rank, sub, tag, watched, showTrend, showWinNow, onTag, onWatch, onQuickAdd, onPress }) {
   const posColor = positionColors[p.position] || colors.textDim;
   const t = tag !== undefined ? tag : p.tag || null;
   const w = watched !== undefined ? watched : !!p.watched;
@@ -573,6 +574,13 @@ function PlayerRow({ p, rank, sub, tag, watched, showTrend, onTag, onWatch, onQu
             <Text style={styles.trend}>▲ {Math.round(p.trend).toLocaleString()}</Text>
             <Text style={styles.trendUnit}>adds/48h</Text>
           </View>
+        ) : showWinNow ? (
+          p.winNow != null ? (
+            <View style={styles.trendBox}>
+              <Value size={16}>{p.winNow}</Value>
+              <Text style={styles.trendUnit}>win-now</Text>
+            </View>
+          ) : null
         ) : p.value != null ? <Value size={16}>{p.value}</Value> : null}
         {acts ? (
           <View style={styles.actions}>

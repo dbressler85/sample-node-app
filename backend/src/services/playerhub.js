@@ -149,6 +149,8 @@ function annotate(player, byId, ranks, myRostered, mineBy, freeBy, enr, ctx, tag
     team: player.team,
     age: enr.age(player.id),
     value: enr.value(player.id),
+    winNow: enr.winNow ? enr.winNow(player.id) : null, // FantasyCalc redraft value (win-now lens)
+    valueTrend: enr.valueTrend ? enr.valueTrend(player.id) : null, // FantasyCalc 30-day value momentum
     trend: enr.trend(player.id) || 0, // Sleeper add/drop momentum, for the Trending sort's magnitude
     // Season-to-date fantasy points and this week's projection, under the owner's primary league's
     // scoring — surfaced on every row (a general signal, and the streaming read for free agents).
@@ -250,11 +252,15 @@ async function rankings(cookie, token, { type = 'value', position, format, offse
   // not just the legacy 'position' type. Normalized so "K" matches kickers (stored as "PK"), etc.
   const posFilter = position ? playersLib.normalizePosition(position) : null;
   if (posFilter) cand = cand.filter((p) => p.position === posFilter);
-  let light = cand.map((p) => ({ p, value: enr.value(p.id), age: enr.age(p.id), trend: enr.trend(p.id), owned: (mineBy.get(p.id) || []).length }));
+  let light = cand.map((p) => ({ p, value: enr.value(p.id), winNow: enr.winNow ? enr.winNow(p.id) : null, age: enr.age(p.id), trend: enr.trend(p.id), owned: (mineBy.get(p.id) || []).length }));
 
   // Only rank by data we actually have, so players with no signal don't float up.
   if (type === 'trending') {
     light = light.filter((x) => x.trend > 0).sort((a, b) => b.trend - a.trend);
+  } else if (type === 'winnow') {
+    // Win-now: rank by FantasyCalc's redraft value — who helps you win THIS season, not the
+    // dynasty future. Youth/picks sink, proven veterans rise.
+    light = light.filter((x) => x.winNow != null).sort((a, b) => (b.winNow || 0) - (a.winNow || 0));
   } else if (type === 'rookies') {
     // Actual rookies = this season's NFL draft class (draft_year === current season), NOT
     // "anyone young" — age alone wrongly swept in 2nd/3rd-year players (Nabers, Jeanty).
@@ -578,6 +584,10 @@ async function profile(cookie, token, playerId) {
     value: enr.value(playerId),
     // Both value lenses for the profile header (1QB vs Superflex).
     values: { '1qb': enr1qb.value(playerId), sf: enrSf.value(playerId) },
+    // Win-now (redraft) value and 30-day value momentum, both from FantasyCalc — the dynasty
+    // number tells you the future, these tell you this season and which way he's trending.
+    winNow: enr.winNow ? enr.winNow(playerId) : null,
+    valueTrend: enr.valueTrend ? enr.valueTrend(playerId) : null,
     valueRange,
     overallRank: ranks.overall.get(playerId) || null,
     posRank: ranks.pos.get(playerId) || null,

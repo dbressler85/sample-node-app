@@ -19,6 +19,7 @@ export const HELP = [
     title: 'How the Players list ranks',
     body: [
       'Market value is the pure FantasyCalc consensus — what the player is worth to everyone.',
+      'Win-now ranks by FantasyCalc’s redraft (this-season) value instead of dynasty value — who helps you win right now. Proven veterans rise and young dynasty assets (and picks) sink, so it’s the lens to use when you’re contending. The number shown is the win-now value on the same 0–100 scale.',
       'My value is that same market value re-ranked by YOUR convictions: tagging a player Target nudges his value up ~10% for you, Avoid nudges it down ~10%. Your Targets rise and your Avoids sink — but the number shown stays the honest market value, only the order changes. Tag players with the ◎ / ⦸ icons on any row.',
       'Most owned ranks by how many of YOUR leagues roster each player — your biggest exposure first (a player you hold in 5 of 6 leagues sits above one you hold in 1). The number shown is still his market value.',
       'Trending ignores value and ranks by waiver heat: the green number is how many fantasy managers ADDED him across Sleeper + MFL in the last 48 hours. Great for catching breakouts and waiver runs — not a measure of dynasty worth.',

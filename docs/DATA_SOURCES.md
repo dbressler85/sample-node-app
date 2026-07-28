@@ -31,7 +31,9 @@ per-player/-pick values rendered inside the app.
 | Datum | Canonical source | Site | Notes |
 |---|---|---|---|
 | Name / position / team | **MFL `players` DB** (`mapLivePlayer`) | `lib/players.js:64`; resolve `players.resolve` | The MFL id space; everything crosswalks *to* this. FantasyCalc `position` is used only as an internal value-multiplier hint (`enrichment.js:276`), never displayed. Miss → stub `Player <id>`. |
-| Dynasty **value** (0–100) | **FantasyCalc** via the enrichment snapshot `enr.value()` | `lib/enrichment.js:288`; snapshot `:329` | **Format-aware** — value depends on the league format passed to `snapshot(fmt)`. Single function, but see [Q3](#q3--value-is-format-dependent-across-screens). |
+| Dynasty **value** (0–100) | **FantasyCalc** via the enrichment snapshot `enr.value()` | `lib/enrichment.js:288`; snapshot `:329` | **Format-aware** — value depends on the league format passed to `snapshot(fmt)`, now including league size (`numTeams`). See [Q3](#q3--value-is-format-dependent-across-screens). |
+| **Win-now** value (0–100) | FantasyCalc `redraftValue` → `enr.winNow()` | `lib/enrichment.js` (buildFantasyCalc) | Redraft (this-season) value, normalized by its **own** max so it's a self-contained lens. Drives the Players "Win-now" rankings sort + the profile's Win-now cell. |
+| Value **momentum** (30d) | FantasyCalc `trend30Day` → `enr.valueTrend()` | `lib/enrichment.js` (buildFantasyCalc) | Signed 30-day value delta, scaled onto the dynasty 0–100 scale. Distinct from `trend` (add-heat). Surfaced on the profile as "30-day trend". |
 | Overall **rank** | FantasyCalc `overallRank` → `enr.rank()` | `lib/enrichment.js:293` | |
 | Player **age** | **FantasyCalc** `maybeAge` → `enr.age()` (everywhere, incl. the profile) | `lib/enrichment.js:289`; `playerhub.js:520` | Resolved ([Q1](#q1--player-age--resolved-fantasycalc)): the profile header no longer uses `playerProfile.age`. |
 | **Ownership %** | MFL `topOwns` → `enr.ownership()` | `lib/enrichment.js:291` | Single source (FantasyCalc has no ownership field). |
