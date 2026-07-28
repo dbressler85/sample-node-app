@@ -98,6 +98,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
   const [loading, setLoading] = useState(() => !peekResource(deskKey));
   const [tab, setTab] = useState(initialTab === 'propose' ? 'propose' : 'inbox');
   const [busy, setBusy] = useState(null); // offerId being responded to
+  const [dismissed, setDismissed] = useState(() => new Set()); // offer ids responded to — hidden immediately (MFL's pending read lags)
   const [rejectTarget, setRejectTarget] = useState(null); // offer being rejected (optional note modal)
   const [rejectNote, setRejectNote] = useState('');
   const [showCompleted, setShowCompleted] = useState(false); // Sent tab: reveal completed-trade history
@@ -180,7 +181,11 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
     try {
       await api.respondTrade(league.leagueId, offer.id, action, comments);
       celebrate(action === 'accept' ? 'tradeAccepted' : action === 'revoke' ? 'offerWithdrawn' : 'offerRejected');
-      await load();
+      // Reflect immediately: drop the card NOW (MFL's pendingTrades read lags a few seconds and is
+      // cached ~12s, so a reload can still return the offer). Revalidate in the BACKGROUND — never
+      // await it, so a slow/stalled reload can't strand the spinner or leave the responded card up.
+      setDismissed((s) => new Set(s).add(offer.id));
+      load();
     } catch (e) {
       appAlert('Could not respond', e.message);
     } finally {
@@ -228,7 +233,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
   const receiveList = Object.values(receive);
   // Split offers by direction so Inbox (offers TO me) and Sent (offers FROM me) live on separate
   // tabs — a mixed list makes it easy to mistake a sent offer for one you can accept.
-  const allOffers = (data && data.offers) || [];
+  const allOffers = ((data && data.offers) || []).filter((o) => !dismissed.has(o.id));
   const incomingOffers = allOffers.filter((o) => o.direction !== 'outgoing');
   const outgoingOffers = allOffers.filter((o) => o.direction === 'outgoing');
   const activeOffers = tab === 'sent' ? outgoingOffers : incomingOffers;

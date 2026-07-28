@@ -46,6 +46,7 @@ export default function TradeInboxScreen({ active = true, onBack, onOpenLeague, 
   // idle prefetch warms. `reload` refetches after responding to an offer / pull-to-refresh.
   const { data, error, refreshing, loading, reload } = useCachedResource('trades:overview', () => api.trades(), { active });
   const [busy, setBusy] = useState(null); // `${leagueId}:${offerId}` being responded to
+  const [dismissed, setDismissed] = useState(() => new Set()); // offers responded to — hidden immediately (MFL's pending read lags a few s)
   const [baitByLeague, setBaitByLeague] = useState({}); // leagueId -> # players you're shopping
   const [fitByLeague, setFitByLeague] = useState({}); // leagueId -> fit hint (filled in progressively)
   const [fitSeeded, setFitSeeded] = useState(false); // cached fits loaded (so we don't refetch what we know)
@@ -129,7 +130,12 @@ export default function TradeInboxScreen({ active = true, onBack, onOpenLeague, 
     try {
       await api.respondTrade(offer.leagueId, offer.id, action);
       celebrate(action === 'accept' ? 'tradeAccepted' : 'offerRejected');
-      await reload();
+      // Reflect the action immediately: drop the card from the list NOW (MFL's pendingTrades read
+      // lags the accept/reject by a few seconds and is cached ~12s, so a reload can still return the
+      // offer). Revalidate in the BACKGROUND — never await it, so a slow/stalled reload can't strand
+      // the spinner or leave the responded card sitting there.
+      setDismissed((s) => new Set(s).add(k));
+      reload();
     } catch (e) {
       appAlert('Could not respond', e.message);
     } finally {
@@ -157,10 +163,10 @@ export default function TradeInboxScreen({ active = true, onBack, onOpenLeague, 
   // Best deals first: favorable → fair → unfavorable, then by net value. Memoized
   // so the sort doesn't re-run on every unrelated re-render (busy/refresh flips).
   const offers = useMemo(
-    () => (data && data.offers ? [...data.offers] : []).sort(
+    () => (data && data.offers ? data.offers.filter((o) => !dismissed.has(`${o.leagueId}:${o.id}`)) : []).sort(
       (a, b) => (VRANK[a.analysis.verdict] - VRANK[b.analysis.verdict]) || (b.analysis.net - a.analysis.net)
     ),
-    [data]
+    [data, dismissed]
   );
   const summary = data && data.summary;
   const leagues = (data && data.leagues) || [];
