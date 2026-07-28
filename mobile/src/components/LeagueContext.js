@@ -16,9 +16,14 @@ function Chip({ label, tone }) {
   );
 }
 
-export default function LeagueContext({ context }) {
+// `team` (optional) overrides context.team — used on the trade-block editor, whose light context has
+// no team block, so it passes the roster summary it already fetched on expand.
+export default function LeagueContext({ context, team: teamOverride }) {
   if (!context) return null;
-  const { superflex, pprLabel, tePremium, tep, teStarters, lineup, team } = context;
+  const { superflex, pprLabel, tePremium, tep, teStarters, lineup } = context;
+  const team = teamOverride || context.team;
+  const rec = team && team.record;
+  const recStr = rec ? `${rec.wins}-${rec.losses}${rec.ties ? `-${rec.ties}` : ''}` : null;
   return (
     <View style={styles.card}>
       <View style={styles.chipRow}>
@@ -39,10 +44,16 @@ export default function LeagueContext({ context }) {
           {lineup.label}
         </Text>
       ) : null}
-      {team && (team.outlook || team.coreAge != null || team.strengthLabel) ? (
+      {team && (team.outlook || team.coreAge != null || team.avgAge != null || team.strengthLabel || recStr) ? (
         <Text style={styles.line}>
           <Text style={styles.lineLabel}>Your team  </Text>
-          {[team.outlook, team.coreAge != null ? `core ${team.coreAge}y` : null, team.strengthLabel]
+          {[
+            team.outlook,
+            recStr ? `${recStr}` : null,
+            team.avgAge != null ? `avg ${team.avgAge}y` : null,
+            team.coreAge != null ? `core ${team.coreAge}y` : null,
+            team.strengthLabel,
+          ]
             .filter(Boolean)
             .join(' · ')}
         </Text>

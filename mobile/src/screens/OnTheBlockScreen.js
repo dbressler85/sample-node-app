@@ -213,7 +213,9 @@ export default function OnTheBlockScreen({ onBack, onOpenPlayer, onOpenInbox, on
                       <Text style={styles.caret}>{open ? '⌄' : '›'}</Text>
                     </Pressable>
 
-                    {open && lg.context ? <LeagueContext context={lg.context} /> : null}
+                    {/* The editor's light context has no team block — feed it the roster summary we
+                        fetch on expand, so outlook + avg age + current-year record show per league. */}
+                    {open && lg.context ? <LeagueContext context={lg.context} team={roster && roster !== 'loading' && roster !== 'error' ? roster.summary : undefined} /> : null}
                     {open ? (
                       roster === 'loading' || !roster ? (
                         <View style={styles.center}><ActivityIndicator color={colors.accent} /></View>
