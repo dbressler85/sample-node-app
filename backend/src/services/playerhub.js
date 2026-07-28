@@ -380,38 +380,64 @@ async function liveSeasonAndLog(cookie, league, playerId, week) {
 // playerScores (YTD over the previous season), plus the real box score (passing/rushing/receiving)
 // from Sleeper via the MFL↔Sleeper crosswalk. Scored under one of the owner's leagues, and
 // year-overridden in the URL path. Fail-soft — a card without a prior line is fine.
-async function livePriorSeasonTotal(cookie, league, playerId, enr) {
-  if (!league) return null;
+// Standard-PPR fantasy total derived from a real box score — a league-INDEPENDENT fallback for the
+// prior-season points when MFL's league-scored total is missing (a new/redraft first league, or a
+// player who was unrostered there). Ground-truth production, not a league's exact scoring, but a
+// faithful "how productive was he" number. Returns null when the box has no scoring events.
+function pprPointsFromBox(box) {
+  if (!box) return null;
+  let pts = 0;
+  let any = false;
+  const p = box.passing;
+  const r = box.rushing;
+  const c = box.receiving;
+  if (p) { pts += (p.yds || 0) * 0.04 + (p.td || 0) * 4 - (p.int || 0); any = any || !!(p.yds || p.td); }
+  if (r) { pts += (r.yds || 0) * 0.1 + (r.td || 0) * 6; any = any || !!(r.yds || r.td); }
+  if (c) { pts += (c.rec || 0) + (c.yds || 0) * 0.1 + (c.td || 0) * 6; any = any || !!(c.rec || c.yds || c.td); }
+  return any ? Math.round(pts * 10) / 10 : null;
+}
+
+// Last completed season for a player: fantasy total (MFL prior-year playerScores, scored under the
+// owner's first league) + the real box score (passing/rushing/receiving) from Sleeper via the
+// MFL↔Sleeper crosswalk. The box score is league-independent, so we prefer it for games-played and
+// derive points from it when MFL has no prior-year total — that's what keeps the card populated
+// regardless of which league happens to be first. For a skill player we ALWAYS return an object (with
+// nulls if nothing resolved) so the profile can show a clear "no prior-season data" state rather than
+// silently dropping the card; non-skill positions (DEF/PK/IDP) have no box-score concept → null.
+async function livePriorSeasonTotal(cookie, league, playerId, enr, position) {
   const priorYear = Number(config.season) - 1;
+  const skill = ['QB', 'RB', 'WR', 'TE'].includes(String(position || '').toUpperCase());
+  const emptyOrNull = () => (skill ? { year: priorYear, points: null, games: null, ppg: null, stats: null } : null);
   try {
     const sleeperId = enr ? enr.sleeperId(playerId) : null;
     const [ytdArr, avgArr, box] = await Promise.all([
-      mflRepo.playerScores(league, cookie, { W: 'YTD', PLAYERS: playerId, year: priorYear }),
-      mflRepo.playerScores(league, cookie, { W: 'AVG', PLAYERS: playerId, year: priorYear }),
+      league ? mflRepo.playerScores(league, cookie, { W: 'YTD', PLAYERS: playerId, year: priorYear }).catch(() => []) : Promise.resolve([]),
+      league ? mflRepo.playerScores(league, cookie, { W: 'AVG', PLAYERS: playerId, year: priorYear }).catch(() => []) : Promise.resolve([]),
       seasonStatsLib.forPlayer(sleeperId, priorYear).catch(() => null),
     ]);
     const pick = (arr) => {
-      const hit = arr.find((p) => String(p.id) === String(playerId));
+      const hit = (arr || []).find((p) => String(p.id) === String(playerId));
       return hit && hit.score !== '' && hit.score != null ? Math.round((Number(hit.score) || 0) * 10) / 10 : null;
     };
-    const points = pick(ytdArr);
-    // Show the card if we have EITHER a fantasy total or a real box score (a player can have stats
-    // even when MFL's prior-year fantasy total is missing for this league's scoring).
-    if ((points == null || points <= 0) && !box) return null;
-    const avg = pick(avgArr);
-    // Prefer Sleeper's games-played; fall back to the YTD/AVG estimate.
+    let points = pick(ytdArr);
+    let avg = pick(avgArr);
+    // League-independent fallback: derive a PPR total from the box score when MFL has no league-scored
+    // prior-year total for this player.
+    if ((points == null || points <= 0) && box) {
+      const derived = pprPointsFromBox(box);
+      if (derived != null) points = derived;
+    }
+    // Nothing anywhere → the empty-state card (skill) or null (non-skill).
+    if ((points == null || points <= 0) && !box) return emptyOrNull();
+    // Prefer Sleeper's games-played; fall back to the YTD/AVG estimate. Fill ppg from games when AVG
+    // is absent (e.g. points came from the derived box total).
     const games = box && box.gp ? box.gp : avg && avg > 0 && points ? Math.max(1, Math.round(points / avg)) : null;
+    if (avg == null && games && points) avg = Math.round((points / games) * 10) / 10;
     const stats = box ? { passing: box.passing || null, rushing: box.rushing || null, receiving: box.receiving || null } : null;
-    return {
-      year: priorYear,
-      points: points != null ? points : null,
-      games,
-      ppg: avg != null ? avg : games && points ? Math.round((points / games) * 10) / 10 : null,
-      stats,
-    };
+    return { year: priorYear, points: points != null ? points : null, games, ppg: avg != null ? avg : null, stats };
   } catch (e) {
-    logDegrade(`playerhub.livePriorSeasonTotal league=${league.leagueId} player=${playerId}`, e);
-    return null;
+    logDegrade(`playerhub.livePriorSeasonTotal league=${league && league.leagueId} player=${playerId}`, e);
+    return emptyOrNull();
   }
 }
 
@@ -463,7 +489,7 @@ async function profile(cookie, token, playerId) {
       const leagues = await leaguesService.listLeagues(cookie);
       const [res, prior] = await Promise.all([
         liveSeasonAndLog(cookie, leagues[0], playerId, ctx.week),
-        livePriorSeasonTotal(cookie, leagues[0], playerId, enr),
+        livePriorSeasonTotal(cookie, leagues[0], playerId, enr, base.position),
       ]);
       return { log: res.log, season: res.season, priorSeason: prior };
     })(),
@@ -716,7 +742,7 @@ async function compare(cookie, token, ids) {
         priorSeason = prior ? { year: priorYear, ...prior } : null;
       } else {
         if (!leagues) leagues = await leaguesService.listLeagues(cookie);
-        priorSeason = await livePriorSeasonTotal(cookie, leagues[0], id, enr).catch(() => null);
+        priorSeason = await livePriorSeasonTotal(cookie, leagues[0], id, enr, base.position).catch(() => null);
       }
       return {
         id: base.id,
@@ -737,4 +763,4 @@ async function compare(cookie, token, ids) {
   return { players: players.filter(Boolean) };
 }
 
-module.exports = { search, rankings, profile, compare, previewAdd, submitAdd, submitDrop, invalidateGather };
+module.exports = { search, rankings, profile, compare, previewAdd, submitAdd, submitDrop, invalidateGather, _pprPointsFromBox: pprPointsFromBox };
