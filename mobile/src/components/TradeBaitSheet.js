@@ -36,6 +36,12 @@ export default function TradeBaitSheet({ player, onClose, onDone }) {
       // Add sequentially-ish (Promise.all) — each is a read-modify-write against that league's block.
       const results = await Promise.allSettled(ids.map((leagueId) => api.addBait(leagueId, player.id)));
       const ok = results.filter((r) => r.status === 'fulfilled').length;
+      if (ok === 0) {
+        // Total failure — do NOT report success or dismiss; let the user retry with the sheet intact.
+        const first = results.find((r) => r.status === 'rejected');
+        appAlert('Couldn’t update block', (first && first.reason && first.reason.message) || `Couldn’t add ${player.name} to your block. Try again.`);
+        return;
+      }
       appAlert('On the block', `${player.name} added to your block in ${ok} of ${ids.length} league${ids.length === 1 ? '' : 's'}.`);
       onDone();
     } catch (e) {

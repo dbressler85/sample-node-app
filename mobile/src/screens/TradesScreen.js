@@ -300,7 +300,9 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
       for (const g of s.give || []) map[g.id] = g;
       setSend(map);
     } catch (e) {
-      /* keep whatever's there */
+      // Keep whatever's on the "you send" side, but tell the user it didn't work — a spinner that stops
+      // with no change and no message reads as "the feature is broken". (matches applyAsk/applyFullDeal.)
+      toast('Couldn’t build a suggestion — try again');
     } finally {
       setSuggesting(false);
     }

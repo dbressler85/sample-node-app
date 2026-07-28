@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, FlatList, StyleSheet, Pressable, TextInput, ActivityIndicator, Linking, Animated } from 'react-native';
-import { api } from '../api';
+import { api, friendlyError } from '../api';
 import { exposurePreferDevice, bestAvailablePreferDevice } from '../mflDevice';
 import { colors, positionColors, rgb } from '../theme';
 import AvailabilityBadge from '../components/AvailabilityBadge';
@@ -132,7 +132,7 @@ export default function PlayersScreen({ onOpenPlayer, onStartWaiverWizard }) {
     }
     let alive = true;
     const timer = setTimeout(() => {
-      api.playerSearch(q, { position: pos, format, tep }).then((r) => alive && setSearchRes(r)).catch((e) => alive && setError(e.message));
+      api.playerSearch(q, { position: pos, format, tep }).then((r) => alive && setSearchRes(r)).catch((e) => alive && setError(friendlyError(e.message)));
     }, 300);
     return () => {
       alive = false;
@@ -153,14 +153,14 @@ export default function PlayersScreen({ onOpenPlayer, onStartWaiverWizard }) {
       primeResource(rankKey, res);
       setValue(rankKey, res);
     } catch (e) {
-      setError(e.message);
+      setError(friendlyError(e.message));
     }
   }, [rankType, pos, format, tep, rankKey]);
 
   // Refetch My Players WITHOUT clearing the current list, so an auto-reload (below) fills in the leagues
   // a throttle dropped while the rows stay on screen and the loaded count just climbs.
   const reloadMine = useCallback(() => {
-    exposurePreferDevice().then(setMine).catch((e) => setError(e.message));
+    exposurePreferDevice().then(setMine).catch((e) => setError(friendlyError(e.message)));
   }, []);
 
   // Free agents: refetch and cache on the resource store (in-memory + disk), so re-entering the tab
@@ -169,7 +169,7 @@ export default function PlayersScreen({ onOpenPlayer, onStartWaiverWizard }) {
   const loadFree = useCallback(() => {
     bestAvailablePreferDevice(format, tep)
       .then((res) => { setFree(res); primeResource(freeKey, res); setValue(freeKey, res); })
-      .catch((e) => setError(e.message));
+      .catch((e) => setError(friendlyError(e.message)));
   }, [format, tep, freeKey]);
 
   // Infinite scroll: fetch the next window and append. Guard on loadingMore so the
@@ -192,7 +192,7 @@ export default function PlayersScreen({ onOpenPlayer, onStartWaiverWizard }) {
         return merged;
       });
     } catch (e) {
-      setError(e.message);
+      setError(friendlyError(e.message));
     } finally {
       setLoadingMore(false);
     }
@@ -225,11 +225,11 @@ export default function PlayersScreen({ onOpenPlayer, onStartWaiverWizard }) {
     // My Players is device-first: the roster fan-out across all leagues runs on-device (its own IP),
     // enriched + grouped via the backend; silently falls back to the backend on any device-read failure.
     if (tab === 'mine' && !mine) reloadMine();
-    if (tab === 'news' && !news) api.news().then(setNews).catch((e) => setError(e.message));
+    if (tab === 'news' && !news) api.news().then(setNews).catch((e) => setError(friendlyError(e.message)));
     // Watchlist changes as you star players elsewhere, so refetch each open — but WITHOUT clearing the
     // current list (mirror My Players), so the prior watch stays on screen while it revalidates instead
     // of blanking to a spinner. Re-prices when `format` changes too.
-    if (tab === 'watch') api.watchlist(format, tep).then(setWatch).catch((e) => setError(e.message));
+    if (tab === 'watch') api.watchlist(format, tep).then(setWatch).catch((e) => setError(friendlyError(e.message)));
   }, [tab, mine, news, format, tep, reloadMine]);
 
   // Free agents get the same stale-while-revalidate treatment as Rankings: paint the cached board at

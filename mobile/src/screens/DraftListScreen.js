@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, ActivityIndicator } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, ActivityIndicator, RefreshControl } from 'react-native';
 import { appAlert } from "../components/AppAlert";
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
@@ -8,6 +8,7 @@ import ErrorView from '../components/ErrorView';
 import LeagueContext from '../components/LeagueContext';
 import NeonSign from '../components/NeonSign';
 import useAndroidBack from '../useAndroidBack';
+import usePoll from '../usePoll';
 import { Value } from '../components/Brand';
 
 // The owner's My Draft List for one league — a pre-draft (and during-draft) tool to narrow the
@@ -43,6 +44,20 @@ export default function DraftListScreen({ league, onBack, onOpenPlayer }) {
       .finally(() => setLoading(false));
   }, [league.leagueId]);
   useEffect(() => { load(); }, [load]);
+
+  // During a LIVE draft the board goes stale as rivals draft your listed players (the DRAFTED
+  // strikethrough + "next up" line drift). Silently re-pull every 15s — but NEVER while you have
+  // unsaved reorder edits (dirty), and bail if you START editing mid-fetch, so a refresh can't
+  // clobber your in-progress ranking. Pull-to-refresh (load) stays available for a manual refresh.
+  const dirtyRef = useRef(dirty);
+  dirtyRef.current = dirty;
+  const silentReload = useCallback(() => {
+    if (dirtyRef.current) return;
+    api.draftList(league.leagueId)
+      .then((d) => { if (!dirtyRef.current) { setData(d); setList(d.list || []); setError(null); } })
+      .catch(() => {});
+  }, [league.leagueId]);
+  usePoll(silentReload, 15000, !!(data && data.status === 'in_progress'));
 
   // Debounced search for the Add pane.
   useEffect(() => {
@@ -188,7 +203,7 @@ export default function DraftListScreen({ league, onBack, onOpenPlayer }) {
       </View>
 
       {seg === 'list' ? (
-        <ScrollView contentContainerStyle={styles.list}>
+        <ScrollView contentContainerStyle={styles.list} refreshControl={<RefreshControl refreshing={false} onRefresh={load} tintColor={colors.accent} />}>
           {!list.length ? (
             <Text style={styles.empty}>No players yet. Switch to “Add players” to build your list, or auto-fill the top available.</Text>
           ) : (
