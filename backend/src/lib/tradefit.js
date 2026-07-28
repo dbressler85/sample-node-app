@@ -8,7 +8,8 @@ const tradeMath = require('./tradeMath');
 // depth beyond their starting slots. A good offer sends the other team players at their
 // needs, drawn from your surplus — and the values (already format-aware per league) match.
 
-// Starting demand per position, distributing flex slots across their eligible spots.
+// Starting demand per position, distributing flex slots across their eligible spots. This is the
+// heuristic bar for STARTER VALUE / needs comparisons, where a fractional flex share is fine.
 function positionSlots(requirements) {
   const slots = {};
   for (const r of requirements || []) {
@@ -16,6 +17,21 @@ function positionSlots(requirements) {
     if (!elig.length) continue;
     const per = (r.count || 1) / elig.length;
     for (const pos of elig) slots[pos] = (slots[pos] || 0) + per;
+  }
+  return slots;
+}
+
+// DEDICATED starting slots per position — only requirements that accept a SINGLE position. This is
+// the bar for HOLE detection: the minimum bodies you're actually forced to field at that exact spot.
+// A FLEX/SUPERFLEX slot (RB/WR/TE, QB/RB/WR/TE, …) does NOT force a TE — it's filled by whoever's best
+// across the eligible positions — so it must not count toward "how many TEs must they start". Without
+// this, a superflex+flex lineup rounded TE's fractional flex share up to 2 required TEs, so trading a
+// team's SECOND TE (while they kept a better one) read as "strips their TE starter". (tradefit)
+function dedicatedSlots(requirements) {
+  const slots = {};
+  for (const r of requirements || []) {
+    const elig = (r.eligible && r.eligible.length ? r.eligible : [r.name]).filter(Boolean);
+    if (elig.length === 1) slots[elig[0]] = (slots[elig[0]] || 0) + (r.count || 1);
   }
   return slots;
 }
@@ -53,12 +69,16 @@ function median(nums) {
 // badly they're needed (gap below the league) / how much surplus depth they hold.
 function needsSurplus(franchises, requirements) {
   const slots = positionSlots(requirements);
+  const holeSlots = dedicatedSlots(requirements); // required-per-position bar for hole detection (flex/SF excluded)
   // Kicker and team defense are streamed off waivers, never traded, so they're excluded from the
   // trade brain entirely — no K/DEF needs/surplus, and (below, in suggestGive) never proposed in a
   // suggested package. They stay fully visible/rosterable/startable elsewhere; they're just not
   // trade pieces the app pushes.
   const started = Object.keys(slots).filter((p) => slots[p] >= 0.5 && !['PK', 'DEF'].includes(p));
-  const bds = franchises.map((f) => ({ franchiseId: String(f.franchiseId), bd: breakdown(f.players, slots) }));
+  // Per-team breakdown uses DEDICATED slots so a position's "starter" is its required starters only —
+  // a team's TE starter is their best TE, not a top-2 average that a flex-inflated slot count dragged a
+  // backup into. (startFloor below still uses the fractional `slots` for the leaguewide startable tier.)
+  const bds = franchises.map((f) => ({ franchiseId: String(f.franchiseId), bd: breakdown(f.players, holeSlots) }));
 
   const medStarter = {};
   for (const pos of started) medStarter[pos] = median(bds.map((b) => (b.bd[pos] ? b.bd[pos].starterVal : 0)));
@@ -105,7 +125,9 @@ function needsSurplus(franchises, requirements) {
       // `bodies` = total rostered players here, INCLUDING ones we can't value — so a retained but
       // unvalued starter (a vet FantasyCalc doesn't rank) still counts as a body, and giving away a
       // valued one no longer reads as "no startable X" when a real player remains in the slot.
-      depth[pos] = { slots: b.nStart, threshold, startable, count: b.count, bodies: b.bodies != null ? b.bodies : b.count };
+      // Hole `slots` = DEDICATED starting slots only (a flex/superflex slot doesn't force this position),
+      // so trading a team's 2nd TE when their lineup only requires 1 TE no longer reads as a hole.
+      depth[pos] = { slots: holeSlots[pos] || 0, threshold, startable, count: b.count, bodies: b.bodies != null ? b.bodies : b.count };
     }
     needs.sort((a, b) => b.gap - a.gap);
     surplus.sort((a, b) => b.depth - a.depth);
