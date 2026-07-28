@@ -304,7 +304,7 @@ const styles = StyleSheet.create({
   sortChipTxtOn: { color: colors.accent },
   list: { paddingHorizontal: 20, paddingBottom: 32 },
   sectionHeader: {
-    color: colors.accent,
+    color: colors.violetText,
     fontSize: 13,
     fontWeight: '800',
     textTransform: 'uppercase',

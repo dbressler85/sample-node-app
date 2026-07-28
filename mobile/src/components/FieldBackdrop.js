@@ -14,12 +14,13 @@ const WM_SIZE = Math.round(Dimensions.get('window').width * 0.72);
 //                     ceremony, not wallpaper (the threshold + the crest ignition), so gold stays.
 //   • ambient (app) — "Deep Ink": a near-flat dark navy that lifts slightly at center so cards
 //                     float, with an edge vignette and NO gold. Makes value-gold + the neon tier pop.
-//                     (Exploratory — trying Deep Ink on device; see the background-options study.)
+// The ground is deliberately a clean navy: violet is no longer wallpaper — it now names the app's
+// structural label layer (see theme.js `violet`), so the backdrop stays out of its way.
 // Drawn in a 0–100 square stretched to fill (preserveAspectRatio none) so it adapts to any
 // container without measuring. Purely decorative — never intercepts touches.
 // Memoized: props are stable (the app renders it with none, login with a fixed `hero`), so the
 // heavy static SVG shouldn't re-render on every unrelated App state change (tab/overlay/etc.).
-function FieldBackdrop({ hero = false, watermark = true, atmosphere = true }) {
+function FieldBackdrop({ hero = false, watermark = true }) {
   const ambient = !hero;
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
@@ -41,26 +42,6 @@ function FieldBackdrop({ hero = false, watermark = true, atmosphere = true }) {
             <Stop offset="0.72" stopColor="#080D1A" />
             <Stop offset="1" stopColor="#05070E" />
           </RadialGradient>
-          {/* DECORATIVE atmosphere — Electric Violet woven into the ground so the whole app reads with
-              more color depth (feedback: it felt blue/white heavy). Non-semantic: this is wallpaper, it
-              never marks anything. A faint overall wash + a richer off-center bloom for depth. */}
-          <RadialGradient id="fbVioletWash" cx="0.5" cy="0.5" r="0.95">
-            <Stop offset="0" stopColor="#8B5CF6" stopOpacity="0.16" />
-            <Stop offset="0.62" stopColor="#8B5CF6" stopOpacity="0.05" />
-            <Stop offset="1" stopColor="#8B5CF6" stopOpacity="0" />
-          </RadialGradient>
-          <RadialGradient id="fbVioletBloom" cx="0.84" cy="0.12" r="0.6">
-            <Stop offset="0" stopColor="#9E6BFF" stopOpacity="0.28" />
-            <Stop offset="0.55" stopColor="#8B5CF6" stopOpacity="0.09" />
-            <Stop offset="1" stopColor="#8B5CF6" stopOpacity="0" />
-          </RadialGradient>
-          {/* A second bloom anchored low-left so the violet is felt diagonally across the whole ground,
-              not just the top-right corner — the previous single corner glow read as barely there. */}
-          <RadialGradient id="fbVioletBloom2" cx="0.14" cy="0.9" r="0.62">
-            <Stop offset="0" stopColor="#7C4DEB" stopOpacity="0.22" />
-            <Stop offset="0.58" stopColor="#8B5CF6" stopOpacity="0.07" />
-            <Stop offset="1" stopColor="#8B5CF6" stopOpacity="0" />
-          </RadialGradient>
           {/* edge vignette so the corners fall away and the content floats (ambient only) */}
           <RadialGradient id="fbVignette" cx="0.5" cy="0.42" r="0.75">
             <Stop offset="0.55" stopColor="#000000" stopOpacity="0" />
@@ -69,15 +50,6 @@ function FieldBackdrop({ hero = false, watermark = true, atmosphere = true }) {
         </Defs>
         <Rect x="0" y="0" width="100" height="100" fill={hero ? 'url(#fbHero)' : 'url(#fbInk)'} />
         {ambient ? <Rect x="0" y="0" width="100" height="100" fill="url(#fbVignette)" /> : null}
-        {/* Violet atmosphere sits above the vignette so the edge-darkening doesn't swallow it; skipped on
-            the login (`atmosphere={false}`) to keep its gold-lit "dark room" pure. */}
-        {ambient && atmosphere ? (
-          <>
-            <Rect x="0" y="0" width="100" height="100" fill="url(#fbVioletWash)" />
-            <Rect x="0" y="0" width="100" height="100" fill="url(#fbVioletBloom)" />
-            <Rect x="0" y="0" width="100" height="100" fill="url(#fbVioletBloom2)" />
-          </>
-        ) : null}
         {/* faint yard-lines */}
         <G stroke="rgba(255,255,255,0.03)" strokeWidth="0.35">
           {[16, 30, 44, 58, 72, 86].map((y) => (

@@ -822,7 +822,7 @@ const styles = StyleSheet.create({
   metaText: { color: colors.textDim, fontSize: 12, fontWeight: '700' },
   filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingHorizontal: 16, paddingVertical: 8 },
   claimsStrip: { marginHorizontal: 16, marginBottom: 4, backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.accent + '55', paddingHorizontal: 12, paddingTop: 8, paddingBottom: 4 },
-  claimsTitle: { color: colors.accent, fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 4 },
+  claimsTitle: { color: colors.violetText, fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 4 },
   claimRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
   claimAdd: { color: colors.text, fontSize: 14, fontWeight: '800' },
   claimMeta: { color: colors.gold, fontSize: 13, fontWeight: '800' },

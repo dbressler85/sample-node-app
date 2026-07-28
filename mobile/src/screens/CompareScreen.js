@@ -204,7 +204,7 @@ const styles = StyleSheet.create({
   playerMeta: { color: colors.textDim, fontSize: 11, textAlign: 'center', marginTop: 2 },
   metricRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderRadius: 8 },
   metricRowAlt: { backgroundColor: colors.card },
-  sectionLabel: { color: colors.gold, fontSize: 11, fontWeight: '900', letterSpacing: 0.5, textTransform: 'uppercase', marginTop: 16, marginBottom: 4, marginLeft: 2 },
+  sectionLabel: { color: colors.violetText, fontSize: 11, fontWeight: '900', letterSpacing: 0.5, textTransform: 'uppercase', marginTop: 16, marginBottom: 4, marginLeft: 2 },
   cellVal: { color: colors.text, fontSize: 14, fontWeight: '600', textAlign: 'center' },
   cellLead: { color: colors.good, fontWeight: '900' },
   emptyText: { color: colors.textDim, fontSize: 14, textAlign: 'center', lineHeight: 21 },

@@ -10,7 +10,7 @@ export const colors = {
   bg: '#080B15', // Midnight Ink — app ground (deepened for crest/gold contrast)
   card: '#141C30', // Console surface
   cardAlt: '#1B2540', // Console, raised/active
-  border: '#2E2C4E', // Hairline — a neutral biased toward the ambient violet (chosen, not default grey), so every card/divider edge carries a faint decorative tint
+  border: '#28324D', // Hairline — neutral navy grey (violet is no longer wallpaper; it now names structure — see below)
   scrim: 'rgba(5,8,15,0.72)', // modal / sheet backdrop (one value, not three ad-hoc ones)
   text: '#EAF0FB',
   textDim: '#93A2BE',
@@ -23,11 +23,13 @@ export const colors = {
   bad: '#FF6470', // negative / loss / destructive — also the "avoid" tag hue
   warn: '#FFA23A', // caution / deadline — orange, kept distinct from gold
   watch: '#FFE94A', // Neon Yellow — the watchlist/target tag. Balanced R/G so it reads pure yellow (no green cast), still distinct from value gold + orange warn.
-  // DECORATIVE ambient accent — NON-SEMANTIC. Electric Violet enriches the palette (backdrop glow +
-  // decorative structure: eyebrows, dividers, rails, ambient watermark, decorative tags). It is
-  // unclaimed by the color law, so it must NEVER mark an action, state, or value (those stay
-  // blue/green-red-orange/gold). Purely atmosphere + ornament.
-  violet: '#8B5CF6',
+  // STRUCTURE / WAYFINDING accent — Electric Violet. The 4th color law (alongside gold=value,
+  // accent=action, green/red/orange=state): violet names the app's LABELING SCAFFOLDING — the fixed,
+  // non-interactive text that tells you WHERE you are and HOW a screen is organized (section labels,
+  // screen-title eyebrows/rules, category headers). It must NEVER mark an action, a state, or a value
+  // (those stay blue / green-red-orange / gold) — only the structural label layer. No longer wallpaper.
+  violet: '#8B5CF6', // the structural hue — rules, fills, glow, and the crest watermark
+  violetText: '#A78BFA', // a lighter violet tuned for LABEL TEXT legibility on the dark ground (7.2:1 on bg)
   violetDim: '#6E54B8', // a muted violet for hairlines/rails where full-chroma would shout
 };
 

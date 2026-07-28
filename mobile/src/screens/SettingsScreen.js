@@ -144,7 +144,7 @@ const styles = StyleSheet.create({
   back: { color: colors.accent, fontSize: 16, fontWeight: '600', width: 60 },
   title: { color: colors.text, fontSize: 17, fontWeight: '900' },
   list: { padding: 16 },
-  sectionLabel: { color: colors.accent, fontSize: 13, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 },
+  sectionLabel: { color: colors.violetText, fontSize: 13, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 },
   sectionHint: { color: colors.textDim, fontSize: 13, lineHeight: 18, marginBottom: 14 },
   center: { padding: 40, alignItems: 'center' },
   card: { backgroundColor: colors.card, borderRadius: 14, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14 },

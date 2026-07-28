@@ -556,7 +556,7 @@ const styles = StyleSheet.create({
   tagTxt: { color: colors.textDim, fontSize: 13, fontWeight: '800' },
   tagTxtOn: { color: colors.text },
   card: { backgroundColor: colors.card, borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 14, marginTop: 12 },
-  cardTitle: { color: colors.textDim, fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 },
+  cardTitle: { color: colors.violetText, fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 },
   bandRow: { flexDirection: 'row', justifyContent: 'space-around' },
   band: { alignItems: 'center' },
   bandValue: { color: colors.textDim, fontSize: 18, fontWeight: '800' },

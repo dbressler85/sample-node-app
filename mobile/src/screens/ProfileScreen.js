@@ -179,7 +179,7 @@ const styles = StyleSheet.create({
   demoPill: { backgroundColor: colors.accent + '22', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
   demoPillText: { color: colors.accent, fontSize: 11, fontWeight: '900', letterSpacing: 0.5 },
   cardHeadRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  cardTitle: { color: colors.textDim, fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 },
+  cardTitle: { color: colors.violetText, fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 },
   link: { color: colors.accent, fontSize: 13, fontWeight: '700', marginBottom: 10 },
   total: { color: colors.gold, fontSize: 32, fontWeight: '900', letterSpacing: -0.5 },
   change: { fontSize: 14, fontWeight: '900', marginTop: 3 },

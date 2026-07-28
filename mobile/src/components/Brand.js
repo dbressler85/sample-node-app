@@ -6,8 +6,9 @@ import { displayXL } from '../typography';
 
 // Shared "broadcast" treatment so the flair stays consistent in one place.
 // ScreenTitle: condensed, uppercase, tracked — the lower-third look, now in the bundled
-// Oswald display face (falls back to the system face until it loads), under a short DECORATIVE
-// violet accent rule (non-semantic ornament — ties every header to the ambient violet). Value:
+// Oswald display face (falls back to the system face until it loads), under a short violet accent
+// rule. That rule is the STRUCTURE law (theme.js `violet`): violet names the app's labeling/
+// wayfinding layer, and the screen title is the top of it — so the rule marks "you are here." Value:
 // championship-gold, tabular numerals for columns (kept in the system face for alignment).
 export function ScreenTitle({ children, style }) {
   return (
@@ -41,8 +42,8 @@ export function CrestWatermark({ size = 190, style }) {
 const styles = StyleSheet.create({
   titleWrap: { alignSelf: 'flex-start' },
   title: { color: colors.text, fontSize: 27, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.2 },
-  // Short decorative violet accent rule under each screen title (ornament, not an action) — wider and
-  // brighter than before, with a soft violet halo, so the ambient accent reads as intentional.
+  // Short violet accent rule under each screen title — the structural-wayfinding mark (not an action):
+  // wider and brighter with a soft violet halo, so the "you are here" cue reads as intentional.
   titleRule: {
     height: 4,
     width: 46,

@@ -183,7 +183,7 @@ const styles = StyleSheet.create({
   subtitle: { color: colors.textDim, fontSize: 13, textAlign: 'center', marginTop: 4 },
   explain: { color: colors.textDim, fontSize: 12, textAlign: 'center', marginTop: 4, paddingHorizontal: 24, lineHeight: 17, opacity: 0.85 },
   list: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 32 },
-  sectionHeader: { color: colors.accent, fontSize: 13, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 10, marginBottom: 8 },
+  sectionHeader: { color: colors.violetText, fontSize: 13, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 10, marginBottom: 8 },
   row: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 15, marginBottom: 8 },
   rowNow: { borderColor: colors.gold, backgroundColor: colors.cardAlt },
   icon: { width: 30, alignItems: 'center', justifyContent: 'center', marginRight: 8 },
