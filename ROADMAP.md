@@ -525,11 +525,9 @@ Remaining, in rough priority order:
   keeping the tab mounted under the overlay would remove the remount entirely.
 - [x] **`SlotEditor` picker: memoize filter+sort.** Done — the eligible-candidates
   filter+sort is now a `useMemo` keyed on `players` / `slot.eligible`.
-- [ ] **Enrichment provider in-flight coalescing (minor).** The four external
-  providers (FantasyCalc / Sleeper / MFL topOwns / topAdds) cache resolved values,
-  not in-flight promises. The snapshot memo already coalesces same-format callers;
-  distinct-format concurrent cold callers could still double-fetch a provider.
-  Low priority.
+- [x] **Enrichment provider in-flight coalescing (minor).** *Done.* All four external providers hold
+  the pending promise (`fcInflight` keyed per format, `sleeperInflight`/`ownershipInflight`/
+  `addsInflight`), so simultaneous cold callers share one request per provider instead of stampeding.
 - [~] **Device-origin MFL reads + the single-device speed tradeoff.** Eligible per-user reads can
   run straight from the device (its own IP + MFL budget) with a silent backend fallback
   ([`docs/DEVICE_ORIGIN_MFL.md`](docs/DEVICE_ORIGIN_MFL.md)), gated by TWO flags AND-ed together:
