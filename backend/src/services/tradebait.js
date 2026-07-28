@@ -214,7 +214,7 @@ async function getBlock(cookie, token) {
         count: players.length,
         value: Math.round(players.reduce((s, p) => s + (p.value || 0), 0)),
         context: context
-          ? { ...context, team: teamSummary ? { outlook: teamSummary.outlook || null, coreAge: teamSummary.coreAge != null ? teamSummary.coreAge : null, avgAge: teamSummary.avgAge != null ? teamSummary.avgAge : null, strengthLabel: teamSummary.strengthLabel || null } : null }
+          ? { ...context, team: teamSummary ? { outlook: teamSummary.outlook || null, coreAge: teamSummary.coreAge != null ? teamSummary.coreAge : null, avgAge: teamSummary.avgAge != null ? teamSummary.avgAge : null, strengthLabel: teamSummary.strengthLabel || null, record: teamSummary.record || null } : null }
           : null,
       };
     })
@@ -269,7 +269,7 @@ async function getBlockDemo(cookie, token) {
       return {
         leagueId: String(leagueId), name: league ? league.name : `League ${leagueId}`, note: null, players, count: players.length,
         value: Math.round(players.reduce((s, p) => s + (p.value || 0), 0)),
-        context: context ? { ...context, team: teamSummary ? { outlook: teamSummary.outlook || null, coreAge: teamSummary.coreAge != null ? teamSummary.coreAge : null, avgAge: teamSummary.avgAge != null ? teamSummary.avgAge : null, strengthLabel: teamSummary.strengthLabel || null } : null } : null,
+        context: context ? { ...context, team: teamSummary ? { outlook: teamSummary.outlook || null, coreAge: teamSummary.coreAge != null ? teamSummary.coreAge : null, avgAge: teamSummary.avgAge != null ? teamSummary.avgAge : null, strengthLabel: teamSummary.strengthLabel || null, record: teamSummary.record || null } : null } : null,
       };
     })
   );

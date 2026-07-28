@@ -43,4 +43,12 @@ assert(m.get('D') === 0.25, `worst record = 1/4, got ${m.get('D')}`);
 assert(roster.recordPctByFranchise([{ id: 'A', h2hw: 0, h2hl: 0 }, { id: 'B', h2hw: 0, h2hl: 0 }]).size === 0, 'preseason (0 games played) → empty map');
 console.log('✓ recordPctByFranchise ranks by win% with a points-for tiebreak, and is empty in the preseason');
 
+// 6) recordForFranchise: the raw W-L for one team (drives the trade-block "you're 2-8" context), null
+// for a missing team or the preseason.
+const rec = roster.recordForFranchise([{ id: '0003', h2hw: 2, h2hl: 8, h2ht: 1, pf: 900 }, { id: '0004', h2hw: 8, h2hl: 3, pf: 1300 }], '0003');
+assert(rec && rec.wins === 2 && rec.losses === 8 && rec.ties === 1, `raw record for a franchise (2-8-1), got ${JSON.stringify(rec)}`);
+assert(roster.recordForFranchise([{ id: '0003', h2hw: 2, h2hl: 8 }], '9999') === null, 'a missing franchise → null record');
+assert(roster.recordForFranchise([{ id: '0003', h2hw: 0, h2hl: 0 }], '0003') === null, 'preseason (0 games) → null record');
+console.log('✓ recordForFranchise returns raw W-L (null when the team is missing or no games played)');
+
 console.log('\nOUTLOOK RECORD HARNESS PASSED');

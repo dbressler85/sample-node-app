@@ -100,6 +100,18 @@ function recordPctByFranchise(standingsRows) {
   return map;
 }
 
+// One franchise's raw current-season record from the standings rows → { wins, losses, ties } (null
+// until games are played / when standings can't be read). Surfaced on the team summary so screens
+// that help you decide buy-vs-sell (trade block, trade desk) can show "you're 2-8" alongside outlook.
+function recordForFranchise(standingsRows, franchiseId) {
+  const row = (Array.isArray(standingsRows) ? standingsRows : []).find((f) => String(f && f.id) === String(franchiseId));
+  if (!row) return null;
+  const wins = mfl.num(row.h2hw) || 0;
+  const losses = mfl.num(row.h2hl) || 0;
+  const ties = mfl.num(row.h2ht) || 0;
+  return wins + losses + ties > 0 ? { wins, losses, ties } : null;
+}
+
 // Roster strength as a plain qualitative tag from where its value ranks in the league — the
 // human-readable companion to `strengthPct` and the SAME 0.55/0.45 thresholds `computeOutlook`
 // uses, so the label and the outlook can never disagree. Exported so the client renders this
@@ -128,13 +140,13 @@ function coreAgeOf(players) {
   return core.length ? Math.round((core.reduce((s, p) => s + p.age, 0) / core.length) * 10) / 10 : null;
 }
 
-function teamSummary(all, strengthPct, recordPct) {
+function teamSummary(all, strengthPct, recordPct, record) {
   const valued = all.filter((p) => p.value != null);
   const rosterValue = valued.reduce((s, p) => s + p.value, 0);
   const avgAge = valued.length ? Math.round((valued.reduce((s, p) => s + (p.age || 0), 0) / valued.length) * 10) / 10 : null;
   const coreAge = coreAgeOf(all);
   const strength = strengthPct != null ? Math.round(strengthPct * 100) / 100 : null;
-  return { rosterValue, avgAge, coreAge, strengthPct: strength, strengthLabel: strengthLabel(strengthPct), outlook: computeOutlook(coreAge, strengthPct, recordPct) };
+  return { rosterValue, avgAge, coreAge, strengthPct: strength, strengthLabel: strengthLabel(strengthPct), record: record || null, outlook: computeOutlook(coreAge, strengthPct, recordPct) };
 }
 
 // My roster's value rank among all franchises in the league (0..1; 1.0 = strongest).
@@ -253,7 +265,7 @@ function invalidate(cookie, leagueId) {
 // device-origin read where the franchises were fetched on-device (docs/DEVICE_ORIGIN_MFL.md). Pure over
 // its inputs (no MFL reads); `franchises` is the raw `rosters` export array (null in demo → demo buckets).
 function assembleRoster(league, franchises, ctx) {
-  const { byId, week, statusMap, byeMap, enr, picks = [], recordPct = null } = ctx;
+  const { byId, week, statusMap, byeMap, enr, picks = [], recordPct = null, record = null } = ctx;
   const src = myBuckets(franchises, league);
   const c = { week, statusMap, byeMap, enr };
   const map = (ids) => (ids || []).map((id) => enrich(players.resolve(byId, id), c));
@@ -272,7 +284,7 @@ function assembleRoster(league, franchises, ctx) {
   // Strength percentile: demo uses a fixture (no full league in fixtures); live ranks
   // my roster value against every franchise's, using the same enrichment snapshot.
   const strengthPct = config.demoMode ? demo.teamStrength(league.leagueId) : leagueStrengthPct(franchises, league.franchiseId, enr);
-  roster.summary = teamSummary([...roster.starters, ...roster.bench, ...roster.ir, ...roster.taxi], strengthPct, recordPct);
+  roster.summary = teamSummary([...roster.starters, ...roster.bench, ...roster.ir, ...roster.taxi], strengthPct, recordPct, record);
   return roster;
 }
 
@@ -305,7 +317,8 @@ async function buildRoster(cookie, leagueId) {
     (config.demoMode ? Promise.resolve(demo.standings(league.leagueId)) : mflRepo.standings(league, cookie)).catch(() => null),
   ]);
   const recordPct = recordPctByFranchise(standingsRows).get(String(league.franchiseId)) ?? null;
-  return assembleRoster(league, franchises, { byId, week, statusMap, byeMap, enr, picks, recordPct });
+  const record = recordForFranchise(standingsRows, league.franchiseId);
+  return assembleRoster(league, franchises, { byId, week, statusMap, byeMap, enr, picks, recordPct, record });
 }
 
 // Build my enriched roster (+ strength summary) from franchises the DEVICE fetched straight from MFL,
@@ -413,4 +426,4 @@ async function moveTaxi(cookie, token, leagueId, { promote = [], demote = [], dr
   return getRoster(cookie, leagueId);
 }
 
-module.exports = { getRoster, invalidate, computeOutlook, coreAgeOf, recordPctByFranchise, strengthLabel, leagueFranchises, myRosterLight, myRosterEnriched, rosterFromDeviceFranchises, assembleRoster, moveIr, moveTaxi };
+module.exports = { getRoster, invalidate, computeOutlook, coreAgeOf, recordPctByFranchise, recordForFranchise, strengthLabel, leagueFranchises, myRosterLight, myRosterEnriched, rosterFromDeviceFranchises, assembleRoster, moveIr, moveTaxi };
