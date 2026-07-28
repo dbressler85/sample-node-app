@@ -101,7 +101,15 @@ export default function LeaguesScreen({ onBack, onOpenLeague, onOpenDraftHub }) 
           return (
             <Reveal delay={Math.min(index, 10) * 40} animate={index < 12}>
             <View style={styles.row}>
-              <Pressable style={styles.pinBtn} hitSlop={8} disabled={!!busy[item.leagueId]} onPress={() => togglePin(item)}>
+              <Pressable
+                style={styles.pinBtn}
+                hitSlop={8}
+                disabled={!!busy[item.leagueId]}
+                onPress={() => togglePin(item)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: item.pinned }}
+                accessibilityLabel={item.pinned ? `Unpin ${item.name}` : `Pin ${item.name} to the top`}
+              >
                 <Text style={[styles.pin, item.pinned && styles.pinOn]}>{item.pinned ? '★' : '☆'}</Text>
               </Pressable>
               <Pressable style={styles.nameWrap} onPress={() => onOpenLeague({ leagueId: item.leagueId, name: item.name })}>

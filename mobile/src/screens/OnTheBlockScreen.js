@@ -197,9 +197,9 @@ export default function OnTheBlockScreen({ onBack, onOpenPlayer, onOpenInbox, on
         <Text style={[styles.title, displayLg()]}>On the Block</Text>
         {onOpenInbox ? <Pressable onPress={onOpenInbox} hitSlop={10}><Text style={styles.inboxLink}>Inbox ›</Text></Pressable> : <View style={{ width: 60 }} />}
       </View>
-      <View style={styles.segment}>
+      <View style={styles.segment} accessibilityRole="tablist">
         {[['block', 'My Block'], ['market', 'Market']].map(([k, label]) => (
-          <Pressable key={k} onPress={() => setSegment(k)} style={[styles.seg, segment === k && styles.segOn]}>
+          <Pressable key={k} onPress={() => setSegment(k)} style={[styles.seg, segment === k && styles.segOn]} accessibilityRole="tab" accessibilityState={{ selected: segment === k }} accessibilityLabel={label}>
             <Text style={[styles.segTxt, segment === k && styles.segTxtOn]}>{label}</Text>
           </Pressable>
         ))}
@@ -249,7 +249,7 @@ export default function OnTheBlockScreen({ onBack, onOpenPlayer, onOpenInbox, on
                           {rosterAssets(roster).map((a) => {
                             const on = checkSet.has(a.token);
                             return (
-                              <Pressable key={a.token} style={styles.assetRow} onPress={() => toggleCheck(lg.leagueId, a.token)}>
+                              <Pressable key={a.token} style={styles.assetRow} onPress={() => toggleCheck(lg.leagueId, a.token)} accessibilityRole="checkbox" accessibilityState={{ checked: on }} accessibilityLabel={a.name}>
                                 <Checkbox on={on} />
                                 <View style={[styles.dot, { backgroundColor: a.kind === 'pick' ? colors.accent : positionColors[a.position] || colors.textDim }]} />
                                 <View style={{ flex: 1, minWidth: 0 }}>

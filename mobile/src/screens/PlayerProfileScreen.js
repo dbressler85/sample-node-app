@@ -277,15 +277,15 @@ export default function PlayerProfileScreen({ playerId, seed, onBack, onOpenTrad
         {/* One control set: Target / Avoid tint your personal value (±10%); Watch tracks
             him on your watchlist. Tap an active Target/Avoid again to clear. */}
         <View style={styles.tagRow}>
-          <Pressable style={[styles.tagBtn, tag === 'target' && styles.tagTargetOn]} onPress={() => applyTag('target')}>
+          <Pressable style={[styles.tagBtn, tag === 'target' && styles.tagTargetOn]} onPress={() => applyTag('target')} accessibilityRole="button" accessibilityState={{ selected: tag === 'target' }} accessibilityLabel={tag === 'target' ? 'Clear target' : 'Target this player'}>
             <TargetIcon size={17} color={tag === 'target' ? colors.good : colors.textDim} />
             <Text style={[styles.tagTxt, tag === 'target' && styles.tagTxtOn]}>Target</Text>
           </Pressable>
-          <Pressable style={[styles.tagBtn, tag === 'avoid' && styles.tagAvoidOn]} onPress={() => applyTag('avoid')}>
+          <Pressable style={[styles.tagBtn, tag === 'avoid' && styles.tagAvoidOn]} onPress={() => applyTag('avoid')} accessibilityRole="button" accessibilityState={{ selected: tag === 'avoid' }} accessibilityLabel={tag === 'avoid' ? 'Clear avoid' : 'Avoid this player'}>
             <AvoidIcon size={17} color={tag === 'avoid' ? colors.bad : colors.textDim} />
             <Text style={[styles.tagTxt, tag === 'avoid' && styles.tagTxtOn]}>Avoid</Text>
           </Pressable>
-          <Pressable style={[styles.tagBtn, watched && styles.tagWatchOn]} onPress={toggleWatch}>
+          <Pressable style={[styles.tagBtn, watched && styles.tagWatchOn]} onPress={toggleWatch} accessibilityRole="button" accessibilityState={{ selected: watched }} accessibilityLabel={watched ? 'Remove from watchlist' : 'Add to watchlist'}>
             <WatchIcon size={17} color={watched ? colors.watch : colors.textDim} filled={watched} />
             <Text style={[styles.tagTxt, watched && styles.tagTxtOn]}>Watch</Text>
           </Pressable>

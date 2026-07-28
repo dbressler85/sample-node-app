@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, Animated, BackHandler } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Animated, BackHandler, AccessibilityInfo } from 'react-native';
 import { colors, rgb, glow } from '../theme';
 import { displayLabel } from '../typography';
+import useReducedMotion from '../useReducedMotion';
 
 // On-theme, blocking alert — the replacement for the immersion-breaking WHITE native `Alert.alert`.
 // Same call shape as Alert.alert so it's a drop-in: appAlert(title, message, buttons, opts). One
@@ -27,6 +28,7 @@ const TONE = { error: rgb.bad, warn: rgb.warn, info: rgb.accent, success: rgb.go
 export function AppAlertHost() {
   const [a, setA] = useState(null);
   const anim = useRef(new Animated.Value(0)).current;
+  const reduced = useReducedMotion();
 
   useEffect(() => {
     emit = (payload) => setA(payload);
@@ -35,16 +37,24 @@ export function AppAlertHost() {
 
   useEffect(() => {
     if (!a) return undefined;
-    anim.setValue(0);
-    Animated.spring(anim, { toValue: 1, useNativeDriver: true, friction: 9, tension: 90 }).start();
+    // Announce the dialog for screen readers (accessibilityViewIsModal keeps focus inside it).
+    const said = [a.title, a.message].filter(Boolean).join('. ');
+    if (said) AccessibilityInfo.announceForAccessibility(said);
+    // Reduce-motion: appear immediately, no scale spring.
+    if (reduced) {
+      anim.setValue(1);
+    } else {
+      anim.setValue(0);
+      Animated.spring(anim, { toValue: 1, useNativeDriver: true, friction: 9, tension: 90 }).start();
+    }
     // Hardware back dismisses (like tapping outside a native Alert) without firing a button action.
     const sub = BackHandler.addEventListener('hardwareBackPress', () => { close(); return true; });
     return () => sub.remove();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [a]);
+  }, [a, reduced]);
 
   function close(cb) {
-    Animated.timing(anim, { toValue: 0, duration: 150, useNativeDriver: true }).start(() => {
+    Animated.timing(anim, { toValue: 0, duration: reduced ? 0 : 150, useNativeDriver: true }).start(() => {
       setA(null);
       if (typeof cb === 'function') cb();
     });
@@ -53,7 +63,7 @@ export function AppAlertHost() {
   if (!a) return null;
   const triplet = TONE[a.tone] || TONE.error;
   return (
-    <View style={styles.backdrop}>
+    <View style={styles.backdrop} accessibilityViewIsModal accessibilityLiveRegion="polite">
       <Animated.View
         style={[
           styles.card,
@@ -72,6 +82,8 @@ export function AppAlertHost() {
                 style={({ pressed }) => [styles.btn, pressed && { opacity: 0.6 }]}
                 onPress={() => close(b.onPress)}
                 hitSlop={6}
+                accessibilityRole="button"
+                accessibilityLabel={b.text}
               >
                 <Text style={[styles.btnText, { color: c, fontWeight: b.style === 'cancel' ? '700' : '800' }]}>{b.text}</Text>
               </Pressable>
