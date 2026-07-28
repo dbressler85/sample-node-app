@@ -200,7 +200,7 @@ export default function WaiversScreen({ active = true, initialLeagueId, initialP
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <ScreenTitle>Waivers</ScreenTitle>
+        <ScreenTitle focused={active}>Waivers</ScreenTitle>
         {summary && !openLeagueId ? (
           <Text style={styles.subtitle}>
             {summary.total} league{summary.total === 1 ? '' : 's'}

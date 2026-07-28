@@ -72,7 +72,7 @@ export default function ScoresScreen({ onOpenLineup, active = true }) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <ScreenTitle>Scoreboard</ScreenTitle>
+        <ScreenTitle focused={active}>Scoreboard</ScreenTitle>
         {s ? (
           <View style={styles.subtitleRow}>
             {s.live > 0 ? <Pulse style={styles.liveDot} min={0.25} /> : null}
