@@ -312,28 +312,36 @@ export default function PlayerProfileScreen({ playerId, seed, onBack, onOpenTrad
           </Card>
         ) : null}
 
-        {/* Prior season totals — what they actually produced last year (from MFL). */}
+        {/* Prior season — what they actually produced last year: fantasy points, PPG, games, and the
+            real box score. When we can't resolve any prior-year data we still show the card with a
+            clear empty state (not a silently missing card). */}
         {p.priorSeason ? (
           <Card title={`${p.priorSeason.year} season`}>
-            <View style={styles.priorRow}>
-              <View style={styles.priorCell}>
-                <Text style={styles.priorNum}>{p.priorSeason.points}</Text>
-                <Text style={styles.priorLbl}>fantasy pts</Text>
-              </View>
-              {p.priorSeason.games ? (
-                <View style={styles.priorCell}>
-                  <Text style={styles.priorNum}>{p.priorSeason.games}</Text>
-                  <Text style={styles.priorLbl}>games</Text>
+            {p.priorSeason.points != null || p.priorSeason.games != null || p.priorSeason.stats ? (
+              <>
+                <View style={styles.priorRow}>
+                  <View style={styles.priorCell}>
+                    <Text style={styles.priorNum}>{p.priorSeason.points != null ? p.priorSeason.points : '—'}</Text>
+                    <Text style={styles.priorLbl}>fantasy pts</Text>
+                  </View>
+                  {p.priorSeason.games ? (
+                    <View style={styles.priorCell}>
+                      <Text style={styles.priorNum}>{p.priorSeason.games}</Text>
+                      <Text style={styles.priorLbl}>games</Text>
+                    </View>
+                  ) : null}
+                  {p.priorSeason.ppg != null ? (
+                    <View style={styles.priorCell}>
+                      <Text style={styles.priorNum}>{p.priorSeason.ppg}</Text>
+                      <Text style={styles.priorLbl}>ppg</Text>
+                    </View>
+                  ) : null}
                 </View>
-              ) : null}
-              {p.priorSeason.ppg != null ? (
-                <View style={styles.priorCell}>
-                  <Text style={styles.priorNum}>{p.priorSeason.ppg}</Text>
-                  <Text style={styles.priorLbl}>ppg</Text>
-                </View>
-              ) : null}
-            </View>
-            {p.priorSeason.stats ? <PriorStatLines stats={p.priorSeason.stats} /> : null}
+                {p.priorSeason.stats ? <PriorStatLines stats={p.priorSeason.stats} /> : null}
+              </>
+            ) : (
+              <Text style={styles.priorEmpty}>No {p.priorSeason.year} stats available for this player.</Text>
+            )}
           </Card>
         ) : null}
 
@@ -579,6 +587,7 @@ const styles = StyleSheet.create({
   priorCell: { alignItems: 'center', flex: 1 },
   priorNum: { color: colors.text, fontSize: 20, fontWeight: '900' },
   priorLbl: { color: colors.textDim, fontSize: 11, fontWeight: '700', marginTop: 2 },
+  priorEmpty: { color: colors.textDim, fontSize: 13, lineHeight: 18 },
   statLines: { marginTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, paddingTop: 10, gap: 6 },
   statLine: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   statLineLabel: { color: colors.textDim, fontSize: 12, fontWeight: '800', width: 76 },
