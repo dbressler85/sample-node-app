@@ -100,7 +100,7 @@ function sortNews(list, key) {
   return arr.sort((a, b) => (SEV_RANK[b.severity] || 0) - (SEV_RANK[a.severity] || 0) || (b.startingCount - a.startingCount) || (b.affectedCount - a.affectedCount));
 }
 
-export default function PlayersScreen({ onOpenPlayer, onStartWaiverWizard }) {
+export default function PlayersScreen({ active = true, onOpenPlayer, onStartWaiverWizard }) {
   const [query, setQuery] = useState('');
   const [searchRes, setSearchRes] = useState(null);
   const [tab, setTab] = useState('rankings');
@@ -307,7 +307,7 @@ export default function PlayersScreen({ onOpenPlayer, onStartWaiverWizard }) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <ScreenTitle>Players</ScreenTitle>
+        <ScreenTitle focused={active}>Players</ScreenTitle>
       </View>
 
       <View style={styles.searchWrap}>

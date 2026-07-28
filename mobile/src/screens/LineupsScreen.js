@@ -111,7 +111,7 @@ export default function LineupsScreen({ active = true, onOpenLineup, onStartWiza
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <ScreenTitle>Lineups</ScreenTitle>
+        <ScreenTitle focused={active}>Lineups</ScreenTitle>
         {summary ? (
           <Text style={styles.subtitle}>
             {summary.needAttention === 0

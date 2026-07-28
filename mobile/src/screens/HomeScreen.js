@@ -325,7 +325,7 @@ export default function HomeScreen({ active = true, demoMode, onOpenLineup, onOp
     <View style={styles.container}>
       <View style={styles.topbar}>
         <View>
-          <ScreenTitle>Command Center</ScreenTitle>
+          <ScreenTitle focused={active}>Command Center</ScreenTitle>
           <Text style={styles.subtitle}>
             {loading
               ? `Updating ${progress.done}/${progress.total}…`
