@@ -33,7 +33,7 @@ function sortAssets(list, key) {
 const SORTS = [['position', 'Pos'], ['value', 'Market'], ['name', 'Name']];
 const CONSTRUCTION = {
   good: { color: colors.good, icon: '✓' },
-  caution: { color: colors.bad, icon: '⚠' },
+  caution: { color: colors.warn, icon: '⚠' }, // a cautionary roster read is a warning (orange), not a hard no (red)
   neutral: { color: colors.textDim, icon: '•' },
 };
 
@@ -729,7 +729,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
             onPress={submitProposal}
             disabled={!sendList.length || !receiveList.length || sending}
           >
-            {sending ? <ActivityIndicator color="#fff" /> : <Text style={styles.sendText}>{counterInfo ? 'Send Counter' : 'Propose Trade'}</Text>}
+            {sending ? <ActivityIndicator color={colors.onAccent} /> : <Text style={styles.sendText}>{counterInfo ? 'Send Counter' : 'Propose Trade'}</Text>}
           </Pressable>
         </View>
       ) : null}
@@ -842,7 +842,7 @@ function OfferCard({ offer, busy, onAccept, onReject, onWithdraw, onCounter, onO
               <Text style={styles.rejectText}>Reject</Text>
             </Pressable>
             <Pressable style={[styles.act, styles.accept]} onPress={() => onAccept(offer)} disabled={busy}>
-              {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.acceptText}>Accept</Text>}
+              {busy ? <ActivityIndicator color={colors.onAccent} /> : <Text style={styles.acceptText}>Accept</Text>}
             </Pressable>
           </View>
         </>
@@ -1036,7 +1036,7 @@ const styles = StyleSheet.create({
   fitCol: { flex: 1 },
   fitDiv: { width: StyleSheet.hairlineWidth, backgroundColor: colors.border, marginHorizontal: 12 },
   fitTeam: { color: colors.text, fontSize: 13, fontWeight: '900', marginBottom: 2 },
-  fitMeta: { color: colors.gold, fontSize: 11, fontWeight: '800', marginBottom: 6 },
+  fitMeta: { color: colors.accent, fontSize: 11, fontWeight: '800', marginBottom: 6 },
   fitLine: { color: colors.text, fontSize: 12, marginTop: 2 },
   fitNeed: { color: colors.bad, fontSize: 10, fontWeight: '800' },
   fitSurp: { color: colors.good, fontSize: 10, fontWeight: '800' },
@@ -1102,8 +1102,8 @@ const styles = StyleSheet.create({
   act: { flex: 1, borderRadius: 10, paddingVertical: 11, alignItems: 'center' },
   reject: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
   rejectText: { color: colors.textDim, fontWeight: '800', fontSize: 14 },
-  accept: { backgroundColor: colors.good },
-  acceptText: { color: '#fff', fontWeight: '800', fontSize: 14 },
+  accept: { backgroundColor: colors.accent },
+  acceptText: { color: colors.onAccent, fontWeight: '800', fontSize: 14 },
   // Reject-with-note modal.
   modalScrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', paddingHorizontal: 24 },
   rejectSheet: { backgroundColor: colors.bg, borderRadius: 16, borderWidth: 1, borderColor: colors.border, padding: 18 },
@@ -1116,13 +1116,13 @@ const styles = StyleSheet.create({
   partnerRow: { gap: 8, paddingBottom: 4 },
   partnerChip: { backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 8, maxWidth: 190 },
   partnerChipActive: { backgroundColor: colors.cardAlt, borderColor: colors.accent },
-  chipBait: { color: colors.gold, fontSize: 10, fontWeight: '800', marginTop: 2 },
-  baitTag: { color: colors.gold, fontSize: 9, fontWeight: '900', marginLeft: 6, borderWidth: 1, borderColor: colors.gold, borderRadius: 4, paddingHorizontal: 3, paddingVertical: 1, overflow: 'hidden' },
+  chipBait: { color: colors.accent, fontSize: 10, fontWeight: '800', marginTop: 2 },
+  baitTag: { color: colors.accent, fontSize: 9, fontWeight: '900', marginLeft: 6, borderWidth: 1, borderColor: colors.accent, borderRadius: 4, paddingHorizontal: 3, paddingVertical: 1, overflow: 'hidden' },
   blockHint: { color: colors.gold, fontSize: 11, fontWeight: '800' },
   partnerText: { color: colors.textDim, fontSize: 13, fontWeight: '700' },
   assetRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 8 },
   check: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: colors.border, marginRight: 10, alignItems: 'center', justifyContent: 'center' },
-  checkMark: { color: '#fff', fontWeight: '900', fontSize: 13 },
+  checkMark: { color: colors.onAccent, fontWeight: '900', fontSize: 13 },
   assetName: { color: colors.text, fontSize: 14, fontWeight: '600', flex: 1 },
   assetMeta: { color: colors.textDim, fontSize: 12, marginRight: 10 },
   assetValue: { color: colors.gold, fontSize: 14, fontWeight: '900', minWidth: 26, textAlign: 'right' },
@@ -1138,5 +1138,5 @@ const styles = StyleSheet.create({
   previewVerdict: { fontSize: 13, fontWeight: '800' },
   send: { backgroundColor: colors.accent, borderRadius: 12, paddingVertical: 15, alignItems: 'center' },
   sendOff: { backgroundColor: colors.cardAlt },
-  sendText: { color: '#fff', fontSize: 16, fontWeight: '800' },
+  sendText: { color: colors.onAccent, fontSize: 16, fontWeight: '800' },
 });

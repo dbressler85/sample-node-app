@@ -109,8 +109,8 @@ const styles = StyleSheet.create({
   owner: { color: colors.textDim, fontSize: 13, marginTop: 2 },
   check: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: colors.border, marginRight: 12, alignItems: 'center', justifyContent: 'center' },
   checkOn: { backgroundColor: colors.accent, borderColor: colors.accent },
-  checkMark: { color: '#fff', fontSize: 13, fontWeight: '900' },
+  checkMark: { color: colors.onAccent, fontSize: 13, fontWeight: '900' },
   confirm: { marginTop: 16, backgroundColor: colors.accent, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
   confirmOff: { opacity: 0.4 },
-  confirmText: { color: '#fff', fontSize: 15, fontWeight: '800' },
+  confirmText: { color: colors.onAccent, fontSize: 15, fontWeight: '800' },
 });

@@ -151,7 +151,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, paddingVertical: 14, paddingHorizontal: 12, marginBottom: 10 },
   pinBtn: { paddingRight: 10 },
   pin: { color: colors.textDim, fontSize: 20, fontWeight: '700' },
-  pinOn: { color: colors.gold },
+  pinOn: { color: colors.accent },
   nameWrap: { flex: 1 },
   nameLine: { flexDirection: 'row', alignItems: 'center' },
   name: { color: colors.text, fontSize: 16, fontWeight: '700', flexShrink: 1, marginRight: 8 },

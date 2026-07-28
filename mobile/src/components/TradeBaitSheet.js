@@ -88,7 +88,7 @@ export default function TradeBaitSheet({ player, onClose, onDone }) {
               onPress={submit}
               disabled={!selected.size || busy}
             >
-              {busy ? <ActivityIndicator color="#fff" /> : (
+              {busy ? <ActivityIndicator color={colors.onAccent} /> : (
                 <Text style={styles.confirmText}>
                   {selected.size ? `Add to block in ${selected.size} league${selected.size === 1 ? '' : 's'}` : eligible.length ? 'Check a league to shop him' : 'Already on the block everywhere'}
                 </Text>
@@ -112,13 +112,13 @@ const styles = StyleSheet.create({
   row: { paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   rowHead: { flexDirection: 'row', alignItems: 'center' },
   check: { width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: colors.border, marginRight: 12, alignItems: 'center', justifyContent: 'center' },
-  checkOn: { backgroundColor: colors.gold, borderColor: colors.gold },
+  checkOn: { backgroundColor: colors.accent, borderColor: colors.accent },
   checkLocked: { opacity: 0.6 },
   checkMark: { color: colors.onAccent, fontWeight: '900', fontSize: 14 },
   leagueName: { color: colors.text, fontSize: 15, fontWeight: '800', flex: 1 },
-  onBlock: { color: colors.gold, fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4 },
+  onBlock: { color: colors.accent, fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4 },
   ctxWrap: { marginLeft: 36, marginTop: 6 },
-  confirm: { backgroundColor: colors.gold, borderRadius: 12, paddingVertical: 15, alignItems: 'center', marginTop: 16 },
+  confirm: { backgroundColor: colors.accent, borderRadius: 12, paddingVertical: 15, alignItems: 'center', marginTop: 16 },
   confirmOff: { backgroundColor: colors.cardAlt },
   confirmText: { color: colors.onAccent, fontSize: 16, fontWeight: '900' },
 });

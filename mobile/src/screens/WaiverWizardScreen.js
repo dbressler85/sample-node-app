@@ -574,7 +574,7 @@ export default function WaiverWizardScreen({ leagues, seedAddId = null, onBack, 
               disabled={!canSubmit || submitting}
             >
               {submitting ? (
-                <ActivityIndicator color="#fff" />
+                <ActivityIndicator color={colors.onAccent} />
               ) : (
                 <Text style={[styles.submitText, !canSubmit && { color: colors.textDim }]}>
                   {current.system === 'free'
@@ -796,7 +796,7 @@ const styles = StyleSheet.create({
   submittedAdd: { color: colors.good, fontWeight: '800' },
   submittedDrop: { color: colors.textDim, fontWeight: '800' },
   submittedMeta: { color: colors.textDim, fontSize: 13, fontWeight: '600' },
-  submittedBid: { color: colors.gold, fontSize: 13, fontWeight: '800' },
+  submittedBid: { color: colors.accent, fontSize: 13, fontWeight: '800' },
   submittedDelta: { fontSize: 12, fontWeight: '800', marginTop: 1 },
   submittedIdx: { color: colors.textDim, fontSize: 13, fontWeight: '800' },
   mflTag: { color: colors.accent, fontSize: 9, fontWeight: '900', borderWidth: 1, borderColor: colors.accent, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, overflow: 'hidden', marginRight: 4 },
@@ -809,7 +809,7 @@ const styles = StyleSheet.create({
   ctxRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
   ctxChip: { color: colors.textDim, fontSize: 11, fontWeight: '800', borderWidth: 1, borderColor: colors.border, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, overflow: 'hidden' },
   ctxChipSf: { color: colors.accent, borderColor: colors.accent },
-  ctxChipOutlook: { color: colors.gold, borderColor: colors.gold + '88' },
+  ctxChipOutlook: { color: colors.textDim, borderColor: colors.border },
   // Full-roster drop picker rows, grouped by position.
   posGroupHeader: { color: colors.violetText, fontSize: 11, fontWeight: '900', letterSpacing: 0.6, textTransform: 'uppercase', paddingHorizontal: 10, paddingTop: 10, paddingBottom: 2 },
   rosterRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 9, paddingHorizontal: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
@@ -845,7 +845,7 @@ const styles = StyleSheet.create({
   navBtnText: { color: colors.text, fontSize: 15, fontWeight: '800' },
   submit: { flex: 1, backgroundColor: colors.accent, borderRadius: 14, paddingVertical: 16, alignItems: 'center' },
   submitOff: { backgroundColor: colors.cardAlt },
-  submitText: { color: '#fff', fontSize: 16, fontWeight: '800' },
+  submitText: { color: colors.onAccent, fontSize: 16, fontWeight: '800' },
   sysBadge: { fontSize: 10, fontWeight: '900', borderWidth: 1, borderRadius: 5, paddingHorizontal: 6, paddingVertical: 1, overflow: 'hidden' },
   // summary
   doneMark: { color: colors.good, fontSize: 56, fontWeight: '900', marginBottom: 8 },
@@ -857,5 +857,5 @@ const styles = StyleSheet.create({
   summarySet: { color: colors.good, fontSize: 14, fontWeight: '800', flexShrink: 1 },
   summarySkip: { color: colors.textDim, fontSize: 13, fontWeight: '700' },
   doneBtn: { backgroundColor: colors.accent, borderRadius: 14, paddingVertical: 15, paddingHorizontal: 40, alignItems: 'center', marginTop: 24 },
-  doneBtnText: { color: '#fff', fontSize: 16, fontWeight: '800' },
+  doneBtnText: { color: colors.onAccent, fontSize: 16, fontWeight: '800' },
 });

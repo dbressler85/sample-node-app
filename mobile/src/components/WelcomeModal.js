@@ -100,5 +100,5 @@ const styles = StyleSheet.create({
   pointTitle: { color: colors.text, fontSize: 15, fontWeight: '800', marginBottom: 2 },
   pointBody: { color: colors.textDim, fontSize: 13, lineHeight: 19 },
   btn: { backgroundColor: colors.accent, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 18 },
-  btnText: { color: '#fff', fontSize: 16, fontWeight: '800', letterSpacing: 0.3 },
+  btnText: { color: colors.onAccent, fontSize: 16, fontWeight: '800', letterSpacing: 0.3 },
 });

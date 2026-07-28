@@ -592,9 +592,9 @@ const styles = StyleSheet.create({
   gearBtn: { padding: 2 },
   // A minimalist person silhouette (head + shoulders) clipped into a gold-ringed circle —
   // the account entry point, drawn from plain views so it needs no asset or username.
-  avatarBtn: { width: 30, height: 30, borderRadius: 15, borderWidth: 1.5, borderColor: colors.gold, backgroundColor: colors.gold + '18', alignItems: 'center', justifyContent: 'flex-end', overflow: 'hidden' },
-  avatarHead: { width: 9, height: 9, borderRadius: 4.5, backgroundColor: colors.gold, marginBottom: 1.5 },
-  avatarBody: { width: 17, height: 10, borderTopLeftRadius: 9, borderTopRightRadius: 9, backgroundColor: colors.gold },
+  avatarBtn: { width: 30, height: 30, borderRadius: 15, borderWidth: 1.5, borderColor: colors.accent, backgroundColor: colors.accent + '18', alignItems: 'center', justifyContent: 'flex-end', overflow: 'hidden' },
+  avatarHead: { width: 9, height: 9, borderRadius: 4.5, backgroundColor: colors.accent, marginBottom: 1.5 },
+  avatarBody: { width: 17, height: 10, borderTopLeftRadius: 9, borderTopRightRadius: 9, backgroundColor: colors.accent },
   logout: { color: colors.accent, fontSize: 14, fontWeight: '600' },
   list: { paddingHorizontal: 16, paddingBottom: 32 },
   portfolio: { marginBottom: 4 },
@@ -657,7 +657,7 @@ const styles = StyleSheet.create({
   draftRowLive: { borderColor: colors.gold },
   draftName: { color: colors.text, fontSize: 15, fontWeight: '800' },
   draftSub: { color: colors.textDim, fontSize: 12, marginTop: 3 },
-  draftPill: { color: '#20180a', backgroundColor: colors.gold, fontSize: 11, fontWeight: '900', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, overflow: 'hidden' },
+  draftPill: { color: colors.onAccent, backgroundColor: colors.gold, fontSize: 11, fontWeight: '900', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, overflow: 'hidden' },
   teamChev: { color: colors.textDim, fontSize: 20, fontWeight: '700', marginLeft: 8 },
   modalWrap: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
   modalCard: { backgroundColor: colors.bg, borderTopLeftRadius: 20, borderTopRightRadius: 20, borderWidth: 1, borderColor: colors.border, maxHeight: '80%', paddingTop: 8 },

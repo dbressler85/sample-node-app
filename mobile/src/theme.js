@@ -22,7 +22,7 @@ export const colors = {
   good: '#2FD196', // positive / win / gain — also the "target" tag hue
   bad: '#FF6470', // negative / loss / destructive — also the "avoid" tag hue
   warn: '#FFA23A', // caution / deadline — orange, kept distinct from gold
-  watch: '#FFE94A', // Neon Yellow — the watchlist/target tag. Balanced R/G so it reads pure yellow (no green cast), still distinct from value gold + orange warn.
+  watch: '#E4F24A', // Acid Yellow (ratified) — the watchlist tag. Pushed green-ward vs Neon Yellow so it never collides with value gold (42°) beside it in a row; distinct from orange warn too.
   // STRUCTURE / WAYFINDING accent — Electric Violet. The 4th color law (alongside gold=value,
   // accent=action, green/red/orange=state): violet names the app's LABELING SCAFFOLDING — the fixed,
   // non-interactive text that tells you WHERE you are and HOW a screen is organized (section labels,
@@ -49,7 +49,7 @@ export const rgb = {
   good: '47,209,150',
   bad: '255,100,112',
   warn: '255,162,58',
-  watch: '255,233,74',
+  watch: '228,242,74',
   violet: '139,92,246',
 };
 

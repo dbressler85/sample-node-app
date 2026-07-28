@@ -147,7 +147,7 @@ const styles = StyleSheet.create({
   chip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
   chipOn: { backgroundColor: colors.accent, borderColor: colors.accent },
   chipText: { color: colors.textDim, fontWeight: '800', fontSize: 13 },
-  chipTextOn: { color: '#fff' },
+  chipTextOn: { color: colors.onAccent },
 
   bracket: { paddingHorizontal: 12, paddingVertical: 8, gap: 14 },
   column: { width: 210 },
