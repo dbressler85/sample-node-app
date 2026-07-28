@@ -425,14 +425,15 @@ win-now / rest-of-season) plus two narrower correctness issues. Ranked by value-
   win-now/rebuild from dynasty-value strength + core age only, so a 2-8 team with a stacked-but-
   underperforming roster reads "Win-now." Fold in real W-L / points (needs `leagueStandings`). *(Low
   effort, roadmap-ready; half the buy/sell signal at the deadline.)*
-- [~] **Win-now / rest-of-season value beside dynasty value on trades (P1).** `tradeMath.analyze`
-  drives the headline favorable/fair/unfavorable purely on dynasty value, so a contender is told a
-  "sell the vet for a pick + youth" deal is *favorable* — correct for assets, backwards for their
-  window. (`tradefit.js` already knows "startability isn't dynasty value" for hole-detection — apply
-  it to the verdict.) **Foundation shipped:** FantasyCalc's redraft value is now carried through the
-  enrichment snapshot as `winNow` (self-normalized 0–100) and surfaced as a Win-now rankings lens +
-  a Win-now value on the player profile. **Remaining:** carry that second valuation into
-  `tradeMath.analyze` and let team outlook decide which lens leads the verdict. *(Med effort.)*
+- [x] **Win-now / rest-of-season value beside dynasty value on trades (P1).** *Done.* `tradeMath`
+  now carries a second **win-now** read of every deal (assets hold a `winNow` value — FantasyCalc
+  redraft for players, ~0 for picks since they don't help this season, face value for FAAB) alongside
+  the dynasty read. `leadingLens(analysis, outlook)` lets each team's **outlook** decide which read
+  leads: a contender (outlook `win-now`) is judged on win-now value — so "sell the vet for youth + a
+  pick" now reads *unfavorable* for them even though it's dynasty-favorable — while everyone else still
+  leads on dynasty value. The reconciled bottom-line uses the leading verdict; the compose preview and
+  the incoming-offer card surface a "Win-now" line (marked *your window* for contenders) whenever the
+  two reads diverge. Also surfaced earlier: a Win-now rankings lens + a Win-now value on the profile.
 - [ ] **Cross-league value arbitrage (P2).** The app tracks player exposure across leagues but never
   says "you roster him in 3 leagues — he's worth most in your SF league; shop him *there*." A
   differentiated, on-brand insight this cross-league app is uniquely positioned to own. *(Med effort.)*

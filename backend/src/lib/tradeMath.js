@@ -32,10 +32,18 @@ function round1(n) {
   return Math.round(n * 10) / 10;
 }
 
-// Value analysis of a deal from one side's perspective. receive/send are asset lists with a
-// numeric `value`. Returns the two sums, the net, and a verdict ('favorable'|'fair'|'unfavorable').
-function analyze(receive, send) {
-  const sum = (a) => round1((a || []).reduce((s, x) => s + (x.value || 0), 0));
+// The value of an asset under a given lens. Dynasty uses `value`; win-now uses `winNow`
+// (FantasyCalc redraft value) when the asset carries one, falling back to dynasty value for a
+// player FantasyCalc doesn't cover. Picks/FAAB set their own winNow (picks ~0 — they don't help
+// THIS season), so a contender giving picks for a stud reads correctly in the win-now lens.
+function lensValue(x, lens) {
+  if (lens === 'winNow') return x.winNow != null ? x.winNow : (x.value || 0);
+  return x.value || 0;
+}
+
+// One lens's read of a deal: the two sums, the net, and a verdict.
+function analyzeLens(receive, send, lens) {
+  const sum = (a) => round1((a || []).reduce((s, x) => s + lensValue(x, lens), 0));
   const acquireValue = sum(receive);
   const sendValue = sum(send);
   const net = round1(acquireValue - sendValue);
@@ -45,6 +53,30 @@ function analyze(receive, send) {
   if (net > NET_MIN && ratio > RATIO_MIN) verdict = 'favorable';
   else if (net < -NET_MIN && ratio < -RATIO_MIN) verdict = 'unfavorable';
   return { acquireValue, sendValue, net, verdict };
+}
+
+// Value analysis of a deal from one side's perspective. receive/send are asset lists with a numeric
+// `value` (and, optionally, `winNow`). The top-level fields are the DYNASTY read (unchanged, so every
+// existing caller is untouched); `winNow` is the redraft/this-season read, present only when some
+// asset carries a winNow value. Callers pair this with leadingLens() + the team's outlook to decide
+// which read leads the verdict.
+function analyze(receive, send) {
+  const dyn = analyzeLens(receive, send, 'value');
+  const hasWinNow = [...(receive || []), ...(send || [])].some((x) => x && x.winNow != null);
+  const winNow = hasWinNow ? analyzeLens(receive, send, 'winNow') : null;
+  return { ...dyn, winNow };
+}
+
+// Which lens should LEAD the verdict for a team with this outlook, and that lens's read. A team
+// whose window is NOW (outlook 'win-now') is judged on win-now value — a deal that's dynasty-favorable
+// but sheds this-season production should read as a warning, not a win. Everyone else leads on
+// dynasty value (the future is what they're optimizing). Falls back to dynasty whenever the win-now
+// read is missing, so this is always safe to call.
+function leadingLens(analysis, outlook) {
+  const winLead = outlook === 'win-now' && analysis && analysis.winNow;
+  const lens = winLead ? 'winNow' : 'dynasty';
+  const read = lens === 'winNow' ? analysis.winNow : analysis;
+  return { lens, verdict: read.verdict, net: read.net, acquireValue: read.acquireValue, sendValue: read.sendValue };
 }
 
 // The same analysis over Target/Avoid-adjusted values. Returns null when nothing in the deal is
@@ -109,4 +141,4 @@ function constructionRating(give, receive, needs, surplus, subject, depth) {
   return { rating, branch, you, score, fills, thins, fromDepth, holes };
 }
 
-module.exports = { NET_MIN, RATIO_MIN, TAG_MOD, round1, analyze, personalAnalyze, constructionRating };
+module.exports = { NET_MIN, RATIO_MIN, TAG_MOD, round1, analyze, analyzeLens, leadingLens, personalAnalyze, constructionRating };

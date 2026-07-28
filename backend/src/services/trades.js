@@ -101,14 +101,17 @@ function asset(tok, byId, enr) {
   const t = String(tok);
   const bb = faabAmount(t);
   if (bb != null) {
-    return { kind: 'faab', id: t, name: faabLabel(bb), position: 'FAAB', team: null, amount: bb, value: faabValue(bb) };
+    // FAAB buys players NOW, so it counts the same toward win-now as toward dynasty.
+    return { kind: 'faab', id: t, name: faabLabel(bb), position: 'FAAB', team: null, amount: bb, value: faabValue(bb), winNow: faabValue(bb) };
   }
   if (t.startsWith('pick:') || t.startsWith('FP_') || t.startsWith('DP_')) {
     const label = t.startsWith('pick:') ? t.slice(5) : picksLib.labelForToken(t);
-    return { kind: 'pick', id: t, name: label, position: 'PICK', team: null, value: pickValue(label, t, enr) };
+    // Draft picks are future assets — they don't help you win THIS season, so their win-now value
+    // is ~0. That's what makes "give picks, get a proven vet" read as a WIN for a contender.
+    return { kind: 'pick', id: t, name: label, position: 'PICK', team: null, value: pickValue(label, t, enr), winNow: 0 };
   }
   const p = playersLib.resolve(byId, t);
-  return { kind: 'player', id: p.id, name: p.name, position: p.position, team: p.team, value: enr.value(p.id) };
+  return { kind: 'player', id: p.id, name: p.name, position: p.position, team: p.team, value: enr.value(p.id), winNow: enr.winNow ? enr.winNow(p.id) : null };
 }
 
 // Value analysis for one side vs the other (from my perspective). The math is the shared
@@ -176,13 +179,18 @@ function bottomLine(verdict, rating) {
 // the other team is known, `partnerConstruction` is the mirror from THEIR side — they give
 // `acquire`, they get `send` — so an outgoing offer shows whether it also helps them (i.e.
 // whether they're likely to bite). `bottomLine` reconciles value + construction into one take.
-function annotateConstruction(offers, ns, franchiseId) {
+function annotateConstruction(offers, ns, franchiseId, myOutlook) {
   const mine = ns[String(franchiseId)] || { needs: [], surplus: [], depth: {} };
   for (const o of offers) {
     o.construction = tradefit.constructionVerdict(o.send, o.acquire, mine.needs, mine.surplus, 'you', mine.depth);
     const theirs = o.withFranchiseId ? ns[String(o.withFranchiseId)] : null;
     if (theirs) o.partnerConstruction = tradefit.constructionVerdict(o.acquire, o.send, theirs.needs, theirs.surplus, 'they', theirs.depth);
-    o.bottomLine = bottomLine(o.analysis && o.analysis.verdict, o.construction && o.construction.rating);
+    // Reconcile using the verdict of the lens your WINDOW cares about: a contender is judged on
+    // win-now value (so a dynasty-favorable "sell the vet" deal reads as a warning), everyone else
+    // on dynasty value. The lead lens is stamped on the analysis so the client can label it.
+    const lead = tradeMath.leadingLens(o.analysis, myOutlook);
+    if (o.analysis) { o.analysis.lens = lead.lens; o.analysis.leadVerdict = lead.verdict; }
+    o.bottomLine = bottomLine(lead.verdict, o.construction && o.construction.rating);
   }
   return offers;
 }
@@ -410,10 +418,10 @@ async function getOverview(cookie, token) {
         let fit = null;
         try {
           const d = await tradeData(cookie, token, league.leagueId);
-          annotateConstruction(offers, d.ns, league.franchiseId);
+          const meCtx = d.teamOutlook[String(league.franchiseId)] || null;
+          annotateConstruction(offers, d.ns, league.franchiseId, meCtx && meCtx.outlook);
           fit = tradeFitSummary(d.ns, league.franchiseId);
           // Both sides' dynasty context so the inbox shows each team's outlook + age.
-          const meCtx = d.teamOutlook[String(league.franchiseId)] || null;
           offers.forEach((o) => { o.me = meCtx; o.partner = d.teamOutlook[String(o.withFranchiseId)] || null; });
         } catch (e) { /* value-only */ }
         return { offers, fit, leagueId: String(league.leagueId) };
@@ -524,7 +532,8 @@ async function getLeague(cookie, token, leagueId) {
   ]);
   const tradeDeadlineAuto = autoDeadlineMs ? new Date(autoDeadlineMs).toISOString().slice(0, 10) : null;
 
-  const offers = annotateConstruction(rawLeagueOffers, ns, league.franchiseId);
+  const myLeagueOutlook = (teamOutlook[String(league.franchiseId)] || {}).outlook || null;
+  const offers = annotateConstruction(rawLeagueOffers, ns, league.franchiseId, myLeagueOutlook);
   // My completed-trade history (read-only), sides resolved to assets from MY perspective + analyzed.
   const completedTrades = (rawCompleted || []).map((t, i) => {
     const acquire = (t.acquireToks || []).map((tk) => asset(tk, byId, enr));
@@ -555,7 +564,7 @@ async function getLeague(cookie, token, leagueId) {
   };
 
   const myPlayers = [...(roster.starters || []), ...(roster.bench || [])]
-    .map((p) => ({ id: p.id, name: p.name, position: p.position, team: p.team, value: enr.value(p.id), tag: playerTags.get(token, p.id), bait: myBait.has(String(p.id)) }))
+    .map((p) => ({ id: p.id, name: p.name, position: p.position, team: p.team, value: enr.value(p.id), winNow: enr.winNow ? enr.winNow(p.id) : null, tag: playerTags.get(token, p.id), bait: myBait.has(String(p.id)) }))
     .sort((a, b) => (b.value || 0) - (a.value || 0));
   // Picks carry the real MFL trade token as their id, so a proposal can include them.
   const myPicks = picksAssetsFor(league.franchiseId);
