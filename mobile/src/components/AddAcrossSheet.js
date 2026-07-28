@@ -100,7 +100,7 @@ export default function AddAcrossSheet({ player, onClose, onDone, onReview }) {
               onPress={onReview ? review : submit}
               disabled={!selected.size || busy}
             >
-              {busy ? <ActivityIndicator color="#fff" /> : (
+              {busy ? <ActivityIndicator color={colors.onAccent} /> : (
                 <Text style={styles.confirmText}>
                   {onReview ? `Review ${selected.size} claim${selected.size === 1 ? '' : 's'} →` : `Claim in ${selected.size} league${selected.size === 1 ? '' : 's'}`}
                 </Text>
@@ -124,11 +124,11 @@ const styles = StyleSheet.create({
   addRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   check: { width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: colors.border, marginRight: 12, alignItems: 'center', justifyContent: 'center' },
   checkOn: { backgroundColor: colors.accent, borderColor: colors.accent },
-  checkMark: { color: '#fff', fontWeight: '900', fontSize: 14 },
+  checkMark: { color: colors.onAccent, fontWeight: '900', fontSize: 14 },
   addLeague: { color: colors.text, fontSize: 15, fontWeight: '700' },
   addMeta: { color: colors.textDim, fontSize: 12, marginTop: 2 },
   confirm: { backgroundColor: colors.accent, borderRadius: 12, paddingVertical: 15, alignItems: 'center', marginTop: 16 },
   confirmOff: { backgroundColor: colors.cardAlt },
-  confirmText: { color: '#fff', fontSize: 16, fontWeight: '800' },
+  confirmText: { color: colors.onAccent, fontSize: 16, fontWeight: '800' },
   tip: { color: colors.textDim, fontSize: 12, textAlign: 'center', marginTop: 12 },
 });

@@ -28,13 +28,13 @@ const VRANK = { favorable: 0, fair: 1, unfavorable: 2 };
 const TONE = { good: colors.good, warn: colors.warn, bad: colors.bad, neutral: colors.textDim };
 const CONSTRUCTION = {
   good: { color: colors.good, icon: '✓' },
-  caution: { color: colors.bad, icon: '⚠' },
+  caution: { color: colors.warn, icon: '⚠' }, // a cautionary roster read is a warning (orange), not a hard no (red)
   neutral: { color: colors.textDim, icon: '•' },
 };
 // Compact dynasty outlook ("Win-now window" -> "Win-now") + a color per stance, matching
 // the trade desk. Lets the inbox show BOTH teams' context at a glance.
 const shortOutlook = (o) => (o === 'Win-now window' ? 'Win-now' : o || null);
-const OUTLOOK_COLOR = { 'Win-now window': colors.gold, Ascending: colors.good, Rebuilding: colors.warn, Balanced: colors.textDim };
+const OUTLOOK_COLOR = { 'Win-now window': colors.warn, Ascending: colors.good, Rebuilding: colors.warn, Balanced: colors.textDim };
 const teamCtx = (t) => {
   if (!t) return null;
   return [shortOutlook(t.outlook), t.avgAge != null ? `${t.avgAge} yr` : null].filter(Boolean).join(' · ') || null;
@@ -383,7 +383,7 @@ function OfferCard({ offer, busy, onRespond, onOpenLeague, onCounter, onManualCo
           <Text style={styles.rejectText}>Reject</Text>
         </Pressable>
         <Pressable style={[styles.act, styles.accept]} onPress={() => onRespond(offer, 'accept')} disabled={busy}>
-          {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.acceptText}>Accept</Text>}
+          {busy ? <ActivityIndicator color={colors.onAccent} /> : <Text style={styles.acceptText}>Accept</Text>}
         </Pressable>
       </View>
       {onCounter ? (
@@ -459,13 +459,13 @@ const styles = StyleSheet.create({
   reject: { backgroundColor: colors.cardAlt, borderWidth: 1, borderColor: colors.border },
   rejectText: { color: colors.textDim, fontSize: 15, fontWeight: '700' },
   accept: { backgroundColor: colors.accent },
-  acceptText: { color: '#fff', fontSize: 15, fontWeight: '800' },
+  acceptText: { color: colors.onAccent, fontSize: 15, fontWeight: '800' },
   error: { color: colors.bad, textAlign: 'center' },
   emptyWrap: { paddingTop: 60, alignItems: 'center' },
   emptyFace: { fontSize: 46, marginBottom: 10 },
   emptyTitle: { color: colors.text, fontSize: 17, fontWeight: '800', marginBottom: 8 },
   emptyText: { color: colors.textDim, fontSize: 14, textAlign: 'center', paddingHorizontal: 20 },
-  seasonBanner: { marginHorizontal: 16, marginTop: 10, backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, borderLeftWidth: 3, borderLeftColor: colors.gold, padding: 12 },
+  seasonBanner: { marginHorizontal: 16, marginTop: 10, backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, borderLeftWidth: 3, borderLeftColor: colors.accent, padding: 12 },
   seasonLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
   seasonLabel: { color: colors.gold, fontSize: 12, fontWeight: '800', letterSpacing: 0.4, textTransform: 'uppercase' },
   seasonMsg: { color: colors.textDim, fontSize: 13, lineHeight: 18 },
@@ -475,6 +475,6 @@ const styles = StyleSheet.create({
   startRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 13, marginBottom: 10 },
   startName: { color: colors.text, fontSize: 15, fontWeight: '700', marginRight: 10 },
   startFit: { color: colors.good, fontSize: 12, fontWeight: '700', marginTop: 2 },
-  startBait: { color: colors.gold, fontSize: 12, fontWeight: '700', marginTop: 2 },
+  startBait: { color: colors.accent, fontSize: 12, fontWeight: '700', marginTop: 2 },
   startCta: { color: colors.accent, fontSize: 14, fontWeight: '800' },
 });

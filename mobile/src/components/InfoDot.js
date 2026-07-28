@@ -41,5 +41,5 @@ const styles = StyleSheet.create({
   title: { color: colors.text, fontSize: 17, fontWeight: '900', marginBottom: 12 },
   para: { color: colors.textDim, fontSize: 14, lineHeight: 20, marginBottom: 10 },
   close: { marginTop: 6, alignSelf: 'flex-end', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10, backgroundColor: colors.accent },
-  closeText: { color: '#fff', fontWeight: '800', fontSize: 14 },
+  closeText: { color: colors.onAccent, fontWeight: '800', fontSize: 14 },
 });

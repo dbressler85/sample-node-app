@@ -8,7 +8,7 @@ import { colors } from '../theme';
 // your team is win-now / ascending (with core age + strength). Everything is optional/fail-soft.
 
 function Chip({ label, tone }) {
-  const color = tone === 'accent' ? colors.gold : colors.textDim;
+  const color = tone === 'accent' ? colors.accent : colors.textDim;
   return (
     <View style={[styles.chip, tone === 'accent' && styles.chipAccent]}>
       <Text style={[styles.chipText, { color }]}>{label}</Text>
@@ -76,7 +76,7 @@ const styles = StyleSheet.create({
   card: { backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, paddingVertical: 10, paddingHorizontal: 12, marginBottom: 10, gap: 6 },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   chip: { borderWidth: 1, borderColor: colors.border, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3 },
-  chipAccent: { borderColor: colors.gold, backgroundColor: 'rgba(243,193,74,0.10)' },
+  chipAccent: { borderColor: colors.accent, backgroundColor: 'rgba(79,140,255,0.10)' },
   chipText: { fontSize: 11, fontWeight: '800', letterSpacing: 0.3 },
   line: { color: colors.text, fontSize: 12.5, lineHeight: 17 },
   lineLabel: { color: colors.textDim, fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },

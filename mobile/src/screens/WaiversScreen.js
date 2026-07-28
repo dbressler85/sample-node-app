@@ -752,7 +752,7 @@ function ClaimSheet({ leagueId, addId, onClose, onOpenLineup, onDone }) {
               onPress={submit}
               disabled={!preview.valid || busy}
             >
-              {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.confirmText}>{preview.immediate ? 'Add Player' : 'Submit Claim'}</Text>}
+              {busy ? <ActivityIndicator color={colors.onAccent} /> : <Text style={styles.confirmText}>{preview.immediate ? 'Add Player' : 'Submit Claim'}</Text>}
             </Pressable>
             <Pressable style={styles.cancelBtn} onPress={onClose}>
               <Text style={styles.cancelText}>Cancel</Text>
@@ -801,7 +801,7 @@ const styles = StyleSheet.create({
   title: { color: colors.text, fontSize: 26, fontWeight: '900' },
   subtitle: { color: colors.textDim, fontSize: 13, marginTop: 2 },
   wizardBtn: { backgroundColor: colors.accent, marginHorizontal: 16, marginBottom: 10, borderRadius: 14, paddingVertical: 15, alignItems: 'center' },
-  wizardBtnText: { color: '#fff', fontSize: 15, fontWeight: '800' },
+  wizardBtnText: { color: colors.onAccent, fontSize: 15, fontWeight: '800' },
   // Landing list — league cards (mirrors Lineups).
   ovCard: { backgroundColor: colors.card, borderRadius: 14, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: colors.border },
   // A league whose waivers clear within the act-now window — warm border so it's obvious at a glance.
@@ -841,7 +841,7 @@ const styles = StyleSheet.create({
   claimsTitle: { color: colors.violetText, fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 4 },
   claimRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
   claimAdd: { color: colors.text, fontSize: 14, fontWeight: '800' },
-  claimMeta: { color: colors.gold, fontSize: 13, fontWeight: '800' },
+  claimMeta: { color: colors.accent, fontSize: 13, fontWeight: '800' },
   claimDrop: { color: colors.textDim, fontSize: 12, marginTop: 1 },
   claimDelBtn: { paddingHorizontal: 10, paddingVertical: 6, marginLeft: 8 },
   claimDel: { color: colors.bad, fontSize: 13, fontWeight: '800' },
@@ -906,7 +906,7 @@ const styles = StyleSheet.create({
   sheetError: { color: colors.bad, fontSize: 13, marginTop: 12 },
   confirm: { backgroundColor: colors.accent, borderRadius: 12, paddingVertical: 15, alignItems: 'center', marginTop: 18 },
   confirmOff: { backgroundColor: colors.cardAlt },
-  confirmText: { color: '#fff', fontSize: 16, fontWeight: '800' },
+  confirmText: { color: colors.onAccent, fontSize: 16, fontWeight: '800' },
   cancelBtn: { alignItems: 'center', paddingTop: 14 },
   cancelText: { color: colors.accent, fontSize: 15, fontWeight: '700' },
 });

@@ -160,7 +160,7 @@ export default function LineupEditorScreen({ league, onBack, onOpenWaivers }) {
         onPress={save}
         disabled={!dirty || saving}
       >
-        {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveText}>{dirty ? 'Save Lineup' : 'Lineup Saved'}</Text>}
+        {saving ? <ActivityIndicator color={colors.onAccent} /> : <Text style={styles.saveText}>{dirty ? 'Save Lineup' : 'Lineup Saved'}</Text>}
       </Pressable>
     </View>
   );
@@ -186,7 +186,7 @@ const styles = StyleSheet.create({
   holeCta: { color: colors.accent, fontSize: 13, fontWeight: '800', marginLeft: 10 },
   save: { backgroundColor: colors.accent, margin: 16, borderRadius: 14, paddingVertical: 16, alignItems: 'center' },
   saveDisabled: { backgroundColor: colors.cardAlt },
-  saveText: { color: '#fff', fontSize: 16, fontWeight: '800' },
+  saveText: { color: colors.onAccent, fontSize: 16, fontWeight: '800' },
   error: { color: colors.bad, textAlign: 'center', marginBottom: 16 },
   backBtn: { backgroundColor: colors.card, borderRadius: 10, paddingHorizontal: 20, paddingVertical: 10 },
   backText: { color: colors.text, fontWeight: '600' },

@@ -123,7 +123,7 @@ export default function ProfileScreen({ onBack, onOpenPortfolio, onOpenSettings,
             <View style={styles.mixRow}>
               <Mix label="Targets" value={tags ? tags.targets : 0} color={colors.good} />
               <Mix label="Avoids" value={tags ? tags.avoids : 0} color={colors.bad} />
-              <Mix label="Watching" value={watchCount != null ? watchCount : 0} color={colors.gold} />
+              <Mix label="Watching" value={watchCount != null ? watchCount : 0} color={colors.textDim} />
             </View>
           </View>
         ) : null}
@@ -172,8 +172,8 @@ const styles = StyleSheet.create({
   body: { padding: 16 },
   card: { backgroundColor: colors.card, borderRadius: 16, borderWidth: 1, borderColor: colors.border, padding: 16, marginBottom: 14 },
   idRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  avatar: { width: 54, height: 54, borderRadius: 27, backgroundColor: colors.gold + '22', borderWidth: 1.5, borderColor: colors.gold, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { color: colors.gold, fontSize: 20, fontWeight: '900', letterSpacing: 0.5 },
+  avatar: { width: 54, height: 54, borderRadius: 27, backgroundColor: colors.accent + '22', borderWidth: 1.5, borderColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
+  avatarText: { color: colors.accent, fontSize: 20, fontWeight: '900', letterSpacing: 0.5 },
   name: { color: colors.text, fontSize: 20, fontWeight: '900' },
   sub: { color: colors.textDim, fontSize: 13, fontWeight: '600', marginTop: 2 },
   demoPill: { backgroundColor: colors.accent + '22', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },

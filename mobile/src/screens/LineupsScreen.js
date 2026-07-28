@@ -293,7 +293,7 @@ function ReviewSheet({ plan, applying, onToggle, onCancel, onConfirm }) {
           disabled={!selectedCount || applying}
         >
           {applying ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color={colors.onAccent} />
           ) : (
             <Text style={styles.confirmText}>
               Set {selectedCount} Lineup{selectedCount === 1 ? '' : 's'} · +{gained}
@@ -320,7 +320,7 @@ const styles = StyleSheet.create({
   modeText: { color: colors.textDim, fontSize: 12, fontWeight: '700' },
   modeTextActive: { color: colors.text },
   setAll: { backgroundColor: colors.accent, marginHorizontal: 16, marginTop: 10, marginBottom: 6, borderRadius: 14, paddingVertical: 15, alignItems: 'center' },
-  setAllText: { color: '#fff', fontSize: 16, fontWeight: '800' },
+  setAllText: { color: colors.onAccent, fontSize: 16, fontWeight: '800' },
   autoAll: { marginHorizontal: 16, marginBottom: 6, paddingVertical: 8, alignItems: 'center' },
   autoAllText: { color: colors.textDim, fontSize: 13, fontWeight: '700', textDecorationLine: 'underline' },
   list: { paddingHorizontal: 16, paddingBottom: 32, paddingTop: 6 },
@@ -348,14 +348,14 @@ const styles = StyleSheet.create({
   planRow: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   check: { width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: colors.border, marginRight: 12, alignItems: 'center', justifyContent: 'center' },
   checkOn: { backgroundColor: colors.accent, borderColor: colors.accent },
-  checkMark: { color: '#fff', fontWeight: '900', fontSize: 14 },
+  checkMark: { color: colors.onAccent, fontWeight: '900', fontSize: 14 },
   planName: { color: colors.text, fontSize: 15, fontWeight: '700' },
   planGain: { color: colors.good, fontWeight: '800' },
   planIn: { color: colors.good, fontSize: 12, marginTop: 3 },
   planOut: { color: colors.textDim, fontSize: 12, marginTop: 1 },
   confirm: { backgroundColor: colors.accent, borderRadius: 12, paddingVertical: 15, alignItems: 'center', marginTop: 14 },
   confirmOff: { backgroundColor: colors.cardAlt },
-  confirmText: { color: '#fff', fontSize: 16, fontWeight: '800' },
+  confirmText: { color: colors.onAccent, fontSize: 16, fontWeight: '800' },
   cancel: { alignItems: 'center', paddingTop: 14 },
   cancelText: { color: colors.accent, fontSize: 15, fontWeight: '700' },
 });

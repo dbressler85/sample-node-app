@@ -278,7 +278,7 @@ export default function OnTheBlockScreen({ onBack, onOpenPlayer, onOpenInbox, on
                             onPress={() => saveLeague(lg)}
                             disabled={savingLeague === lg.leagueId}
                           >
-                            {savingLeague === lg.leagueId ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveTxt}>Save block for {lg.name}</Text>}
+                            {savingLeague === lg.leagueId ? <ActivityIndicator color={colors.onAccent} /> : <Text style={styles.saveTxt}>Save block for {lg.name}</Text>}
                           </Pressable>
                         </View>
                       )
@@ -397,7 +397,7 @@ const styles = StyleSheet.create({
   caret: { color: colors.textDim, fontSize: 18, fontWeight: '700', width: 14, textAlign: 'center' },
   assetRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
   checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', marginRight: 10 },
-  checkMark: { color: '#fff', fontSize: 14, fontWeight: '900' },
+  checkMark: { color: colors.onAccent, fontSize: 14, fontWeight: '900' },
   dot: { width: 8, height: 8, borderRadius: 4, marginRight: 10 },
   nameLine: { flexDirection: 'row', alignItems: 'center' },
   assetName: { color: colors.text, fontSize: 15, fontWeight: '600', flexShrink: 1 },
@@ -408,7 +408,7 @@ const styles = StyleSheet.create({
   askLabel: { color: colors.violetText, fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4, marginTop: 12, marginBottom: 6 },
   askInput: { backgroundColor: colors.cardAlt, borderRadius: 12, borderWidth: 1, borderColor: colors.border, color: colors.text, fontSize: 15, padding: 12, minHeight: 52, textAlignVertical: 'top' },
   saveBtn: { backgroundColor: colors.accent, borderRadius: 12, paddingVertical: 13, alignItems: 'center', marginTop: 12 },
-  saveTxt: { color: '#fff', fontSize: 15, fontWeight: '800' },
+  saveTxt: { color: colors.onAccent, fontSize: 15, fontWeight: '800' },
   teamBlock: { paddingTop: 10, marginTop: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
   teamHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   teamName: { color: colors.text, fontSize: 14, fontWeight: '800', flex: 1, marginRight: 10 },

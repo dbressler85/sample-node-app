@@ -683,7 +683,7 @@ function PosFilter({ pos, setPos, rankType, setRankType }) {
           style={[styles.posChip, styles.rookChip, rankType === 'rookies' && styles.rookChipActive]}
           onPress={() => setRankType(rankType === 'rookies' ? 'value' : 'rookies')}
         >
-          <Text style={[styles.posChipText, rankType === 'rookies' && { color: colors.gold }]}>Rookies</Text>
+          <Text style={[styles.posChipText, rankType === 'rookies' && { color: colors.accent }]}>Rookies</Text>
         </Pressable>
       ) : null}
     </View>
@@ -810,7 +810,7 @@ const styles = StyleSheet.create({
   posRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, rowGap: 8, paddingHorizontal: 16, paddingVertical: 6 },
   posChip: { backgroundColor: colors.card, borderRadius: 8, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 13, paddingVertical: 5 },
   rookChip: { borderColor: colors.gold + '55' },
-  rookChipActive: { backgroundColor: colors.gold + '22', borderColor: colors.gold },
+  rookChipActive: { backgroundColor: colors.accent + '22', borderColor: colors.accent },
   grow: { flex: 1 },
   posChipActive: { backgroundColor: colors.cardAlt, borderColor: colors.accent },
   posChipText: { color: colors.textDim, fontSize: 12, fontWeight: '800' },
@@ -866,7 +866,7 @@ const styles = StyleSheet.create({
   chipMine: { color: colors.good, backgroundColor: colors.good + '22' },
   chipFree: { color: colors.accent, backgroundColor: colors.accent + '22' },
   chipDraftable: { color: colors.warn, backgroundColor: colors.warn + '22' },
-  chipTrade: { color: colors.gold, backgroundColor: colors.gold + '22' },
+  chipTrade: { color: colors.accent, backgroundColor: colors.accent + '22' },
   chipNews: { color: colors.bad, backgroundColor: colors.bad + '22' },
   mine: { color: colors.good, fontSize: 9, fontWeight: '900', marginLeft: 6, borderWidth: 1, borderColor: colors.good, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1, overflow: 'hidden' },
   tagMark: { fontSize: 13, fontWeight: '900', marginLeft: 6 },

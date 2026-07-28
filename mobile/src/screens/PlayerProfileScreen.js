@@ -427,8 +427,8 @@ export default function PlayerProfileScreen({ playerId, seed, onBack, onOpenTrad
             </Pressable>
           ) : null}
           {canShop ? (
-            <Pressable style={[styles.actionBtn, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.gold }]} onPress={() => setSheet('bait')}>
-              <Text style={[styles.actionText, { color: colors.gold }]}>Shop ({p.actions.dropLeagues.length})</Text>
+            <Pressable style={[styles.actionBtn, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.accent }]} onPress={() => setSheet('bait')}>
+              <Text style={[styles.actionText, { color: colors.accent }]}>Shop ({p.actions.dropLeagues.length})</Text>
             </Pressable>
           ) : null}
           {canDrop ? (
@@ -527,7 +527,7 @@ function DropSheet({ player, onClose, onDone }) {
           onPress={submit}
           disabled={!selected.size || busy}
         >
-          {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.confirmText}>Drop from {selected.size} league{selected.size === 1 ? '' : 's'}</Text>}
+          {busy ? <ActivityIndicator color={colors.onAccent} /> : <Text style={styles.confirmText}>Drop from {selected.size} league{selected.size === 1 ? '' : 's'}</Text>}
         </Pressable>
         <Pressable style={styles.cancelBtn} onPress={onClose}><Text style={styles.cancelText}>Cancel</Text></Pressable>
       </Pressable>
@@ -609,7 +609,7 @@ const styles = StyleSheet.create({
   clProj: { color: colors.textDim, fontSize: 13, fontWeight: '800', width: 40, textAlign: 'right' },
   actionBar: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', gap: 10, padding: 14, backgroundColor: colors.bg, borderTopWidth: 1, borderTopColor: colors.border },
   actionBtn: { flex: 1, borderRadius: 12, paddingVertical: 15, alignItems: 'center' },
-  actionText: { color: '#fff', fontSize: 15, fontWeight: '800' },
+  actionText: { color: colors.onAccent, fontSize: 15, fontWeight: '800' },
   error: { color: colors.bad, textAlign: 'center', marginBottom: 16 },
   backBtn: { backgroundColor: colors.card, borderRadius: 10, paddingHorizontal: 20, paddingVertical: 10 },
   backText: { color: colors.text, fontWeight: '600' },
@@ -621,12 +621,12 @@ const styles = StyleSheet.create({
   addRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   check: { width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: colors.border, marginRight: 12, alignItems: 'center', justifyContent: 'center' },
   checkOn: { backgroundColor: colors.accent, borderColor: colors.accent },
-  checkMark: { color: '#fff', fontWeight: '900', fontSize: 14 },
+  checkMark: { color: colors.onAccent, fontWeight: '900', fontSize: 14 },
   addLeague: { color: colors.text, fontSize: 15, fontWeight: '700' },
   addMeta: { color: colors.textDim, fontSize: 12, marginTop: 2, fontWeight: '500' },
   confirm: { backgroundColor: colors.accent, borderRadius: 12, paddingVertical: 15, alignItems: 'center', marginTop: 16 },
   confirmOff: { backgroundColor: colors.cardAlt },
-  confirmText: { color: '#fff', fontSize: 16, fontWeight: '800' },
+  confirmText: { color: colors.onAccent, fontSize: 16, fontWeight: '800' },
   tip: { color: colors.textDim, fontSize: 12, textAlign: 'center', marginTop: 10 },
   cancelBtn: { alignItems: 'center', paddingTop: 14 },
   cancelText: { color: colors.accent, fontSize: 15, fontWeight: '700' },

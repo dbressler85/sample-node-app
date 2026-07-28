@@ -16,7 +16,7 @@ import ValueCredit from '../components/ValueCredit';
 // roster age, and format. Trading picks stays on the trade desk (a shop/acquire flow lands here next).
 
 // A round → tint, so a 1st reads hotter than a 4th at a glance.
-const ROUND_COLOR = { 1: colors.gold, 2: colors.accent, 3: colors.good, 4: colors.textDim };
+const ROUND_COLOR = { 1: colors.gold, 2: colors.violetText, 3: colors.violetDim, 4: colors.textDim };
 
 // Outlook → tint. These are the same team-state buckets the trade desk uses: win-now reads urgent
 // (warm), ascending reads as upward growth (green), rebuilding stays muted, balanced is neutral-blue.
@@ -189,7 +189,7 @@ const styles = StyleSheet.create({
   roundBadge: { width: 38, paddingVertical: 3, borderRadius: 6, borderWidth: 1, alignItems: 'center', marginRight: 10 },
   roundText: { fontSize: 11, fontWeight: '800' },
   pickLabel: { color: colors.text, fontSize: 15, fontWeight: '700' },
-  tag: { color: colors.gold, fontSize: 10, fontWeight: '900' },
+  tag: { color: colors.warn, fontSize: 10, fontWeight: '900' },
   meta: { color: colors.textDim, fontSize: 12, marginTop: 2 },
   // Trade glyph — trade is an ACTION → accent (color law), not the decorative violet.
   tradeBtn: { marginLeft: 10, width: 32, height: 32, borderRadius: 8, borderWidth: 1, borderColor: colors.accent, backgroundColor: 'rgba(79,140,255,0.10)', alignItems: 'center', justifyContent: 'center' },

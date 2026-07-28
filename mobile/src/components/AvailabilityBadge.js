@@ -8,8 +8,9 @@ const COLOR = {
   IR: colors.bad,
   INACTIVE: colors.bad,
   SUSPENDED: colors.bad,
-  BYE: colors.bad,
-  DOUBTFUL: '#ff9d5c',
+  // A BYE is NOT an injury — red must keep meaning "he's out". Caution-orange, like QUESTIONABLE.
+  BYE: colors.warn,
+  DOUBTFUL: colors.warn,
   QUESTIONABLE: colors.warn,
 };
 

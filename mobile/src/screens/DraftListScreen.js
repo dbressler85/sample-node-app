@@ -254,7 +254,7 @@ export default function DraftListScreen({ league, onBack, onOpenPlayer }) {
           onPress={save}
           disabled={!dirty || saving}
         >
-          {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveText}>Save list</Text>}
+          {saving ? <ActivityIndicator color={colors.onAccent} /> : <Text style={styles.saveText}>Save list</Text>}
         </Pressable>
       </View>
     </View>
@@ -373,5 +373,5 @@ const styles = StyleSheet.create({
   saveState: { color: colors.textDim, fontSize: 12, fontWeight: '700' },
   saveBtn: { backgroundColor: colors.accent, borderRadius: 10, paddingHorizontal: 22, paddingVertical: 11, minWidth: 110, alignItems: 'center' },
   saveBtnOff: { backgroundColor: colors.cardAlt },
-  saveText: { color: '#fff', fontSize: 15, fontWeight: '800' },
+  saveText: { color: colors.onAccent, fontSize: 15, fontWeight: '800' },
 });

@@ -186,7 +186,7 @@ export default function LineupWizardScreen({ leagues, initialMode = 'auto', onBa
               disabled={submitting}
             >
               {submitting ? (
-                <ActivityIndicator color="#fff" />
+                <ActivityIndicator color={colors.onAccent} />
               ) : (
                 <Text style={styles.submitText}>{index + 1 === total ? 'Submit & Finish' : 'Submit & Next'}</Text>
               )}
@@ -264,7 +264,7 @@ const styles = StyleSheet.create({
   skipInline: { paddingHorizontal: 22, borderRadius: 14, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
   skipInlineText: { color: colors.textDim, fontSize: 15, fontWeight: '700' },
   submit: { flex: 1, backgroundColor: colors.accent, borderRadius: 14, paddingVertical: 16, alignItems: 'center' },
-  submitText: { color: '#fff', fontSize: 16, fontWeight: '800' },
+  submitText: { color: colors.onAccent, fontSize: 16, fontWeight: '800' },
   error: { color: colors.bad, textAlign: 'center', marginBottom: 16 },
   skipBtn: { backgroundColor: colors.card, borderRadius: 10, paddingHorizontal: 20, paddingVertical: 10, borderWidth: 1, borderColor: colors.border },
   skipBtnText: { color: colors.text, fontWeight: '600' },
@@ -278,5 +278,5 @@ const styles = StyleSheet.create({
   summarySet: { color: colors.good, fontSize: 14, fontWeight: '800' },
   summarySkip: { color: colors.textDim, fontSize: 13, fontWeight: '700' },
   doneBtn: { backgroundColor: colors.accent, borderRadius: 14, paddingVertical: 15, paddingHorizontal: 40, alignItems: 'center', marginTop: 24 },
-  doneBtnText: { color: '#fff', fontSize: 16, fontWeight: '800' },
+  doneBtnText: { color: colors.onAccent, fontSize: 16, fontWeight: '800' },
 });

@@ -191,7 +191,7 @@ export default function LoginScreen({ onLoggedIn, justLoggedOut = false }) {
           {error ? <Text style={styles.error}>{error}</Text> : null}
 
           <PressableScale style={[styles.button, busy && { opacity: 0.6 }]} onPress={submit} disabled={busy}>
-            {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Log in</Text>}
+            {busy ? <ActivityIndicator color={colors.onAccent} /> : <Text style={styles.buttonText}>Log in</Text>}
           </PressableScale>
 
           <Text style={styles.hint}>
@@ -238,7 +238,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 8,
   },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  buttonText: { color: colors.onAccent, fontSize: 16, fontWeight: '700' },
   error: { color: colors.bad, marginBottom: 8 },
   hint: { color: colors.textDim, fontSize: 12, textAlign: 'center', marginTop: 24, lineHeight: 18 },
 });
