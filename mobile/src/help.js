@@ -29,7 +29,7 @@ export const HELP = [
     id: 'outlook',
     title: 'Team outlook: win-now, ascending, rebuilding, balanced',
     body: [
-      'Each team’s outlook is computed per league from three things: roster strength (your total dynasty value ranked against the other teams), core age (the average age of your five most valuable players), and — once the season starts — your actual record (W-L, points-for as the tiebreak).',
+      'Each team’s outlook is computed per league from three things: roster strength (your total dynasty value ranked against the other teams), core age (the average age of your five biggest contributors — ranked by this-season role, not age-discounted dynasty value, so a productive veteran counts as the age he actually plays), and — once the season starts — your actual record (W-L, points-for as the tiebreak).',
       'Win-now window — a top-tier roster with a veteran core (about 25+), or a middling roster on a top-third record. You’re built to contend now. But a stacked veteran roster that’s sunk to the bottom third of the standings reads Balanced instead — this season’s window is effectively shut, so don’t pay a win-now premium for a year that’s already gone.',
       'Ascending — a young core (about 24.5 or younger) that isn’t bottom-tier. A winner is forming; be patient with picks and youth.',
       'Rebuilding — a bottom-half roster by value. The move is to accumulate youth and picks.',

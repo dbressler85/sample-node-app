@@ -472,10 +472,10 @@ async function tradeData(cookie, token, leagueId) {
   // Every franchise's players as { id, position, value, age } — value+age drive the
   // needs/surplus model AND the per-team dynasty outlook / average age below.
   const franchises = [
-    { franchiseId: String(league.franchiseId), players: myPlayersAll.map((p) => ({ id: p.id, position: p.position, value: enr.value(p.id), age: enr.age(p.id) })) },
+    { franchiseId: String(league.franchiseId), players: myPlayersAll.map((p) => ({ id: p.id, position: p.position, value: enr.value(p.id), age: enr.age(p.id), winNow: enr.winNow ? enr.winNow(p.id) : null })) },
     ...rawPartners.map((pt) => ({
       franchiseId: String(pt.franchiseId),
-      players: (pt.roster || []).map((id) => { const b = playersLib.resolve(byId, id); return { id: String(id), position: b.position, value: enr.value(id), age: enr.age(id) }; }),
+      players: (pt.roster || []).map((id) => { const b = playersLib.resolve(byId, id); return { id: String(id), position: b.position, value: enr.value(id), age: enr.age(id), winNow: enr.winNow ? enr.winNow(id) : null }; }),
     })),
   ];
   const ns = tradefit.needsSurplus(franchises, requirements);
@@ -495,8 +495,9 @@ function summarizeFranchises(franchises, recordPctMap) {
   for (const f of franchises) {
     const valued = (f.players || []).filter((p) => p.value != null);
     const avgAge = valued.length ? Math.round((valued.reduce((s, p) => s + (p.age || 0), 0) / valued.length) * 10) / 10 : null;
-    const core = valued.slice().sort((a, b) => b.value - a.value).slice(0, 5);
-    const coreAge = core.length ? Math.round((core.reduce((s, p) => s + (p.age || 0), 0) / core.length) * 10) / 10 : null;
+    // Production-weighted core age (shared with roster.js) so a partner fielding aging studs reads
+    // the age they actually play, matching my own outlook read.
+    const coreAge = rosterService.coreAgeOf(f.players);
     const myTotal = (totals.find((t) => t.id === String(f.franchiseId)) || {}).total || 0;
     const strengthPct = totals.length > 1 && myTotal ? totals.filter((t) => t.total <= myTotal).length / totals.length : null;
     const recordPct = record.has(String(f.franchiseId)) ? record.get(String(f.franchiseId)) : null;
