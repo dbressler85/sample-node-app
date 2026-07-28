@@ -292,7 +292,7 @@ export default function App() {
   const openRoster = (league) => pushOverlay({ type: 'roster', league });
   const openLineup = (league) => pushOverlay({ type: 'lineupEditor', league });
   const openWizard = (leagues, mode) => pushOverlay({ type: 'lineupWizard', leagues, mode });
-  const openWaiverWizard = (leagues) => pushOverlay({ type: 'waiverWizard', leagues });
+  const openWaiverWizard = (leagues, seedAddId = null) => pushOverlay({ type: 'waiverWizard', leagues, seedAddId });
   const openTrades = (league, initialTab, seed) => pushOverlay({ type: 'trades', league, initialTab, seed });
   const openBlock = () => pushOverlay({ type: 'block' });
   const openDraft = (league) => pushOverlay({ type: 'draft', league });
@@ -346,7 +346,7 @@ export default function App() {
           />
         );
       case 'players':
-        return <PlayersScreen active={uncovered} onOpenPlayer={openPlayer} />;
+        return <PlayersScreen active={uncovered} onOpenPlayer={openPlayer} onStartWaiverWizard={openWaiverWizard} />;
       case 'trades':
         return (
           <TradeInboxScreen
@@ -401,7 +401,7 @@ export default function App() {
       case 'lineupWizard':
         return <LineupWizardScreen leagues={o.leagues} initialMode={o.mode} onBack={popOverlay} />;
       case 'waiverWizard':
-        return <WaiverWizardScreen leagues={o.leagues} onBack={popOverlay} onOpenPlayer={openPlayer} />;
+        return <WaiverWizardScreen leagues={o.leagues} seedAddId={o.seedAddId || null} onBack={popOverlay} onOpenPlayer={openPlayer} />;
       case 'trades':
         return <TradesScreen league={o.league} initialTab={o.initialTab} seed={o.seed} onBack={popOverlay} onOpenPlayer={openPlayer} onOpenRoster={openRoster} />;
       case 'block':

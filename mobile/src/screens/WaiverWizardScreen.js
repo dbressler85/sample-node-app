@@ -17,7 +17,7 @@ import useAndroidBack from '../useAndroidBack';
 // each league's full suggestion (candidates, bench, recommendation) is loaded on
 // demand — the current one, plus a prefetch of the next — so the first step paints
 // immediately instead of blocking on the whole N-league fan-out (was ~30s cold).
-export default function WaiverWizardScreen({ leagues, onBack, onOpenPlayer }) {
+export default function WaiverWizardScreen({ leagues, seedAddId = null, onBack, onOpenPlayer }) {
   const [index, setIndex] = useState(0);
   const [full, setFull] = useState({}); // leagueId -> suggestion | { loading:true } | { error }
   const [addId, setAddId] = useState(null);
@@ -56,10 +56,12 @@ export default function WaiverWizardScreen({ leagues, onBack, onOpenPlayer }) {
     requested.current.add(leagueId);
     setFull((f) => ({ ...f, [leagueId]: { loading: true } }));
     api
-      .waiverSuggestion(leagueId)
+      // seedAddId: when the wizard was launched from a "claim X in N leagues" hand-off, each league's
+      // suggestion opens on THAT player (recommended add) with a smart drop/bid, ready to review.
+      .waiverSuggestion(leagueId, seedAddId)
       .then((res) => { if (mountedRef.current) setFull((f) => ({ ...f, [leagueId]: res })); })
       .catch((e) => { if (mountedRef.current) setFull((f) => ({ ...f, [leagueId]: { error: e.message } })); });
-  }, []);
+  }, [seedAddId]);
   const retry = useCallback((leagueId) => { requested.current.delete(leagueId); loadOne(leagueId); }, [loadOne]);
 
   // Load the league we're on now and prefetch the next, so it's ready the moment the user advances.

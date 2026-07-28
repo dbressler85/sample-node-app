@@ -244,7 +244,7 @@ export const api = {
   waiversOverview: () => request('/api/waivers/overview'),
   waiverSuggestions: () => request('/api/waivers/suggestions'),
   // ONE league's wizard suggestion — the wizard loads these lazily (current + prefetch next).
-  waiverSuggestion: (leagueId) => request(`/api/leagues/${leagueId}/waivers/suggestion`),
+  waiverSuggestion: (leagueId, seedAddId) => request(`/api/leagues/${leagueId}/waivers/suggestion${seedAddId ? `?seedAddId=${encodeURIComponent(seedAddId)}` : ''}`),
   // `format` ('1qb'|'sf') re-prices the board through that value lens (matches the Players toggle).
   // NOTE (A-10): the free-agent POOL is fetched here on the BACKEND, not on-device — it's the one heavy
   // read (thousands/league) and is league-shareable, so the backend's cross-user cache serves it more

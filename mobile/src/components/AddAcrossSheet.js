@@ -8,7 +8,11 @@ import { colors } from '../theme';
 // suggested drop + bid), checkbox list (all pre-selected), and a single submit that
 // files the claims in one pass. Shared by the player profile and the Waivers
 // "Best Available" view so a breakout on 4 waiver wires is one action, not four.
-export default function AddAcrossSheet({ player, onClose, onDone }) {
+// `onReview(player, leagueStubs)` — when provided, the primary action HANDS OFF to the waiver wizard
+// seeded with this player + the checked leagues (review/adjust each add-drop-bid before filing),
+// instead of firing the claims straight from here. That's the flow the free-agent "claim in N leagues"
+// button uses; callers without it (if any) keep the one-tap batch submit.
+export default function AddAcrossSheet({ player, onClose, onDone, onReview }) {
   const [preview, setPreview] = useState(null);
   const [selected, setSelected] = useState(new Set());
   const [busy, setBusy] = useState(false);
@@ -28,6 +32,15 @@ export default function AddAcrossSheet({ player, onClose, onDone }) {
   }, [player.id]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Hand off to the waiver wizard seeded with this player + the checked leagues, so each league's
+  // add / drop / bid can be reviewed and adjusted before anything is filed (no auto-submit here).
+  function review() {
+    const stubs = preview.leagues
+      .filter((l) => selected.has(l.leagueId))
+      .map((l) => ({ leagueId: l.leagueId, name: l.name, system: l.system }));
+    onReview(player, stubs);
+  }
 
   async function submit() {
     setBusy(true);
@@ -84,12 +97,16 @@ export default function AddAcrossSheet({ player, onClose, onDone }) {
             })}
             <Pressable
               style={({ pressed }) => [styles.confirm, (!selected.size || busy) && styles.confirmOff, pressed && selected.size && { opacity: 0.85 }]}
-              onPress={submit}
+              onPress={onReview ? review : submit}
               disabled={!selected.size || busy}
             >
-              {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.confirmText}>Claim in {selected.size} league{selected.size === 1 ? '' : 's'}</Text>}
+              {busy ? <ActivityIndicator color="#fff" /> : (
+                <Text style={styles.confirmText}>
+                  {onReview ? `Review ${selected.size} claim${selected.size === 1 ? '' : 's'} →` : `Claim in ${selected.size} league${selected.size === 1 ? '' : 's'}`}
+                </Text>
+              )}
             </Pressable>
-            <Text style={styles.tip}>Fine-tune each bid/drop in the Waivers tab.</Text>
+            <Text style={styles.tip}>{onReview ? 'Pick the drop and bid for each league before you file.' : 'Fine-tune each bid/drop in the Waivers tab.'}</Text>
           </>
         )}
       </Pressable>
