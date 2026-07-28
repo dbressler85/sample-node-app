@@ -444,9 +444,11 @@ win-now / rest-of-season) plus two narrower correctness issues. Ranked by value-
   real gaps surface (absolute + relative floor), biggest first, with a sell signal when you're not
   contending in the high-value league. Portfolio shows a "Cross-league arbitrage" card with a one-tap
   ⇄ Shop that blocks him in **that** league only. The differentiated, only-this-app-can-say-it insight.
-- [ ] **Production-weighted core age (P2, minor).** `coreAge` = the 5 *most valuable* players, and value
-  is already age-discounted, so aging on-field studs get excluded from the very "how old is your core"
-  average → aging teams look younger than they play. Weight by snaps/production instead of value.
+- [x] **Production-weighted core age (P2, minor).** *Done.* `coreAgeOf` now ranks the core by
+  **win-now (redraft) value** — a this-season-role proxy that isn't age-discounted — instead of dynasty
+  value, so a productive veteran stays in the core and the team reads the age it actually plays.
+  Single-sourced in `roster.js` and reused by `trades.js` `summarizeFranchises` (partner outlooks).
+  Falls back to dynasty value when no win-now number is present (demo, or FC didn't cover a player).
 - [ ] **Rookie/startup draft boards (P2).** Rookie drafts reuse the same keeper-ADP pool ordering with
   no rookie-specific tiers wired into the draft screen; startups have no value board. *(Med effort.)*
 

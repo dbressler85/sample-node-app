@@ -30,6 +30,10 @@ function enrich(player, ctx) {
     ...player,
     age: ctx.enr.age(player.id),
     value: ctx.enr.value(player.id),
+    // Win-now (redraft) value ≈ this-season role/production, and unlike dynasty value it isn't
+    // age-discounted — so it's our best on-hand proxy for "how much does he actually play now,"
+    // used to weight the core-age read (below).
+    winNow: ctx.enr.winNow ? ctx.enr.winNow(player.id) : null,
     availability: availabilityLib.resolve(player, ctx.statusMap, ctx.byeMap, ctx.week),
   };
 }
@@ -109,12 +113,26 @@ function strengthLabel(strengthPct) {
 
 // Team-level dynasty snapshot: total asset value, average age, core age, this
 // roster's strength percentile in its league, and the blended outlook.
+// Core age = the average age of a team's PRODUCTION core, not its most-valuable-on-paper core.
+// Selecting the top five by dynasty value quietly excluded aging on-field studs — value is
+// age-discounted, so a productive 30-year-old sinks below a younger bench asset and drops out of
+// the "how old is your core" average, making aging teams read younger than they actually play.
+// Ranking by win-now (redraft) value instead — which tracks this-season role and isn't
+// age-penalized — keeps those studs in the core, so the age reflects who you really field. Falls
+// back to dynasty value when a player has no win-now number (e.g. demo, or FC didn't cover him).
+function coreAgeOf(players) {
+  const valued = (players || []).filter((p) => p.value != null && p.age != null);
+  if (!valued.length) return null;
+  const weight = (p) => (p.winNow != null ? p.winNow : (p.value || 0));
+  const core = valued.slice().sort((a, b) => weight(b) - weight(a)).slice(0, 5);
+  return core.length ? Math.round((core.reduce((s, p) => s + p.age, 0) / core.length) * 10) / 10 : null;
+}
+
 function teamSummary(all, strengthPct, recordPct) {
   const valued = all.filter((p) => p.value != null);
   const rosterValue = valued.reduce((s, p) => s + p.value, 0);
   const avgAge = valued.length ? Math.round((valued.reduce((s, p) => s + (p.age || 0), 0) / valued.length) * 10) / 10 : null;
-  const core = valued.slice().sort((a, b) => b.value - a.value).slice(0, 5);
-  const coreAge = core.length ? Math.round((core.reduce((s, p) => s + (p.age || 0), 0) / core.length) * 10) / 10 : null;
+  const coreAge = coreAgeOf(all);
   const strength = strengthPct != null ? Math.round(strengthPct * 100) / 100 : null;
   return { rosterValue, avgAge, coreAge, strengthPct: strength, strengthLabel: strengthLabel(strengthPct), outlook: computeOutlook(coreAge, strengthPct, recordPct) };
 }
@@ -395,4 +413,4 @@ async function moveTaxi(cookie, token, leagueId, { promote = [], demote = [], dr
   return getRoster(cookie, leagueId);
 }
 
-module.exports = { getRoster, invalidate, computeOutlook, recordPctByFranchise, strengthLabel, leagueFranchises, myRosterLight, myRosterEnriched, rosterFromDeviceFranchises, assembleRoster, moveIr, moveTaxi };
+module.exports = { getRoster, invalidate, computeOutlook, coreAgeOf, recordPctByFranchise, strengthLabel, leagueFranchises, myRosterLight, myRosterEnriched, rosterFromDeviceFranchises, assembleRoster, moveIr, moveTaxi };
