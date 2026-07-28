@@ -1,13 +1,13 @@
 import React, { useCallback } from 'react';
 import { View, Text, StyleSheet, Pressable, FlatList, RefreshControl, ActivityIndicator } from 'react-native';
 import { colors } from '../theme';
-import { displayLg, displayLabel } from '../typography';
+import { displayLabel } from '../typography';
 import { api } from '../api';
 import ErrorView from '../components/ErrorView';
 import PressableScale from '../components/PressableScale';
 import useAndroidBack from '../useAndroidBack';
 import useCachedResource from '../useCachedResource';
-import { Value } from '../components/Brand';
+import { Value, TopbarTitle } from '../components/Brand';
 
 // The ranked-partner shortlist behind Pick Capital's Shop / Get-picks CTAs. Each row is a rival worth
 // talking to for THIS intent, plus a pre-built, value-balanced suggested deal — tap it to open the
@@ -42,7 +42,7 @@ export default function PickTradeFinderScreen({ leagueId, name, intent, onBack, 
     <View style={styles.container}>
       <View style={styles.topbar}>
         <Pressable onPress={onBack} hitSlop={10}><Text style={styles.back}>‹ Picks</Text></Pressable>
-        <Text style={[styles.title, displayLg()]}>{shop ? 'Shop Your Picks' : 'Trade For Picks'}</Text>
+        <TopbarTitle>{shop ? 'Shop Your Picks' : 'Trade For Picks'}</TopbarTitle>
         <View style={{ width: 60 }} />
       </View>
       <Text style={styles.subtitle} numberOfLines={1}>

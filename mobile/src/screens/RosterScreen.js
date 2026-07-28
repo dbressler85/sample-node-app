@@ -6,7 +6,7 @@ import PlayerRow from '../components/PlayerRow';
 import Reveal from '../components/Reveal';
 import ErrorView from '../components/ErrorView';
 import { colors } from '../theme';
-import { displayLg } from '../typography';
+import { TopbarTitle } from '../components/Brand';
 import useCachedResource from '../useCachedResource';
 
 // Roster sort options. `null` (Slots) keeps the lineup-slot grouping; the rest flatten to one list.
@@ -154,9 +154,9 @@ export default function RosterScreen({ league, onBack, onOpenTrades, onOpenDraft
         </View>
       </View>
       <View style={styles.header}>
-        <Text style={[styles.title, displayLg()]} numberOfLines={1}>
+        <TopbarTitle numberOfLines={1}>
           {league.name}
-        </Text>
+        </TopbarTitle>
         {roster && roster.franchiseName ? <Text style={styles.subtitle}>{roster.franchiseName}</Text> : null}
       </View>
 

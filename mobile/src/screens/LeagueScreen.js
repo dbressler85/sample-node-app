@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, FlatList, ScrollView, ActivityIndicator, RefreshControl } from 'react-native';
 import { colors, positionColors } from '../theme';
-import { displayLg } from '../typography';
+import { TopbarTitle } from '../components/Brand';
 import ErrorView from '../components/ErrorView';
 import DeviceNote from '../components/DeviceNote';
 import NeonSign from '../components/NeonSign';
@@ -27,7 +27,7 @@ export default function LeagueScreen({ league, onBack, onOpenPlayer, onOpenPlayo
     <View style={styles.container}>
       <View style={styles.topbar}>
         <Pressable onPress={onBack} hitSlop={10}><Text style={styles.back}>‹ Leagues</Text></Pressable>
-        <Text style={[styles.title, displayLg()]} numberOfLines={1}>{league.name}</Text>
+        <TopbarTitle numberOfLines={1}>{league.name}</TopbarTitle>
         {onOpenPlayoffs ? (
           <Pressable onPress={() => onOpenPlayoffs(league)} hitSlop={10} style={styles.bracketBtn}>
             <NeonSign grade="inline" glyph="trophy" color="gold" size={14} />

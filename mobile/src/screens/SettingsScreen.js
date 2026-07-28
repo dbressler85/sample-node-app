@@ -3,7 +3,8 @@ import { View, Text, StyleSheet, Pressable, Switch, ActivityIndicator, ScrollVie
 import { appAlert } from "../components/AppAlert";
 import { api } from '../api';
 import { colors } from '../theme';
-import { displayLg, displayLabel } from '../typography';
+import { displayLabel } from '../typography';
+import { TopbarTitle } from '../components/Brand';
 import useAndroidBack from '../useAndroidBack';
 import ErrorView from '../components/ErrorView';
 import { peekResource, primeResource } from '../useCachedResource';
@@ -60,7 +61,7 @@ export default function SettingsScreen({ onBack, onOpenHelp, onLogout }) {
     <View style={styles.container}>
       <View style={styles.topbar}>
         <Pressable onPress={onBack} hitSlop={10}><Text style={styles.back}>‹ Hub</Text></Pressable>
-        <Text style={[styles.title, displayLg()]}>Settings</Text>
+        <TopbarTitle>Settings</TopbarTitle>
         <View style={{ width: 60 }} />
       </View>
 

@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, Animated, StyleSheet } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { colors } from '../theme';
-import { displayXL } from '../typography';
+import { displayXL, displayLg } from '../typography';
 import useNeonIgnite from '../useNeonIgnite';
 
 // Shared "broadcast" treatment so the flair stays consistent in one place.
@@ -19,6 +19,20 @@ export function ScreenTitle({ children, style, focused = true }) {
       <Animated.Text style={[styles.title, displayXL(), { opacity }, style]}>{children}</Animated.Text>
       <View style={styles.titleRule} />
     </View>
+  );
+}
+
+// The overlay/pushed-screen heading (the centered topbar title, e.g. "Portfolio", a league name, a
+// player name). Same structure-law violet + neon ignite-on-focus as ScreenTitle, but without the
+// left-aligned rule — it drops into an existing back-button topbar row. Owns the color/glow/ignite in
+// ONE place so the treatment can be tuned centrally. `focused` re-ignites (default true → ignite on
+// mount, which is the moment a pushed screen "comes into focus").
+export function TopbarTitle({ children, focused = true, numberOfLines, style }) {
+  const opacity = useNeonIgnite(focused);
+  return (
+    <Animated.Text style={[styles.topbarTitle, displayLg(), { opacity }, style]} numberOfLines={numberOfLines}>
+      {children}
+    </Animated.Text>
   );
 }
 
@@ -69,6 +83,9 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 0 },
   },
+  // Overlay heading: violet (structure) + soft violet glow to match the ignite, sized like the topbar
+  // titles it replaces (fontSize 20 / heavy). Screens may pass `style` to nudge size where needed.
+  topbarTitle: { color: colors.violetText, fontSize: 20, fontWeight: '900', textShadowColor: 'rgba(139,92,246,0.5)', textShadowRadius: 9, textShadowOffset: { width: 0, height: 0 } },
   value: { fontWeight: '900', color: colors.gold, fontVariant: ['tabular-nums'], letterSpacing: -0.5 },
   wm: { position: 'absolute', right: -34, top: -26, opacity: 0.05 },
 });

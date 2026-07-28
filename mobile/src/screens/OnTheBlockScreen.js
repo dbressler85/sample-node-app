@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Pressable, ScrollView, RefreshControl, Activity
 import { appAlert } from "../components/AppAlert";
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
-import { displayLg } from '../typography';
+import { TopbarTitle } from '../components/Brand';
 import useAndroidBack from '../useAndroidBack';
 import AvailabilityBadge from '../components/AvailabilityBadge';
 import LeagueContext from '../components/LeagueContext';
@@ -194,7 +194,7 @@ export default function OnTheBlockScreen({ onBack, onOpenPlayer, onOpenInbox, on
     <View style={styles.container}>
       <View style={styles.topbar}>
         <Pressable onPress={onBack} hitSlop={10}><Text style={styles.back}>‹ Trades</Text></Pressable>
-        <Text style={[styles.title, displayLg()]}>On the Block</Text>
+        <TopbarTitle>On the Block</TopbarTitle>
         {onOpenInbox ? <Pressable onPress={onOpenInbox} hitSlop={10}><Text style={styles.inboxLink}>Inbox ›</Text></Pressable> : <View style={{ width: 60 }} />}
       </View>
       <View style={styles.segment} accessibilityRole="tablist">

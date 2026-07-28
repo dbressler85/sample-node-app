@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Pressable, FlatList, ActivityIndicator, Refresh
 import { appAlert } from "../components/AppAlert";
 import { api } from '../api';
 import { colors } from '../theme';
-import { displayLg } from '../typography';
+import { TopbarTitle } from '../components/Brand';
 import ErrorView from '../components/ErrorView';
 import NeonSign from '../components/NeonSign';
 import useAndroidBack from '../useAndroidBack';
@@ -105,7 +105,7 @@ export default function TrophyCaseScreen({ onBack }) {
     <View style={styles.container}>
       <View style={styles.topbar}>
         <Pressable onPress={onBack} hitSlop={10}><Text style={styles.back}>‹ Profile</Text></Pressable>
-        <Text style={[styles.title, displayLg()]}>Trophy Case</Text>
+        <TopbarTitle>Trophy Case</TopbarTitle>
         <Pressable onPress={() => setAdding(true)} hitSlop={10} style={styles.addBtn}><Text style={styles.addBtnText}>＋ Add</Text></Pressable>
       </View>
 

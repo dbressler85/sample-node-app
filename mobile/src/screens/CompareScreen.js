@@ -2,7 +2,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, ActivityIndicator } from 'react-native';
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
-import { displayLg, displayLabel } from '../typography';
+import { displayLabel } from '../typography';
+import { TopbarTitle } from '../components/Brand';
 import ErrorView from '../components/ErrorView';
 import useAndroidBack from '../useAndroidBack';
 
@@ -95,7 +96,7 @@ export default function CompareScreen({ seedPlayer, onBack, onOpenPlayer }) {
     <View style={styles.container}>
       <View style={styles.topbar}>
         <Pressable onPress={onBack} hitSlop={10}><Text style={styles.back}>‹ Back</Text></Pressable>
-        <Text style={[styles.title, displayLg()]}>Compare</Text>
+        <TopbarTitle>Compare</TopbarTitle>
         <View style={{ width: 54 }} />
       </View>
 

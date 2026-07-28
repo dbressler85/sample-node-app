@@ -2,7 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, RefreshControl } from 'react-native';
 import { api } from '../api';
 import { colors } from '../theme';
-import { displayLg } from '../typography';
+import { TopbarTitle } from '../components/Brand';
 import ErrorView from '../components/ErrorView';
 import NeonSign from '../components/NeonSign';
 import useAndroidBack from '../useAndroidBack';
@@ -73,7 +73,7 @@ export default function PlayoffBracketScreen({ league, onBack }) {
     <View style={styles.container}>
       <View style={styles.topbar}>
         <Pressable onPress={onBack} hitSlop={10}><Text style={styles.back}>‹ {league.name || 'League'}</Text></Pressable>
-        <Text style={[styles.title, displayLg()]}>Playoffs</Text>
+        <TopbarTitle>Playoffs</TopbarTitle>
         <View style={{ width: 54 }} />
       </View>
 

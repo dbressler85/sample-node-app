@@ -1,13 +1,13 @@
 import React, { useCallback } from 'react';
 import { View, Text, StyleSheet, Pressable, SectionList, RefreshControl, ActivityIndicator } from 'react-native';
 import { colors } from '../theme';
-import { displayLg, displayLabel } from '../typography';
+import { displayLabel } from '../typography';
 import { pickInventoryPreferDevice } from '../mflDevice';
 import ErrorView from '../components/ErrorView';
 import PressableScale from '../components/PressableScale';
 import useAndroidBack from '../useAndroidBack';
 import useCachedResource from '../useCachedResource';
-import { Value } from '../components/Brand';
+import { Value, TopbarTitle } from '../components/Brand';
 import ValueCredit from '../components/ValueCredit';
 
 // Your draft-pick capital, grouped BY LEAGUE (richest capital first) so it reads as "what you hold,
@@ -40,7 +40,7 @@ export default function PickInventoryScreen({ onBack, onShopPicks, onGetPicks, o
     <View style={styles.container}>
       <View style={styles.topbar}>
         <Pressable onPress={onBack} hitSlop={10}><Text style={styles.back}>‹ Hub</Text></Pressable>
-        <Text style={[styles.title, displayLg()]}>Pick Capital</Text>
+        <TopbarTitle>Pick Capital</TopbarTitle>
         <View style={{ width: 54 }} />
       </View>
       {summary ? (
