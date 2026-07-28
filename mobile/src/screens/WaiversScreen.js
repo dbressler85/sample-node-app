@@ -636,7 +636,23 @@ function ClaimSheet({ leagueId, addId, onClose, onOpenLineup, onDone }) {
     api.roster(leagueId).then((r) => setBench(r.bench || [])).catch(() => {});
   }, [leagueId, addId]);
 
-  async function submit() {
+  // An IMMEDIATE add (open free agency) executes on MFL right now — and when it drops a player, that
+  // drop is permanent and can't be undone from the app. So gate the immediate+drop case behind a
+  // confirm; a queued FAAB/waiver claim (processes later, cancelable) submits without the extra step.
+  function submit() {
+    if (preview && preview.immediate && dropId) {
+      const addName = (preview.add && preview.add.name) || 'this player';
+      const dropName = (preview.drop && preview.drop.name) || 'a player';
+      appAlert('Add now?', `Adds ${addName} and DROPS ${dropName} immediately on MyFantasyLeague. This can’t be undone from the app.`, [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Add & drop', style: 'destructive', onPress: doSubmit },
+      ]);
+      return;
+    }
+    doSubmit();
+  }
+
+  async function doSubmit() {
     setBusy(true);
     try {
       const body = { addId };

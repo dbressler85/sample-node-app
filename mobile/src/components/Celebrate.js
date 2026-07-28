@@ -24,7 +24,7 @@ const LINES = {
   tradeAccepted: ['Deal! Everybody wins. Mostly you.', 'Trade accepted.', 'Shake on it.'],
   claimPlaced: ['Claim’s in!', 'Bid placed. Fingers crossed.'],
   matchupWon: ['A W. As expected.', 'Victory. Screenshot it.'],
-  offerRejected: ['Rejected. Bold of them.', 'A no. Their loss, truly.', 'Denied. We’ll allow it.'],
+  offerRejected: ['Rejected. Bold of them.', 'What were they thinking?', 'Denied. We’ll allow it.'],
   offerWithdrawn: ['Pulled it back.', 'Offer withdrawn.', 'Never mind, then.'],
   claimFailed: ['Outbid. Someone wanted him more. Rude.', 'Denied by the waiver gods.'],
   matchupLost: ['An L. Character-building.', 'You lost. Statistically, someone had to.'],

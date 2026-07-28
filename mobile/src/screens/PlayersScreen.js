@@ -413,7 +413,7 @@ export default function PlayersScreen({ onOpenPlayer }) {
               </View>
               <ValueLens format={format} setFormat={setFormat} tep={tep} setTep={setTep} />
               <PosFilter pos={pos} setPos={setPos} />
-              <SortRow value={listSort} onChange={setListSort} />
+              <SortRow value={listSort} onChange={setListSort} defaultLabel="Best available" />
               <FlatList
                 data={freeData}
                 keyExtractor={(p) => p.id}
@@ -589,13 +589,13 @@ function PlayerRow({ p, rank, sub, tag, watched, showTrend, showWinNow, onTag, o
             {acts ? (
               <>
                 <Pressable hitSlop={13} onPress={() => onTag(p.id, t === 'target' ? null : 'target', t)} accessibilityLabel="Target">
-                  <GlowChip active={t === 'target'} triplet={rgb.good}><TargetIcon size={18} color={t === 'target' ? colors.good : colors.textDim} /></GlowChip>
+                  <GlowChip active={t === 'target'} triplet={rgb.good}><TargetIcon size={18} color={t === 'target' ? colors.good : colors.textDim} glow={t === 'target'} /></GlowChip>
                 </Pressable>
                 <Pressable hitSlop={13} onPress={() => onTag(p.id, t === 'avoid' ? null : 'avoid', t)} accessibilityLabel="Avoid">
-                  <GlowChip active={t === 'avoid'} triplet={rgb.bad}><AvoidIcon size={18} color={t === 'avoid' ? colors.bad : colors.textDim} /></GlowChip>
+                  <GlowChip active={t === 'avoid'} triplet={rgb.bad}><AvoidIcon size={18} color={t === 'avoid' ? colors.bad : colors.textDim} glow={t === 'avoid'} /></GlowChip>
                 </Pressable>
                 <Pressable hitSlop={13} onPress={() => onWatch(p.id, !w)} accessibilityLabel="Watch">
-                  <GlowChip active={w} triplet={rgb.watch}><WatchIcon size={18} color={w ? colors.watch : colors.textDim} filled={w} /></GlowChip>
+                  <GlowChip active={w} triplet={rgb.watch}><WatchIcon size={18} color={w ? colors.watch : colors.textDim} filled={w} glow={w} /></GlowChip>
                 </Pressable>
               </>
             ) : null}
@@ -764,12 +764,14 @@ function NewsRow({ n, onPress }) {
   );
 }
 
-function SortRow({ value, onChange }) {
+// `defaultLabel` renames the 'default' (server-order) chip per tab — on Free Agents that order is
+// "available in the most of your leagues, then by value", so "Default" is opaque; call it what it is.
+function SortRow({ value, onChange, defaultLabel }) {
   return (
     <View style={styles.newsSortRow}>
       <Text style={styles.newsSortLabel}>Sort</Text>
       {LIST_SORTS.map(([k, label]) => (
-        <PopChip key={k} active={value === k} onPress={() => onChange(k)} style={styles.newsSortChip} activeStyle={styles.newsSortChipActive} textStyle={styles.newsSortText} activeTextStyle={{ color: colors.text }} label={label} />
+        <PopChip key={k} active={value === k} onPress={() => onChange(k)} style={styles.newsSortChip} activeStyle={styles.newsSortChipActive} textStyle={styles.newsSortText} activeTextStyle={{ color: colors.text }} label={k === 'default' && defaultLabel ? defaultLabel : label} />
       ))}
     </View>
   );
