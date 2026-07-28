@@ -279,3 +279,14 @@ export const api = {
   applyAllLineups: (mode = 'auto', leagues) =>
     request('/api/lineups/apply', { method: 'POST', body: { mode, leagues: leagues || undefined } }),
 };
+
+// Map a raw thrown error message to human copy for user-facing surfaces — hides dev/system strings
+// ("Network request failed", "Failed to fetch", aborts/timeouts) behind a plain, actionable line,
+// while letting meaningful server messages (e.g. "Invalid username or password") pass through.
+export function friendlyError(msg) {
+  const m = String(msg || '');
+  if (!m || /network request failed|failed to fetch|timeout|timed out|aborted|abort|econn|enotfound|fetch failed|reach the backend/i.test(m)) {
+    return 'Couldn’t reach the server — check your connection and try again.';
+  }
+  return m;
+}

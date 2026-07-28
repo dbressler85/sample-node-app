@@ -13,7 +13,7 @@ import {
   Dimensions,
 } from 'react-native';
 import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
-import { api } from '../api';
+import { api, friendlyError } from '../api';
 import { saveSession } from '../auth';
 import { colors } from '../theme';
 import NeonCrest, { CREST_IGNITE_MS } from '../components/NeonCrest';
@@ -121,7 +121,7 @@ export default function LoginScreen({ onLoggedIn, justLoggedOut = false }) {
       const wait = reduced ? 0 : CREST_IGNITE_MS + 260;
       setTimeout(() => onLoggedIn({ demoMode }), wait);
     } catch (e) {
-      setError(e.message);
+      setError(friendlyError(e.message));
       setBusy(false);
     }
   }

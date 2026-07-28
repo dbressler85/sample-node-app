@@ -197,11 +197,26 @@ export default function WaiverWizardScreen({ leagues, seedAddId = null, onBack, 
   // Submit the built claim(s) and STAY on this league — submitting is decoupled from advancing, so you
   // can add several claims, reorder them, then move on when ready. On success the claims land in the
   // "already submitted" strip, and the builder reseeds to the next-best add you haven't claimed yet.
-  async function submitClaims() {
+  function submitClaims() {
     if (!canSubmit || !current) return;
     const claims = queue.map((q) => ({ addId: q.addId, dropId: q.dropId || undefined, bid: q.bid != null ? q.bid : undefined }));
     if (valid && add) claims.push({ addId, dropId: dropId || undefined, bid: isFaab && bidNum != null ? bidNum : undefined });
     if (!claims.length) return;
+    // In an OPEN free-agency league the add executes on MFL immediately — and any claim that drops a
+    // player makes that drop permanent. Gate the immediate+drop case behind a confirm (parity with the
+    // Waivers ClaimSheet); queued FAAB/waiver claims process later, so they submit straight through.
+    const drops = claims.filter((c) => c.dropId);
+    if (current.system === 'free' && drops.length) {
+      appAlert('Add now?', `This files ${claims.length} add${claims.length === 1 ? '' : 's'} that drop${drops.length === 1 ? 's' : ''} a player immediately on MyFantasyLeague. This can’t be undone from the app.`, [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Add & drop', style: 'destructive', onPress: () => doSubmitClaims(claims) },
+      ]);
+      return;
+    }
+    doSubmitClaims(claims);
+  }
+
+  async function doSubmitClaims(claims) {
     setSubmitting(true);
     try {
       const names = [...queue.map((q) => q.add.name), ...(valid && add ? [add.name] : [])].map((n) => shortName(n));

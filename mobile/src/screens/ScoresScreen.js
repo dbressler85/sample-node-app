@@ -134,7 +134,9 @@ function Game({ g, onOpenLineup }) {
       </View>
 
       <View style={styles.scoreRow}>
-        <Side label="You" score={g.me.score} proj={g.me.projectedFinal} ytp={g.me.yetToPlay} highlight={g.me.score >= g.opp.score} />
+        {/* Highlight a REAL lead only (strict, symmetric with the opp side) — at 0-0 pre-kickoff, or any
+            tie, neither side is "winning", so nothing lights up. */}
+        <Side label="You" score={g.me.score} proj={g.me.projectedFinal} ytp={g.me.yetToPlay} highlight={g.me.score > g.opp.score} />
         <Text style={styles.dash}>—</Text>
         <Side label={g.opponent} score={g.opp.score} proj={g.opp.projectedFinal} ytp={g.opp.yetToPlay} alignEnd highlight={g.opp.score > g.me.score} />
       </View>
