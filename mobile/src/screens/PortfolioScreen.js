@@ -56,7 +56,7 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
     setBaitOverride((m) => ({ ...m, [h.id]: next }));
     api.portfolioShop(h.id, next, h.leagueIds).catch(() => {
       setBaitOverride((m) => ({ ...m, [h.id]: cur }));
-      toast('Could not update trade bait'); // non-destructive: the row already reverted; never blank the page
+      toast('Could not update trade block'); // non-destructive: the row already reverted; never blank the page
     });
   }, []);
 
@@ -71,7 +71,7 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
     setArbBait((m) => ({ ...m, [a.id]: next }));
     api.portfolioShop(a.id, next, [a.high.leagueId]).catch(() => {
       setArbBait((m) => ({ ...m, [a.id]: cur }));
-      toast('Could not update trade bait');
+      toast('Could not update trade block');
     });
   }, []);
 

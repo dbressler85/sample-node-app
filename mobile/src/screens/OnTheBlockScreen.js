@@ -370,7 +370,7 @@ export default function OnTheBlockScreen({ onBack, onOpenPlayer, onOpenInbox, on
           {market && market.leagues.length === 0 ? (
             <View style={styles.emptyWrap}>
               <Text style={styles.emptyTitle}>No one’s shopping</Text>
-              <Text style={styles.emptyText}>No other team has anything on their MFL trade bait across your leagues right now.</Text>
+              <Text style={styles.emptyText}>No other team has anything on their trade block across your leagues right now.</Text>
             </View>
           ) : null}
         </ScrollView>
