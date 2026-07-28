@@ -60,6 +60,21 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
     });
   }, []);
 
+  // Cross-league arbitrage: shop a player in the ONE league where he's worth most (not every league
+  // like Top holdings). Own optimistic override, keyed by player id, reverted on failure.
+  const [arbBait, setArbBait] = useState({}); // id -> bool
+  const arbBaitRef = useRef(arbBait);
+  arbBaitRef.current = arbBait;
+  const shopArb = useCallback((a) => {
+    const cur = a.id in arbBaitRef.current ? arbBaitRef.current[a.id] : !!a.baited;
+    const next = !cur;
+    setArbBait((m) => ({ ...m, [a.id]: next }));
+    api.portfolioShop(a.id, next, [a.high.leagueId]).catch(() => {
+      setArbBait((m) => ({ ...m, [a.id]: cur }));
+      toast('Could not update trade bait');
+    });
+  }, []);
+
   // Untag a player from the Your-tags list — optimistic local removal, reverted on failure.
   const [untagged, setUntagged] = useState(() => new Set());
   const untagPlayer = useCallback((id) => {
@@ -214,6 +229,48 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
               );
             })}
             <Text style={styles.hint}>Biggest value swings among your holdings since tracking began — where your book is heating up or cooling off.</Text>
+          </View>
+        ) : null}
+
+        {/* Cross-league arbitrage — the same player is worth more in one of your leagues than another
+            (format + league size drive it), so that's where to shop him. Only shown when you actually
+            have a gap worth acting on. */}
+        {d.arbitrage && d.arbitrage.length ? (
+          <View style={styles.card}>
+            <Text style={[styles.cardTitle, displayLabel()]}>Cross-league arbitrage</Text>
+            {d.arbitrage.map((a, i) => {
+              const baited = a.id in arbBait ? arbBait[a.id] : !!a.baited;
+              return (
+                <Reveal key={a.id} delay={Math.min(i, 6) * 45}>
+                  <View style={styles.arbRow}>
+                    <PressableScale style={styles.arbMain} onPress={() => onOpenPlayer && onOpenPlayer(a.id, { id: a.id, name: a.name, position: a.position })}>
+                      <View style={[styles.posBadge, { borderColor: positionColors[a.position] || colors.textDim }]}>
+                        <Text style={[styles.pos, { color: positionColors[a.position] || colors.textDim }]}>{a.position}</Text>
+                      </View>
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={styles.arbName} numberOfLines={1}>{a.name}</Text>
+                        <Text style={styles.arbLine} numberOfLines={2}>
+                          <Text style={{ color: colors.gold, fontWeight: '900' }}>{a.high.value}</Text> in {a.high.name}
+                          {'  ·  '}<Text style={{ fontWeight: '900' }}>{a.low.value}</Text> in {a.low.name}
+                        </Text>
+                        <Text style={styles.arbHint} numberOfLines={2}>
+                          +{a.spread} ({a.spreadPct}%) more in {a.high.name}{a.sellSignal ? ` — and you're ${outlookShort(a.high.outlook)} there, so cash out` : ' — shop him there'}.
+                        </Text>
+                      </View>
+                    </PressableScale>
+                    <Pressable
+                      hitSlop={8}
+                      onPress={() => shopArb(a)}
+                      style={[styles.shop, baited && styles.shopOn]}
+                      accessibilityLabel={baited ? `Stop shopping ${a.name} in ${a.high.name}` : `Shop ${a.name} in ${a.high.name}`}
+                    >
+                      <Text style={[styles.shopTxt, baited && styles.shopTxtOn]}>{baited ? '⇄ Shopping' : '⇄ Shop'}</Text>
+                    </Pressable>
+                  </View>
+                </Reveal>
+              );
+            })}
+            <Text style={styles.hint}>A player you hold in more than one league is worth more in some than others — Superflex, TE-premium, and league size all move his price. Shop him where he’s worth most (⇄ Shop puts him on the block in that league only).</Text>
           </View>
         ) : null}
 
@@ -626,6 +683,14 @@ const HoldingRow = React.memo(function HoldingRow({ h, index, baited, onOpen, on
 
 // The movement line under the total: ▲/▼ absolute (+pct%) over the tracked window. Neutral
 // until there are two days to compare.
+// Terse outlook for the arbitrage "cash out" note (only the non-contending ones ever reach here).
+function outlookShort(outlook) {
+  if (outlook === 'Rebuilding') return 'rebuilding';
+  if (outlook === 'Ascending') return 'ascending';
+  if (outlook === 'Balanced') return 'not contending';
+  return 'not contending';
+}
+
 function ChangeLine({ change }) {
   if (!change) return <Text style={styles.changeFlat}>No movement yet</Text>;
   const up = change.absolute >= 0;
@@ -721,6 +786,11 @@ const styles = StyleSheet.create({
   concPct: { color: colors.text, fontSize: 12, fontWeight: '800', width: 38, textAlign: 'right' },
   concBye: { color: colors.textDim, fontSize: 13, marginTop: 8, lineHeight: 18 },
   moverRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+  arbRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 9, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+  arbMain: { flex: 1, flexDirection: 'row', alignItems: 'center', minWidth: 0 },
+  arbName: { color: colors.text, fontSize: 15, fontWeight: '800' },
+  arbLine: { color: colors.textDim, fontSize: 12, marginTop: 2, lineHeight: 16 },
+  arbHint: { color: colors.accent, fontSize: 11, marginTop: 2, lineHeight: 15, fontWeight: '600' },
   moverName: { color: colors.text, fontSize: 14, fontWeight: '700', marginLeft: 2 },
   moverTeam: { color: colors.textDim, fontSize: 11, fontWeight: '700', marginLeft: 2, marginTop: 1 },
   moverDelta: { fontSize: 13, fontWeight: '900', marginLeft: 8 },

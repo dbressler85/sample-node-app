@@ -144,6 +144,18 @@ const Portfolio = z.object({
   ),
   ageCurve: z.array(z.object({ band: z.string(), value: z.number(), pct: z.number() })),
   atRisk: z.object({ pct: z.number() }),
+  // Cross-league value arbitrage: a held player worth more in one league than another (optional —
+  // absent until an owner actually has a gap worth acting on).
+  arbitrage: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      position: z.string(),
+      spread: z.number(),
+      high: z.object({ leagueId: z.string(), name: z.string(), value: z.number() }),
+      low: z.object({ leagueId: z.string(), name: z.string(), value: z.number() }),
+    })
+  ).optional(),
 });
 
 // GET /api/scoreboard — live matchups across leagues.

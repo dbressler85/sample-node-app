@@ -438,9 +438,12 @@ win-now / rest-of-season) plus two narrower correctness issues. Ranked by value-
   leads on dynasty value. The reconciled bottom-line uses the leading verdict; the compose preview and
   the incoming-offer card surface a "Win-now" line (marked *your window* for contenders) whenever the
   two reads diverge. Also surfaced earlier: a Win-now rankings lens + a Win-now value on the profile.
-- [ ] **Cross-league value arbitrage (P2).** The app tracks player exposure across leagues but never
-  says "you roster him in 3 leagues — he's worth most in your SF league; shop him *there*." A
-  differentiated, on-brand insight this cross-league app is uniquely positioned to own. *(Med effort.)*
+- [x] **Cross-league value arbitrage (P2).** *Done.* The portfolio now carries an `arbitrage` list:
+  for every player you hold in 2+ leagues, his format-aware value in each (Superflex, TE-premium, and
+  now league size all move it), reduced to the highest- vs lowest-valuing league with the spread. Only
+  real gaps surface (absolute + relative floor), biggest first, with a sell signal when you're not
+  contending in the high-value league. Portfolio shows a "Cross-league arbitrage" card with a one-tap
+  ⇄ Shop that blocks him in **that** league only. The differentiated, only-this-app-can-say-it insight.
 - [ ] **Production-weighted core age (P2, minor).** `coreAge` = the 5 *most valuable* players, and value
   is already age-discounted, so aging on-field studs get excluded from the very "how old is your core"
   average → aging teams look younger than they play. Weight by snaps/production instead of value.
