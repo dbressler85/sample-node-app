@@ -24,6 +24,16 @@ export default function LeagueContext({ context, team: teamOverride }) {
   const team = teamOverride || context.team;
   const rec = team && team.record;
   const recStr = rec ? `${rec.wins}-${rec.losses}${rec.ties ? `-${rec.ties}` : ''}` : null;
+  // Frame of reference for the raw age numbers: where this team's core age ranks among the league
+  // (1 = youngest), so "core 25.8y" reads as "2nd-youngest of 12" — and the league average to compare.
+  const ac = team && team.ageContext;
+  const ord = (n) => { const s = ['th', 'st', 'nd', 'rd'], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); };
+  const coreStr = team && team.coreAge != null
+    ? `core ${team.coreAge}y${ac && ac.coreRank ? ` (${ord(ac.coreRank)}-youngest of ${ac.teams})` : ''}`
+    : null;
+  const avgStr = team && team.avgAge != null
+    ? `avg ${team.avgAge}y${ac && ac.leagueAvgAge != null ? ` vs lg ${ac.leagueAvgAge}` : ''}`
+    : null;
   return (
     <View style={styles.card}>
       <View style={styles.chipRow}>
@@ -50,8 +60,8 @@ export default function LeagueContext({ context, team: teamOverride }) {
           {[
             team.outlook,
             recStr ? `${recStr}` : null,
-            team.avgAge != null ? `avg ${team.avgAge}y` : null,
-            team.coreAge != null ? `core ${team.coreAge}y` : null,
+            avgStr,
+            coreStr,
             team.strengthLabel,
           ]
             .filter(Boolean)

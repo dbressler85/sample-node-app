@@ -774,4 +774,4 @@ async function compare(cookie, token, ids) {
   return { players: players.filter(Boolean) };
 }
 
-module.exports = { search, rankings, profile, compare, previewAdd, submitAdd, submitDrop, invalidateGather, _pprPointsFromBox: pprPointsFromBox };
+module.exports = { search, rankings, profile, compare, previewAdd, submitAdd, submitDrop, invalidateGather, gather, _pprPointsFromBox: pprPointsFromBox };

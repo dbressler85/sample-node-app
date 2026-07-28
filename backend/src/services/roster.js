@@ -140,13 +140,50 @@ function coreAgeOf(players) {
   return core.length ? Math.round((core.reduce((s, p) => s + p.age, 0) / core.length) * 10) / 10 : null;
 }
 
-function teamSummary(all, strengthPct, recordPct, record) {
+function teamSummary(all, strengthPct, recordPct, record, ageContext = null) {
   const valued = all.filter((p) => p.value != null);
   const rosterValue = valued.reduce((s, p) => s + p.value, 0);
   const avgAge = valued.length ? Math.round((valued.reduce((s, p) => s + (p.age || 0), 0) / valued.length) * 10) / 10 : null;
   const coreAge = coreAgeOf(all);
   const strength = strengthPct != null ? Math.round(strengthPct * 100) / 100 : null;
-  return { rosterValue, avgAge, coreAge, strengthPct: strength, strengthLabel: strengthLabel(strengthPct), record: record || null, outlook: computeOutlook(coreAge, strengthPct, recordPct) };
+  return { rosterValue, avgAge, coreAge, strengthPct: strength, strengthLabel: strengthLabel(strengthPct), record: record || null, ageContext: ageContext || null, outlook: computeOutlook(coreAge, strengthPct, recordPct) };
+}
+
+// My team's AGE standing in the league — the frame of reference a raw "core 25.8y" number is missing.
+// Ranks every franchise by youngest production-weighted core (same coreAgeOf model), so the app can
+// say "core 25.8y — 2nd-youngest of 12, league avg 27.1y" instead of a number with no scale. Also
+// returns the same for plain average age, plus the league averages. null when we can't see the whole
+// league (demo / a partial read) — the app then just shows the bare numbers as before.
+function leagueAgeContext(franchises, myId, enr) {
+  if (!Array.isArray(franchises) || franchises.length < 2) return null;
+  const round1 = (n) => Math.round(n * 10) / 10;
+  const per = franchises.map((f) => {
+    const players = mfl.toArray(f.player).map((p) => ({
+      age: enr.age(String(p.id)),
+      value: enr.value(String(p.id)),
+      winNow: enr.winNow(String(p.id)),
+    }));
+    const valued = players.filter((p) => p.value != null && p.age != null);
+    return {
+      id: String(f.id),
+      coreAge: coreAgeOf(players),
+      avgAge: valued.length ? valued.reduce((s, p) => s + p.age, 0) / valued.length : null,
+    };
+  });
+  const mine = per.find((t) => t.id === String(myId));
+  const withCore = per.filter((t) => t.coreAge != null);
+  if (!mine || mine.coreAge == null || withCore.length < 2) return null;
+  const withAvg = per.filter((t) => t.avgAge != null);
+  // Rank 1 = youngest. Strict-younger + 1, so ties share the same (better) rank.
+  const coreRank = withCore.filter((t) => t.coreAge < mine.coreAge).length + 1;
+  const avgRank = mine.avgAge != null ? withAvg.filter((t) => t.avgAge < mine.avgAge).length + 1 : null;
+  return {
+    teams: withCore.length,
+    coreRank,
+    avgRank,
+    leagueCoreAge: round1(withCore.reduce((s, t) => s + t.coreAge, 0) / withCore.length),
+    leagueAvgAge: withAvg.length ? round1(withAvg.reduce((s, t) => s + t.avgAge, 0) / withAvg.length) : null,
+  };
 }
 
 // My roster's value rank among all franchises in the league (0..1; 1.0 = strongest).
@@ -284,7 +321,8 @@ function assembleRoster(league, franchises, ctx) {
   // Strength percentile: demo uses a fixture (no full league in fixtures); live ranks
   // my roster value against every franchise's, using the same enrichment snapshot.
   const strengthPct = config.demoMode ? demo.teamStrength(league.leagueId) : leagueStrengthPct(franchises, league.franchiseId, enr);
-  roster.summary = teamSummary([...roster.starters, ...roster.bench, ...roster.ir, ...roster.taxi], strengthPct, recordPct, record);
+  const ageContext = config.demoMode ? null : leagueAgeContext(franchises, league.franchiseId, enr);
+  roster.summary = teamSummary([...roster.starters, ...roster.bench, ...roster.ir, ...roster.taxi], strengthPct, recordPct, record, ageContext);
   return roster;
 }
 
@@ -426,4 +464,4 @@ async function moveTaxi(cookie, token, leagueId, { promote = [], demote = [], dr
   return getRoster(cookie, leagueId);
 }
 
-module.exports = { getRoster, invalidate, computeOutlook, coreAgeOf, recordPctByFranchise, recordForFranchise, strengthLabel, leagueFranchises, myRosterLight, myRosterEnriched, rosterFromDeviceFranchises, assembleRoster, moveIr, moveTaxi };
+module.exports = { getRoster, invalidate, computeOutlook, coreAgeOf, recordPctByFranchise, recordForFranchise, strengthLabel, leagueAgeContext, leagueFranchises, myRosterLight, myRosterEnriched, rosterFromDeviceFranchises, assembleRoster, moveIr, moveTaxi };
