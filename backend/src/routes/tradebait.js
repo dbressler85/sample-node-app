@@ -67,6 +67,16 @@ router.get('/tradebait/market/:leagueId', async (req, res, next) => {
   }
 });
 
+// GET /api/tradebait/for-player/:playerId — leagues where I roster this player (format + outlook +
+// whether he's already on that league's block), for the "add to trade bait" wizard.
+router.get('/tradebait/for-player/:playerId', async (req, res, next) => {
+  try {
+    res.json(await tradebait.leaguesForPlayer(req.mflCookie, req.account, req.params.playerId));
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/leagues/:leagueId/tradebait — ids on the block in one league (to mark rosters).
 router.get('/leagues/:leagueId/tradebait', async (req, res, next) => {
   try {

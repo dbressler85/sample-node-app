@@ -236,6 +236,8 @@ export const api = {
   blockEditor: () => request('/api/tradebait/editor'),
   saveBlock: (leagueId, tokens, note) => request(`/api/leagues/${leagueId}/tradebait`, { method: 'POST', body: { tokens, note } }),
   leagueBait: (leagueId) => request(`/api/leagues/${leagueId}/tradebait`),
+  // Leagues where I roster this player (format + outlook + already-on-block), for the "shop him" wizard.
+  tradebaitForPlayer: (playerId) => request(`/api/tradebait/for-player/${playerId}`),
   addBait: (leagueId, playerId, note) => request(`/api/leagues/${leagueId}/tradebait/${playerId}`, { method: 'POST', body: { note } }),
   removeBait: (leagueId, playerId) => request(`/api/leagues/${leagueId}/tradebait/${playerId}`, { method: 'DELETE' }),
 

@@ -7,6 +7,7 @@ import { displayLabel } from '../typography';
 import AvailabilityBadge from '../components/AvailabilityBadge';
 import AddAcrossSheet from '../components/AddAcrossSheet';
 import TradeAcrossSheet from '../components/TradeAcrossSheet';
+import TradeBaitSheet from '../components/TradeBaitSheet';
 import { TargetIcon, AvoidIcon, WatchIcon } from '../components/PlayerActionIcons';
 import useAndroidBack from '../useAndroidBack';
 import useCachedResource from '../useCachedResource';
@@ -181,6 +182,8 @@ export default function PlayerProfileScreen({ playerId, seed, onBack, onOpenTrad
   const posColor = positionColors[p.position] || colors.textDim;
   const canAdd = p.actions.addLeagues.length > 0;
   const canDrop = p.actions.dropLeagues.length > 0;
+  // Shop = put him on your trade block. Available in any league you roster him (same set as Drop).
+  const canShop = canDrop;
   // He's a trade target wherever another team owns him.
   const tradeLeagues = p.crossLeague.filter((c) => c.relation === 'unavailable').length;
   const canTrade = tradeLeagues > 0;
@@ -423,6 +426,11 @@ export default function PlayerProfileScreen({ playerId, seed, onBack, onOpenTrad
               <Text style={[styles.actionText, { color: colors.accent }]}>Trade for ({tradeLeagues})</Text>
             </Pressable>
           ) : null}
+          {canShop ? (
+            <Pressable style={[styles.actionBtn, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.gold }]} onPress={() => setSheet('bait')}>
+              <Text style={[styles.actionText, { color: colors.gold }]}>Shop ({p.actions.dropLeagues.length})</Text>
+            </Pressable>
+          ) : null}
           {canDrop ? (
             <Pressable style={[styles.actionBtn, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.bad }]} onPress={() => setSheet('drop')}>
               <Text style={[styles.actionText, { color: colors.bad }]}>Drop ({p.actions.dropLeagues.length})</Text>
@@ -440,6 +448,7 @@ export default function PlayerProfileScreen({ playerId, seed, onBack, onOpenTrad
           onStartWizard={(queue) => { setSheet(null); onOpenTradeWizard && onOpenTradeWizard(queue); }}
         />
       ) : null}
+      {sheet === 'bait' ? <TradeBaitSheet player={p} onClose={() => setSheet(null)} onDone={() => { setSheet(null); reload(); }} /> : null}
       {sheet === 'drop' ? <DropSheet player={p} onClose={() => setSheet(null)} onDone={() => { setSheet(null); reload(); }} /> : null}
     </View>
   );
