@@ -16,6 +16,9 @@ export function setAuthLostHandler(fn) {
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// Per-attempt request ceiling. Generous — the heaviest reads (a trade/waiver fan-out across ~15
+// leagues on a cold backend) can legitimately take 20-30s — but finite, so a true stall errors out.
+const REQUEST_TIMEOUT_MS = 45000;
 
 async function request(path, { method = 'GET', body } = {}) {
   const headers = { Accept: 'application/json' };
@@ -28,11 +31,17 @@ async function request(path, { method = 'GET', body } = {}) {
   const maxNetRetries = method === 'GET' ? 2 : 0;
   let res;
   for (let attempt = 0; ; attempt += 1) {
+    // Hard timeout per attempt: a stalled connection (backend hung mid-response, dropped Wi‑Fi that
+    // never RSTs) must FAIL, not hang forever — an awaited call that never settles strands the caller
+    // (e.g. a trade-response spinner that never clears). Abort turns the stall into a catchable error.
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS);
     try {
       res = await fetch(`${API_URL}${path}`, {
         method,
         headers,
         body: body ? JSON.stringify(body) : undefined,
+        signal: ctrl.signal,
       });
       break;
     } catch (e) {
@@ -40,9 +49,11 @@ async function request(path, { method = 'GET', body } = {}) {
         await sleep(800 * (attempt + 1));
         continue;
       }
-      // Unreachable ≠ logged out. Keep the session; the caller shows an error /
+      // Unreachable/stalled ≠ logged out. Keep the session; the caller shows an error /
       // the user can pull-to-refresh once the backend/network is back.
       throw new Error(`Can't reach the backend at ${API_URL}. Check your connection and try again.`);
+    } finally {
+      clearTimeout(timer);
     }
   }
 
