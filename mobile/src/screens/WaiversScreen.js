@@ -794,14 +794,18 @@ function Stepper({ onPress, label }) {
     </Pressable>
   );
 }
-const SYS = { faab: { label: 'FAAB', color: colors.accent }, fcfs: { label: 'FCFS', color: colors.warn }, free: { label: 'Free agent', color: colors.good } };
+const SYS = {
+  faab: { label: 'FAAB', full: 'FAAB — free-agent acquisition budget (blind bidding)', color: colors.accent },
+  fcfs: { label: 'FCFS', full: 'FCFS — first come, first served waivers', color: colors.warn },
+  free: { label: 'Free agent', full: 'Open free agency — adds immediately', color: colors.good },
+};
 function SystemBadge({ system, small }) {
   const s = SYS[system] || SYS.free;
-  return <Text style={[styles.sysBadge, { color: s.color, borderColor: s.color }, small && styles.sysBadgeSmall]}>{s.label}</Text>;
+  return <Text style={[styles.sysBadge, { color: s.color, borderColor: s.color }, small && styles.sysBadgeSmall]} accessibilityLabel={s.full}>{s.label}</Text>;
 }
 function SystemInline({ system }) {
   const s = SYS[system] || SYS.free;
-  return <Text style={{ color: s.color, fontWeight: '800' }}>{s.label}</Text>;
+  return <Text style={{ color: s.color, fontWeight: '800' }} accessibilityLabel={s.full}>{s.label}</Text>;
 }
 
 const styles = StyleSheet.create({

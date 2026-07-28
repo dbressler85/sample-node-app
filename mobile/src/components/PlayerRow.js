@@ -51,9 +51,11 @@ function PlayerRow({ player, baited, onToggleBait, onOpenPlayer }) {
           onPress={() => onToggleBait(player)}
           hitSlop={8}
           style={[styles.bait, baited && styles.baitOn]}
+          accessibilityRole="button"
+          accessibilityState={{ selected: baited }}
           accessibilityLabel={baited ? `Take ${player.name} off the block` : `Put ${player.name} on the block`}
         >
-          <Text style={[styles.baitTxt, baited && styles.baitTxtOn]}>{baited ? '⇄ On block' : '⇄ Block'}</Text>
+          <Text style={[styles.baitTxt, baited && styles.baitTxtOn]}>{baited ? '⇄ Shopping' : '⇄ Shop'}</Text>
         </Pressable>
       ) : null}
     </View>
