@@ -108,5 +108,27 @@ const anotherRB = { position: 'RB', value: 55 };
   assert(emptyHole.holes.includes('TE'), 'giving away your ONLY TE still flags a real hole');
   console.log('✓ an unvalued retained body prevents a false "strips their starter"; a truly emptied slot still flags');
 
+  // 8) The REAL reported bug: in a SUPERFLEX + FLEX lineup, TE's fractional flex/superflex share
+  // (1 + 1/3 + 1/4 = 1.58) rounded to 2 "required" TE starters, so trading a team's 2nd TE (value 14)
+  // while they KEPT a better one (value 20) read as "strips their TE starter". Hole detection now uses
+  // DEDICATED slots (a flex/SF slot doesn't force a TE), so only 1 TE is required → no hole, and the
+  // per-team starter read is the best TE (20), not a top-2 average — so it's roster-neutral, not "thin".
+  const sfReqs = [
+    { name: 'QB', eligible: ['QB'], count: 1 }, { name: 'RB', eligible: ['RB'], count: 2 },
+    { name: 'WR', eligible: ['WR'], count: 2 }, { name: 'TE', eligible: ['TE'], count: 1 },
+    { name: 'FLEX', eligible: ['RB', 'WR', 'TE'], count: 1 }, { name: 'SUPERFLEX', eligible: ['QB', 'RB', 'WR', 'TE'], count: 1 },
+  ];
+  const rb = (n, base) => Array.from({ length: n }, (_, i) => ({ id: `rb${base}${i}`, position: 'RB', value: base - i }));
+  const sfFranchises = [
+    { franchiseId: '1', players: [...rb(8, 80, 1), { id: 'keep', position: 'TE', value: 20 }, { id: 'give', position: 'TE', value: 14 }] },
+    ...Array.from({ length: 10 }, (_, i) => ({ franchiseId: `T${i}`, players: [...rb(8, 75 - i), { id: `te${i}`, position: 'TE', value: 30 - i * 2 }] })),
+  ];
+  const sfNs = needsSurplus(sfFranchises, sfReqs);
+  assert(sfNs['1'].depth.TE.slots === 1, `superflex+flex: TE requires only its DEDICATED slot (1), got ${sfNs['1'].depth.TE.slots}`);
+  const sfV = constructionVerdict([{ position: 'TE', value: 14 }], [{ position: 'RB', value: 70 }], sfNs['1'].needs, sfNs['1'].surplus, 'they', sfNs['1'].depth);
+  assert(!sfV.holes.includes('TE'), `trading the 2nd TE while keeping a better one is NOT a hole in a 1-TE lineup, got ${JSON.stringify(sfV)}`);
+  assert(sfV.rating !== 'caution', `and it should not read as a caution/"tough sell", got ${sfV.rating}: ${sfV.reason}`);
+  console.log('✓ superflex+flex no longer over-requires 2 TEs — trading a kept-a-better-one backup TE is roster-neutral');
+
   console.log('\nTRADE HOLE HARNESS PASSED');
 })().catch((e) => { console.error(e.message); process.exit(1); });
