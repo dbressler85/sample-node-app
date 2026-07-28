@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, TextInput, Modal, Animated } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, TextInput, Modal, Animated, KeyboardAvoidingView, Platform } from 'react-native';
 import { appAlert } from "../components/AppAlert";
 import { api } from '../api';
 import tradeMath from '../tradeMath';
@@ -739,6 +739,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
       {/* Reject an incoming offer, optionally with a note MFL delivers to the originator. */}
       <Modal visible={!!rejectTarget} transparent animationType="fade" onRequestClose={() => setRejectTarget(null)}>
         <Pressable style={styles.modalScrim} onPress={() => setRejectTarget(null)}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ width: '100%' }}>
           <Pressable style={styles.rejectSheet} onPress={() => {}}>
             <Text style={styles.rejectTitle}>Reject offer{rejectTarget && rejectTarget.withName ? ` from ${rejectTarget.withName}` : ''}?</Text>
             <Text style={styles.rejectHint}>Add an optional note for them (they’ll see it with the rejection).</Text>
@@ -760,6 +761,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
               </Pressable>
             </View>
           </Pressable>
+          </KeyboardAvoidingView>
         </Pressable>
       </Modal>
     </View>
@@ -1107,7 +1109,7 @@ const styles = StyleSheet.create({
   accept: { backgroundColor: colors.accent },
   acceptText: { color: colors.onAccent, fontWeight: '800', fontSize: 14 },
   // Reject-with-note modal.
-  modalScrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', paddingHorizontal: 24 },
+  modalScrim: { flex: 1, backgroundColor: colors.scrim, justifyContent: 'center', paddingHorizontal: 24 },
   rejectSheet: { backgroundColor: colors.bg, borderRadius: 16, borderWidth: 1, borderColor: colors.border, padding: 18 },
   rejectTitle: { color: colors.text, fontSize: 16, fontWeight: '800', marginBottom: 6 },
   rejectHint: { color: colors.textDim, fontSize: 12, marginBottom: 12 },

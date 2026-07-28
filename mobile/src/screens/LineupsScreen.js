@@ -341,7 +341,7 @@ const styles = StyleSheet.create({
   rowError: { color: colors.bad, marginTop: 6, fontSize: 13 },
   error: { color: colors.bad, textAlign: 'center' },
   // review sheet
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: colors.scrim, justifyContent: 'flex-end' },
   sheet: { backgroundColor: colors.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, borderTopWidth: 1, borderColor: colors.border },
   sheetTitle: { color: colors.text, fontSize: 18, fontWeight: '900' },
   sheetSub: { color: colors.textDim, fontSize: 12, marginTop: 2, marginBottom: 10, fontWeight: '600' },

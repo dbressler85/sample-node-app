@@ -7,6 +7,8 @@ import { displayLg } from '../typography';
 import useAndroidBack from '../useAndroidBack';
 import AvailabilityBadge from '../components/AvailabilityBadge';
 import LeagueContext from '../components/LeagueContext';
+import ErrorView from '../components/ErrorView';
+import ListSkeleton from '../components/ListSkeleton';
 import { toast } from '../components/Toast';
 import { peekResource, primeResource } from '../useCachedResource';
 
@@ -211,12 +213,14 @@ export default function OnTheBlockScreen({ onBack, onOpenPlayer, onOpenInbox, on
             </Text>
           ) : null}
           {loading ? (
-            <View style={styles.center}><ActivityIndicator color={colors.accent} size="large" /></View>
+            <ListSkeleton rows={5} />
           ) : error && !editor ? (
-            <View style={styles.center}><Text style={styles.error}>{error}</Text></View>
+            <ErrorView message={error} onRetry={loadEditor} onRefresh={() => { setRefreshing(true); loadEditor(); }} refreshing={refreshing} />
           ) : (
             <ScrollView
               contentContainerStyle={styles.list}
+              keyboardShouldPersistTaps="handled"
+              automaticallyAdjustKeyboardInsets
               refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadEditor(); }} tintColor={colors.accent} />}
             >
               {(editor && editor.leagues || []).map((lg) => {
@@ -291,9 +295,9 @@ export default function OnTheBlockScreen({ onBack, onOpenPlayer, onOpenInbox, on
           )}
         </>
       ) : market == null && !error ? (
-        <View style={styles.center}><ActivityIndicator color={colors.accent} size="large" /></View>
+        <ListSkeleton rows={5} />
       ) : error && !market ? (
-        <View style={styles.center}><Text style={styles.error}>{error}</Text></View>
+        <ErrorView message={error} onRetry={loadMarket} onRefresh={() => { setRefreshing(true); loadMarket(); }} refreshing={refreshing} />
       ) : (
         <ScrollView
           contentContainerStyle={styles.list}

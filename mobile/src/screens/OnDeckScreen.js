@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, FlatList, RefreshControl, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Pressable, FlatList, RefreshControl } from 'react-native';
 import { api } from '../api';
 import { colors } from '../theme';
 import { displayLg } from '../typography';
@@ -7,6 +7,8 @@ import useAndroidBack from '../useAndroidBack';
 import usePoll from '../usePoll';
 import useCachedResource from '../useCachedResource';
 import NeonSign from '../components/NeonSign';
+import ErrorView from '../components/ErrorView';
+import ListSkeleton from '../components/ListSkeleton';
 
 // On Deck — the proactive, time-sorted view of what needs you next across every
 // league. Draft clocks (now), lineup locks (next kickoff), scheduled drafts, and
@@ -123,9 +125,9 @@ export default function OnDeckScreen({ covered = false, onBack, onOpenLineup, on
       ) : null}
 
       {loading ? (
-        <View style={styles.center}><ActivityIndicator color={colors.accent} size="large" /></View>
-      ) : error ? (
-        <View style={styles.center}><Text style={styles.error}>{error}</Text></View>
+        <ListSkeleton rows={6} />
+      ) : error && !data ? (
+        <ErrorView message={error} onRetry={reload} onRefresh={reload} refreshing={refreshing} />
       ) : (
         <FlatList
           data={rows}

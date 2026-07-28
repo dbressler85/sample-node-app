@@ -51,6 +51,7 @@ export default function TradeAcrossSheet({ player, onClose, onCraft, onStartWiza
   return (
     <Pressable style={styles.backdrop} onPress={onClose}>
       <Pressable style={styles.sheet} onPress={() => {}}>
+        <View style={styles.grabber} />
         <Text style={styles.sheetTitle}>Trade for {player.name}</Text>
         {error ? (
           <View style={{ paddingVertical: 20, alignItems: 'center' }}>
@@ -97,7 +98,8 @@ export default function TradeAcrossSheet({ player, onClose, onCraft, onStartWiza
 }
 
 const styles = StyleSheet.create({
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: colors.scrim, justifyContent: 'flex-end' },
+  grabber: { alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: colors.border, marginBottom: 12 },
   sheet: { backgroundColor: colors.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, borderTopWidth: 1, borderColor: colors.border },
   sheetTitle: { color: colors.text, fontSize: 18, fontWeight: '900' },
   sub: { color: colors.textDim, fontSize: 12, marginTop: 4, marginBottom: 8, lineHeight: 17 },

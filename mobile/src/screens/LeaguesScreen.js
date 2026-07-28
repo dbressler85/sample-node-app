@@ -4,6 +4,7 @@ import { api } from '../api';
 import { colors } from '../theme';
 import { displayLg } from '../typography';
 import Reveal from '../components/Reveal';
+import EmptyView from '../components/EmptyView';
 import useAndroidBack from '../useAndroidBack';
 import { peekResource, primeResource } from '../useCachedResource';
 
@@ -131,7 +132,7 @@ export default function LeaguesScreen({ onBack, onOpenLeague, onOpenDraftHub }) 
           leagues == null ? (
             <View style={styles.center}><ActivityIndicator color={colors.accent} size="large" /></View>
           ) : (
-            <Text style={styles.empty}>No leagues found for this account.</Text>
+            <EmptyView title="No leagues found" message="We couldn’t find any leagues on this MFL account. Pull down to refresh." />
           )
         }
       />

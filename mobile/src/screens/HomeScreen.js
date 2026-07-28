@@ -659,7 +659,7 @@ const styles = StyleSheet.create({
   draftSub: { color: colors.textDim, fontSize: 12, marginTop: 3 },
   draftPill: { color: colors.onAccent, backgroundColor: colors.gold, fontSize: 11, fontWeight: '900', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, overflow: 'hidden' },
   teamChev: { color: colors.textDim, fontSize: 20, fontWeight: '700', marginLeft: 8 },
-  modalWrap: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  modalWrap: { flex: 1, backgroundColor: colors.scrim, justifyContent: 'flex-end' },
   modalCard: { backgroundColor: colors.bg, borderTopLeftRadius: 20, borderTopRightRadius: 20, borderWidth: 1, borderColor: colors.border, maxHeight: '80%', paddingTop: 8 },
   modalHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 14 },
   modalTitle: { color: colors.text, fontSize: 17, fontWeight: '900', flex: 1, marginRight: 12 },

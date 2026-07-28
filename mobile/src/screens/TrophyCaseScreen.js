@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, FlatList, ActivityIndicator, RefreshControl, Modal, TextInput } from 'react-native';
+import { View, Text, StyleSheet, Pressable, FlatList, ActivityIndicator, RefreshControl, Modal, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
 import { appAlert } from "../components/AppAlert";
 import { api } from '../api';
 import { colors } from '../theme';
@@ -165,6 +165,7 @@ export default function TrophyCaseScreen({ onBack }) {
       {/* Add-a-title modal. */}
       <Modal visible={adding} transparent animationType="fade" onRequestClose={() => setAdding(false)}>
         <Pressable style={styles.scrim} onPress={() => setAdding(false)}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ width: '100%' }}>
           <Pressable style={styles.sheet} onPress={() => {}}>
             <Text style={styles.sheetTitle}>Add a championship</Text>
             <Text style={styles.label}>Team name</Text>
@@ -180,6 +181,7 @@ export default function TrophyCaseScreen({ onBack }) {
               </Pressable>
             </View>
           </Pressable>
+          </KeyboardAvoidingView>
         </Pressable>
       </Modal>
     </View>
@@ -215,7 +217,7 @@ const styles = StyleSheet.create({
   emptyAdd: { backgroundColor: colors.gold, borderRadius: 12, paddingHorizontal: 18, paddingVertical: 11 },
   emptyAddText: { color: '#1a1300', fontWeight: '800', fontSize: 14 },
 
-  scrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', paddingHorizontal: 24 },
+  scrim: { flex: 1, backgroundColor: colors.scrim, justifyContent: 'center', paddingHorizontal: 24 },
   sheet: { backgroundColor: colors.bg, borderRadius: 16, borderWidth: 1, borderColor: colors.border, padding: 18 },
   sheetTitle: { color: colors.text, fontSize: 17, fontWeight: '800', marginBottom: 12 },
   label: { color: colors.violetText, fontSize: 12, fontWeight: '700', marginTop: 10, marginBottom: 4 },
