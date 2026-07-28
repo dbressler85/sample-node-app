@@ -424,10 +424,14 @@ async function getDashboard(cookie, token, { deviceRosters = null } = {}) {
       if (!v) continue;
       totalValue += v;
       playerCount += 1;
-      // Aggregate this player across leagues into a single holding (position).
-      const h = holdMap.get(p.id) || { id: p.id, name: p.name, position: p.position, team: p.team, total: 0, leagues: 0, top: 0, leagueIds: [] };
+      // Aggregate this player across leagues into a single holding (position). `perLeague` keeps his
+      // format-aware value in EACH league you hold him (+ that team's outlook) so we can spot the
+      // cross-league arbitrage: the same player is worth more in your Superflex/16-team league than
+      // your 1QB/10-team one — so that's where to shop him.
+      const h = holdMap.get(p.id) || { id: p.id, name: p.name, position: p.position, team: p.team, total: 0, leagues: 0, top: 0, leagueIds: [], perLeague: [] };
       h.total += v; h.leagues += 1; if (v > h.top) h.top = v;
       h.leagueIds.push(league.leagueId);
+      h.perLeague.push({ leagueId: league.leagueId, name: league.name, value: v, outlook: (roster.summary || {}).outlook || null });
       holdMap.set(p.id, h);
       allocMap.set(p.position, (allocMap.get(p.position) || 0) + v);
       allocCount.set(p.position, (allocCount.get(p.position) || 0) + 1);
@@ -534,6 +538,37 @@ async function getDashboard(cookie, token, { deviceRosters = null } = {}) {
   const topHoldValue = holdings.length ? holdings[0].value : 0;
   for (const h of holdings) h.rel = topHoldValue > 0 ? Math.round((h.value / topHoldValue) * 100) : 0;
 
+  // Cross-league value arbitrage: a player you hold in 2+ leagues is worth DIFFERENT amounts in each
+  // (format drives it — a QB is worth far more in Superflex, and league size shifts scarcity). Where
+  // he's worth most is where you'd get the most back in a trade — especially if you're not contending
+  // there. Surface the biggest gaps so the owner can shop each player in the RIGHT league. Only real
+  // gaps (both an absolute and a relative floor) so same-format holdings (spread ~0) don't show.
+  const ARB_MIN_SPREAD = 8; // points on the 0-100 scale
+  const ARB_MIN_SPREAD_PCT = 15; // relative to the lowest-valuing league
+  const arbitrage = [...holdMap.values()]
+    .filter((h) => h.perLeague.length >= 2)
+    .map((h) => {
+      const sorted = [...h.perLeague].sort((a, b) => b.value - a.value);
+      const high = sorted[0];
+      const low = sorted[sorted.length - 1];
+      const spread = Math.round(high.value - low.value);
+      const spreadPct = low.value > 0 ? Math.round(((high.value - low.value) / low.value) * 100) : 0;
+      // The high-value league is the place to sell — and the call is strongest when you're NOT trying
+      // to win there (a win-now team wants to keep its good players regardless of trade value).
+      const sellSignal = high.outlook != null && high.outlook !== 'Win-now window';
+      return {
+        id: h.id, name: h.name, position: h.position, team: h.team, leagues: h.perLeague.length,
+        spread, spreadPct, sellSignal,
+        high: { leagueId: high.leagueId, name: high.name, value: Math.round(high.value), outlook: high.outlook },
+        low: { leagueId: low.leagueId, name: low.name, value: Math.round(low.value), outlook: low.outlook },
+        baited: tradebaitStore.has(token, high.leagueId, h.id),
+      };
+    })
+    .filter((a) => a.spread >= ARB_MIN_SPREAD && a.spreadPct >= ARB_MIN_SPREAD_PCT)
+    // Biggest gap first; a live sell signal (you're not contending in the high league) breaks ties.
+    .sort((a, b) => b.spread - a.spread || (b.sellSignal ? 1 : 0) - (a.sellSignal ? 1 : 0))
+    .slice(0, 20);
+
   // Allocation by position — the "sectors" of the portfolio, two ways: by VALUE (pct = share
   // of total dynasty value) and by SHARES (sharePct = share of your roster slots, one slot per
   // league you hold a player). The app switches between them with the value/shares tab.
@@ -633,6 +668,7 @@ async function getDashboard(cookie, token, { deviceRosters = null } = {}) {
     tags: { avoids: taggedRostered.avoid.size, targets: taggedRostered.target.size },
     taggedPlayers,
     holdings,
+    arbitrage,
     allocation,
     movers,
     concentration: { byTeam, byBye },
