@@ -95,7 +95,9 @@ export default function LeaguesScreen({ onBack, onOpenLeague, onOpenDraftHub }) 
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.accent} />}
         renderItem={({ item, index }) => {
           const e = enrich[String(item.leagueId)];
-          const sub = e ? [e.outlook, e.value != null ? `${e.value} value` : null].filter(Boolean).join(' · ') : null;
+          const outlookText = e && e.outlook ? e.outlook : null;
+          const valueText = e && e.value != null ? `${e.value} value` : null;
+          const sub = outlookText || valueText;
           const risk = e && e.atRiskPct > 0 ? e.atRiskPct : null;
           const dl = e ? deadlineChip(e.tradeDeadline) : null;
           return (
@@ -119,7 +121,9 @@ export default function LeaguesScreen({ onBack, onOpenLeague, onOpenDraftHub }) 
                 </View>
                 {sub ? (
                   <Text style={styles.leagueSub} numberOfLines={1}>
-                    {sub}
+                    {outlookText}
+                    {outlookText && valueText ? ' · ' : null}
+                    {valueText ? <Text style={{ color: colors.gold }}>{valueText}</Text> : null}
                     {risk != null ? <Text style={[styles.riskTag, risk >= 20 && { color: colors.bad }]}>{`  ·  ${risk}% risk`}</Text> : null}
                   </Text>
                 ) : null}
@@ -167,7 +171,7 @@ const styles = StyleSheet.create({
   leagueSub: { color: colors.textDim, fontSize: 12, marginTop: 3 },
   riskTag: { color: colors.warn, fontWeight: '700' },
   dlChip: { color: colors.textDim, backgroundColor: colors.cardAlt, fontSize: 10, fontWeight: '800', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 5, overflow: 'hidden' },
-  dlChipUrgent: { color: '#20180a', backgroundColor: colors.warn },
+  dlChipUrgent: { color: colors.onAccent, backgroundColor: colors.warn },
   chev: { color: colors.textDim, fontSize: 20, fontWeight: '700', paddingLeft: 4 },
   error: { color: colors.bad, textAlign: 'center', padding: 12 },
   empty: { color: colors.textDim, textAlign: 'center', padding: 30 },

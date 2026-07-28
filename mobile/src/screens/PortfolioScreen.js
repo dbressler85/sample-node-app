@@ -823,7 +823,7 @@ const styles = StyleSheet.create({
   statLabel: { color: colors.textDim, fontSize: 11, fontWeight: '600', marginTop: 2 },
   cardHeadRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   cardTitle: { color: colors.violetText, fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 },
-  riskPct: { color: colors.good, fontSize: 22, fontWeight: '900', marginBottom: 10 },
+  riskPct: { color: colors.warn, fontSize: 22, fontWeight: '900', marginBottom: 10 },
   riskSplit: { flexDirection: 'row', gap: 10, marginBottom: 6 },
   riskStat: { flex: 1, backgroundColor: colors.bg, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
   riskStatValue: { fontSize: 22, fontWeight: '900' },

@@ -538,7 +538,7 @@ function Portfolio({ p, phase, loading, onLeagues, onPortfolio, onOpenOnDeck, on
 function Tile({ label, value, accent, gold, loading, onPress }) {
   const num = Number(value);
   const isNum = value != null && value !== '' && !Number.isNaN(num);
-  const valStyle = [styles.tileValue, accent && { color: colors.accent }, gold && { color: colors.gold }];
+  const valStyle = [styles.tileValue, accent && { color: colors.warn }, gold && { color: colors.gold }];
   const inner = (
     <>
       <Text style={styles.tileLabel}>{label}</Text>
@@ -629,7 +629,7 @@ const styles = StyleSheet.create({
   allLeaguesRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 16, marginTop: 20 },
   allLeaguesText: { color: colors.accent, fontSize: 15, fontWeight: '800' },
   portfolioLink: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 16, paddingVertical: 13, marginTop: 10 },
-  portfolioLinkText: { color: colors.gold, fontSize: 14, fontWeight: '800' },
+  portfolioLinkText: { color: colors.accent, fontSize: 14, fontWeight: '800' },
   teamName: { color: colors.text, fontSize: 15, fontWeight: '700', marginRight: 10 },
   teamSub: { color: colors.textDim, fontSize: 12, marginTop: 3 },
   onDeckRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 15, marginBottom: 14 },
@@ -646,7 +646,7 @@ const styles = StyleSheet.create({
   deadlineName: { color: colors.text, fontSize: 15, fontWeight: '700' },
   deadlineSub: { color: colors.textDim, fontSize: 12, marginTop: 2 },
   deadlinePill: { color: colors.textDim, backgroundColor: colors.cardAlt, fontSize: 12, fontWeight: '800', paddingHorizontal: 9, paddingVertical: 4, borderRadius: 6, overflow: 'hidden', marginLeft: 8 },
-  deadlinePillUrgent: { color: '#20180a', backgroundColor: colors.warn },
+  deadlinePillUrgent: { color: colors.onAccent, backgroundColor: colors.warn },
   viewAll: { alignItems: 'center', paddingVertical: 10, marginBottom: 4 },
   viewAllText: { color: colors.accent, fontSize: 13, fontWeight: '700' },
   inboxRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 14, marginTop: 12 },

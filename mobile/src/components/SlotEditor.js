@@ -144,7 +144,7 @@ const styles = StyleSheet.create({
   slotPlayer: { color: colors.text, fontSize: 15, fontWeight: '600', flexShrink: 1 },
   slotBand: { color: colors.textDim, fontSize: 11, marginTop: 2 },
   slotProj: { color: colors.text, fontSize: 15, fontWeight: '800', marginRight: 8 },
-  slotEmpty: { color: colors.bad, fontSize: 14, flex: 1, fontStyle: 'italic' },
+  slotEmpty: { color: colors.warn, fontSize: 14, flex: 1, fontStyle: 'italic' },
   slotChev: { color: colors.textDim, fontSize: 20 },
   sheetBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: colors.scrim, justifyContent: 'flex-end' },
   grabber: { alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: colors.border, marginBottom: 12 },

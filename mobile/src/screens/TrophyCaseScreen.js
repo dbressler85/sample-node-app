@@ -177,7 +177,7 @@ export default function TrophyCaseScreen({ onBack }) {
             <View style={styles.sheetActions}>
               <Pressable style={[styles.act, styles.cancel]} onPress={() => setAdding(false)}><Text style={styles.cancelText}>Cancel</Text></Pressable>
               <Pressable style={[styles.act, styles.save]} onPress={submit} disabled={saving}>
-                {saving ? <ActivityIndicator color="#1a1300" /> : <Text style={styles.saveText}>Add title</Text>}
+                {saving ? <ActivityIndicator color={colors.onAccent} /> : <Text style={styles.saveText}>Add title</Text>}
               </Pressable>
             </View>
           </Pressable>
@@ -194,7 +194,7 @@ const styles = StyleSheet.create({
   back: { color: colors.accent, fontSize: 15, fontWeight: '700', width: 74 },
   title: { color: colors.text, fontSize: 17, fontWeight: '800' },
   addBtn: { width: 74, alignItems: 'flex-end' },
-  addBtnText: { color: colors.gold, fontSize: 14, fontWeight: '800' },
+  addBtnText: { color: colors.accent, fontSize: 14, fontWeight: '800' },
   subtitle: { color: colors.textDim, fontSize: 13, fontWeight: '700', paddingHorizontal: 16, paddingBottom: 8 },
   detectBtn: { marginHorizontal: 12, marginBottom: 8, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, paddingVertical: 11, alignItems: 'center' },
   detectRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -215,7 +215,7 @@ const styles = StyleSheet.create({
   emptyTitle: { color: colors.text, fontSize: 18, fontWeight: '800', marginBottom: 6 },
   emptyText: { color: colors.textDim, fontSize: 14, textAlign: 'center', lineHeight: 20, marginBottom: 16 },
   emptyAdd: { backgroundColor: colors.gold, borderRadius: 12, paddingHorizontal: 18, paddingVertical: 11 },
-  emptyAddText: { color: '#1a1300', fontWeight: '800', fontSize: 14 },
+  emptyAddText: { color: colors.onAccent, fontWeight: '800', fontSize: 14 },
 
   scrim: { flex: 1, backgroundColor: colors.scrim, justifyContent: 'center', paddingHorizontal: 24 },
   sheet: { backgroundColor: colors.bg, borderRadius: 16, borderWidth: 1, borderColor: colors.border, padding: 18 },
@@ -227,5 +227,5 @@ const styles = StyleSheet.create({
   cancel: { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.border },
   cancelText: { color: colors.text, fontWeight: '800', fontSize: 14 },
   save: { backgroundColor: colors.gold },
-  saveText: { color: '#1a1300', fontWeight: '800', fontSize: 14 },
+  saveText: { color: colors.onAccent, fontWeight: '800', fontSize: 14 },
 });

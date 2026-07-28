@@ -109,10 +109,10 @@ export default function ProfileScreen({ onBack, onOpenPortfolio, onOpenSettings,
           <View style={styles.card}>
             <Text style={[styles.cardTitle, displayLabel()]}>Your leagues</Text>
             <View style={styles.mixRow}>
-              <Mix label="Win-now" value={mix.winNow} color={colors.gold} />
+              <Mix label="Win-now" value={mix.winNow} color={colors.warn} />
               <Mix label="Ascending" value={mix.ascending} color={colors.good} />
               <Mix label="Balanced" value={mix.balanced} color={colors.textDim} />
-              <Mix label="Rebuilding" value={mix.rebuilding} color={colors.accent} />
+              <Mix label="Rebuilding" value={mix.rebuilding} color={colors.textDim} />
             </View>
           </View>
         ) : null}

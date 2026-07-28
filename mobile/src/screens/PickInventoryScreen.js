@@ -16,7 +16,7 @@ import ValueCredit from '../components/ValueCredit';
 // roster age, and format. Trading picks stays on the trade desk (a shop/acquire flow lands here next).
 
 // A round → tint, so a 1st reads hotter than a 4th at a glance.
-const ROUND_COLOR = { 1: colors.gold, 2: colors.violetText, 3: colors.violetDim, 4: colors.textDim };
+const ROUND_COLOR = { 1: colors.gold, 2: colors.goldLite, 3: colors.textDim, 4: colors.textDim };
 
 // Outlook → tint. These are the same team-state buckets the trade desk uses: win-now reads urgent
 // (warm), ascending reads as upward growth (green), rebuilding stays muted, balanced is neutral-blue.
@@ -24,7 +24,7 @@ const OUTLOOK_COLOR = {
   'Win-now window': colors.warn,
   Ascending: colors.good,
   Rebuilding: colors.textDim,
-  Balanced: colors.accent,
+  Balanced: colors.textDim,
 };
 
 export default function PickInventoryScreen({ onBack, onShopPicks, onGetPicks, onTradePick }) {

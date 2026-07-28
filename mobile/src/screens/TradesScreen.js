@@ -632,7 +632,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
                 disabled={suggesting}
                 style={({ pressed }) => [styles.dealBtn, suggesting && styles.suggestOff, pressed && { opacity: 0.85 }]}
               >
-                {suggesting ? <ActivityIndicator size="small" color={colors.gold} /> : (
+                {suggesting ? <ActivityIndicator size="small" color={colors.accent} /> : (
                   <Text style={styles.dealBtnTxt}>✦ Suggest a full deal</Text>
                 )}
               </Pressable>
@@ -654,8 +654,8 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
                   disabled={!sendList.length || suggesting}
                   style={({ pressed }) => [styles.suggestHalf, (!sendList.length || suggesting) && styles.suggestOff, pressed && { opacity: 0.85 }]}
                 >
-                  {suggesting ? <ActivityIndicator size="small" color={colors.good} /> : (
-                    <Text style={[styles.suggestTxt, { color: colors.good }]} numberOfLines={2}>✦ {sendList.length ? 'Suggest what to ask for' : 'Pick what you send →'}</Text>
+                  {suggesting ? <ActivityIndicator size="small" color={colors.accent} /> : (
+                    <Text style={[styles.suggestTxt, { color: colors.accent }]} numberOfLines={2}>✦ {sendList.length ? 'Suggest what to ask for' : 'Pick what you send →'}</Text>
                   )}
                 </Pressable>
               </View>
@@ -675,9 +675,9 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
                 <View style={styles.buildCol}>
                   <Text style={styles.buildColLabel} numberOfLines={1}>YOU GET{receiveList.length ? ` · ${preview.acquireValue}` : ''}</Text>
                   {receiveOptions.map((a) => (
-                    <AssetRow key={a.id} asset={a} on={!!receive[a.id]} onPress={() => toggle(setReceive, receive, a)} tint={colors.good} compact />
+                    <AssetRow key={a.id} asset={a} on={!!receive[a.id]} onPress={() => toggle(setReceive, receive, a)} tint={colors.accent} compact />
                   ))}
-                  <FaabInput amount={faabOf(receive)} onChange={(n) => setFaab(setReceive, n)} tint={colors.good} />
+                  <FaabInput amount={faabOf(receive)} onChange={(n) => setFaab(setReceive, n)} tint={colors.accent} />
                 </View>
               </View>
               <ValueCredit center style={styles.credit} />
@@ -911,7 +911,7 @@ function CompletedTradeCard({ trade, onOpenPlayer }) {
 function Side({ label, assets, total, tint, onOpenPlayer }) {
   return (
     <View style={styles.side}>
-      <Text style={styles.sideLabel}>{label} · {total}</Text>
+      <Text style={styles.sideLabel}>{label} · <Text style={{ color: colors.gold }}>{total}</Text></Text>
       {assets.map((a) => {
         // Only players open a profile; picks and FAAB (blind-bid budget) aren't players.
         const faab = a.kind === 'faab' || a.position === 'FAAB';
@@ -1055,10 +1055,10 @@ const styles = StyleSheet.create({
   fitCol: { flex: 1 },
   fitDiv: { width: StyleSheet.hairlineWidth, backgroundColor: colors.border, marginHorizontal: 12 },
   fitTeam: { color: colors.text, fontSize: 13, fontWeight: '900', marginBottom: 2 },
-  fitMeta: { color: colors.accent, fontSize: 11, fontWeight: '800', marginBottom: 6 },
+  fitMeta: { color: colors.textDim, fontSize: 11, fontWeight: '800', marginBottom: 6 },
   fitLine: { color: colors.text, fontSize: 12, marginTop: 2 },
-  fitNeed: { color: colors.bad, fontSize: 10, fontWeight: '800' },
-  fitSurp: { color: colors.good, fontSize: 10, fontWeight: '800' },
+  fitNeed: { color: colors.violetText, fontSize: 10, fontWeight: '800' },
+  fitSurp: { color: colors.violetText, fontSize: 10, fontWeight: '800' },
   counterBanner: { backgroundColor: colors.cardAlt, borderRadius: 12, borderWidth: 1, borderColor: colors.accent, padding: 12, marginBottom: 6 },
   counterTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 3 },
   counterTitle: { color: colors.accent, fontSize: 13, fontWeight: '900' },
@@ -1076,8 +1076,8 @@ const styles = StyleSheet.create({
   suggestWide: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.accent, borderRadius: 10, paddingVertical: 11, marginHorizontal: 16, marginTop: 12, minHeight: 42 },
   suggestRow: { flexDirection: 'row', gap: 10, marginHorizontal: 16, marginTop: 10 },
   suggestHalf: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 8, minHeight: 44 },
-  dealBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.gold, backgroundColor: colors.gold + '18', borderRadius: 10, paddingVertical: 12, marginHorizontal: 16, marginTop: 12, minHeight: 46 },
-  dealBtnTxt: { color: colors.gold, fontSize: 14, fontWeight: '900' },
+  dealBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.accent, backgroundColor: colors.accent + '18', borderRadius: 10, paddingVertical: 12, marginHorizontal: 16, marginTop: 12, minHeight: 46 },
+  dealBtnTxt: { color: colors.accent, fontSize: 14, fontWeight: '900' },
   // Two-column builder: your assets (left, check to send) vs theirs (right, check to get).
   buildCols: { flexDirection: 'row', marginHorizontal: 16, marginTop: 14 },
   buildCol: { flex: 1 },

@@ -292,7 +292,7 @@ const styles = StyleSheet.create({
   pickChip: { backgroundColor: colors.cardAlt, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7, borderWidth: 1, borderColor: colors.border },
   pickChipTappable: { borderColor: colors.accent + '77' },
   pickText: { color: colors.text, fontSize: 13, fontWeight: '700' },
-  pickMeta: { color: colors.accent, fontSize: 11, fontWeight: '700', marginTop: 2 },
+  pickMeta: { color: colors.gold, fontSize: 11, fontWeight: '700', marginTop: 2 },
   picksTotal: { color: colors.gold, fontSize: 13, fontWeight: '800' },
   picksHint: { color: colors.textDim, fontSize: 11, marginTop: 8, lineHeight: 15 },
   subtitle: { color: colors.textDim, fontSize: 14, marginTop: 2 },

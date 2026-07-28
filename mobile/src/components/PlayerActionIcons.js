@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import Svg, { Circle, Line, Path, G } from 'react-native-svg';
-import { glow } from '../theme';
+import { glow, colors } from '../theme';
 
 // Matched vector icons for the three per-player actions, so Target / Avoid / Watch read
 // as one control set wherever they appear. All stroke-based, tinted by `color`.
@@ -37,7 +37,7 @@ const styles = StyleSheet.create({
 // Target — a crosshair reticule: a ring with four ticks that CROSS INTO the center toward a solid
 // pip. The old version kept the ticks outside the ring, so at 18px it read as a plain green donut;
 // crossing them inward + a bigger filled center makes it unmistakably a "locked-on target".
-export function TargetIcon({ size = 20, color = '#5AD19A', glow: on = false }) {
+export function TargetIcon({ size = 20, color = colors.good, glow: on = false }) {
   const reticule = (
     <>
       <Circle cx={12} cy={12} r={7.5} />
@@ -57,7 +57,7 @@ export function TargetIcon({ size = 20, color = '#5AD19A', glow: on = false }) {
 }
 
 // Avoid — a prohibition sign (circle with a slash).
-export function AvoidIcon({ size = 20, color = '#F0603F', glow: on = false }) {
+export function AvoidIcon({ size = 20, color = colors.bad, glow: on = false }) {
   const sign = (
     <>
       <Circle cx={12} cy={12} r={8} />
@@ -73,7 +73,7 @@ export function AvoidIcon({ size = 20, color = '#F0603F', glow: on = false }) {
 }
 
 // Watch — a star (filled when active).
-export function WatchIcon({ size = 20, color = '#E8B84B', filled = false, glow: on = false }) {
+export function WatchIcon({ size = 20, color = colors.watch, filled = false, glow: on = false }) {
   const d = 'M12 2.5 L14.6 9.2 L21.8 9.4 L16.1 13.8 L18.1 20.7 L12 16.6 L5.9 20.7 L7.9 13.8 L2.2 9.4 L9.4 9.2 Z';
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">

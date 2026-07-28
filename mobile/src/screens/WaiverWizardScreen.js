@@ -808,7 +808,7 @@ const styles = StyleSheet.create({
   submittedTitle: { color: colors.accent, fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 6 },
   submittedRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 },
   submittedText: { color: colors.text, fontSize: 14, marginRight: 8 },
-  submittedAdd: { color: colors.good, fontWeight: '800' },
+  submittedAdd: { color: colors.text, fontWeight: '800' },
   submittedDrop: { color: colors.textDim, fontWeight: '800' },
   submittedMeta: { color: colors.textDim, fontSize: 13, fontWeight: '600' },
   submittedBid: { color: colors.accent, fontSize: 13, fontWeight: '800' },

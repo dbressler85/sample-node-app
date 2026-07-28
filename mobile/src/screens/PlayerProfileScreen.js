@@ -16,7 +16,7 @@ import ValueCredit from '../components/ValueCredit';
 
 const RELATION = {
   rostered: { label: 'Rostered', color: colors.good },
-  free: { label: 'Free agent', color: colors.accent },
+  free: { label: 'Free agent', color: colors.good },
   draftable: { label: 'Draftable', color: colors.warn }, // draft not held yet — not claimable until it is
   dropped: { label: 'Dropped', color: colors.textDim },
   unavailable: { label: 'Not available', color: colors.textDim },
@@ -549,14 +549,14 @@ const styles = StyleSheet.create({
   pos: { fontSize: 13, fontWeight: '900' },
   avatar: { alignItems: 'center', justifyContent: 'center', borderWidth: 2, marginRight: 12, backgroundColor: colors.card },
   avatarPos: { position: 'absolute', bottom: -2, right: -2, borderRadius: 8, paddingHorizontal: 5, paddingVertical: 1, borderWidth: 2, borderColor: colors.bg },
-  avatarPosText: { color: '#fff', fontSize: 9, fontWeight: '900' },
+  avatarPosText: { color: colors.onAccent, fontSize: 9, fontWeight: '900' },
   draft: { color: colors.textDim, fontSize: 12, marginTop: 3 },
   nameRow: { flexDirection: 'row', alignItems: 'center' },
   name: { color: colors.text, fontSize: 22, fontWeight: '900', flexShrink: 1 },
   sub: { color: colors.textDim, fontSize: 13, marginTop: 3 },
   valueBox: { alignItems: 'center', marginLeft: 10 },
   valueNum: { color: colors.gold, fontSize: 24, fontWeight: '900' },
-  valueLabel: { color: colors.textDim, fontSize: 10, fontWeight: '700' },
+  valueLabel: { color: colors.violetText, fontSize: 10, fontWeight: '700' },
   valueSpread: { color: colors.gold, fontSize: 10, fontWeight: '700', marginTop: 2, maxWidth: 92, textAlign: 'center' },
   lensValues: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, paddingVertical: 10, marginTop: 12 },
   lensValCell: { flex: 1, alignItems: 'center' },

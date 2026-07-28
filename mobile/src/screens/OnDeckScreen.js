@@ -23,7 +23,7 @@ const TYPE = {
   lineup_unknown: { glyph: 'bang', color: 'warn', tint: colors.warn }, // lineup read failed — "couldn't check", not "all good"
   waiver_run: { glyph: 'waivers', color: 'accent', tint: colors.accent },
   trade_offer: { glyph: 'tray', color: 'accent', tint: colors.accent },
-  trade_deadline: { glyph: 'hourglass', color: 'bad', tint: colors.bad },
+  trade_deadline: { glyph: 'hourglass', color: 'warn', tint: colors.warn },
   ir_violation: { glyph: 'cross', color: 'bad', tint: colors.bad },
 };
 
