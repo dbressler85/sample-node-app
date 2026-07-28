@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, TextI
 import { appAlert } from "../components/AppAlert";
 import { api } from '../api';
 import tradeMath from '../tradeMath';
-import { colors, positionColors } from '../theme';
+import { colors, positionColors, size } from '../theme';
 import { displayLg } from '../typography';
 import { celebrate } from '../components/Celebrate';
 import { toast } from '../components/Toast';
@@ -768,6 +768,17 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
   );
 }
 
+// One lens of the value read: a dim label + a signed, verdict-colored net. Several sit in a row so
+// the market baseline and the win-now / "for you" lenses scan as one cluster, not stacked headlines.
+function NetChip({ label, net, color }) {
+  return (
+    <View style={styles.netChip} accessibilityRole="text" accessibilityLabel={`${label} net ${net > 0 ? 'plus ' : ''}${net}`}>
+      <Text style={styles.netChipLabel}>{label}</Text>
+      <Text style={[styles.netChipVal, { color }]}>{net > 0 ? '+' : ''}{net}</Text>
+    </View>
+  );
+}
+
 function OfferCard({ offer, busy, onAccept, onReject, onWithdraw, onCounter, onOpenPlayer, onReviewRoster }) {
   const v = VERDICT[offer.analysis.verdict] || VERDICT.fair;
   const outgoing = offer.direction === 'outgoing';
@@ -790,19 +801,23 @@ function OfferCard({ offer, busy, onAccept, onReject, onWithdraw, onCounter, onO
       </View>
       <Side label="You get" assets={offer.acquire} total={offer.analysis.acquireValue} tint={colors.good} onOpenPlayer={onOpenPlayer} />
       <Side label="You give" assets={offer.send} total={offer.analysis.sendValue} tint={colors.textDim} onOpenPlayer={onOpenPlayer} />
-      <Text style={styles.estCaption}>
-        est. market value · net {offer.analysis.net > 0 ? '+' : ''}{offer.analysis.net}
-      </Text>
-      {offer.analysis.winNow && offer.analysis.winNow.verdict !== offer.analysis.verdict ? (
-        <Text style={[styles.personalLine, { color: (VERDICT[offer.analysis.winNow.verdict] || VERDICT.fair).color }]}>
-          {offer.analysis.lens === 'winNow' ? 'Win-now · your window ⚑' : 'Win-now'} · net {offer.analysis.winNow.net > 0 ? '+' : ''}{offer.analysis.winNow.net} · {(VERDICT[offer.analysis.winNow.verdict] || VERDICT.fair).label}
-        </Text>
-      ) : null}
-      {offer.personal ? (
-        <Text style={[styles.personalLine, { color: (VERDICT[offer.personal.verdict] || VERDICT.fair).color }]}>
-          For you · net {offer.personal.net > 0 ? '+' : ''}{offer.personal.net} · {(VERDICT[offer.personal.verdict] || VERDICT.fair).label}
-        </Text>
-      ) : null}
+      {/* Value read — one compact strip instead of three stacked "net" headlines. Market is the
+          baseline; the win-now and "for you" lenses appear only when they diverge, as clearly-
+          secondary reads, so the eye isn't met by a wall of competing numbers before the call. */}
+      <View style={styles.valueRow}>
+        <NetChip label="Market" net={offer.analysis.net} color={v.color} />
+        {offer.analysis.winNow && offer.analysis.winNow.verdict !== offer.analysis.verdict ? (
+          <NetChip
+            label={offer.analysis.lens === 'winNow' ? 'Win-now ⚑' : 'Win-now'}
+            net={offer.analysis.winNow.net}
+            color={(VERDICT[offer.analysis.winNow.verdict] || VERDICT.fair).color}
+          />
+        ) : null}
+        {offer.personal ? (
+          <NetChip label="For you" net={offer.personal.net} color={(VERDICT[offer.personal.verdict] || VERDICT.fair).color} />
+        ) : null}
+        <Text style={styles.valueEst}>est.</Text>
+      </View>
       {offer.tagNotes && offer.tagNotes.length ? (
         <View style={styles.tagNotes}>
           {offer.tagNotes.map((n, i) => (
@@ -1088,14 +1103,21 @@ const styles = StyleSheet.create({
   dot: { width: 8, height: 8, borderRadius: 4, marginRight: 8 },
   sideName: { color: colors.text, fontSize: 14, fontWeight: '600', flex: 1 },
   sideMeta: { color: colors.textDim, fontSize: 12 },
-  estCaption: { color: colors.textDim, fontSize: 10, marginTop: 8, fontStyle: 'italic', opacity: 0.75, textTransform: 'uppercase', letterSpacing: 0.3 },
   personalLine: { fontSize: 12, fontWeight: '800', marginTop: 3 },
+  // Consolidated value strip: the three "net" reads as one wrapping row of labeled chips.
+  valueRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 14, rowGap: 4, marginTop: 10 },
+  netChip: { flexDirection: 'row', alignItems: 'baseline', gap: 4 },
+  netChipLabel: { color: colors.textDim, fontSize: size.micro, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.3 },
+  netChipVal: { fontSize: size.bodySm, fontWeight: '900', fontVariant: ['tabular-nums'] },
+  valueEst: { color: colors.textDim, fontSize: size.micro, fontStyle: 'italic', opacity: 0.7, marginLeft: 'auto' },
   tagNotes: { marginTop: 6, gap: 3 },
   tagNote: { fontSize: 12, fontWeight: '700' },
   construction: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, marginTop: 8 },
   constructionText: { fontSize: 13, fontWeight: '700', lineHeight: 18 },
-  bottomLine: { marginTop: 8, backgroundColor: colors.bg, borderLeftWidth: 3, borderRadius: 8, paddingHorizontal: 11, paddingVertical: 9 },
-  bottomLineText: { fontSize: 13, fontWeight: '800', lineHeight: 18 },
+  // The call — the decision anchor, sitting directly above the accept/reject buttons. Elevated a
+  // touch (larger, more padding) so it reads as the recommendation, not another analysis line.
+  bottomLine: { marginTop: 10, backgroundColor: colors.bg, borderLeftWidth: 3, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 11 },
+  bottomLineText: { fontSize: size.body, fontWeight: '800', lineHeight: 20 },
   buildFit: { marginBottom: 8, gap: 2 },
   buildFitLine: { fontSize: 12, fontWeight: '700' },
   cardActions: { flexDirection: 'row', gap: 10, marginTop: 12 },
