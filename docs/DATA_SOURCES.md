@@ -9,9 +9,10 @@ same datum is available from more than one place — which source wins and why.
 > genuinely unresolved is collected in [§12 Open questions](#12-open-questions--ambiguities) and is
 > being discussed with the owner before it's settled.
 
-Providers: **MFL** (MyFantasyLeague — the league system of record), **FantasyCalc** (dynasty
-values + ages), **Sleeper** (trending adds + headshots), **ESPN** (news), **app stores**
-(`state.json`, the app's own data), and **computed** (values the app derives, not reads).
+Providers: **MFL** (MyFantasyLeague — the league system of record), **FantasyCalc** (dynasty +
+win-now values, 30-day value momentum, per-slot draft-pick values, and ages — all **format-aware**:
+per `numQbs` / `ppr` / `numTeams`), **Sleeper** (trending adds + headshots), **ESPN** (news), **app
+stores** (`state.json`, the app's own data), and **computed** (values the app derives, not reads).
 
 **FantasyCalc Terms of Use compliance.** We lean on FantasyCalc for player *and* draft-pick
 dynasty values, so we honor their ToU: (a) **non-commercial** use only (this is a solo, unpaid
@@ -31,8 +32,8 @@ per-player/-pick values rendered inside the app.
 | Datum | Canonical source | Site | Notes |
 |---|---|---|---|
 | Name / position / team | **MFL `players` DB** (`mapLivePlayer`) | `lib/players.js:64`; resolve `players.resolve` | The MFL id space; everything crosswalks *to* this. FantasyCalc `position` is used only as an internal value-multiplier hint (`enrichment.js:276`), never displayed. Miss → stub `Player <id>`. |
-| Dynasty **value** (0–100) | **FantasyCalc** via the enrichment snapshot `enr.value()` | `lib/enrichment.js:288`; snapshot `:329` | **Format-aware** — value depends on the league format passed to `snapshot(fmt)`, now including league size (`numTeams`). See [Q3](#q3--value-is-format-dependent-across-screens). |
-| **Win-now** value (0–100) | FantasyCalc `redraftValue` → `enr.winNow()` | `lib/enrichment.js` (buildFantasyCalc) | Redraft (this-season) value, normalized by its **own** max so it's a self-contained lens. Drives the Players "Win-now" rankings sort + the profile's Win-now cell. |
+| Dynasty **value** (0–100) | **FantasyCalc** via the enrichment snapshot `enr.value()` | `lib/enrichment.js:288`; snapshot `:329` | **Format-aware on three axes** — `numQbs` (superflex), `ppr`, and league size (`numTeams`) all passed to `snapshot(fmt)`; the FC request + cache key on all three. See [Q3](#q3--value-is-format-dependent-across-screens). |
+| **Win-now** value (0–100) | FantasyCalc `redraftValue` → `enr.winNow()` | `lib/enrichment.js` (buildFantasyCalc) | Redraft (this-season) value, normalized by its **own** max so it's a self-contained lens. Drives the Players "Win-now" rankings sort, the profile's Win-now cell, the **win-now trade verdict** (`tradeMath.leadingLens`, §3/§8), and the **production-weighted core age** (`roster.coreAgeOf`, §8). |
 | Value **momentum** (30d) | FantasyCalc `trend30Day` → `enr.valueTrend()` | `lib/enrichment.js` (buildFantasyCalc) | Signed 30-day value delta, scaled onto the dynasty 0–100 scale. Distinct from `trend` (add-heat). Surfaced on the profile as "30-day trend". |
 | Overall **rank** | FantasyCalc `overallRank` → `enr.rank()` | `lib/enrichment.js:293` | |
 | Player **age** | **FantasyCalc** `maybeAge` → `enr.age()` (everywhere, incl. the profile) | `lib/enrichment.js:289`; `playerhub.js:520` | Resolved ([Q1](#q1--player-age--resolved-fantasycalc)): the profile header no longer uses `playerProfile.age`. |
@@ -52,7 +53,7 @@ per-player/-pick values rendered inside the app.
 | My league list | MFL `myleagues` | `services/leagues.js:13-23,56` | The only source of `league.host`, `franchiseId` (my franchise), `franchiseName`. Per-cookie, static 1h. |
 | Franchise **names** / directory | **MFL `league`** `franchises.franchise[].name` → `franchiseNames` (HTML-stripped) — canonical for all franchises incl. mine | `lib/mflRepo.js:52`; `services/leagues.js:66` | Resolved ([Q4](#q4--my-franchise-name--resolved-league-directory)): where the directory is loaded it wins; `myleagues.franchise_name` is the fallback only when it isn't (cheap paths — my own roster). |
 | Rosters (players + slot status) | MFL `rosters` `player[].{id,status}` | `lib/mflRead.reads.rosters`; `services/roster.js:104` | Read all-franchise (strength) or `FRANCHISE=me` (light) — two cache entries for overlapping data. Slot vocab → §8. |
-| Standings / records / PF·PA | MFL `leagueStandings` | `services/league.js:64`; `mflRead.js:288` | Also the **playoff-seed order** (seed = position in standings order, `playoffs.js:195`). |
+| Standings / records / PF·PA | MFL `leagueStandings` | `services/league.js:64`; `mflRead.js:288` | Also the **playoff-seed order** (seed = position in standings order, `playoffs.js:195`) AND the **record axis of team outlook** — `roster.recordPctByFranchise` ranks each team by win% (PF tiebreak) so a stacked-but-losing team stops reading "Win-now" (§8; best-effort in `roster.js`/`trades.js`). |
 | Lineup requirements (starters spec) | MFL `league` `starters.position[]` | `lib/leagueformat.js:43` | |
 | Scoring format (PPR / TE-premium) | MFL `rules` | `lib/leagueformat.js:128` | Feeds the value snapshot's format. |
 | Playoff team count | MFL `league` `playoffTeams` | `services/league.js:36` | |
@@ -84,7 +85,7 @@ per-player/-pick values rendered inside the app.
 | Draft grid / status / clock | MFL `draftResults` (+ `calendar` for start) | `services/draft.js:107` | Live 12s. |
 | Draft **start time** | **MFL `calendar` `DRAFT_START`** (wins); `draftResults.startTime` fallback | `services/draft.js:159-165` | A real (non-keeper) made pick overrides both for in-progress status. |
 | Pick **ownership** (players + FAAB + picks) | **MFL `assets`** (authoritative, post-trade) | `lib/picks.js:151`; `mflRepo.js:219` | **Fallback** when `assets` empty: compose `draftResults` (current-year `DP_`) + `futureDraftPicks` (future `FP_`). Decision at `draft.js:594`, `trades.js:544`. |
-| Pick **value** | Computed `picks.value(label)` | `lib/picks.js:33` | Single model; §8. |
+| Pick **value** | **FantasyCalc** per-slot (format-aware) → local curve fallback | `lib/picks.js:38` (`value(label, token, enr)`) | FC lists picks as `position:"PICK"` rows keyed by our own token (`DP_0_0` = "2026 1.01"); current picks join by token, future picks by parsed label / round-level average. Falls back to the local decay curve only when FC doesn't cover a pick. §8. |
 | My draft shortlist | MFL `myDraftList` (authoritative); `draftList` store is a mirror | `services/draft.js:656`; `store/draftList.js` | |
 | ADP (board order) | MFL `adp` export (keeper+rookie flavor) | `lib/adp.js:43`; `draft.js:245` | vs `playerProfile.adp` on the profile — [Q2](#q2--adp-has-two-sources). |
 | Waiver-run / FA-lock windows | MFL `calendar` events | `services/waivers.js:990,1017`; `trades.js:1170` | Three separate scanners over one export (run type / lock text / trade deadline). |
@@ -160,14 +161,15 @@ Persisted to one JSON file under `DATA_DIR` (debounced + atomic; degrades to in-
 | Bucket set (starters/bench/ir/taxi) | `lib/standing.BUCKETS:17` | Shared by exposure + profile. |
 | **Availability / startable** | `lib/availability.resolve:21` | Single source. |
 | **Player value / age / trend / ownership** | `lib/enrichment.js:286-294` (`enr.*`) | One snapshot, read-only everywhere (34 files). |
-| Outlook / strength / coreAge / rosterValue | `services/roster.js:51,75,88` | Shared 0.55/0.45 thresholds; `dynasty-outlook-test.js`. |
-| **Pick value** | `lib/picks.value:33` | Single model. |
+| Outlook / strength / coreAge / rosterValue | `services/roster.js` (`computeOutlook`, `teamSummary`, `coreAgeOf`, `recordPctByFranchise`, `leagueStrengthPct`) | **Outlook = three axes:** dynasty-value **strength** (0.55/0.45 thresholds) + **core age** + **season record** (`recordPct`, from `leagueStandings`, top/bottom-third bands) — a stacked-but-losing team reads Balanced, not a false Win-now. **Core age is production-weighted** — ranked by win-now (redraft) value, not age-discounted dynasty value, so aging on-field studs stay in the core (`coreAgeOf`). Single-sourced; reused by `trades.summarizeFranchises` for partner outlooks. Tests: `dynasty-outlook-test`, `outlook-record-test`, `core-age-test`. |
+| **Cross-league arbitrage** | `services/portfolio.js` (holdings `perLeague` → `arbitrage`) | A player held in 2+ leagues, valued in each (format + `numTeams` move his price), reduced to the highest- vs lowest-valuing league + spread; only real gaps surface (abs + relative floor), with a sell signal when you're not contending in the high league. `arbitrage-test`. |
+| **Pick value** | `lib/picks.value:38` | FantasyCalc per-slot value first (via `enr.pickValue`), local decay curve as the fallback. `pick-value-format-test`. |
 | Pick **token grammar** (`FP_`/`DP_`) | `lib/mflRepo.parsePickToken:189` (parse) | Grammar re-encoded in `picks.labelForToken:63`, `picks.value:37`, `draft.js:548` — [Q7](#q7--consolidation--code-health-not-blocking). |
 | Projections (pre-game) | MFL `projectedScores` (live); `scoring.projectPoints:86` (demo) | In-game uses `liveScoring.projectedScore`. |
 | Optimizer / floor-median-ceiling band | `lib/optimizer.js:31`; `scoring.band:128` | Single. |
 | Format label | `lib/leagueformat.label:250` | Parallel `scoring.describe:139` (different string, different purpose). |
 | Exposure % | `services/exposure.js:87` | Byte-mirrored on device (`mflRead.assembleExposure:435`). |
-| **Trade math** (verdict + construction rating) | `lib/tradeMath.js` | Byte-mirrored to `mobile/src/tradeMath.js`, drift-guarded. |
+| **Trade math** (verdict + construction rating) | `lib/tradeMath.js` | Byte-mirrored to `mobile/src/tradeMath.js`, drift-guarded. Carries **two reads** — dynasty (top-level, unchanged) + a **win-now** sub-read (assets hold a `winNow` value: redraft for players, ~0 for picks, face for FAAB); `leadingLens(analysis, outlook)` lets the team's outlook pick which read leads the verdict (a contender is judged on win-now). `winnow-verdict-test`. |
 
 ---
 
@@ -245,6 +247,10 @@ league's own format (not the default).
 Remaining by design: a **global** screen with no league to key on (playerhub list/search) still defaults
 to the neutral 1QB/PPR market unless the lens toggle is set — now a *documented, user-selectable* default
 rather than a silent one.
+**Format axes:** the per-league value now varies on **three** dimensions — `numQbs` (the 1QB/SF lens),
+`ppr`, and league size `numTeams` (bucketed to 8/10/12/14/16; a 10-team league values depth differently
+than a 14/16). `numQbs`/`ppr`/`numTeams` all key the FantasyCalc request + cache; the user-facing lens
+toggle still only flips `numQbs` (the axis with the biggest, most legible swing). `numteams-format-test`.
 
 ### Q4 — My franchise name — RESOLVED (league directory)
 The `league` franchise directory is canonical for all franchise names including mine. Where it's already
