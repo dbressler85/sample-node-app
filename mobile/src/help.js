@@ -45,6 +45,7 @@ export const HELP = [
       'The verdict is a heuristic: “You gain value” when you come out meaningfully ahead (net above ~5 and more than a ~12% edge), “You give up value” when you’re behind by that much, otherwise “Fair deal.”',
       '“For you” adjusts that by your own Target/Avoid tags (±10%) — so a player you’ve tagged Target counts for a bit more to you than the market says.',
       'The construction read checks roster fit, not just value: does the deal fill one of your starting-lineup needs or thin one out? It uses each team’s actual starting requirements.',
+      'A “Win-now” line appears when the deal looks different for THIS season than for the dynasty future — e.g. shipping a proven veteran for youth and picks is dynasty-favorable but win-now-negative. If your team’s outlook is Win-now, that read is the one that leads the verdict (marked “your window”), because a contender shouldn’t weaken this year’s roster for a future that a title run doesn’t need.',
       'All of it is marked “est.” because the values underneath are estimates.',
     ],
   },

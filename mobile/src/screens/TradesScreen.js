@@ -235,6 +235,14 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
   const completedTrades = (data && data.completedTrades) || [];
   const preview = useMemo(() => tradeMath.analyze(receiveList, sendList), [receiveList, sendList]);
   const personalPreview = useMemo(() => tradeMath.personalAnalyze(receiveList, sendList), [receiveList, sendList]);
+  // Win-now (this-season) read of the same deal. Shown only when it DIVERGES from the dynasty
+  // verdict — that's the signal a contender needs (a dynasty-favorable "sell the vet" that actually
+  // hurts your window). When your team's outlook is win-now, this lens is the one that leads.
+  const myOutlook = data && data.me ? data.me.outlook : null;
+  const winNowLine = useMemo(() => {
+    if (!preview.winNow || preview.winNow.verdict === preview.verdict) return null;
+    return { ...preview.winNow, isLead: myOutlook === 'win-now' };
+  }, [preview, myOutlook]);
   // Live construction for BOTH sides of the offer being built.
   const buildFit = useMemo(() => {
     if (!partner || !sendList.length || !receiveList.length) return null;
@@ -701,6 +709,11 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
             </Text>
             <Text style={[styles.previewVerdict, { color: VERDICT[preview.verdict].color }]}>{VERDICT[preview.verdict].label}</Text>
           </View>
+          {winNowLine ? (
+            <Text style={[styles.personalLine, { textAlign: 'right', color: VERDICT[winNowLine.verdict].color }]}>
+              {winNowLine.isLead ? 'Win-now · your window ⚑' : 'Win-now'} · net {winNowLine.net > 0 ? '+' : ''}{winNowLine.net} · {VERDICT[winNowLine.verdict].label}
+            </Text>
+          ) : null}
           {personalPreview ? (
             <Text style={[styles.personalLine, { textAlign: 'right', color: VERDICT[personalPreview.verdict].color }]}>
               For you · net {personalPreview.net > 0 ? '+' : ''}{personalPreview.net} · {VERDICT[personalPreview.verdict].label}
@@ -771,6 +784,11 @@ function OfferCard({ offer, busy, onAccept, onReject, onWithdraw, onCounter, onO
       <Text style={styles.estCaption}>
         est. market value · net {offer.analysis.net > 0 ? '+' : ''}{offer.analysis.net}
       </Text>
+      {offer.analysis.winNow && offer.analysis.winNow.verdict !== offer.analysis.verdict ? (
+        <Text style={[styles.personalLine, { color: (VERDICT[offer.analysis.winNow.verdict] || VERDICT.fair).color }]}>
+          {offer.analysis.lens === 'winNow' ? 'Win-now · your window ⚑' : 'Win-now'} · net {offer.analysis.winNow.net > 0 ? '+' : ''}{offer.analysis.winNow.net} · {(VERDICT[offer.analysis.winNow.verdict] || VERDICT.fair).label}
+        </Text>
+      ) : null}
       {offer.personal ? (
         <Text style={[styles.personalLine, { color: (VERDICT[offer.personal.verdict] || VERDICT.fair).color }]}>
           For you · net {offer.personal.net > 0 ? '+' : ''}{offer.personal.net} · {(VERDICT[offer.personal.verdict] || VERDICT.fair).label}
