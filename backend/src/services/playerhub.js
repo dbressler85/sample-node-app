@@ -209,6 +209,7 @@ async function buildSets(cookie, token) {
 }
 
 async function search(cookie, token, { q, position, status, format, tep } = {}) {
+  if (!config.demoMode) seasonStatsLib.prewarm(Number(config.season) - 1); // warm prior-season stats off the critical path, before any profile opens
   const [byId, enr, ctx] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(lensFormat(format, tep), cookie), ctxFor(cookie)]);
   const ranks = computeRanks(byId, enr);
   const { myRostered, mineBy, freeBy, leagueCount, leaguesTotal, leaguesLoaded, partial, league0 } = await buildSets(cookie, token);
@@ -237,6 +238,7 @@ async function search(cookie, token, { q, position, status, format, tep } = {}) 
 }
 
 async function rankings(cookie, token, { type = 'value', position, format, tep, offset = 0, limit = 40 } = {}) {
+  if (!config.demoMode) seasonStatsLib.prewarm(Number(config.season) - 1); // warm prior-season stats off the critical path, before any profile opens
   const [byId, enr, ctx] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(lensFormat(format, tep), cookie), ctxFor(cookie)]);
   const ranks = computeRanks(byId, enr);
   const { myRostered, mineBy, freeBy, leagueCount, leaguesTotal, leaguesLoaded, partial, league0 } = await buildSets(cookie, token);
@@ -410,10 +412,18 @@ async function livePriorSeasonTotal(cookie, league, playerId, enr, position) {
   const emptyOrNull = () => (skill ? { year: priorYear, points: null, games: null, ppg: null, stats: null } : null);
   try {
     const sleeperId = enr ? enr.sleeperId(playerId) : null;
-    const [ytdArr, avgArr, box] = await Promise.all([
+    // Box score is a nice-to-have; NEVER block on the cold multi-MB Sleeper season file — that fetch
+    // gating the profile's Promise.all is what made the screen crawl. Use it only when already warmed
+    // (peek), and kick a background warm so the next open has it. Prewarmed from the list endpoints.
+    let box = null;
+    if (sleeperId) {
+      const warm = seasonStatsLib.peek(priorYear);
+      if (warm) box = warm.get(String(sleeperId)) || null;
+      else seasonStatsLib.prewarm(priorYear);
+    }
+    const [ytdArr, avgArr] = await Promise.all([
       league ? mflRepo.playerScores(league, cookie, { W: 'YTD', PLAYERS: playerId, year: priorYear }).catch(() => []) : Promise.resolve([]),
       league ? mflRepo.playerScores(league, cookie, { W: 'AVG', PLAYERS: playerId, year: priorYear }).catch(() => []) : Promise.resolve([]),
-      seasonStatsLib.forPlayer(sleeperId, priorYear).catch(() => null),
     ]);
     const pick = (arr) => {
       const hit = (arr || []).find((p) => String(p.id) === String(playerId));
@@ -727,6 +737,7 @@ async function submitDrop(cookie, token, playerId, leagueIds) {
 async function compare(cookie, token, ids) {
   const unique = [...new Set((ids || []).map(String).filter(Boolean))].slice(0, 4);
   if (!unique.length) return { players: [] };
+  if (!config.demoMode) seasonStatsLib.prewarm(Number(config.season) - 1); // warm the box stats so the compare card's prior-season line fills
   const [byId, enr] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(undefined, cookie)]);
   const ranks = computeRanks(byId, enr);
   const ctx = await ctxFor(cookie);
