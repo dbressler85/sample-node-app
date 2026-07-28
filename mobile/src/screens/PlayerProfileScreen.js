@@ -552,7 +552,7 @@ const styles = StyleSheet.create({
   lensValues: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, paddingVertical: 10, marginTop: 12 },
   lensValCell: { flex: 1, alignItems: 'center' },
   lensValNum: { color: colors.gold, fontSize: 20, fontWeight: '900' },
-  lensValLabel: { color: colors.textDim, fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 2 },
+  lensValLabel: { color: colors.violetText, fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 2 },
   lensValDivider: { width: 1, alignSelf: 'stretch', backgroundColor: colors.border },
   tagRow: { flexDirection: 'row', gap: 10, marginTop: 4, marginBottom: 4 },
   tagBtn: { flex: 1, flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center', paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },

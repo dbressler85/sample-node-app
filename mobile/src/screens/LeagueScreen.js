@@ -283,7 +283,7 @@ const styles = StyleSheet.create({
   rChipOn: { backgroundColor: colors.cardAlt, borderColor: colors.accent },
   rChipText: { color: colors.textDim, fontSize: 12, fontWeight: '800' },
   rSortRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingBottom: 4 },
-  rSortLabel: { color: colors.textDim, fontSize: 12, fontWeight: '700', marginRight: 2 },
+  rSortLabel: { color: colors.violetText, fontSize: 12, fontWeight: '700', marginRight: 2 },
   rSortChip: { backgroundColor: colors.card, borderRadius: 8, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 5 },
   rSortChipOn: { backgroundColor: colors.cardAlt, borderColor: colors.accent },
   rSortText: { color: colors.textDim, fontSize: 12, fontWeight: '700' },

@@ -29,7 +29,7 @@ export const colors = {
   // screen-title eyebrows/rules, category headers). It must NEVER mark an action, a state, or a value
   // (those stay blue / green-red-orange / gold) — only the structural label layer. No longer wallpaper.
   violet: '#8B5CF6', // the structural hue — rules, fills, glow, and the crest watermark
-  violetText: '#A78BFA', // a lighter violet tuned for LABEL TEXT legibility on the dark ground (7.2:1 on bg)
+  violetText: '#9D7BF7', // structural LABEL TEXT: a denser, saturated violet so the scaffolding reads unmistakably purple (not a pastel grey-blue) while staying legible on the dark ground (6.2:1 on bg)
   violetDim: '#6E54B8', // a muted violet for hairlines/rails where full-chroma would shout
 };
 

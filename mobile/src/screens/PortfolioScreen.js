@@ -803,7 +803,7 @@ const styles = StyleSheet.create({
   holdTrendNone: { color: colors.textDim, fontSize: 12, fontWeight: '700', marginTop: 1 },
   tagRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   tagFilterRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 8 },
-  tagSortLabel: { color: colors.textDim, fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4, marginRight: 2 },
+  tagSortLabel: { color: colors.violetText, fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4, marginRight: 2 },
   tChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
   tChipOn: { borderColor: colors.accent, backgroundColor: colors.accent + '22' },
   tChipTxt: { color: colors.textDim, fontSize: 12, fontWeight: '800' },

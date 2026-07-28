@@ -378,7 +378,7 @@ const styles = StyleSheet.create({
   tagMark: { fontSize: 13, fontWeight: '900' },
   assetMeta: { color: colors.textDim, fontSize: 12, marginTop: 2 },
   assetVal: { color: colors.gold, fontSize: 15, fontWeight: '900', marginLeft: 10, minWidth: 30, textAlign: 'right' },
-  askLabel: { color: colors.textDim, fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4, marginTop: 12, marginBottom: 6 },
+  askLabel: { color: colors.violetText, fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4, marginTop: 12, marginBottom: 6 },
   askInput: { backgroundColor: colors.cardAlt, borderRadius: 12, borderWidth: 1, borderColor: colors.border, color: colors.text, fontSize: 15, padding: 12, minHeight: 52, textAlignVertical: 'top' },
   saveBtn: { backgroundColor: colors.accent, borderRadius: 12, paddingVertical: 13, alignItems: 'center', marginTop: 12 },
   saveTxt: { color: '#fff', fontSize: 15, fontWeight: '800' },

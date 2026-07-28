@@ -90,7 +90,7 @@ const styles = StyleSheet.create({
   },
   scroll: { paddingBottom: 6 },
   crestWrap: { alignItems: 'center', marginBottom: 6 },
-  kicker: { color: colors.textDim, fontSize: 12, fontWeight: '700', letterSpacing: 4, textAlign: 'center', marginLeft: 4 },
+  kicker: { color: colors.violetText, fontSize: 12, fontWeight: '700', letterSpacing: 4, textAlign: 'center', marginLeft: 4 },
   title: { color: colors.text, fontSize: 30, fontWeight: '900', textAlign: 'center', letterSpacing: -0.5, marginTop: 2 },
   sub: { color: colors.textDim, fontSize: 14, textAlign: 'center', marginTop: 6, marginBottom: 18 },
   points: { gap: 16 },

@@ -125,7 +125,7 @@ const styles = StyleSheet.create({
   columns: { flexDirection: 'row', alignItems: 'flex-start', marginVertical: 8 },
   col: { flex: 1 },
   divider: { width: StyleSheet.hairlineWidth, alignSelf: 'stretch', backgroundColor: colors.border, marginHorizontal: 10 },
-  colLabel: { color: colors.textDim, fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
+  colLabel: { color: colors.violetText, fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
   colRow: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingVertical: 4 },
   dot: { width: 8, height: 8, borderRadius: 4 },
   colName: { color: colors.text, fontSize: 13, fontWeight: '700' },
@@ -134,5 +134,5 @@ const styles = StyleSheet.create({
   alignRight: { textAlign: 'right' },
   // Section break between roster, this-year picks, and each subsequent year.
   sectionDiv: { height: StyleSheet.hairlineWidth, backgroundColor: colors.border, marginVertical: 6 },
-  sectionCap: { color: colors.textDim, fontSize: 9, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5, opacity: 0.8, marginBottom: 2 },
+  sectionCap: { color: colors.violetText, fontSize: 9, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5, opacity: 0.8, marginBottom: 2 },
 });

@@ -875,7 +875,7 @@ const styles = StyleSheet.create({
   sheet: { backgroundColor: colors.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, borderTopWidth: 1, borderColor: colors.border },
   sheetTitle: { color: colors.text, fontSize: 18, fontWeight: '900' },
   sheetSub: { color: colors.textDim, fontSize: 13, marginTop: 2, marginBottom: 8 },
-  fieldLabel: { color: colors.textDim, fontSize: 12, fontWeight: '700', marginTop: 14, marginBottom: 6 },
+  fieldLabel: { color: colors.violetText, fontSize: 12, fontWeight: '700', marginTop: 14, marginBottom: 6 },
   dropBox: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: colors.cardAlt, borderRadius: 10, padding: 12 },
   dropText: { color: colors.text, fontSize: 14, fontWeight: '600' },
   change: { color: colors.accent, fontSize: 13, fontWeight: '700' },

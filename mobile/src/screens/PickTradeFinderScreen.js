@@ -151,7 +151,7 @@ const styles = StyleSheet.create({
   reason: { color: colors.textDim, fontSize: 13, marginTop: 6, lineHeight: 18 },
   deal: { flexDirection: 'row', alignItems: 'center', marginTop: 12 },
   side: { flex: 1 },
-  sideLabel: { color: colors.textDim, fontSize: 10, fontWeight: '800', letterSpacing: 0.6, marginBottom: 5 },
+  sideLabel: { color: colors.violetText, fontSize: 10, fontWeight: '800', letterSpacing: 0.6, marginBottom: 5 },
   sideVal: { color: colors.textDim, fontSize: 13, fontWeight: '800', fontVariant: ['tabular-nums'], marginTop: 2 },
   arrow: { color: colors.textDim, fontSize: 18, fontWeight: '800', paddingHorizontal: 10 },
   assetWrap: { flexDirection: 'row', flexWrap: 'wrap' },

@@ -558,7 +558,7 @@ const styles = StyleSheet.create({
   tabText: { color: colors.textDim, fontSize: 14, fontWeight: '800' },
   tabTextActive: { color: colors.text },
   bSectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 16, marginBottom: 8 },
-  bSectionTitle: { color: colors.text, fontSize: 15, fontWeight: '900' },
+  bSectionTitle: { color: colors.violetText, fontSize: 15, fontWeight: '900' },
   bSectionCount: { color: colors.textDim, fontSize: 12, fontWeight: '700' },
   bRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 8 },
   // "Yours" is an identity cue → Signal Blue. "On the clock" is the reserved gold moment and must be
@@ -605,7 +605,7 @@ const styles = StyleSheet.create({
   pcBig: { fontSize: 22, fontWeight: '900', fontVariant: ['tabular-nums'] },
   pcUnit: { fontSize: 13, fontWeight: '700', color: colors.textDim },
   pcSub: { color: colors.textDim, fontSize: 11, marginTop: 3 },
-  section: { color: colors.text, fontSize: 14, fontWeight: '800', marginTop: 20, marginBottom: 8 },
+  section: { color: colors.violetText, fontSize: 14, fontWeight: '800', marginTop: 20, marginBottom: 8 },
   pickRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   pickNo: { color: colors.textDim, fontSize: 13, fontWeight: '800', width: 44 },
   dot: { width: 8, height: 8, borderRadius: 4, marginRight: 8 },

@@ -435,7 +435,7 @@ const styles = StyleSheet.create({
   fmtPill: { alignSelf: 'flex-start', color: colors.accent, backgroundColor: colors.accent + '1A', borderWidth: 1, borderColor: colors.accent + '55', borderRadius: 6, fontSize: 11, fontWeight: '800', paddingHorizontal: 7, paddingVertical: 2, overflow: 'hidden' },
   ctxText: { color: colors.textDim, fontSize: 12, fontWeight: '600' },
   side: { marginBottom: 10 },
-  sideLabel: { color: colors.textDim, fontSize: 12, fontWeight: '800', marginBottom: 4 },
+  sideLabel: { color: colors.violetText, fontSize: 12, fontWeight: '800', marginBottom: 4 },
   sideRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 3 },
   dot: { width: 8, height: 8, borderRadius: 4, marginRight: 8 },
   sideName: { color: colors.text, fontSize: 14, flex: 1, marginRight: 8 },
