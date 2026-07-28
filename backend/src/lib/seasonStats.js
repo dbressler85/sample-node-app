@@ -11,6 +11,7 @@ const config = require('../config');
 const SLEEPER_SEASON_URL = (year) => `https://api.sleeper.app/v1/stats/nfl/regular/${year}`;
 const TTL_MS = 12 * 60 * 60 * 1000; // 12h — a finished season is static; this just bounds staleness
 const cache = new Map(); // year -> { at, map: Map<sleeperId, box> }
+const inflight = new Map(); // year -> Promise<Map> — coalesce concurrent cold callers onto ONE fetch
 
 async function fetchJson(url, ms = 12000) {
   const ctrl = new AbortController();
@@ -43,25 +44,35 @@ function boxScore(s) {
 }
 
 // Season stats as a Map<sleeperId, box>. Cached per year; fail-soft to an empty map (or last-good).
+// The Sleeper season file is multi-MB, so a cold fetch is slow — concurrent callers (e.g. a
+// best-available list fanning out over 50 free agents) MUST share one in-flight fetch, never each
+// kick their own, or the wire melts.
 async function bySleeperId(year) {
   const key = String(year);
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < TTL_MS) return hit.map;
-  try {
-    const raw = await fetchJson(SLEEPER_SEASON_URL(year));
-    const map = new Map();
-    for (const [sid, s] of Object.entries(raw || {})) {
-      const box = boxScore(s);
-      if (box) map.set(String(sid), box);
+  if (inflight.has(key)) return inflight.get(key);
+  const p = (async () => {
+    try {
+      const raw = await fetchJson(SLEEPER_SEASON_URL(year));
+      const map = new Map();
+      for (const [sid, s] of Object.entries(raw || {})) {
+        const box = boxScore(s);
+        if (box) map.set(String(sid), box);
+      }
+      cache.set(key, { at: Date.now(), map });
+      return map;
+    } catch (e) {
+      if (hit) return hit.map; // keep last-good
+      const empty = new Map();
+      cache.set(key, { at: Date.now(), map: empty });
+      return empty;
+    } finally {
+      inflight.delete(key);
     }
-    cache.set(key, { at: Date.now(), map });
-    return map;
-  } catch (e) {
-    if (hit) return hit.map; // keep last-good
-    const empty = new Map();
-    cache.set(key, { at: Date.now(), map: empty });
-    return empty;
-  }
+  })();
+  inflight.set(key, p);
+  return p;
 }
 
 // The box score for one player (by Sleeper id) in a given season, or null.
@@ -71,4 +82,19 @@ async function forPlayer(sleeperId, year) {
   return map.get(String(sleeperId)) || null;
 }
 
-module.exports = { bySleeperId, forPlayer, boxScore };
+// Synchronous cache peek — the fresh season map, or null when it hasn't been warmed yet (NEVER
+// fetches). Lets a latency-sensitive path (the player profile) attach box stats only if they're
+// already in hand, instead of blocking the whole screen on the cold multi-MB season download.
+function peek(year) {
+  const hit = cache.get(String(year));
+  return hit && Date.now() - hit.at < TTL_MS ? hit.map : null;
+}
+
+// Fire-and-forget warm so the next profile / best-available open finds the season file cached.
+// Coalesced through bySleeperId, so calling it from several list endpoints is free.
+function prewarm(year) {
+  if (peek(year)) return;
+  bySleeperId(year).catch(() => {});
+}
+
+module.exports = { bySleeperId, forPlayer, peek, prewarm, boxScore };
