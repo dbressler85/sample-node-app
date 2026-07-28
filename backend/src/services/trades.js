@@ -460,10 +460,12 @@ async function tradeData(cookie, token, leagueId) {
   // unreadable partner list) must degrade the desk — fewer selectable assets — not 500 the
   // whole screen. A failed roster falls back to an empty one so incoming offers still load.
   const EMPTY_ROSTER = { starters: [], bench: [], ir: [], taxi: [], franchiseName: null };
-  const [roster, rawPartners, requirements] = await Promise.all([
+  const [roster, rawPartners, requirements, standingsRows] = await Promise.all([
     rosterService.getRoster(cookie, leagueId).catch((e) => { console.warn(`[trades] getRoster failed for L=${leagueId}: ${e.message}`); return EMPTY_ROSTER; }),
     (config.demoMode ? Promise.resolve(demo.tradePartners(leagueId)) : liveRosters(cookie, league)).catch(() => []),
     leagueFormat.requirements(cookie, league).catch(() => []),
+    // Season record → the "is this window live?" axis of each team's outlook. Best-effort.
+    (config.demoMode ? Promise.resolve(demo.standings(leagueId)) : mflRepo.standings(league, cookie)).catch(() => null),
   ]);
 
   const myPlayersAll = [...(roster.starters || []), ...(roster.bench || [])];
@@ -477,14 +479,17 @@ async function tradeData(cookie, token, leagueId) {
     })),
   ];
   const ns = tradefit.needsSurplus(franchises, requirements);
-  const teamOutlook = summarizeFranchises(franchises);
+  const recordPctMap = rosterService.recordPctByFranchise(standingsRows);
+  const teamOutlook = summarizeFranchises(franchises, recordPctMap);
   return { league, byId, enr, roster, rawPartners, requirements, ns, teamOutlook, fmt };
 }
 
 // Dynasty outlook (win-now / ascending / rebuilding / balanced) + average roster age for
 // every franchise, so the trade desk can show BOTH teams' status and reveal an owner who
-// skews young or old. Reuses the roster summary's coreAge/strength → outlook rule.
-function summarizeFranchises(franchises) {
+// skews young or old. Reuses the roster summary's coreAge/strength/record → outlook rule, so a
+// stacked-but-losing partner reads Balanced (not a false Win-now) here just like on my own roster.
+function summarizeFranchises(franchises, recordPctMap) {
+  const record = recordPctMap instanceof Map ? recordPctMap : new Map();
   const totals = franchises.map((f) => ({ id: String(f.franchiseId), total: (f.players || []).reduce((s, p) => s + (p.value || 0), 0) }));
   const out = {};
   for (const f of franchises) {
@@ -494,7 +499,8 @@ function summarizeFranchises(franchises) {
     const coreAge = core.length ? Math.round((core.reduce((s, p) => s + (p.age || 0), 0) / core.length) * 10) / 10 : null;
     const myTotal = (totals.find((t) => t.id === String(f.franchiseId)) || {}).total || 0;
     const strengthPct = totals.length > 1 && myTotal ? totals.filter((t) => t.total <= myTotal).length / totals.length : null;
-    out[String(f.franchiseId)] = { outlook: rosterService.computeOutlook(coreAge, strengthPct), avgAge };
+    const recordPct = record.has(String(f.franchiseId)) ? record.get(String(f.franchiseId)) : null;
+    out[String(f.franchiseId)] = { outlook: rosterService.computeOutlook(coreAge, strengthPct, recordPct), avgAge };
   }
   return out;
 }

@@ -421,10 +421,14 @@ win-now / rest-of-season) plus two narrower correctness issues. Ranked by value-
   Pick Capital, trade-bait) pass `enr`, so the trade brain + displays agree and are format-correct — an
   SF early-1st is no longer priced like a 1QB pick. Backend-only (deploys on merge); `pick-value-format-test`
   covers token-join, format-awareness, round fallback, and curve non-regression.
-- [ ] **Blend standings/record into outlook (P1).** `roster.js` `computeOutlook` assigns
-  win-now/rebuild from dynasty-value strength + core age only, so a 2-8 team with a stacked-but-
-  underperforming roster reads "Win-now." Fold in real W-L / points (needs `leagueStandings`). *(Low
-  effort, roadmap-ready; half the buy/sell signal at the deadline.)*
+- [x] **Blend standings/record into outlook (P1).** *Done.* `computeOutlook` now takes a third axis —
+  `recordPct`, where a team's actual W-L (win%, points-for tiebreak) ranks in the league (via
+  `recordPctByFranchise` over `leagueStandings`). A stacked veteran roster in the bottom third of the
+  standings now reads **Balanced** instead of a false "Win-now"; a middling roster on a top-third
+  record is promoted to **Win-now**. Threaded into both `roster.js` (my own outlook, used app-wide)
+  and `trades.js` `summarizeFranchises` (every partner's outlook — and my outlook that drives the
+  win-now trade verdict). Fully backward-compatible: with no record (preseason / unreadable standings)
+  it falls back to the exact strength+age read.
 - [x] **Win-now / rest-of-season value beside dynasty value on trades (P1).** *Done.* `tradeMath`
   now carries a second **win-now** read of every deal (assets hold a `winNow` value — FantasyCalc
   redraft for players, ~0 for picks since they don't help this season, face value for FAAB) alongside
