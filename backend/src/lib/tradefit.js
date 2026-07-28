@@ -24,18 +24,21 @@ function positionSlots(requirements) {
 // backup, given how many they're expected to start at each spot.
 function breakdown(players, slots) {
   const byPos = {};
+  const bodies = {}; // rostered bodies per position INCLUDING players we can't value (FantasyCalc gaps)
   for (const p of players) {
+    if (!p || !p.position) continue;
+    bodies[p.position] = (bodies[p.position] || 0) + 1;
     if (p.value == null) continue;
     (byPos[p.position] || (byPos[p.position] = [])).push(p.value);
   }
   const out = {};
-  for (const [pos, vals] of Object.entries(byPos)) {
-    vals.sort((a, b) => b - a);
+  for (const pos of new Set([...Object.keys(byPos), ...Object.keys(bodies)])) {
+    const vals = (byPos[pos] || []).sort((a, b) => b - a);
     const nStart = Math.max(1, Math.round(slots[pos] || 0));
     const starters = vals.slice(0, nStart);
     const starterVal = starters.length ? starters.reduce((s, v) => s + v, 0) / starters.length : 0;
     const bench = vals.slice(nStart);
-    out[pos] = { count: vals.length, nStart, starterVal, depthVal: bench.length ? bench[0] : 0, vals };
+    out[pos] = { count: vals.length, bodies: bodies[pos] || 0, nStart, starterVal, depthVal: bench.length ? bench[0] : 0, vals };
   }
   return out;
 }
@@ -99,7 +102,10 @@ function needsSurplus(franchises, requirements) {
       // counts so we don't invent holes. `count` = total rostered bodies here (for callers that want it).
       const threshold = startFloor[pos] || 0;
       const startable = (b.vals || []).filter((v) => v >= threshold).length;
-      depth[pos] = { slots: b.nStart, threshold, startable, count: b.count };
+      // `bodies` = total rostered players here, INCLUDING ones we can't value — so a retained but
+      // unvalued starter (a vet FantasyCalc doesn't rank) still counts as a body, and giving away a
+      // valued one no longer reads as "no startable X" when a real player remains in the slot.
+      depth[pos] = { slots: b.nStart, threshold, startable, count: b.count, bodies: b.bodies != null ? b.bodies : b.count };
     }
     needs.sort((a, b) => b.gap - a.gap);
     surplus.sort((a, b) => b.depth - a.depth);

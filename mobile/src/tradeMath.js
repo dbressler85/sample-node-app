@@ -119,7 +119,14 @@ function constructionRating(give, receive, needs, surplus, subject, depth) {
       const gaveStartable = gaveList.filter((p) => p.value != null && p.value >= d.threshold).length;
       if (!gaveStartable) continue;
       const recvStartable = (receive || []).filter((p) => p.position === pos && p.value != null && p.value >= d.threshold).length;
-      if (d.startable - gaveStartable + recvStartable < d.slots) holes.push(pos);
+      // A "hole" is an EMPTY starting spot — no rostered body left to field. Measure it against total
+      // rostered bodies (valued or not), not just startable-valued players: a team that keeps another
+      // player at the position (even one FantasyCalc can't value, or a lower-ranked body) isn't left
+      // with "no starter". Without a body count, fall back to the startable count (old behavior).
+      const bodies = d.bodies != null ? d.bodies : d.startable;
+      const recvAtPos = (receive || []).filter((p) => p.position === pos).length;
+      const bodiesLeft = bodies - gaveList.length + recvAtPos;
+      if (d.startable - gaveStartable + recvStartable < d.slots && bodiesLeft < d.slots) holes.push(pos);
     }
   }
 

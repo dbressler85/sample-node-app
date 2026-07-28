@@ -89,5 +89,24 @@ const anotherRB = { position: 'RB', value: 55 };
   assert(!teHole.holes.includes('TE'), 'trading your top TE while keeping a startable vet is NOT a no-startable-TE hole');
   console.log('✓ startable bar counts low-value vets — no phantom "no startable TE" when a vet remains');
 
+  // 7) The reported bug: a retained TE our value source (FantasyCalc) can't price (value: null) was
+  // dropped from the position entirely, so giving a VALUED TE read as "strips their TE starter" even
+  // though a real body stayed. `bodies` now counts unvalued rosters, so it's roster-neutral, not a hole.
+  const nullReqs = [{ name: 'TE', eligible: ['TE'], count: 1 }];
+  const nullFranchises = [
+    { franchiseId: '1', players: [{ id: 'keep', position: 'TE', value: null }, { id: 'give', position: 'TE', value: 45 }] },
+    { franchiseId: '2', players: [{ id: 't2', position: 'TE', value: 50 }, { id: 't2b', position: 'TE', value: 30 }] },
+    { franchiseId: '3', players: [{ id: 't3', position: 'TE', value: 40 }] },
+  ];
+  const nullNs = needsSurplus(nullFranchises, nullReqs);
+  assert(nullNs['1'].depth.TE.bodies === 2, `an unvalued rostered TE still counts as a body, got ${JSON.stringify(nullNs['1'].depth.TE)}`);
+  const nullHole = constructionVerdict([{ position: 'TE', value: 45 }], [{ position: 'RB', value: 55 }], nullNs['1'].needs, nullNs['1'].surplus, 'they', nullNs['1'].depth);
+  assert(!nullHole.holes.includes('TE'), `keeping an unvalued TE is NOT a "strips their starter" hole, got ${JSON.stringify(nullHole)}`);
+  // ...but a team with only ONE TE that gives him away IS a genuine hole (the slot truly empties).
+  const emptyNs = needsSurplus([{ franchiseId: '1', players: [{ id: 'give', position: 'TE', value: 45 }] }, ...nullFranchises.slice(1)], nullReqs);
+  const emptyHole = constructionVerdict([{ position: 'TE', value: 45 }], [{ position: 'RB', value: 55 }], emptyNs['1'].needs, emptyNs['1'].surplus, 'they', emptyNs['1'].depth);
+  assert(emptyHole.holes.includes('TE'), 'giving away your ONLY TE still flags a real hole');
+  console.log('✓ an unvalued retained body prevents a false "strips their starter"; a truly emptied slot still flags');
+
   console.log('\nTRADE HOLE HARNESS PASSED');
 })().catch((e) => { console.error(e.message); process.exit(1); });
