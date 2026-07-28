@@ -10,7 +10,7 @@ const theme = require('../src/theme');
 test('color law: value gold, neon accents, and the onAccent contrast fix are all present', () => {
   const c = theme.colors;
   assert.equal(c.gold, '#F3C14A', 'championship gold (value) is fixed');
-  assert.equal(c.watch, '#FFE94A', 'watch is Neon Yellow (no green cast), distinct from value gold');
+  assert.equal(c.watch, '#E4F24A', 'watch is Acid Yellow (ratified), pushed green-ward so it never collides with value gold');
   assert.equal(c.onAccent, '#08101E', 'dark ink for labels on accent/gold fills (white fails AA)');
   assert.ok(c.scrim && c.watch !== c.gold, 'scrim exists; watch is not the value gold');
 });
@@ -26,9 +26,9 @@ test('scales are present and monotonically increasing', () => {
 
 test('glow() builds the neon recipe: lit edge + interior wash + colored halo', () => {
   const g = theme.glow(theme.rgb.watch);
-  assert.equal(g.borderColor, 'rgba(255,233,74,0.55)', 'edge at 0.55');
-  assert.equal(g.backgroundColor, 'rgba(255,233,74,0.12)', 'wash at 0.12');
-  assert.equal(g.shadowColor, 'rgb(255,233,74)', 'halo tinted to the accent');
+  assert.equal(g.borderColor, 'rgba(228,242,74,0.55)', 'edge at 0.55');
+  assert.equal(g.backgroundColor, 'rgba(228,242,74,0.12)', 'wash at 0.12');
+  assert.equal(g.shadowColor, 'rgb(228,242,74)', 'halo tinted to the accent');
   assert.equal(g.shadowOffset.width, 0, 'halo is centered (a glow, not a drop shadow)');
   assert.ok(!('elevation' in g), 'no Android elevation — a tinted glow, never a grey box');
 });
