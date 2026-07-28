@@ -438,7 +438,7 @@ export default function PlayersScreen({ onOpenPlayer, onStartWaiverWizard }) {
               keyExtractor={(p) => p.id}
               extraData={{ listSort }}
               contentContainerStyle={styles.list}
-              renderItem={({ item, index }) => <Reveal delay={Math.min(index, 12) * 32} animate={index < 14}><WatchRow p={item} onPress={() => onOpenPlayer(item.id)} /></Reveal>}
+              renderItem={({ item, index }) => <Reveal delay={Math.min(index, 12) * 32} animate={index < 14}><WatchRow p={item} onPress={() => onOpenPlayer(item.id)} onQuickAdd={() => setAddAcross({ id: item.id, name: item.name })} /></Reveal>}
               ListEmptyComponent={
                 !watch ? (
                   <Center><ActivityIndicator color={colors.accent} /></Center>
@@ -528,8 +528,10 @@ export default function PlayersScreen({ onOpenPlayer, onStartWaiverWizard }) {
           onReview={onStartWaiverWizard ? (player, stubs) => { setAddAcross(null); onStartWaiverWizard(stubs, player.id); } : undefined}
           onDone={() => {
             setAddAcross(null);
-            // Reflect the add: the player is no longer free, so refetch the board (kept on screen while it revalidates).
+            // Reflect the add: the player is no longer free, so refetch the active board (kept on screen
+            // while it revalidates). Watch rows re-derive their "N free" count from the fresh watchlist.
             if (tab === 'free') loadFree();
+            else if (tab === 'watch') api.watchlist(format, tep).then(setWatch).catch(() => {});
           }}
         />
       ) : null}
@@ -723,9 +725,13 @@ function ValueLens({ format, setFormat, tep, setTep }) {
   );
 }
 
-function WatchRow({ p, onPress }) {
+function WatchRow({ p, onPress, onQuickAdd }) {
   const posColor = positionColors[p.position] || colors.textDim;
   const s = p.summary;
+  // A watched player who's a free agent in one or more of your leagues is the whole point of the
+  // watchlist — surface a one-tap add right on the row (opens the same across-leagues claim sheet as
+  // Free Agents) so you don't have to open his profile to act. Only when he's actually free somewhere.
+  const canAdd = !!(onQuickAdd && s.free > 0);
   return (
     <Pressable style={({ pressed }) => [styles.row, pressed && { opacity: 0.7 }]} onPress={onPress}>
       <View style={[styles.posBadge, { backgroundColor: posColor + '22', borderColor: posColor }]}>
@@ -745,7 +751,19 @@ function WatchRow({ p, onPress }) {
         </View>
         <PointsLine season={p.seasonPoints} proj={p.weekProjection} />
       </View>
-      {p.value != null ? <Text style={styles.value}>{p.value}</Text> : null}
+      <View style={styles.watchRight}>
+        {p.value != null ? <Text style={styles.value}>{p.value}</Text> : null}
+        {canAdd ? (
+          <Pressable
+            onPress={onQuickAdd}
+            hitSlop={8}
+            style={({ pressed }) => [styles.quickAdd, pressed && { opacity: 0.7 }]}
+            accessibilityLabel={`Add ${p.name} across leagues`}
+          >
+            <Text style={styles.quickAddText}>+ Add{s.free > 1 ? ` ${s.free}` : ''}</Text>
+          </Pressable>
+        ) : null}
+      </View>
     </Pressable>
   );
 }
@@ -837,6 +855,7 @@ const styles = StyleSheet.create({
   lensSortRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, gap: 8, paddingTop: 2, paddingBottom: 6 },
   lsDivider: { width: StyleSheet.hairlineWidth, alignSelf: 'stretch', minHeight: 22, backgroundColor: colors.border, marginHorizontal: 4 },
   rightCol: { alignItems: 'flex-end', marginLeft: 10, gap: 7 },
+  watchRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   quickAdd: { borderWidth: 1, borderColor: colors.good, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
   quickAddText: { color: colors.good, fontSize: 12, fontWeight: '800' },
