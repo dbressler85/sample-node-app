@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, Text, StyleSheet, Platform } from 'react-native';
 import { NeonGlyph } from './NeonGlyphs';
-import { color as neonColor, CORE, flickerPlan } from '../neon';
+import { color as neonColor, CORE, flickerPlan, ailingPlan } from '../neon';
 import { displayLabel } from '../typography';
 import useReducedMotion from '../useReducedMotion';
 
@@ -9,6 +9,8 @@ import useReducedMotion from '../useReducedMotion';
 // tube (near-white core + colored bloom + an iOS halo). Two grades:
 //   • grade="moment" → flickers ON like a real sign (§3.1) — reserved for real events (a trade, a win).
 //   • grade="inline" → sits steady and fully lit — the everyday icons (watchlist, deadline, device).
+//   • grade="ailing" → a PERPETUAL dying-tube flicker — for a persistent negative/empty state (empty
+//     inbox, dead clock). Positive states stay steady; only "bad/nothing here" tubes sputter forever.
 // tone="broken" is the deadpan sad flicker (reject/outbid/loss): a tube that never fully catches.
 // Reduce-motion collapses any ignition to steady-and-fully-lit, honoring the never-strand guardrail.
 //
@@ -27,25 +29,28 @@ export default function NeonSign({
 }) {
   const reduced = useReducedMotion();
   const c = neonColor(color);
-  const plan = flickerPlan({ tone, reduced });
-  // Inline signs are always steady; only a moment sign ignites, and only when motion is allowed.
-  const ignites = grade === 'moment' && !reduced && plan.frames.length > 0;
-  const opacity = useRef(new Animated.Value(ignites ? 0 : plan.settled)).current;
+  const loops = grade === 'ailing';
+  const plan = loops ? ailingPlan({ reduced }) : flickerPlan({ tone, reduced });
+  // Inline signs are always steady; a moment sign ignites once; an ailing sign loops forever. All
+  // collapse to the steady tube under reduce-motion.
+  const ignites = (grade === 'moment' || loops) && !reduced && plan.frames.length > 0;
+  const opacity = useRef(new Animated.Value(ignites && !loops ? 0 : plan.settled)).current;
 
   useEffect(() => {
     if (!ignites) {
       opacity.setValue(plan.settled); // steady / reduce-motion → snap to the settled tube
       return undefined;
     }
-    opacity.setValue(0);
+    opacity.setValue(loops ? plan.settled : 0); // moment lights from dark; ailing loops around its settle
     const seq = Animated.sequence(
       plan.frames.map((f) => Animated.timing(opacity, { toValue: f.to, duration: f.dur, useNativeDriver: true }))
     );
-    seq.start();
-    return () => seq.stop();
+    const anim = loops ? Animated.loop(seq) : seq;
+    anim.start();
+    return () => anim.stop();
     // Re-ignite when the moment identity changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [animateKey, ignites, tone]);
+  }, [animateKey, ignites, tone, loops]);
 
   // The iOS halo (glow recipe): a colored shadow around the tube. Android ignores shadow* with no
   // elevation set (never draws a grey box) — the bloom stroke + saturated core carry it there.

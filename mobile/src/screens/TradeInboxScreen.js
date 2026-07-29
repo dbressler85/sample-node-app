@@ -271,7 +271,7 @@ export default function TradeInboxScreen({ active = true, onBack, onOpenLeague, 
           )}
           ListEmptyComponent={
             <View style={styles.emptyWrap}>
-              <NeonSign glyph="tray" color="cold" grade="inline" size={46} style={styles.emptyFace} />
+              <NeonSign glyph="tray" color="cold" grade="ailing" size={46} style={styles.emptyFace} />
               <Text style={styles.emptyTitle}>Quiet in here</Text>
               <Text style={styles.emptyText}>No pending trade offers across your leagues. Head to Propose to shake something loose.</Text>
             </View>

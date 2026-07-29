@@ -176,7 +176,7 @@ const PickClock = React.memo(function PickClock({ pickClock, mine }) {
       ) : isOverdue ? (
         <>
           <View style={styles.pcRow}>
-            <NeonSign glyph="hourglass" color="bad" grade="inline" size={18} />
+            <NeonSign glyph="hourglass" color="bad" grade="ailing" size={18} />
             <Text style={[styles.pcBig, { color: tone }]}>Overdue</Text>
           </View>
           <Text style={styles.pcSub}>The clock has expired — auto-pick is imminent</Text>

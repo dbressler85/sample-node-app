@@ -82,6 +82,27 @@ function flickerPlan({ tone = 'clean', reduced = false } = {}) {
   };
 }
 
+// A PERPETUAL dying-tube loop (docs §3): for a persistent negative/empty state (an empty inbox, a
+// dead clock), the sign sits mostly-lit and keeps sputtering — never fully catching, never fully
+// dying. The frames start and end at the same value so Animated.loop has no visible seam. Reduce-motion
+// collapses to the steady under-lit tube (never strands).
+function ailingPlan({ reduced = false } = {}) {
+  const settled = 0.82;
+  if (reduced) return { settled, frames: [] };
+  return {
+    settled,
+    frames: [
+      { to: settled, dur: 1100 }, // holds mostly-lit for a beat...
+      { to: 0.92, dur: 55 }, //       a small surge
+      { to: 0.24, dur: 60 }, //       ...then a sputter down
+      { to: 0.68, dur: 45 },
+      { to: 0.16, dur: 80 }, //       nearly out
+      { to: 0.6, dur: 50 },
+      { to: settled, dur: 150 }, //   recover to the start value → seamless loop
+    ],
+  };
+}
+
 // Total wall-clock of a plan (ms) — the host uses it to know when a moment is done.
 function planDuration(plan) {
   return (plan.frames || []).reduce((s, f) => s + (f.dur || 0), 0);
@@ -106,6 +127,7 @@ module.exports = {
   EVENT_SIGNS,
   signFor,
   flickerPlan,
+  ailingPlan,
   planDuration,
   SPARKS,
   sparkSpec,
