@@ -15,6 +15,10 @@ import NeonSign from '../components/NeonSign';
 import InfoDot from '../components/InfoDot';
 
 const CONCURRENCY = 4;
+// Background-warm concurrency: deliberately LOW (2, vs the 4 the visible cards get) so the after-cards
+// warm queue never floods MFL's budget — a real tap during warming competes with at most 2 background
+// reads, and the queue is ordered so the most-likely-tapped board warms first.
+const WARM_CONCURRENCY = 2;
 
 // A draft belongs on the Home action list only if it needs you soon: you're on the
 // clock, it's live, or it starts within ~3 days. Everything else lives in the Hub.
@@ -154,8 +158,10 @@ export async function warmHome() {
     // to the shared caches so opening those views from Home paints instantly. prime the IN-MEMORY store
     // too (not just disk): Draft Hub / On Deck read via useCachedResource, and without an in-memory hit
     // they take the cold path and re-run the whole cross-league fan-out seconds after Home already did.
-    draftsPreferDevice().then((d) => { const f = sortHomeDrafts((d.drafts || []).filter(isDraftActionable)); patchHome({ drafts: f }); setValue('drafts', d); primeResource('drafts', d); }).catch(() => {});
-    api.onDeck().then((d) => { patchHome({ onDeck: d }); setValue('ondeck', d); primeResource('ondeck', d); }).catch(() => {});
+    // Capture drafts + On Deck so the warm queue below can pre-warm the SPECIFIC boards you're most
+    // likely to tap next (the on-the-clock draft, an imminent waiver run), not just the generic tabs.
+    const draftsP = draftsPreferDevice().then((d) => { const f = sortHomeDrafts((d.drafts || []).filter(isDraftActionable)); patchHome({ drafts: f }); setValue('drafts', d); primeResource('drafts', d); return d; }).catch(() => null);
+    const onDeckP = api.onDeck().then((d) => { patchHome({ onDeck: d }); setValue('ondeck', d); primeResource('ondeck', d); return d; }).catch(() => null);
     api.watchlistAlerts().then((r) => { patchHome({ watchAlerts: r.alerts || [] }); }).catch(() => {});
 
     patchHome({ progress: { done: 0, total: list.length } });
@@ -176,16 +182,36 @@ export async function warmHome() {
     patchHome({ statuses: pruned, at: Date.now() });
     setValue('statuses', pruned);
 
-    // Only NOW (visible league cards loaded) warm the Players tab — its cross-league gather is heavy
-    // and firing it during the triage fan-out steals MFL concurrency from the cards being waited on.
-    // Key MUST match PlayersScreen's rankKey exactly (…:1qb:std — the `std` = TE-prem-off lens); the old
-    // tk-less key never hit, so this warm was dead. Prime memory too, so the Players tab paints instantly.
-    api.playerRankings('value', null, '1qb').then((r) => { setValue('players:rankings:value:all:1qb:std', r); primeResource('players:rankings:value:all:1qb:std', r); }).catch(() => {});
-    // Same treatment for the two heavy overlays the user opens straight from Home that were cold-loading
-    // behind a blank spinner: the Portfolio dashboard and the Players → Free Agents board (a lens-agnostic
-    // cross-league fan-out). Warm them here (after the cards, fail-soft) so opening either paints instantly.
-    portfolioPreferDevice().then((p) => { setValue('portfolio', p); primeResource('portfolio', p); }).catch(() => {});
-    bestAvailablePreferDevice().then((f) => { setValue('players:free', f); primeResource('players:free', f); }).catch(() => {});
+    // Only NOW (visible league cards loaded) warm the heavy screens the user opens next — the cards had
+    // first claim on MFL's budget; these must not have stolen it. Run them as a PRIORITY QUEUE at low
+    // concurrency (WARM_CONCURRENCY), NOT a simultaneous burst, so a real tap during warming competes
+    // with at most 2 background reads. Order = most likely-tapped / most time-sensitive first, so if the
+    // queue is preempted by a tap, the important boards are already warm. Each primes memory (+ disk)
+    // under the exact key its screen reads (rankKey ends …:1qb:std; draft/waiver boards per league), so
+    // the open paints from cache instead of a blank spinner.
+    const [draftsData, onDeckData] = await Promise.all([draftsP, onDeckP]);
+    const actionable = draftsData ? (draftsData.drafts || []).filter(isDraftActionable) : [];
+    const deckItems = (onDeckData && onDeckData.items) || [];
+    const warms = [];
+    const pushDraft = (d) => warms.push({ key: `draft:${d.leagueId}`, run: () => api.leagueDraft(d.leagueId) });
+    actionable.filter((d) => d.myOnClock).forEach(pushDraft); // 1) on the clock → THE next tap
+    for (const it of deckItems.filter((i) => i.type === 'waiver_run' && i.replacements)) { // 2) imminent waiver runs
+      const r = it.replacements;
+      const position = r.positions && r.positions.length === 1 ? r.positions[0] : null;
+      const sort = r.sort || 'projection';
+      warms.push({ key: `waivers:board:${r.leagueId}:${position || 'all'}:${sort}`, run: () => api.waiverBoard(r.leagueId, { position, sort }) });
+    }
+    warms.push({ key: 'players:rankings:value:all:1qb:std', run: () => api.playerRankings('value', null, '1qb') }); // 3) most-browsed tab
+    actionable.filter((d) => !d.myOnClock && d.status === 'in_progress').forEach(pushDraft); // 4) other live drafts
+    warms.push({ key: 'portfolio', run: () => portfolioPreferDevice() }); // 5) steady dashboards, last
+    warms.push({ key: 'players:free', run: () => bestAvailablePreferDevice() });
+    const seen = new Set();
+    const queue = warms.filter((w) => (seen.has(w.key) ? false : seen.add(w.key))); // de-dupe by key
+    // Fire-and-forget (not awaited) so warmHome finishes as soon as the cards are done; the queue keeps
+    // warming in the background at low priority.
+    runPool(queue, WARM_CONCURRENCY, async (w) => {
+      try { const v = await w.run(); setValue(w.key, v); primeResource(w.key, v); } catch (e) { /* warm is best-effort */ }
+    });
   } catch (e) {
     patchHome({ error: e.message });
   } finally {
