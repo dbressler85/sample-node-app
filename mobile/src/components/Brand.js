@@ -66,8 +66,8 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     textTransform: 'uppercase',
     letterSpacing: 1.2,
-    textShadowColor: 'rgba(139,92,246,0.5)',
-    textShadowRadius: 10,
+    textShadowColor: 'rgba(139,92,246,0.95)',
+    textShadowRadius: 18,
     textShadowOffset: { width: 0, height: 0 },
   },
   // Short violet accent rule under each screen title — the structural-wayfinding mark (not an action):
@@ -85,7 +85,7 @@ const styles = StyleSheet.create({
   },
   // Overlay heading: violet (structure) + soft violet glow to match the ignite, sized like the topbar
   // titles it replaces (fontSize 20 / heavy). Screens may pass `style` to nudge size where needed.
-  topbarTitle: { color: colors.violetText, fontSize: 20, fontWeight: '900', textShadowColor: 'rgba(139,92,246,0.5)', textShadowRadius: 9, textShadowOffset: { width: 0, height: 0 } },
+  topbarTitle: { color: colors.violetText, fontSize: 20, fontWeight: '900', textShadowColor: 'rgba(139,92,246,0.9)', textShadowRadius: 14, textShadowOffset: { width: 0, height: 0 } },
   value: { fontWeight: '900', color: colors.gold, fontVariant: ['tabular-nums'], letterSpacing: -0.5 },
   wm: { position: 'absolute', right: -34, top: -26, opacity: 0.05 },
 });
