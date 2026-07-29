@@ -144,6 +144,21 @@ export function resetHomeCache() {
   refreshInFlight = false;
 }
 
+// Reflect a just-made draft pick on Home INSTANTLY, without waiting on the slow full fan-out. The
+// board response's `onClock` is the NEXT slot after your pick, so the picked league drops off "on the
+// clock" the moment the pick API returns — the row keeps showing (the draft's still live) but loses the
+// PICK pill. The write already marked Home stale (invalidateCaches → homeCache.at=0), so the background
+// refetch on return still reconciles the rest (statuses, the Under Center tile, your next pick).
+export function applyPickToHome(leagueId, board) {
+  if (!homeCache.drafts) return;
+  const oc = board && board.onClock;
+  const next = homeCache.drafts.map((d) =>
+    d.leagueId === leagueId
+      ? { ...d, myOnClock: !!(oc && oc.mine), currentPick: oc ? { overall: oc.overall, round: oc.round, pick: oc.pick } : d.currentPick }
+      : d);
+  patchHome({ drafts: sortHomeDrafts(next) });
+}
+
 // THE Home fan-out, as a module function so it can start BEFORE HomeScreen mounts. App fires this
 // the instant login succeeds (handleLoggedIn) — so the ~2s login ceremony, the first-run welcome
 // modal, and the push-permission prompt are all spent LOADING the cross-league triage instead of

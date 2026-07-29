@@ -8,6 +8,7 @@
 
 const config = require('../config');
 const mfl = require('../lib/mfl');
+const { withWriteRetry } = require('../lib/retry');
 const mflRepo = require('../lib/mflRepo');
 const playersLib = require('../lib/players');
 const picksLib = require('../lib/picks');
@@ -83,14 +84,14 @@ async function mflBaitFor(cookie, league) {
 // Write the FULL bait set for my franchise back to MFL (MFL keeps one listing per franchise, so a
 // write replaces the whole set). Preserves the asking-price note unless a new one is given.
 async function writeBait(cookie, league, ids, note) {
-  await mfl.importRequest('tradeBait', {
+  await withWriteRetry(() => mfl.importRequest('tradeBait', {
     host: league.host,
     cookie,
     L: league.leagueId,
     FRANCHISE: league.franchiseId,
     WILL_GIVE_UP: ids.join(','),
     IN_EXCHANGE_FOR: note || '',
-  });
+  }));
   mfl.invalidateLeague(cookie, league.leagueId); // so the next block read reflects the change
 }
 

@@ -14,7 +14,7 @@ const config = require('../config');
 const demo = require('../demo/fixtures');
 const mfl = require('../lib/mfl');
 const mflRepo = require('../lib/mflRepo');
-const { withRetry } = require('../lib/retry');
+const { withRetry, withWriteRetry } = require('../lib/retry');
 const scoringLib = require('../lib/scoring');
 const availabilityLib = require('../lib/availability');
 const enrichmentLib = require('../lib/enrichment');
@@ -818,19 +818,19 @@ async function submitClaimInner({ cookie, league, system, add, drop, bid, locked
       if (e.status === 409) throw e; // our own precise block — surface it
       /* read/parse failure → proceed to the write */
     }
-    await mfl.importRequest('fcfsWaiver', { ...base, ADD: add, DROP: drop || undefined });
+    await withWriteRetry(() => mfl.importRequest('fcfsWaiver', { ...base, ADD: add, DROP: drop || undefined }));
     return;
   }
 
   if (system === 'faab') {
     const params = { ...base, PICKS: `${add}_${Math.round(Number(bid) || 0)}_${drop || '0000'}` };
     if (round != null) params.ROUND = round;
-    await mfl.importRequest('blindBidWaiverRequest', params);
+    await withWriteRetry(() => mfl.importRequest('blindBidWaiverRequest', params));
     return;
   }
 
   if (round != null) {
-    await mfl.importRequest('waiverRequest', { ...base, ROUND: round, PICKS: `${add}_${drop || '0000'}` });
+    await withWriteRetry(() => mfl.importRequest('waiverRequest', { ...base, ROUND: round, PICKS: `${add}_${drop || '0000'}` }));
     return;
   }
   const err = new Error(
@@ -938,7 +938,7 @@ async function cancelMflPick({ cookie, league, system, round, idx }) {
   const command = system === 'faab' ? 'blindBidWaiverRequest' : 'waiverRequest';
   const params = { host: league.host, cookie, L: league.leagueId, ROUND: round, PICKS, REPLACE: 1 };
   try {
-    await mfl.importRequest(command, params);
+    await withWriteRetry(() => mfl.importRequest(command, params)); // REPLACE=1 full-round set → idempotent
   } catch (e) {
     const detail = mfl.errorDetail(e);
     console.warn(`[waivers] MFL rejected cancel — L=${league.leagueId} system=${system} round=${round} idx=${idx} kept=${kept.length} — ${detail}`);
@@ -1014,7 +1014,7 @@ async function reorderMflRound({ cookie, league, system, round, order }) {
   const command = system === 'faab' ? 'blindBidWaiverRequest' : 'waiverRequest';
   const params = { host: league.host, cookie, L: league.leagueId, ROUND: round, PICKS, REPLACE: 1 };
   try {
-    await mfl.importRequest(command, params);
+    await withWriteRetry(() => mfl.importRequest(command, params)); // REPLACE=1 full-round set → idempotent
   } catch (e) {
     const detail = mfl.errorDetail(e);
     console.warn(`[waivers] MFL rejected reorder — L=${league.leagueId} system=${system} round=${round} — ${detail}`);

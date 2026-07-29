@@ -20,4 +20,29 @@ async function withRetry(fn, attempts = 3, baseDelayMs = 300) {
   throw lastErr;
 }
 
-module.exports = { withRetry };
+// Retry policy for MFL WRITES (imports / misc commands). Unlike a read, a write must NOT be re-issued
+// on an ambiguous failure — a timeout or a 5xx that arrives AFTER MFL already processed the write could
+// double-submit (a second trade proposal, a duplicate waiver bid). But a 429 is different: MFL rejects a
+// throttled request BEFORE processing it (per lib/mfl.js), so nothing was created and re-issuing is safe.
+// So retry writes ONLY on a 429 throttle and rethrow every other error immediately. (503 is already
+// retried inside the transport.) This lets every write survive a transient throttle without risking a
+// duplicate — the gap that surfaced a raw "(429)" and lost a draft pick / claim on a busy pipe.
+async function withWriteRetry(fn, attempts = 3, baseDelayMs = 700) {
+  let lastErr = null;
+  for (let i = 0; i < attempts; i += 1) {
+    try {
+      return await fn();
+    } catch (e) {
+      lastErr = e;
+      // Only a rate-limit rejection is safe to re-issue; anything else may already have been applied.
+      if (e && e.status === 429 && i < attempts - 1) {
+        await new Promise((r) => setTimeout(r, baseDelayMs * (i + 1)));
+        continue;
+      }
+      throw e;
+    }
+  }
+  throw lastErr;
+}
+
+module.exports = { withRetry, withWriteRetry };
