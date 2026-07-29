@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, FlatList, StyleSheet, Pressable, RefreshControl, ActivityIndicator } from 'react-native';
 import { api } from '../api';
-import { draftsPreferDevice, leagueTriagePreferDevice } from '../mflDevice';
+import { draftsPreferDevice, leagueTriagePreferDevice, portfolioPreferDevice, bestAvailablePreferDevice } from '../mflDevice';
 import { getValue, setValue, onCacheInvalidate } from '../cache';
 import { primeResource } from '../useCachedResource';
 import { colors } from '../theme';
@@ -181,6 +181,11 @@ export async function warmHome() {
     // Key MUST match PlayersScreen's rankKey exactly (…:1qb:std — the `std` = TE-prem-off lens); the old
     // tk-less key never hit, so this warm was dead. Prime memory too, so the Players tab paints instantly.
     api.playerRankings('value', null, '1qb').then((r) => { setValue('players:rankings:value:all:1qb:std', r); primeResource('players:rankings:value:all:1qb:std', r); }).catch(() => {});
+    // Same treatment for the two heavy overlays the user opens straight from Home that were cold-loading
+    // behind a blank spinner: the Portfolio dashboard and the Players → Free Agents board (a lens-agnostic
+    // cross-league fan-out). Warm them here (after the cards, fail-soft) so opening either paints instantly.
+    portfolioPreferDevice().then((p) => { setValue('portfolio', p); primeResource('portfolio', p); }).catch(() => {});
+    bestAvailablePreferDevice().then((f) => { setValue('players:free', f); primeResource('players:free', f); }).catch(() => {});
   } catch (e) {
     patchHome({ error: e.message });
   } finally {
