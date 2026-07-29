@@ -36,25 +36,31 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
 
   notifications.registerToken('tok', 'ExpoPushTok', {});
 
-  // 1) First tick primes — even if there's already state, nothing is sent.
+  // 1) First tick primes the BACKLOG channels (trades/lineup/watch/waivers) silently — but the draft
+  //    clock is EXEMPT: being on the clock right now is current state, not replayable history, so it
+  //    fires even on the very first tick after (re)registration. That's the reinstall-then-on-the-clock
+  //    path (a new Expo token resets `primed`) that was previously swallowed. The trade offer present
+  //    here must stay primed (silent).
   draftState = { drafts: [{ leagueId: 'A', name: 'League A', myOnClock: true }] };
   tradeState = { offers: [{ leagueId: 'B', id: 't0', leagueName: 'League B', withName: 'Early Bird' }] };
   await notifications.tick(deps);
-  assert(sent.length === 0, `first tick primes without notifying, sent ${sent.length}`);
-  console.log('✓ first tick primes existing state (no spam on enable)');
+  assert(sent.length === 1, `first tick sends only the on-the-clock push, got ${sent.length}`);
+  assert(sent[0].data.type === 'draft_clock' && sent[0].data.leagueId === 'A', 'first-tick on-the-clock notified (priming-exempt)');
+  assert(!sent.some((m) => m.data.type === 'trade_offer'), 'the pre-existing trade offer stays primed (silent) on the first tick');
+  console.log('✓ first tick: on-the-clock fires (exempt), backlog trade offer primed silently');
 
-  // 2) A NEW offer + a NEW on-the-clock league fire once each.
+  // 2) A NEW offer + a NEW on-the-clock league fire once each (League A already notified in step 1).
   draftState = { drafts: [{ leagueId: 'A', name: 'League A', myOnClock: true }, { leagueId: 'C', name: 'League C', myOnClock: true }] };
   tradeState = { offers: [{ leagueId: 'B', id: 't0', leagueName: 'League B', withName: 'Early Bird' }, { leagueId: 'D', id: 't9', leagueName: 'League D', withName: 'Rival' }] };
   await notifications.tick(deps);
-  assert(sent.length === 2, `one new clock + one new offer notified, got ${sent.length}`);
+  assert(sent.length === 3, `one new clock + one new offer notified, got ${sent.length}`);
   assert(sent.some((m) => m.data.type === 'draft_clock' && m.data.leagueId === 'C'), 'on-the-clock in League C notified');
   assert(sent.some((m) => m.data.type === 'trade_offer' && m.data.offerId === 't9'), 'new offer t9 notified');
   console.log('✓ new on-the-clock + new trade offer each notify once');
 
   // 3) Same state again -> nothing new.
   await notifications.tick(deps);
-  assert(sent.length === 2, `no duplicate notifications, got ${sent.length}`);
+  assert(sent.length === 3, `no duplicate notifications, got ${sent.length}`);
   console.log('✓ unchanged state sends nothing (dedup)');
 
   // 4) Off the clock, then on again in the same league -> notifies again.
@@ -62,7 +68,7 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   await notifications.tick(deps);
   draftState = { drafts: [{ leagueId: 'C', name: 'League C', myOnClock: true }] };
   await notifications.tick(deps);
-  assert(sent.length === 3, `re-entering the clock notifies again, got ${sent.length}`);
+  assert(sent.length === 4, `re-entering the clock notifies again, got ${sent.length}`);
   console.log('✓ off-then-on the clock notifies again');
 
   // 5) Prefs off -> that channel goes quiet.

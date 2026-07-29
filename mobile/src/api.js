@@ -127,6 +127,7 @@ export const api = {
   setPushPrefs: (prefs) => request('/api/push/prefs', { method: 'POST', body: { prefs } }),
   // Fire a diagnostic push to this device now; returns Expo's verdict { ok, reason, errors }.
   pushTest: () => request('/api/push/test', { method: 'POST' }),
+  pushStatus: () => request('/api/push/status'),
   scoreboard: () => request('/api/scoreboard'),
   exposure: () => request('/api/players/exposure'),
   news: () => request('/api/news'),

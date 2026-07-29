@@ -46,6 +46,17 @@ router.post('/push/test', async (req, res, next) => {
   }
 });
 
+// GET /api/push/status — diagnose the whole pipeline for this account (token registered? live session
+// for the background poller? primed? on the clock right now? Expo/FCM + SESSION_SECRET set?), so a
+// missing notification can be pinned to the exact broken link instead of guessed at.
+router.get('/push/status', async (req, res, next) => {
+  try {
+    res.json(await notifications.getStatus(req.account));
+  } catch (err) {
+    next(err);
+  }
+});
+
 // POST /api/push/unregister — stop notifications for this session's device.
 router.post('/push/unregister', async (req, res, next) => {
   try {

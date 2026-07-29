@@ -164,6 +164,41 @@ async function sendTest(account, send = sender) {
   return { ok: errors.length === 0, reason: errors.length ? 'expo-error' : 'ok', errors, tickets: result.tickets || [] };
 }
 
+// One-shot diagnosis of the push pipeline for THIS account, so "I got no notification" can be pinned to
+// the exact broken link instead of guessed at. Reports, in order of the pipeline: is a device token
+// registered; is a live MFL session present (the tick needs one to poll — without SESSION_SECRET a
+// backend redeploy wipes it); is the account primed; and the delivery-config flags (an Expo access
+// token / FCM being set). Best-effort polls the draft overview so we can also say whether the server
+// currently SEES you on the clock — the single most useful signal during a live draft.
+async function getStatus(account, deps = {}) {
+  const sessions = deps.sessions || sessionsStore;
+  const entry = db()[account] || null;
+  const session = (sessions.getByAccount && sessions.getByAccount(account)) || (sessions.get && sessions.get(account)) || null;
+  const status = {
+    registered: !!(entry && entry.expoPushToken),
+    primed: !!(entry && entry.primed),
+    prefs: { ...DEFAULT_PREFS, ...((entry && entry.prefs) || {}) },
+    sessionLive: !!session,
+    lastSeenClockLeagues: (entry && entry.clockLeagues) || [],
+    // Infra flags the owner controls — the usual real-world blockers.
+    config: {
+      expoAccessToken: !!config.expoAccessToken, // Expo/FCM auth header for the sender
+      sessionSecret: !!config.sessionSecret, // sessions persist across redeploys only when set
+      demoMode: !!config.demoMode,
+    },
+  };
+  if (session) {
+    try {
+      const draftOverview = deps.draftOverview || draftService.getOverview;
+      const ov = await Promise.resolve(draftOverview(session.cookie, account));
+      status.onClockNow = (ov.drafts || []).filter((d) => d.myOnClock).map((d) => ({ leagueId: d.leagueId, name: d.name }));
+    } catch (e) {
+      status.onClockNow = { error: e.message };
+    }
+  }
+  return status;
+}
+
 // Compute the messages to send for one device given fresh draft + trade state,
 // plus the new "seen" sets to store. Only *newly* on-the-clock leagues and
 // *newly* seen offers fire.
@@ -211,22 +246,29 @@ function buildFor(state, draftOv, tradeOv, deck = { items: [] }, watchAlerts = {
   const waiverKeys = curWaivers.map((r) => `${r.leagueId}:${r.addId || r.add}:${r.at}`);
   const prevWaivers = new Set(state.waiverKeys || []);
 
-  // First tick after (re)registration primes the seen-sets without notifying, so
-  // a freshly-enabled device isn't spammed with its already-existing state.
-  if (state.primed) {
-    if (prefs.draftClock !== false) {
-      for (const d of curClock) {
-        if (!prevClock.has(d.leagueId)) {
-          msgs.push({ to: state.expoPushToken, title: "You're on the clock ⏱", body: `${d.name} — make your pick`, data: { type: 'draft_clock', leagueId: d.leagueId } });
-        }
-      }
-      // Slow-draft expiry reminder (same channel): fires once per pick as its long clock runs low.
-      for (const d of curClockWarn) {
-        if (!prevClockWarn.has(`${d.leagueId}:${d.myClock.round}.${d.myClock.pick}`)) {
-          msgs.push({ to: state.expoPushToken, title: 'Pick clock running low ⏳', body: `${d.name} — about ${shortDur(d.myClock.remainingMs)} left to pick ${d.myClock.round}.${String(d.myClock.pick).padStart(2, '0')}`, data: { type: 'draft_clock_warn', leagueId: d.leagueId } });
-        }
+  // Draft clock is CURRENT state, not replayable history — being on the clock RIGHT NOW is exactly what
+  // you want pushed, including on the very first tick after a reinstall (a new Expo token resets
+  // `primed` to false). So this channel is EXEMPT from the priming gate below; the `prevClock` seen-set
+  // still dedups it to one push per on-clock transition, so it never repeats every 45s. (Uninstall →
+  // reinstall → go on the clock is the exact test path, and priming it away is why that came up empty.)
+  if (prefs.draftClock !== false) {
+    for (const d of curClock) {
+      if (!prevClock.has(d.leagueId)) {
+        msgs.push({ to: state.expoPushToken, title: "You're on the clock ⏱", body: `${d.name} — make your pick`, data: { type: 'draft_clock', leagueId: d.leagueId } });
       }
     }
+    // Slow-draft expiry reminder (same channel): fires once per pick as its long clock runs low.
+    for (const d of curClockWarn) {
+      if (!prevClockWarn.has(`${d.leagueId}:${d.myClock.round}.${d.myClock.pick}`)) {
+        msgs.push({ to: state.expoPushToken, title: 'Pick clock running low ⏳', body: `${d.name} — about ${shortDur(d.myClock.remainingMs)} left to pick ${d.myClock.round}.${String(d.myClock.pick).padStart(2, '0')}`, data: { type: 'draft_clock_warn', leagueId: d.leagueId } });
+      }
+    }
+  }
+
+  // The remaining channels CAN carry a backlog (standing trade offers, prior waiver results, an
+  // existing lineup problem, watchlist matches). Prime those silently on the first tick after
+  // (re)registration so a freshly-enabled device isn't spammed with its already-existing state.
+  if (state.primed) {
     if (prefs.tradeOffer !== false) {
       for (const o of curOffers) {
         if (!prevOffers.has(`${o.leagueId}:${o.id}`)) {
@@ -329,4 +371,4 @@ async function tick(deps = {}) {
   return { tokens: tokens.length, sent };
 }
 
-module.exports = { registerToken, unregister, getPrefs, setPrefs, tick, buildFor, sendTest, _setSender, DEFAULT_PREFS };
+module.exports = { registerToken, unregister, getPrefs, setPrefs, tick, buildFor, sendTest, getStatus, _setSender, DEFAULT_PREFS };
