@@ -13,6 +13,7 @@ import Reveal from '../components/Reveal';
 import useAndroidBack from '../useAndroidBack';
 import usePoll from '../usePoll';
 import { peekResource, primeResource } from '../useCachedResource';
+import haptics from '../haptics';
 
 const STATUS = {
   scheduled: { label: 'Scheduled', color: colors.warn },
@@ -293,8 +294,9 @@ export default function DraftScreen({ league, demoMode, covered = false, onBack,
       const res = await api.makeDraftPick(league.leagueId, p.id, comment && comment.trim() ? comment.trim() : undefined);
       setData(res);
       primeResource(boardKey, res);
+      haptics.success(); // making a pick has no toast/celebrate — give the moment its own beat
     } catch (e) {
-      appAlert('Could not draft', e.message);
+      appAlert('Could not draft', e.message, undefined, { tone: 'error' });
     } finally {
       setPicking(null);
     }

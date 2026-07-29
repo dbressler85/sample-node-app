@@ -33,6 +33,26 @@ export default function SettingsScreen({ onBack, onOpenHelp, onLogout }) {
   const [prefs, setPrefs] = useState(() => { const h = peekResource('settings:pushPrefs'); return h ? h.value : null; });
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+
+  // Fire a real push to THIS device now and report exactly where it lands, so "I never get
+  // notifications" becomes diagnosable in one tap instead of waiting for a live draft/trade.
+  const sendTest = useCallback(() => {
+    setTesting(true);
+    api.pushTest()
+      .then((r) => {
+        if (r && r.ok) {
+          appAlert('Test sent', 'Your phone should show a Dynasty Central notification in a few seconds. If it doesn’t appear, make sure notifications are allowed for this app in your phone’s settings.', undefined, { tone: 'success' });
+        } else if (r && r.reason === 'no-token') {
+          appAlert('Not registered yet', 'This device hasn’t registered for push. Allow notifications for Dynasty Central in your phone settings, then fully close and reopen the app so it can register.', undefined, { tone: 'warn' });
+        } else {
+          const detail = r && r.errors && r.errors[0] ? (r.errors[0].code || r.errors[0].message || r.errors[0].detail) : 'unknown error';
+          appAlert('Delivery failed', `The notification service rejected it: ${detail}. If this mentions credentials/FCM, Android push still needs to be configured for the app.`, undefined, { tone: 'error' });
+        }
+      })
+      .catch((e) => appAlert('Couldn’t send test', e.message, undefined, { tone: 'error' }))
+      .finally(() => setTesting(false));
+  }, []);
 
   useAndroidBack(useCallback(() => { onBack(); return true; }, [onBack]));
 
@@ -100,6 +120,18 @@ export default function SettingsScreen({ onBack, onOpenHelp, onLogout }) {
         )}
         <Text style={styles.footNote}>{saving ? 'Saving…' : 'Changes save automatically.'}</Text>
 
+        {/* Diagnostic: prove the pipeline end-to-end without waiting for a real event. */}
+        <Pressable
+          style={({ pressed }) => [styles.testBtn, pressed && { opacity: 0.7 }, testing && { opacity: 0.5 }]}
+          onPress={sendTest}
+          disabled={testing}
+          accessibilityRole="button"
+          accessibilityLabel="Send a test notification"
+        >
+          {testing ? <ActivityIndicator color={colors.accent} /> : <Text style={styles.testBtnText}>Send a test notification</Text>}
+        </Pressable>
+        <Text style={styles.testHint}>Sends a push to this device right now to confirm notifications are working.</Text>
+
         {onOpenHelp ? (
           <>
             <Text style={[styles.sectionLabel, { marginTop: 26 }]}>Help</Text>
@@ -163,6 +195,9 @@ const styles = StyleSheet.create({
   rowLabel: { color: colors.text, fontSize: 15, fontWeight: '700' },
   rowDesc: { color: colors.textDim, fontSize: 12, marginTop: 3, lineHeight: 16 },
   footNote: { color: colors.textDim, fontSize: 12, textAlign: 'center', marginTop: 14 },
+  testBtn: { marginTop: 16, alignItems: 'center', justifyContent: 'center', minHeight: 44, borderRadius: 10, borderWidth: 1, borderColor: colors.accent, paddingVertical: 11 },
+  testBtnText: { color: colors.accent, fontSize: 14, fontWeight: '800' },
+  testHint: { color: colors.textDim, fontSize: 12, textAlign: 'center', marginTop: 8, lineHeight: 16 },
   error: { color: colors.bad, fontSize: 13, marginBottom: 12 },
   helpRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, gap: 12 },
   chev: { color: colors.textDim, fontSize: 22, fontWeight: '300' },

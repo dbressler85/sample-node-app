@@ -8,11 +8,14 @@ import { api } from './api';
 
 let Notifications = null;
 let Device = null;
+let Constants = null;
 try {
   // eslint-disable-next-line global-require
   Notifications = require('expo-notifications');
   // eslint-disable-next-line global-require
   Device = require('expo-device');
+  // eslint-disable-next-line global-require
+  Constants = require('expo-constants').default;
 } catch (e) {
   Notifications = null;
 }
@@ -41,7 +44,14 @@ export async function registerForPush() {
       });
     }
 
-    const token = (await Notifications.getExpoPushTokenAsync()).data;
+    // Pass the EAS projectId EXPLICITLY. It normally auto-resolves from app config, but if that
+    // lookup ever fails the call throws and (being wrapped in this try/catch) the whole registration
+    // silently returns null — one of the ways push can be quietly dead. Passing it is the safe form.
+    const projectId =
+      (Constants && Constants.expoConfig && Constants.expoConfig.extra && Constants.expoConfig.extra.eas && Constants.expoConfig.extra.eas.projectId) ||
+      (Constants && Constants.easConfig && Constants.easConfig.projectId) ||
+      undefined;
+    const token = (await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : undefined)).data;
     if (!token) return null;
     await api.registerPush(token).catch(() => {});
     return token;
