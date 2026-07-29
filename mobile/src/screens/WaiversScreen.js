@@ -23,6 +23,7 @@ import ValueDelta from '../components/ValueDelta';
 import { toast } from '../components/Toast';
 import ErrorView from '../components/ErrorView';
 import Reveal from '../components/Reveal';
+import Pulse from '../components/Pulse';
 import NeonSign from '../components/NeonSign';
 import useActFlash from '../useActFlash';
 import usePopScale from '../usePopScale';
@@ -297,7 +298,10 @@ export default function WaiversScreen({ active = true, initialLeagueId, initialP
 // the league's pickup system, budget/priority, roster space, how many free
 // agents are worth a look, and pending claims; tapping drills into its board.
 function OverviewView({ overview, loading, refreshing, error, onOpen, onRefresh }) {
-  if (loading && !overview) return <Center><ActivityIndicator color={colors.accent} size="large" /></Center>;
+  // Cold load paints the list's SHAPE in place (league-card silhouettes) rather than a lone centered
+  // spinner floating over an empty screen — the load reads as the screen filling itself in, not an
+  // overlay dropped on top (docs/UX_GUARDRAILS.md instant-paint).
+  if (loading && !overview) return <OverviewSkeleton />;
   if (error && !overview) return <ErrorView message={error} onRetry={onRefresh} onRefresh={onRefresh} refreshing={refreshing} />;
   return (
     <FlatList
@@ -312,6 +316,29 @@ function OverviewView({ overview, loading, refreshing, error, onOpen, onRefresh 
       )}
       ListEmptyComponent={<Text style={styles.empty}>No leagues found.</Text>}
     />
+  );
+}
+
+// League-card silhouettes for the cold overview load — mirrors LeagueCard's shape (name · badge, a
+// state banner, two meta lines) so the layout doesn't jump when the real cards land. One Pulse drives
+// them all, matching the Players screen's skeleton.
+function OverviewSkeleton({ count = 4 }) {
+  return (
+    <View style={styles.list}>
+      <Pulse min={0.45}>
+        {Array.from({ length: count }).map((_, i) => (
+          <View key={i} style={styles.ovCard}>
+            <View style={styles.ovTop}>
+              <View style={[styles.skBar, { width: '52%', height: 15 }]} />
+              <View style={styles.skBadge} />
+            </View>
+            <View style={styles.skBanner} />
+            <View style={[styles.skBar, { width: '68%', height: 11, marginTop: 10 }]} />
+            <View style={[styles.skBar, { width: '44%', height: 11, marginTop: 8 }]} />
+          </View>
+        ))}
+      </Pulse>
+    </View>
   );
 }
 
@@ -834,6 +861,10 @@ const styles = StyleSheet.create({
   ovCardImminent: { borderColor: colors.warn, borderWidth: 1.5, backgroundColor: 'rgba(255,162,58,0.06)' },
   imminentBadge: { alignSelf: 'flex-start', marginTop: 8, backgroundColor: 'rgba(255,162,58,0.15)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
   imminentText: { color: colors.warn, fontSize: 12, fontWeight: '800' },
+  // Cold-overview skeleton blocks (shimmer via Pulse).
+  skBar: { height: 12, borderRadius: 4, backgroundColor: colors.cardAlt },
+  skBadge: { width: 44, height: 18, borderRadius: 5, backgroundColor: colors.cardAlt },
+  skBanner: { height: 44, borderRadius: 10, backgroundColor: colors.cardAlt, marginTop: 8 },
   ovTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   ovName: { color: colors.text, fontSize: 16, fontWeight: '700', flex: 1, marginRight: 10 },
   ovMeta: { color: colors.textDim, fontSize: 12, fontWeight: '700', marginTop: 8 },

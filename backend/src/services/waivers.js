@@ -352,7 +352,12 @@ async function getBoard(cookie, token, leagueId, { position, sort } = {}) {
   // Phase 1: independent base reads in parallel — league settings, the player DB, my roster, and the
   // current week (keys this-year points).
   const [settings, byId, roster, week] = await Promise.all([
-    loadSettings(league, cookie),
+    // Read-only board → serve settings from the 24h `league` cache instead of forcing a near-live
+    // (60s) re-read on every open. The board only displays FAAB balance / priority; the bid-validating
+    // paths (preview/submit via loadClaimCtx) still read fresh:true, so a queued bid can never exceed a
+    // spent budget. Without this, opening a single league's board paid a guaranteed `league` network
+    // hop every 60s — the "why is one league slow to load?" report.
+    loadSettings(league, cookie, { fresh: false }),
     playersLib.load(cookie),
     rosterService.getRoster(cookie, leagueId),
     config.demoMode ? Promise.resolve(demo.week()) : nflLib.currentWeek(cookie).catch(() => null),

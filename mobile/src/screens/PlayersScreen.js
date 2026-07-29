@@ -74,6 +74,9 @@ function timeAgo(iso) {
 // Secondary sort for the player lists (Rankings / My Players / Watch). 'default' keeps the
 // list's natural order (the rank type on Rankings; the server order elsewhere).
 const LIST_SORTS = [['default', 'Default'], ['value', 'Value'], ['proj', 'Proj'], ['season', 'Yr pts'], ['name', 'Name'], ['position', 'Pos']];
+// Free Agents leads with Value (its default) and relabels the server-order chip to what it actually is
+// — availability across your leagues — so the sort you land on is also the first chip you see.
+const FREE_SORTS = [['value', 'Value'], ['default', 'Availability'], ['proj', 'Proj'], ['season', 'Yr pts'], ['name', 'Name'], ['position', 'Pos']];
 // The sort each tab lands on before you touch it. Free Agents defaults to Value — when you're shopping
 // the wire you want the best players first, not the server's most-leagues-available order (that order
 // is still available as the "Availability" chip). Everything else keeps its natural list order.
@@ -109,7 +112,7 @@ function nullLast(a, b) {
   return b - a;
 }
 
-const NEWS_SORTS = [['impact', 'Impact'], ['recent', 'Recent']];
+const NEWS_SORTS = [['recent', 'Recent'], ['impact', 'Impact']];
 const SEV_RANK = { high: 3, medium: 2, low: 1 };
 function sortNews(list, key) {
   const arr = [...list];
@@ -466,7 +469,7 @@ export default function PlayersScreen({ active = true, onOpenPlayer, onStartWaiv
               </View>
               <ChipSelect label="Pos" options={POSITIONS} value={pos} onChange={setPos} />
               <ValueLens format={format} setFormat={setFormat} tep={tep} setTep={setTep} />
-              <ChipSelect label="Sort" options={LIST_SORTS} value={listSort} onChange={setListSort} defaultLabel="Availability" />
+              <ChipSelect label="Sort" options={FREE_SORTS} value={listSort} onChange={setListSort} />
               <FlatList
                 data={freeData}
                 keyExtractor={(p) => p.id}
@@ -723,7 +726,7 @@ function PlayerListSkeleton({ count = 9 }) {
 // this screen (rank mode, position, list sort, news sort). A leading uppercase label names the row,
 // an optional InfoDot explains it, then the chips. Every tab stacks these in the same order
 // (Rank → Pos → Value → Sort) so the controls read as one tidy form, not a per-tab pile.
-function ChipSelect({ label, info, options, value, onChange, defaultLabel }) {
+function ChipSelect({ label, info, options, value, onChange }) {
   return (
     <View style={styles.controlRow}>
       <Text style={styles.controlLabel}>{label}</Text>
@@ -737,7 +740,7 @@ function ChipSelect({ label, info, options, value, onChange, defaultLabel }) {
           activeStyle={styles.ctlChipActive}
           textStyle={styles.ctlChipText}
           activeTextStyle={{ color: colors.text }}
-          label={k === 'default' && defaultLabel ? defaultLabel : lbl}
+          label={lbl}
         />
       ))}
     </View>
