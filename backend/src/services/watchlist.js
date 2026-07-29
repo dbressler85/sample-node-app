@@ -9,6 +9,7 @@
 const config = require('../config');
 const playersLib = require('../lib/players');
 const enrichmentLib = require('../lib/enrichment');
+const valueLenses = require('../lib/valueLenses');
 const availabilityLib = require('../lib/availability');
 const nflLib = require('../lib/nfl');
 const newsLib = require('../lib/news');
@@ -61,10 +62,13 @@ async function getWatchlist(cookie, token, { format = null, tep = false } = {}) 
   const ids = watchStore.list(token);
   if (!ids.length) return { players: [], totalLeagues: 0 };
 
-  const [byId, enr, ctx] = await Promise.all([
+  // `enr` is the default-lens snapshot for the baseline `value`; `lensSnaps` carries all four lenses so
+  // the Watch tab re-prices on the client's 1QB/2QB/TE-prem toggle with no refetch (see lib/valueLenses).
+  const [byId, enr, ctx, lensSnaps] = await Promise.all([
     playersLib.load(cookie),
     enrichmentLib.snapshot(leagueFormat.lensFormat(format, tep), cookie),
     ctxFor(cookie),
+    valueLenses.buildLensSnaps(cookie),
   ]);
   const [data, rawNews] = await Promise.all([
     gather(cookie, token),
@@ -117,6 +121,7 @@ async function getWatchlist(cookie, token, { format = null, tep = false } = {}) 
     (b.summary.free > 0) - (a.summary.free > 0) ||
     (b.summary.draftable > 0) - (a.summary.draftable > 0) ||
     (b.value || 0) - (a.value || 0));
+  valueLenses.attachLensValues(players, lensSnaps);
   return { players, totalLeagues: data.length };
 }
 

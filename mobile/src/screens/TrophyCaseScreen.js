@@ -8,6 +8,7 @@ import ErrorView from '../components/ErrorView';
 import NeonSign from '../components/NeonSign';
 import useAndroidBack from '../useAndroidBack';
 import useCachedResource, { primeResource } from '../useCachedResource';
+import { STALE } from '../staleTiers';
 
 // The trophy case: every championship the owner has won, across leagues and past seasons. Each
 // trophy shows the team, league, and year. Add a title by hand (auto-detect from MFL's playoff
@@ -29,7 +30,9 @@ function TrophyCard({ trophy, onRemove }) {
 }
 
 export default function TrophyCaseScreen({ onBack }) {
-  const { data, error, refreshing, loading, reload, setData } = useCachedResource('trophies', () => api.trophies());
+  // The trophy case is history — it changes only when you add an award. Trust it for hours; an add
+  // marks it stale immediately (markAllStale) so a new trophy still shows on the next open.
+  const { data, error, refreshing, loading, reload, setData } = useCachedResource('trophies', () => api.trophies(), { staleMs: STALE.STATIC });
   useAndroidBack(useCallback(() => { onBack(); return true; }, [onBack]));
 
   // A write returns the fresh { trophies, summary } — paint it now and keep the cached snapshot in

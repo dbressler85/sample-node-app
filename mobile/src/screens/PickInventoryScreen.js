@@ -7,6 +7,7 @@ import ErrorView from '../components/ErrorView';
 import PressableScale from '../components/PressableScale';
 import useAndroidBack from '../useAndroidBack';
 import useCachedResource from '../useCachedResource';
+import { STALE } from '../staleTiers';
 import { Value, TopbarTitle } from '../components/Brand';
 import ValueCredit from '../components/ValueCredit';
 
@@ -30,7 +31,9 @@ const OUTLOOK_COLOR = {
 export default function PickInventoryScreen({ onBack, onShopPicks, onGetPicks, onTradePick }) {
   // Device-first: the per-league assets/futureDraftPicks/draftResults fan-out runs on-device, falling
   // back to the backend on any device-read failure.
-  const { data, error, refreshing, loading, reload } = useCachedResource('pickInventory', () => pickInventoryPreferDevice());
+  // Pick inventory changes only on a trade — which write-invalidates the cache — so an hourly passive
+  // re-check is plenty; no need to re-run the cross-league pick fan-out every 45s of navigation.
+  const { data, error, refreshing, loading, reload } = useCachedResource('pickInventory', () => pickInventoryPreferDevice(), { staleMs: STALE.SLOW });
   useAndroidBack(useCallback(() => { onBack(); return true; }, [onBack]));
 
   const summary = data && data.summary;
