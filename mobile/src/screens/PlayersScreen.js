@@ -213,18 +213,24 @@ export default function PlayersScreen({ active = true, onOpenPlayer, onStartWaiv
       if (Date.now() - hit.at > RANK_STALE_MS) loadRankings();
       return () => { alive = false; };
     }
-    // No in-memory snapshot for this exact rank type / filter. Market-value and win-now are the SAME
-    // players re-ordered (every row carries both numbers), so DON'T blank to a skeleton on that toggle:
-    // re-sort what's already on screen for an instant reorder, then the background load reconciles the
-    // exact top-N. Any other switch with a board already up keeps it visible while the new one loads —
-    // only a genuine cold start shows the skeleton.
+    // No in-memory snapshot for this exact lens/filter. But every row carries ALL its value lenses
+    // (`lensValues`: 1qb / 1qb_tep / sf / sf_tep → { v: dynasty, w: win-now }), and market/win-now are
+    // the same players re-ordered — so a 1QB/2QB/TE-prem OR market↔win-now toggle is a pure re-PRICE +
+    // re-SORT, no refetch: don't blank to a skeleton, re-key what's on screen instantly. (A position
+    // filter change alters the SET, so keep the rows up and let the background load bring the new one;
+    // only a genuine cold start shows the skeleton.) The background load still runs to reconcile the
+    // exact top-N at the pagination boundary.
     setRankings((cur) => {
       if (!cur || !cur.players) return cur; // cold → stays null → skeleton
-      if ((rankType === 'value' || rankType === 'winnow')
-          && String(cur.format) === String(format) && (cur.position || null) === (pos || null)) {
+      if ((rankType === 'value' || rankType === 'winnow') && (cur.position || null) === (pos || null)) {
+        const lens = `${format === 'sf' ? 'sf' : '1qb'}${tep ? '_tep' : ''}`;
+        const rekeyed = cur.players.map((p) => {
+          const lv = p.lensValues && p.lensValues[lens];
+          return lv ? { ...p, value: lv.v != null ? lv.v : p.value, winNow: lv.w != null ? lv.w : p.winNow } : p;
+        });
         const k = rankType === 'winnow' ? 'winNow' : 'value';
-        const players = [...cur.players].sort((a, b) => (b[k] == null ? -Infinity : b[k]) - (a[k] == null ? -Infinity : a[k]));
-        return { ...cur, players, type: rankType };
+        rekeyed.sort((a, b) => (b[k] == null ? -Infinity : b[k]) - (a[k] == null ? -Infinity : a[k]));
+        return { ...cur, players: rekeyed, type: rankType, format: format === 'sf' ? 'sf' : '1qb' };
       }
       return cur; // keep the current rows up while the new metric loads
     });
@@ -233,7 +239,7 @@ export default function PlayersScreen({ active = true, onOpenPlayer, onStartWaiv
       if (alive) loadRankings();
     });
     return () => { alive = false; };
-  }, [tab, rankKey, loadRankings, rankType, format, pos]);
+  }, [tab, rankKey, loadRankings, rankType, format, tep, pos]);
 
   useEffect(() => {
     // My Players is device-first: the roster fan-out across all leagues runs on-device (its own IP),

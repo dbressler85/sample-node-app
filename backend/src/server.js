@@ -50,6 +50,9 @@ notifyTimer.unref();
 // Sunday pre-warm worker: keep active users' lineup reads warm through the game-day window. Live
 // (non-demo) mode only — it makes real MFL calls with real session cookies.
 if (config.warmEnabled && !config.demoMode) warm.start();
+// Always-on (live mode) background value-lens refresh, so the Players board's FantasyCalc values never
+// go cold on a user's request — independent of the Sunday warm window.
+if (!config.demoMode) warm.startValuePrime();
 
 // Flush any pending durable state on shutdown so an in-flight debounced write
 // isn't lost when the container stops or redeploys.

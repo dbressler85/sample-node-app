@@ -195,6 +195,9 @@ const PlayerIdentity = z.object({
   name: z.string(),
   position: z.string(),
   value: z.number().nullable().optional(),
+  // Rankings rows carry every value lens (1qb / 1qb_tep / sf / sf_tep → { v: dynasty, w: win-now }) so
+  // the client re-prices the board on a lens toggle with no refetch. Optional — other consumers omit it.
+  lensValues: z.record(z.object({ v: z.number().nullable(), w: z.number().nullable() })).optional(),
 });
 
 // GET /api/me — signed-in manager identity + league count (Profile screen).

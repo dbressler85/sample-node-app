@@ -98,6 +98,7 @@ function inWindow(d = new Date()) {
 }
 
 let timer = null;
+let valueTimer = null;
 
 // Start the recurring worker. Ticks every warmIntervalMs; each tick warms only when inside the ET
 // game-day window (a cheap no-op check otherwise). Gated to live (non-demo) mode by the caller.
@@ -110,8 +111,29 @@ function start() {
   tick(); // warm immediately if we're already inside the window at boot
 }
 
+// Background GLOBAL prime — ALWAYS-ON (not gated to the Sunday game-day window), so the slow-moving,
+// league-agnostic reads that gate the app's cold loads (player DB, FantasyCalc value lenses for the
+// common league sizes, prior-season stats) never go cold on a user's request. Runs on a cadence SHORTER
+// than the 12h FantasyCalc TTL, so a background pass — not a user — is what re-fetches when it ages out.
+// Requires an active session cookie to prime against; if nobody's signed in, the next real request
+// warms it. require() here (not at top) so this stays a leaf and can't cycle with playerhub.
+async function primeValues() {
+  const active = sessions.active();
+  if (!active.length) return;
+  const playerhub = require('./playerhub');
+  await playerhub.primeGlobals(active[0].cookie).catch(() => {});
+}
+function startValuePrime() {
+  if (valueTimer) return;
+  primeValues().catch(() => {}); // prime once at boot
+  valueTimer = setInterval(() => primeValues().catch(() => {}), config.valuePrimeIntervalMs);
+  if (valueTimer.unref) valueTimer.unref();
+  console.log(`[warm] global prime ON — every ${Math.round(config.valuePrimeIntervalMs / 3600000)}h`);
+}
+
 function stop() {
   if (timer) { clearInterval(timer); timer = null; }
+  if (valueTimer) { clearInterval(valueTimer); valueTimer = null; }
 }
 
 // Worker state for the /_metrics view.
@@ -126,4 +148,4 @@ function stats() {
   };
 }
 
-module.exports = { start, stop, warmOnce, inWindow, stats };
+module.exports = { start, stop, warmOnce, startValuePrime, inWindow, stats };
