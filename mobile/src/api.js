@@ -291,5 +291,10 @@ export function friendlyError(msg) {
   if (!m || /network request failed|failed to fetch|timeout|timed out|aborted|abort|econn|enotfound|fetch failed|reach the backend/i.test(m)) {
     return 'Couldn’t reach the server — check your connection and try again.';
   }
+  // MFL per-IP throttle. The backend already retries past a transient throttle; if one still reaches
+  // here, show what to do rather than a bare "(429)".
+  if (/\(429\)|rate limit|too many requests/i.test(m)) {
+    return 'MyFantasyLeague is busy right now — give it a few seconds and try again.';
+  }
   return m;
 }
