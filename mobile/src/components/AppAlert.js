@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Pressable, Animated, BackHandler, Accessibility
 import { colors, rgb, glow } from '../theme';
 import { displayLabel } from '../typography';
 import useReducedMotion from '../useReducedMotion';
+import haptics from '../haptics';
 
 // On-theme, blocking alert — the replacement for the immersion-breaking WHITE native `Alert.alert`.
 // Same call shape as Alert.alert so it's a drop-in: appAlert(title, message, buttons, opts). One
@@ -14,13 +15,17 @@ import useReducedMotion from '../useReducedMotion';
 let emit = null;
 export function appAlert(title, message, buttons, opts = {}) {
   if (!emit) return;
+  const tone = opts.tone || 'info';
   emit({
     title: title || null,
     message: message || null,
     buttons: buttons && buttons.length ? buttons : [{ text: 'OK' }],
-    tone: opts.tone || 'info',
+    tone,
     id: `${Date.now()}-${Math.random()}`,
   });
+  // A failure buzz on genuine error/warn alerts (not neutral confirmations).
+  if (tone === 'error') haptics.error();
+  else if (tone === 'warn') haptics.warning();
 }
 
 const TONE = { error: rgb.bad, warn: rgb.warn, info: rgb.accent, success: rgb.good };

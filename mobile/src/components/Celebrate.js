@@ -5,6 +5,7 @@ import { signFor, planDuration, flickerPlan } from '../neon';
 import NeonSign from './NeonSign';
 import NeonSparks from './NeonSparks';
 import useReducedMotion from '../useReducedMotion';
+import haptics from '../haptics';
 
 // The app's sense of humor, as a neon Punctuation layer (docs/MOTION_AND_NEON_ROADMAP.md §3). A tiny
 // global event bus lets any screen fire a moment without threading context: `celebrate('offerSent')`.
@@ -41,6 +42,9 @@ export function CelebrationHost() {
       const sign = signFor(key);
       const lines = LINES[key];
       if (!sign || !lines) return;
+      // A physical beat on every celebrated moment: success for the happy signs, a softer warning
+      // buzz for the sad ones (a lost matchup / outbid claim still stings).
+      (MOODS[sign.spark] === 'happy' ? haptics.success : haptics.warning)();
       setEvent({ key, sign, line: pick(lines), id: `${Date.now()}-${Math.random()}` });
     };
     return () => { emit = null; };

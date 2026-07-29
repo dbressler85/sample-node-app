@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Animated, AccessibilityInfo } from 'react-native';
 import { colors } from '../theme';
 import useReducedMotion from '../useReducedMotion';
+import haptics from '../haptics';
 
 // On-theme, non-blocking toast — the replacement for immersion-breaking white `Alert` popups on a
 // plain success/info. A tiny global bus mirrors celebrate(): `toast('16 assets shopped')` from
@@ -11,7 +12,12 @@ import useReducedMotion from '../useReducedMotion';
 // messages only.
 let emit = null;
 export function toast(message, opts = {}) {
-  if (emit && message) emit({ message, tone: opts.tone || 'success' });
+  const tone = opts.tone || 'success';
+  if (emit && message) {
+    emit({ message, tone });
+    if (tone === 'error') haptics.error();
+    else if (tone === 'success') haptics.success();
+  }
 }
 
 const TONE = {
