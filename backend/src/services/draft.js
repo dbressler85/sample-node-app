@@ -252,13 +252,21 @@ function slotsFor(draft) {
   return config.demoMode ? buildSlots(draft) : liveSlots(draft);
 }
 
-async function buildPool(cookie, league, drafted, byId, enr, position) {
-  // The draftable pool is everyone not on a roster in this league and not already
-  // picked in this draft. For a startup that's the whole player universe; for a
-  // rookie/in-season draft it's the free-agent pool. Fetch a deep list (not the
-  // waiver default cap) so the value-ranked board isn't missing high-value names.
-  const ids = config.demoMode ? demo.draftClass() : await waiversService.freeAgentIds(cookie, league, 2000);
-  const adp = await adpLib.adpMap(cookie).catch(() => new Map());
+// The pool's network inputs (free-agent id list + ADP map) — the heavy part, and the part that does
+// NOT depend on the draft board or the enrichment context. Split out so a caller can fetch it
+// CONCURRENTLY with those (see getLeague) instead of serially after, roughly halving the cold-load wait.
+async function fetchPoolInputs(cookie, league) {
+  // ADP is fetched in BOTH modes (demo ADP drives the demo board order); only the id source is gated.
+  const [ids, adp] = await Promise.all([
+    config.demoMode ? Promise.resolve(demo.draftClass()) : waiversService.freeAgentIds(cookie, league, 2000),
+    adpLib.adpMap(cookie).catch(() => new Map()),
+  ]);
+  return { ids, adp };
+}
+
+// The pure assembly half: filter out drafted players, resolve + ADP-annotate, sort by market ADP
+// (dynasty value as tiebreak/tail), cap at 60. No I/O — safe to run the instant its inputs are in.
+function assemblePool({ ids, adp }, drafted, byId, enr, position) {
   let pool = ids.filter((id) => !drafted.has(String(id))).map((id) => {
     const p = resolvePlayer(byId, id, enr);
     const a = adp.get(String(id));
@@ -276,6 +284,12 @@ async function buildPool(cookie, league, drafted, byId, enr, position) {
     return (b.value || 0) - (a.value || 0);
   });
   return pool.slice(0, 60);
+}
+
+// Fetch-then-assemble in one step. Kept for callers that don't need to overlap the fetch with other
+// work (getPickInventory's draft-list path); getLeague instead fetches inputs in its parallel batch.
+async function buildPool(cookie, league, drafted, byId, enr, position) {
+  return assemblePool(await fetchPoolInputs(cookie, league), drafted, byId, enr, position);
 }
 
 // --- public API -------------------------------------------------------------
@@ -493,15 +507,19 @@ async function getLeague(cookie, token, leagueId, { position } = {}) {
   const draft = await loadDraft(cookie, token, league);
   if (!draft) return { leagueId: league.leagueId, name: league.name, status: 'none' };
 
-  // Scoring + starting-lineup context (superflex/PPR/TE-premium + how many of each you start) and my
-  // team's dynasty read (win-now/ascending, core age, strength) — the situational info that changes a
-  // draft decision.
-  const { byId, enr, context, teamSummary } = await loadDraftContext(cookie, league);
-  // Owner names for the board's "Board" tab — every slot needs a real team name, not just the id.
-  // Static-TTL cached; demo synthesizes pool names off the draft order so opponents aren't all "Team <id>".
-  const names = config.demoMode
-    ? demo.draftFranchiseNames(league.leagueId)
-    : await leaguesService.franchiseNames(cookie, league).catch(() => new Map());
+  // Cold-load speed: the four heavy reads a draft board needs are mutually independent, so fetch them
+  // CONCURRENTLY instead of context → names → pool → clock in series (which made the board feel like it
+  // never loaded). (1) the scoring/lineup + my-team dynasty CONTEXT; (2) owner NAMES for the board tab;
+  // (3) the POOL INPUTS (free-agent ids + ADP) — the assembly that needs `drafted`/`byId` runs after,
+  // but the fetch doesn't; (4) the auto-detected CLOCK config.
+  const [{ byId, enr, context, teamSummary }, names, poolInputs, clockConfig] = await Promise.all([
+    loadDraftContext(cookie, league),
+    config.demoMode
+      ? Promise.resolve(demo.draftFranchiseNames(league.leagueId))
+      : leaguesService.franchiseNames(cookie, league).catch(() => new Map()),
+    fetchPoolInputs(cookie, league),
+    config.demoMode ? Promise.resolve(null) : leagueFormat.draftClockConfig(cookie, league).catch(() => null),
+  ]);
   const ownerName = (fid) =>
     names.get(fid) || (fid === league.franchiseId ? league.franchiseName : null) || `Team ${fid}`;
   const slots = slotsFor(draft).map((s) => ({
@@ -517,13 +535,14 @@ async function getLeague(cookie, token, leagueId, { position } = {}) {
   const status = statusOf(draft, slots);
   const clock = onClockSlot(status, slots);
   const drafted = new Set(slots.filter((s) => s.playerId).map((s) => s.playerId));
-  const available = await buildPool(cookie, league, drafted, byId, enr, position);
+  // Pool inputs were fetched in the parallel batch above; assembly is pure (no I/O) now that we know
+  // which players are already drafted.
+  const available = assemblePool(poolInputs, drafted, byId, enr, position);
   // Overlay personal tags so the board can highlight your Targets and dim your Avoids.
   for (const p of available) p.tag = playerTags.get(token, p.id) || null;
 
-  // Clock config: auto-detected from MFL's `league` export (draftLimitHours / draftTimerSusp) — no
-  // owner input needed. Demo falls back to the demo default (see buildPickClock).
-  const clockConfig = config.demoMode ? null : await leagueFormat.draftClockConfig(cookie, league).catch(() => null);
+  // Clock config was fetched above (auto-detected from MFL's `league` export: draftLimitHours /
+  // draftTimerSusp; demo falls back to the demo default in buildPickClock).
   const pickClock = buildPickClock(draft, status, clockConfig);
 
   return {

@@ -3,6 +3,11 @@ import { Animated } from 'react-native';
 import { flickerPlan } from './neon';
 import useReducedMotion from './useReducedMotion';
 
+// Hold the sign dark for a beat AFTER the screen arrives, THEN flicker on — so the eye reaches the
+// screen and registers "a title is about to light" before the ignition fires, instead of the flicker
+// racing the transition and being missed.
+const IGNITE_DELAY_MS = 340;
+
 // Drives a screen heading's opacity so it "flickers on" like a neon sign when the screen gains focus
 // — the Threshold register (docs/MOTION_AND_NEON_ROADMAP §3.1) applied to the title. Reuses the same
 // tested `flickerPlan` the celebration signs use, so the ignition is byte-identical to the rest of the
@@ -32,9 +37,10 @@ export default function useNeonIgnite(focused = true) {
       return undefined;
     }
     opacity.setValue(0);
-    const seq = Animated.sequence(
-      plan.frames.map((f) => Animated.timing(opacity, { toValue: f.to, duration: f.dur, useNativeDriver: true }))
-    );
+    const seq = Animated.sequence([
+      Animated.delay(IGNITE_DELAY_MS), // a beat off, so the eye arrives before the sign catches
+      ...plan.frames.map((f) => Animated.timing(opacity, { toValue: f.to, duration: f.dur, useNativeDriver: true })),
+    ]);
     seq.start();
     return () => seq.stop();
     // eslint-disable-next-line react-hooks/exhaustive-deps
