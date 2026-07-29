@@ -213,13 +213,27 @@ export default function PlayersScreen({ active = true, onOpenPlayer, onStartWaiv
       if (Date.now() - hit.at > RANK_STALE_MS) loadRankings();
       return () => { alive = false; };
     }
-    setRankings(null);
+    // No in-memory snapshot for this exact rank type / filter. Market-value and win-now are the SAME
+    // players re-ordered (every row carries both numbers), so DON'T blank to a skeleton on that toggle:
+    // re-sort what's already on screen for an instant reorder, then the background load reconciles the
+    // exact top-N. Any other switch with a board already up keeps it visible while the new one loads —
+    // only a genuine cold start shows the skeleton.
+    setRankings((cur) => {
+      if (!cur || !cur.players) return cur; // cold → stays null → skeleton
+      if ((rankType === 'value' || rankType === 'winnow')
+          && String(cur.format) === String(format) && (cur.position || null) === (pos || null)) {
+        const k = rankType === 'winnow' ? 'winNow' : 'value';
+        const players = [...cur.players].sort((a, b) => (b[k] == null ? -Infinity : b[k]) - (a[k] == null ? -Infinity : a[k]));
+        return { ...cur, players, type: rankType };
+      }
+      return cur; // keep the current rows up while the new metric loads
+    });
     getValue(rankKey).then((cached) => {
       if (alive && cached != null) { setRankings(cached); primeResource(rankKey, cached, 0); } // at:0 → stale, will refresh
       if (alive) loadRankings();
     });
     return () => { alive = false; };
-  }, [tab, rankKey, loadRankings]);
+  }, [tab, rankKey, loadRankings, rankType, format, pos]);
 
   useEffect(() => {
     // My Players is device-first: the roster fan-out across all leagues runs on-device (its own IP),

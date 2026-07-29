@@ -1,12 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, Animated, StyleSheet, Pressable, FlatList, RefreshControl, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Pressable, FlatList, RefreshControl, ActivityIndicator } from 'react-native';
 import { appAlert } from "../components/AppAlert";
 import { api } from '../api';
-import useNeonIgnite from '../useNeonIgnite';
+import { ScreenTitle } from '../components/Brand';
 import useCachedResource from '../useCachedResource';
 import { getValue, setValue } from '../cache';
 import { colors, positionColors } from '../theme';
-import { displayLg } from '../typography';
 import { celebrate } from '../components/Celebrate';
 import InfoDot from '../components/InfoDot';
 import ErrorView from '../components/ErrorView';
@@ -46,7 +45,6 @@ export default function TradeInboxScreen({ active = true, onBack, onOpenLeague, 
   // throttled reloads, non-destructive on a failed refresh. Same 'trades:overview' key the
   // idle prefetch warms. `reload` refetches after responding to an offer / pull-to-refresh.
   const { data, error, refreshing, loading, reload } = useCachedResource('trades:overview', () => api.trades(), { active });
-  const titleOpacity = useNeonIgnite(active); // heading flickers on when the tab gains focus
   const [busy, setBusy] = useState(null); // `${leagueId}:${offerId}` being responded to
   const [dismissed, setDismissed] = useState(() => new Set()); // offers responded to — hidden immediately (MFL's pending read lags a few s)
   const [baitByLeague, setBaitByLeague] = useState({}); // leagueId -> # players you're shopping
@@ -208,22 +206,15 @@ export default function TradeInboxScreen({ active = true, onBack, onOpenLeague, 
 
   return (
     <View style={styles.container}>
+      {/* Left-justified ScreenTitle with the violet underline rule — the same heading treatment as the
+          other main-nav tabs (Command Center / Players / Waivers / Lineups / Scoreboard). */}
       <View style={styles.topbar}>
-        {onBack ? (
-          <Pressable onPress={onBack} hitSlop={10}>
-            <Text style={styles.back}>‹ Hub</Text>
-          </Pressable>
-        ) : (
-          <View style={{ width: 54 }} />
-        )}
-        <Animated.Text style={[styles.title, displayLg(), { opacity: titleOpacity }]}>Trades</Animated.Text>
+        <ScreenTitle focused={active}>Trades</ScreenTitle>
         {onOpenBlock ? (
           <Pressable onPress={onOpenBlock} hitSlop={10}>
             <Text style={styles.blockLink}>⇄ Block</Text>
           </Pressable>
-        ) : (
-          <View style={{ width: 54 }} />
-        )}
+        ) : null}
       </View>
       {summary ? (
         <Text style={styles.subtitle}>
@@ -417,7 +408,7 @@ const styles = StyleSheet.create({
   blockLink: { color: colors.accent, fontSize: 14, fontWeight: '800', width: 54, textAlign: 'right' },
   // Violet heading = the structure/wayfinding layer (color law); soft violet glow to match the ignite.
   title: { color: colors.violetText, fontSize: 20, fontWeight: '900', textShadowColor: 'rgba(139,92,246,0.5)', textShadowRadius: 9, textShadowOffset: { width: 0, height: 0 } },
-  subtitle: { color: colors.textDim, fontSize: 13, textAlign: 'center', marginTop: 4 },
+  subtitle: { color: colors.textDim, fontSize: 13, marginTop: 6, paddingHorizontal: 16 },
   blockBanner: { flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: 16, marginTop: 12, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: colors.card, borderRadius: 14, borderWidth: 1, borderColor: colors.border },
   blockBannerIcon: { fontSize: 20 },
   blockBannerTitle: { color: colors.violetText, fontSize: 15, fontWeight: '900' },
