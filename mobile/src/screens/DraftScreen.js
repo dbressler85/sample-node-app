@@ -13,6 +13,7 @@ import Reveal from '../components/Reveal';
 import useAndroidBack from '../useAndroidBack';
 import usePoll from '../usePoll';
 import { peekResource, primeResource } from '../useCachedResource';
+import { applyPickToHome } from './HomeScreen';
 import haptics from '../haptics';
 
 const STATUS = {
@@ -294,6 +295,7 @@ export default function DraftScreen({ league, demoMode, covered = false, onBack,
       const res = await api.makeDraftPick(league.leagueId, p.id, comment && comment.trim() ? comment.trim() : undefined);
       setData(res);
       primeResource(boardKey, res);
+      applyPickToHome(league.leagueId, res); // drop this league off Home's "on the clock" immediately
       haptics.success(); // making a pick has no toast/celebrate — give the moment its own beat
     } catch (e) {
       appAlert('Could not draft', friendlyError(e.message), undefined, { tone: 'error' });

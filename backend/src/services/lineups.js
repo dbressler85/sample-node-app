@@ -11,6 +11,7 @@
 const config = require('../config');
 const demo = require('../demo/fixtures');
 const mfl = require('../lib/mfl');
+const { withWriteRetry } = require('../lib/retry');
 const mflRepo = require('../lib/mflRepo');
 const optimizer = require('../lib/optimizer');
 const scoringLib = require('../lib/scoring');
@@ -519,13 +520,14 @@ async function submitLineup(cookie, token, league, starterIds, week) {
       // Owner acting on their own franchise: the session cookie identifies them, so no franchise
       // param is needed. (MFL's lineup import only reads FRANCHISE_ID, and only for a commissioner
       // impersonating an owner — the FRANCHISE we used to send was simply ignored.)
-      await mfl.importRequest('lineup', {
+      // STARTERS is the COMPLETE lineup, so a 429 retry just re-sets the same end-state — idempotent.
+      await withWriteRetry(() => mfl.importRequest('lineup', {
         host: league.host,
         cookie,
         L: league.leagueId,
         W: week,
         STARTERS: starterIds.join(','),
-      });
+      }));
     } catch (e) {
       // Surface MFL's ACTUAL reason (hard-won rule). A successful save returns "OK" (handled by
       // importRequest), so reaching here is a real rejection — and for an HTML 500 the reason lives

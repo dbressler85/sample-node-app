@@ -3,6 +3,7 @@
 // Roster for one franchise in one league, with player ids resolved to names.
 
 const mfl = require('../lib/mfl');
+const { withWriteRetry } = require('../lib/retry');
 const mflRepo = require('../lib/mflRepo');
 const config = require('../config');
 const demo = require('../demo/fixtures');
@@ -435,7 +436,7 @@ async function moveIr(cookie, token, leagueId, { activate = [], deactivate = [],
   if (!league) { const e = new Error(`League ${leagueId} not found for this account`); e.status = 404; throw e; }
   const csv = (a) => (a && a.length ? a.map(String).join(',') : undefined);
   if (!config.demoMode) {
-    await mfl.importRequest('ir', { host: league.host, cookie, L: league.leagueId, ACTIVATE: csv(activate), DEACTIVATE: csv(deactivate), DROP: csv(drop) });
+    await withWriteRetry(() => mfl.importRequest('ir', { host: league.host, cookie, L: league.leagueId, ACTIVATE: csv(activate), DEACTIVATE: csv(deactivate), DROP: csv(drop) }));
     invalidate(cookie, leagueId);
   } else {
     for (const id of activate) rosterMoves.set(leagueId, id, 'active');
@@ -454,7 +455,7 @@ async function moveTaxi(cookie, token, leagueId, { promote = [], demote = [], dr
   if (!league) { const e = new Error(`League ${leagueId} not found for this account`); e.status = 404; throw e; }
   const csv = (a) => (a && a.length ? a.map(String).join(',') : undefined);
   if (!config.demoMode) {
-    await mfl.importRequest('taxi_squad', { host: league.host, cookie, L: league.leagueId, PROMOTE: csv(promote), DEMOTE: csv(demote), DROP: csv(drop) });
+    await withWriteRetry(() => mfl.importRequest('taxi_squad', { host: league.host, cookie, L: league.leagueId, PROMOTE: csv(promote), DEMOTE: csv(demote), DROP: csv(drop) }));
     invalidate(cookie, leagueId);
   } else {
     for (const id of promote) rosterMoves.set(leagueId, id, 'active');

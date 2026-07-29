@@ -13,7 +13,7 @@ const config = require('../config');
 const demo = require('../demo/fixtures');
 const mfl = require('../lib/mfl');
 const mflRepo = require('../lib/mflRepo');
-const { withRetry } = require('../lib/retry');
+const { withWriteRetry } = require('../lib/retry');
 const enrichmentLib = require('../lib/enrichment');
 const leagueFormat = require('../lib/leagueformat');
 const leagueContext = require('../lib/leagueContext');
@@ -589,12 +589,10 @@ async function makePick(cookie, token, leagueId, playerId, comments) {
     const note = typeof comments === 'string' ? comments.trim().slice(0, 255) : '';
     // Retry a transient throttle before giving up — the WRITE was previously bare while draft READS were
     // hardened (mflRepo.draftResults), so a single 429 in a busy pipe surfaced as a raw "(429)" and the
-    // user lost their pick on the clock. withRetry re-issues through the same request queue, whose global
-    // 429 cooldown (penaltyUntil) already delays the next attempt past the throttle window — so this is a
-    // SPACED retry, not a hammer. Re-submitting the same ROUND/PICK is safe: a 429 rejects the request
-    // before MFL processes it, and if the slot was genuinely taken in between MFL returns its own error
-    // (surfaced as-is), so a retry can never double-draft.
-    await withRetry(() => mfl.miscRequest('live_draft', {
+    // user lost their pick on the clock. withWriteRetry re-issues ONLY on a 429 (rejected pre-processing,
+    // so no double-draft) through the same request queue, whose global 429 cooldown (penaltyUntil) already
+    // delays the next attempt past the throttle window — a SPACED retry, not a hammer.
+    await withWriteRetry(() => mfl.miscRequest('live_draft', {
       host: league.host,
       cookie,
       L: league.leagueId,
@@ -853,7 +851,8 @@ async function saveDraftList(cookie, token, leagueId, ids) {
   const clean = [...new Set((ids || []).map((x) => String(x)).filter(Boolean))];
   if (!config.demoMode) {
     // myDraftList overwrites the owner's prior list; surfaces MFL's own error detail on failure.
-    await mfl.importRequest('myDraftList', { host: league.host, cookie, L: league.leagueId, PLAYERS: clean.join(',') });
+    // Full-replace, so re-issuing on a 429 is idempotent.
+    await withWriteRetry(() => mfl.importRequest('myDraftList', { host: league.host, cookie, L: league.leagueId, PLAYERS: clean.join(',') }));
   }
   draftListStore.set(token, leagueId, clean);
   return getDraftList(cookie, token, leagueId);

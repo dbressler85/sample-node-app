@@ -9,6 +9,7 @@
 const config = require('../config');
 const demo = require('../demo/fixtures');
 const mfl = require('../lib/mfl');
+const { withWriteRetry } = require('../lib/retry');
 const mflRepo = require('../lib/mflRepo');
 const { logDegrade } = require('../lib/safe');
 const enrichmentLib = require('../lib/enrichment');
@@ -963,7 +964,9 @@ async function respond(cookie, token, leagueId, tradeId, action, comments) {
       const params = { host: league.host, cookie, L: league.leagueId, FRANCHISE: league.franchiseId, TRADE_ID: tradeId, RESPONSE: act };
       // MFL only delivers COMMENTS on a rejection (the note goes to the originator); ignore it otherwise.
       if (act === 'reject' && comments) params.COMMENTS = String(comments);
-      await mfl.importRequest('tradeResponse', params);
+      // 429-only retry: safe because a throttle rejects before MFL acts, and a re-issued response to an
+      // already-resolved trade returns MFL's own error (surfaced) — no accidental double-action.
+      await withWriteRetry(() => mfl.importRequest('tradeResponse', params));
     } catch (e) {
       // Surface MFL's ACTUAL reason (hard-won rule — never a bare status), and log it so a rejected
       // accept/reject/revoke is diagnosable. A successful response returns "OK", which importRequest
@@ -1012,7 +1015,9 @@ async function propose(cookie, token, leagueId, payload) {
     const willGiveUp = giveIds.join(',');
     const willReceive = recvIds.join(',');
     try {
-      await mfl.importRequest('tradeProposal', {
+      // A proposal CREATES a new offer, so a blind retry could double-send — but withWriteRetry re-issues
+      // ONLY on a 429, which MFL rejects before the offer is created, so a duplicate can't happen.
+      await withWriteRetry(() => mfl.importRequest('tradeProposal', {
         host: league.host,
         cookie,
         L: league.leagueId,
@@ -1021,7 +1026,7 @@ async function propose(cookie, token, leagueId, payload) {
         WILL_GIVE_UP: willGiveUp,
         WILL_RECEIVE: willReceive,
         COMMENTS: payload.comments || '',
-      });
+      }));
     } catch (e) {
       // Surface MFL's actual complaint (via the shared errorDetail: mflError > body > message)
       // instead of a bare status code, and log the exact asset lists so a rejected proposal is
