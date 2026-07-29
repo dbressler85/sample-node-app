@@ -11,6 +11,8 @@ import ErrorView from '../components/ErrorView';
 import ListSkeleton from '../components/ListSkeleton';
 import { toast } from '../components/Toast';
 import { peekResource, primeResource } from '../useCachedResource';
+import { getValue, setValue } from '../cache';
+import { STALE } from '../staleTiers';
 
 // My personal signals on a player, inline next to his name — Target (◎), Avoid (⊘), and watchlist (★).
 // Shown on my bait AND rivals' bait so I always see my read on anyone being shopped.
@@ -93,6 +95,7 @@ export default function OnTheBlockScreen({ onBack, onOpenPlayer, onOpenInbox, on
       const d = await api.blockEditor();
       setEditor(d);
       primeResource(EDITOR_KEY, d);
+      setValue(EDITOR_KEY, d); // disk write-through, so a cold app start paints instead of spinning
     } catch (e) {
       setError(e.message);
     } finally {
@@ -100,7 +103,18 @@ export default function OnTheBlockScreen({ onBack, onOpenPlayer, onOpenInbox, on
       setRefreshing(false);
     }
   }, []);
-  useEffect(() => { loadEditor(); }, [loadEditor]);
+  // Cache-first: paint the memory snapshot (seeded above) and revalidate only if stale; cold start seeds
+  // the disk copy first. The ListSkeleton only shows when nothing at all is cached.
+  useEffect(() => {
+    const hit = peekResource(EDITOR_KEY);
+    if (hit) { if (Date.now() - hit.at > STALE.DEFAULT) loadEditor(); return undefined; }
+    let alive = true;
+    getValue(EDITOR_KEY).then((cached) => {
+      if (alive && cached != null) { setEditor(cached); primeResource(EDITOR_KEY, cached, 0); setLoading(false); }
+      if (alive) loadEditor();
+    });
+    return () => { alive = false; };
+  }, [loadEditor]);
 
   // Stepped market load: fetch only the LIGHT league list (no per-league bait reads) so the list
   // paints instantly, then pull each league's rival blocks lazily on expand (toggleMarketLeague),
@@ -111,6 +125,7 @@ export default function OnTheBlockScreen({ onBack, onOpenPlayer, onOpenInbox, on
       const m = await api.tradeMarketLeagues();
       setMarket(m);
       primeResource(MARKET_KEY, m);
+      setValue(MARKET_KEY, m); // disk write-through for a cold-start instant paint
       setMLeagueData({}); // a fresh list drops any per-league blocks so an expand re-fetches
     } catch (e) {
       setError(e.message);
@@ -119,16 +134,39 @@ export default function OnTheBlockScreen({ onBack, onOpenPlayer, onOpenInbox, on
     }
   }, []);
   const marketOnce = useRef(false);
-  useEffect(() => { if (segment === 'market' && !marketOnce.current) { marketOnce.current = true; loadMarket(); } }, [segment, loadMarket]);
+  // Cache-first first-view of Market: paint the memory/disk snapshot, revalidate only if stale.
+  useEffect(() => {
+    if (segment !== 'market' || marketOnce.current) return undefined;
+    marketOnce.current = true;
+    const hit = peekResource(MARKET_KEY);
+    if (hit) { if (Date.now() - hit.at > STALE.DEFAULT) loadMarket(); return undefined; }
+    let alive = true;
+    getValue(MARKET_KEY).then((cached) => {
+      if (alive && cached != null) { setMarket(cached); primeResource(MARKET_KEY, cached, 0); }
+      if (alive) loadMarket();
+    });
+    return () => { alive = false; };
+  }, [segment, loadMarket]);
 
-  // Lazy-load one league's rival blocks (called on first expand). Skips a re-fetch if already loaded.
+  // Lazy-load one league's rival blocks (called on first expand). Cache-first: a league whose blocks are
+  // already cached (from this or a prior visit) paints instantly and, if still fresh, skips the refetch
+  // entirely — so re-expanding a league no longer re-spins on a fresh network call.
   const loadMarketLeague = useCallback(async (id) => {
-    setMLeagueData((d) => (d[id] && d[id] !== 'error' ? d : { ...d, [id]: 'loading' }));
+    const mkey = `block:market:${id}`;
+    const hit = peekResource(mkey);
+    if (hit && hit.value) {
+      setMLeagueData((d) => ({ ...d, [id]: hit.value }));
+      if (Date.now() - hit.at <= STALE.DEFAULT) return; // fresh — no refetch
+    } else {
+      setMLeagueData((d) => (d[id] && d[id] !== 'error' ? d : { ...d, [id]: 'loading' }));
+    }
     try {
       const one = await api.tradeMarketLeague(id);
-      setMLeagueData((d) => ({ ...d, [id]: { teams: one.teams || [], teamCount: one.teamCount || 0, context: one.context || null } }));
+      const val = { teams: one.teams || [], teamCount: one.teamCount || 0, context: one.context || null };
+      setMLeagueData((d) => ({ ...d, [id]: val }));
+      primeResource(mkey, val);
     } catch (e) {
-      setMLeagueData((d) => ({ ...d, [id]: 'error' }));
+      setMLeagueData((d) => { const cur = d[id]; return cur && cur !== 'loading' ? d : { ...d, [id]: 'error' }; });
     }
   }, []);
 
@@ -141,13 +179,22 @@ export default function OnTheBlockScreen({ onBack, onOpenPlayer, onOpenInbox, on
     if (!(id in checks)) setChecks((c) => ({ ...c, [id]: new Set((lg.blockTokens || []).map(String)) }));
     if (!(id in notes)) setNotes((n) => ({ ...n, [id]: lg.note || '' }));
     if (!rosters[id]) {
-      setRosters((r) => ({ ...r, [id]: 'loading' }));
-      try {
-        const roster = await api.roster(id);
-        setRosters((r) => ({ ...r, [id]: roster }));
-      } catch (e) {
-        setRosters((r) => ({ ...r, [id]: 'error' }));
+      // Reuse the SHARED roster cache (`roster:${id}`, filled by the Rosters tab) — if that league's
+      // roster is already cached, the checklist paints instantly with no spinner and, when it's still
+      // fresh, no refetch at all. Otherwise seed disk, show the spinner, and revalidate in the background.
+      const rkey = `roster:${id}`;
+      const hit = peekResource(rkey);
+      if (hit && hit.value) {
+        setRosters((r) => ({ ...r, [id]: hit.value }));
+        if (Date.now() - hit.at <= STALE.DEFAULT) return; // fresh shared roster — done, no network
+      } else {
+        setRosters((r) => ({ ...r, [id]: 'loading' }));
+        const disk = await getValue(rkey).catch(() => null);
+        if (disk) setRosters((r) => { const cur = r[id]; return cur && cur !== 'loading' ? r : { ...r, [id]: disk }; });
       }
+      api.roster(id)
+        .then((roster) => { setRosters((r) => ({ ...r, [id]: roster })); primeResource(rkey, roster); setValue(rkey, roster); })
+        .catch(() => setRosters((r) => { const cur = r[id]; return cur && cur !== 'loading' ? r : { ...r, [id]: 'error' }; }));
     }
   }
 

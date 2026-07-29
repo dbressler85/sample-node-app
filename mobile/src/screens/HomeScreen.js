@@ -178,7 +178,9 @@ export async function warmHome() {
 
     // Only NOW (visible league cards loaded) warm the Players tab — its cross-league gather is heavy
     // and firing it during the triage fan-out steals MFL concurrency from the cards being waited on.
-    api.playerRankings('value', null, '1qb').then((r) => setValue('players:rankings:value:all:1qb', r)).catch(() => {});
+    // Key MUST match PlayersScreen's rankKey exactly (…:1qb:std — the `std` = TE-prem-off lens); the old
+    // tk-less key never hit, so this warm was dead. Prime memory too, so the Players tab paints instantly.
+    api.playerRankings('value', null, '1qb').then((r) => { setValue('players:rankings:value:all:1qb:std', r); primeResource('players:rankings:value:all:1qb:std', r); }).catch(() => {});
   } catch (e) {
     patchHome({ error: e.message });
   } finally {

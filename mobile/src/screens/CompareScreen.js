@@ -6,6 +6,7 @@ import { displayLabel } from '../typography';
 import { TopbarTitle } from '../components/Brand';
 import ErrorView from '../components/ErrorView';
 import useAndroidBack from '../useAndroidBack';
+import { peekResource, primeResource } from '../useCachedResource';
 
 // Side-by-side player comparison: add up to 4 players and weigh them on the numbers that
 // matter in a trade — dynasty value, age, positional rank, ownership, momentum, and last
@@ -50,17 +51,23 @@ export default function CompareScreen({ seedPlayer, onBack, onOpenPlayer }) {
 
   useAndroidBack(useCallback(() => { onBack(); return true; }, [onBack]));
 
-  // Reload the comparison whenever the id set changes.
+  // Reload the comparison whenever the id set changes — cache-first, keyed by the (order-independent)
+  // id set. Re-opening the same comparison, or re-adding a player you just removed, paints the cached
+  // grid instantly; the values are the slow-moving FantasyCalc numbers, so a spinner only shows the
+  // first time a given combo is assembled.
+  const cmpKey = ids.length ? `compare:${[...ids].sort().join(',')}` : null;
   useEffect(() => {
     if (!ids.length) { setPlayers([]); return undefined; }
     let alive = true;
-    setLoading(true);
+    const hit = cmpKey && peekResource(cmpKey);
+    if (hit && hit.value) { setPlayers(hit.value.players || []); setError(null); }
+    if (!hit) setLoading(true);
     api.comparePlayers(ids)
-      .then((r) => { if (alive) { setPlayers(r.players || []); setError(null); } })
-      .catch((e) => { if (alive) setError(e.message); })
+      .then((r) => { if (alive) { setPlayers(r.players || []); setError(null); if (cmpKey) primeResource(cmpKey, r); } })
+      .catch((e) => { if (alive && !hit) setError(e.message); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, [ids]);
+  }, [ids, cmpKey]);
 
   // Debounced search to add another player.
   useEffect(() => {

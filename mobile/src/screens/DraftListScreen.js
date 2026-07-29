@@ -9,6 +9,9 @@ import NeonSign from '../components/NeonSign';
 import useAndroidBack from '../useAndroidBack';
 import usePoll from '../usePoll';
 import { Value, TopbarTitle } from '../components/Brand';
+import { peekResource, primeResource } from '../useCachedResource';
+import { getValue, setValue } from '../cache';
+import { STALE } from '../staleTiers';
 
 // The owner's My Draft List for one league — a pre-draft (and during-draft) tool to narrow the
 // pool to who you actually want next. MFL auto-picks the top player still available on this list
@@ -18,14 +21,18 @@ import { Value, TopbarTitle } from '../components/Brand';
 const POSITIONS = [[null, 'All'], ['QB', 'QB'], ['RB', 'RB'], ['WR', 'WR'], ['TE', 'TE'], ['K', 'K'], ['DEF', 'DEF']];
 
 export default function DraftListScreen({ league, onBack, onOpenPlayer }) {
-  const [data, setData] = useState(null);
-  const [list, setList] = useState([]); // local editable ranked list (player objects)
+  // Cache-first: reopening a league's list paints the last-seen board instantly instead of blanking to a
+  // spinner and cold-fetching. Seed data + the editable list from the survive-remount snapshot.
+  const cacheKey = `draftlist:${league.leagueId}`;
+  const seed = peekResource(cacheKey);
+  const [data, setData] = useState(seed ? seed.value : null);
+  const [list, setList] = useState(seed && seed.value ? (seed.value.list || []) : []); // local editable ranked list
   const [dirty, setDirty] = useState(false);
   const [seg, setSeg] = useState('list'); // 'list' | 'add'
   const [pos, setPos] = useState(null);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!seed);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
@@ -38,11 +45,23 @@ export default function DraftListScreen({ league, onBack, onOpenPlayer }) {
   const load = useCallback(() => {
     setLoading(true);
     api.draftList(league.leagueId)
-      .then((d) => { setData(d); setList(d.list || []); setDirty(false); setError(null); })
+      .then((d) => { setData(d); setList(d.list || []); setDirty(false); setError(null); primeResource(cacheKey, d); setValue(cacheKey, d); })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, [league.leagueId]);
-  useEffect(() => { load(); }, [load]);
+  }, [league.leagueId, cacheKey]);
+
+  // Cache-first mount: paint the memory snapshot instantly, revalidate only if stale; cold start paints
+  // the disk copy first, then loads. A blank spinner shows only when nothing at all is cached.
+  useEffect(() => {
+    const hit = peekResource(cacheKey);
+    if (hit) { if (Date.now() - hit.at > STALE.DEFAULT) load(); return undefined; }
+    let alive = true;
+    getValue(cacheKey).then((cached) => {
+      if (alive && cached != null) { setData(cached); setList(cached.list || []); primeResource(cacheKey, cached, 0); setLoading(false); }
+      if (alive) load();
+    });
+    return () => { alive = false; };
+  }, [cacheKey, load]);
 
   // During a LIVE draft the board goes stale as rivals draft your listed players (the DRAFTED
   // strikethrough + "next up" line drift). Silently re-pull every 15s — but NEVER while you have
@@ -53,9 +72,9 @@ export default function DraftListScreen({ league, onBack, onOpenPlayer }) {
   const silentReload = useCallback(() => {
     if (dirtyRef.current) return;
     api.draftList(league.leagueId)
-      .then((d) => { if (!dirtyRef.current) { setData(d); setList(d.list || []); setError(null); } })
+      .then((d) => { if (!dirtyRef.current) { setData(d); setList(d.list || []); setError(null); primeResource(cacheKey, d); setValue(cacheKey, d); } })
       .catch(() => {});
-  }, [league.leagueId]);
+  }, [league.leagueId, cacheKey]);
   usePoll(silentReload, 15000, !!(data && data.status === 'in_progress'));
 
   // Debounced search for the Add pane.
@@ -110,7 +129,7 @@ export default function DraftListScreen({ league, onBack, onOpenPlayer }) {
   const save = () => {
     setSaving(true);
     api.saveDraftList(league.leagueId, list.map((p) => p.id))
-      .then((d) => { setData(d); setList(d.list || []); setDirty(false); })
+      .then((d) => { setData(d); setList(d.list || []); setDirty(false); primeResource(cacheKey, d); setValue(cacheKey, d); })
       .catch((e) => appAlert('Could not save your list', e.message))
       .finally(() => setSaving(false));
   };
