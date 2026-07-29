@@ -22,6 +22,19 @@ const posList = (arr) => (arr && arr.length ? arr.map((x) => x.pos).join(', ') :
 // Sortable asset lists on the offer builder. Position groups run QB→RB→WR→TE→K/DEF→picks
 // (picks last), value within a group descending; value sorts high→low; name A→Z.
 const POS_ORDER = { QB: 0, RB: 1, WR: 2, TE: 3, PK: 4, DEF: 5, PICK: 9 };
+// Draft-order rank for a pick from its label ("2026 1.03" resolved, or "2027 1st" generic) so picks
+// list in real chronological order (year → round → slot) instead of by dynasty value — which had
+// 1.10 landing above 1.03 and the round-midpoint-priced generic picks wedged between resolved slots.
+// A generic pick with no known slot sorts AFTER the resolved slots of its round.
+function pickOrder(name) {
+  const s = String(name || '');
+  const year = (/(20\d{2})/.exec(s) || [])[1];
+  const slot = /\b(\d+)\.(\d{1,2})\b/.exec(s); // "1.03"
+  const ord = /(\d+)\s*(?:st|nd|rd|th)/i.exec(s); // "1st"
+  const round = slot ? Number(slot[1]) : ord ? Number(ord[1]) : 99;
+  const pick = slot ? Number(slot[2]) : 50; // unresolved slot → after this round's known slots
+  return (year ? Number(year) : 9999) * 10000 + round * 100 + pick;
+}
 function sortAssets(list, key) {
   const arr = [...(list || [])];
   if (key === 'name') return arr.sort((a, b) => String(a.name).localeCompare(String(b.name)));
@@ -29,7 +42,10 @@ function sortAssets(list, key) {
   return arr.sort((a, b) => {
     const pa = POS_ORDER[a.position] != null ? POS_ORDER[a.position] : 6;
     const pb = POS_ORDER[b.position] != null ? POS_ORDER[b.position] : 6;
-    return pa - pb || (b.value || 0) - (a.value || 0);
+    if (pa !== pb) return pa - pb;
+    // Within the picks bucket, order by draft position, not value.
+    if (a.position === 'PICK' && b.position === 'PICK') return pickOrder(a.name) - pickOrder(b.name);
+    return (b.value || 0) - (a.value || 0);
   });
 }
 const SORTS = [['position', 'Pos'], ['value', 'Market'], ['name', 'Name']];

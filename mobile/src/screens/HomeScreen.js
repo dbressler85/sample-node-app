@@ -114,6 +114,13 @@ async function runPool(items, limit, worker) {
 // populated. `at` gates the throttle: a reload only re-runs once the data has gone stale.
 let homeCache = { leagues: null, statuses: null, drafts: null, onDeck: null, watchAlerts: null, at: 0 };
 let refreshInFlight = false; // guards the fan-out across remounts (a per-mount ref can't)
+// Generation token for the fire-and-forget background warm queue. The warm queue outlives warmHome
+// (refreshInFlight clears before it drains), so a return-to-Home starts a fresh 15-league triage
+// fan-out while the PRIOR run's warms — the app's heaviest reads (portfolio, free agents, rankings,
+// boards) — are still hammering the backend, and the two compete for MFL's per-IP budget so the
+// visible cards stall ("Updating 0/15" frozen for 30s+). Bumping this on each warmHome makes the old
+// queue's workers bail before their next read, handing budget back to the new visible fan-out.
+let warmGen = 0;
 const HOME_STALE_MS = 45 * 1000;
 
 // After any write, mark Home's snapshot stale so returning to it refetches the triage rather
@@ -146,6 +153,10 @@ export function resetHomeCache() {
 export async function warmHome() {
   if (refreshInFlight) return;
   refreshInFlight = true;
+  // Supersede any prior run's still-draining warm queue so it stops competing with THIS fan-out's
+  // visible league-card reads for MFL budget.
+  warmGen += 1;
+  const myGen = warmGen;
   patchHome({ busy: true, error: null });
   try {
     const res = await api.leaguesList();
@@ -208,9 +219,11 @@ export async function warmHome() {
     const seen = new Set();
     const queue = warms.filter((w) => (seen.has(w.key) ? false : seen.add(w.key))); // de-dupe by key
     // Fire-and-forget (not awaited) so warmHome finishes as soon as the cards are done; the queue keeps
-    // warming in the background at low priority.
+    // warming in the background at low priority. Each worker bails the instant a newer warmHome bumps
+    // warmGen, so a stale queue never steals budget from the next visible fan-out.
     runPool(queue, WARM_CONCURRENCY, async (w) => {
-      try { const v = await w.run(); setValue(w.key, v); primeResource(w.key, v); } catch (e) { /* warm is best-effort */ }
+      if (myGen !== warmGen) return; // superseded before we started this item — skip it
+      try { const v = await w.run(); if (myGen !== warmGen) return; setValue(w.key, v); primeResource(w.key, v); } catch (e) { /* warm is best-effort */ }
     });
   } catch (e) {
     patchHome({ error: e.message });
