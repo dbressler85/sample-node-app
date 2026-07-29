@@ -71,4 +71,18 @@ function sync(token, leagueId, currentPicks, wonAddIds, now) {
   };
 }
 
-module.exports = { sync };
+// Drop a queued bid from the snapshot WITHOUT recording a result — the user CANCELLED it (or it was
+// replaced). Without this, the next sync() would see the bid vanish from MFL's pending set, fail to
+// find it in the wins log, and mislabel a deliberate cancel as an "outbid" loss. Called from the cancel
+// path so the cancellation is recorded before any later reconcile runs.
+function forget(token, leagueId, pick) {
+  const d = db();
+  if (!d[token] || !d[token][leagueId]) return;
+  const k = keyOf(pick);
+  if (d[token][leagueId].pending[k]) {
+    delete d[token][leagueId].pending[k];
+    persist.touch();
+  }
+}
+
+module.exports = { sync, forget };

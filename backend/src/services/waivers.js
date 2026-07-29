@@ -102,7 +102,10 @@ async function loadSettings(league, cookie, { fresh = true } = {}) {
     // surfacing as "Could not load waiver settings" for whichever leagues happened to lose the race.
     const params = { host: league.host, cookie, L: league.leagueId };
     if (fresh) params.maxAge = config.mflFreshTtlMs; // near-live only when a caller needs the live FAAB balance
-    res = await withRetry(() => mfl.exportRequest('league', params));
+    // More patient than the default (4 attempts, longer backoff ≈ 4s total) so the retry OUTLASTS a
+    // transient rate-limit penalty window instead of burning all attempts inside it — that's what left
+    // one league perpetually stuck on "could not load waiver settings" while its neighbors loaded.
+    res = await withRetry(() => mfl.exportRequest('league', params), 4, 700);
   } catch (e) {
     console.log(`[waiverSettings] league=${league.leagueId} error=${e.message}`);
     const err = new Error(`Could not load waiver settings for ${league.name || league.leagueId}.`);
@@ -919,8 +922,9 @@ async function cancelMflPick({ cookie, league, system, round, idx }) {
   const reqs = await mflRepo.pendingWaivers(league, cookie);
   const req = reqs.find((r) => r.system === system && r.round === round);
   // Nothing queued for this round on MFL anymore (already cleared/processed) → nothing to cancel.
-  if (!req) return;
-  const kept = req.picks.filter((_, i) => i !== idx);
+  if (!req) return null;
+  const removedPick = req.picks[idx] || null; // the bid we're pulling — returned so the caller can
+  const kept = req.picks.filter((_, i) => i !== idx); // record it as CANCELLED (not an outbid loss)
   const asToken = (p) =>
     system === 'faab'
       ? `${p.add}_${Math.round(Number(p.bid) || 0)}_${p.drop || '0000'}`
@@ -938,6 +942,7 @@ async function cancelMflPick({ cookie, league, system, round, idx }) {
     err.detail = detail;
     throw err;
   }
+  return removedPick; // { add, drop, bid, ... } — the caller records it as cancelled
 }
 
 async function cancel(cookie, token, leagueId, claimId) {
@@ -958,7 +963,10 @@ async function cancel(cookie, token, leagueId, claimId) {
   const m = /^mfl-(faab|fcfs)-(\d+)-(\d+)$/.exec(String(claimId));
   if (m) {
     const league = await findLeague(cookie, leagueId);
-    await cancelMflPick({ cookie, league, system: m[1], round: Number(m[2]), idx: Number(m[3]) });
+    const removed = await cancelMflPick({ cookie, league, system: m[1], round: Number(m[2]), idx: Number(m[3]) });
+    // Record the cancellation so the next reconcile doesn't see this bid "disappear" from MFL's queue
+    // and mislabel a deliberate cancel as an outbid LOSS in recent results.
+    if (removed) waiverBids.forget(token, leagueId, { round: Number(m[2]), addId: removed.add });
     // Drop any local mirror of the same claim (app-submitted claims are stored locally too), then
     // refresh the reads so the board we return reflects the now-shorter queue.
     store.remove(token, leagueId, [], claimId);
