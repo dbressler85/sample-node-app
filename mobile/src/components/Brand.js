@@ -66,8 +66,8 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     textTransform: 'uppercase',
     letterSpacing: 1.2,
-    textShadowColor: 'rgba(139,92,246,0.95)',
-    textShadowRadius: 18,
+    textShadowColor: 'rgba(139,92,246,1)',
+    textShadowRadius: 23,
     textShadowOffset: { width: 0, height: 0 },
   },
   // Short violet accent rule under each screen title — the structural-wayfinding mark (not an action):
