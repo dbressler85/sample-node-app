@@ -363,6 +363,8 @@ const DraftList = z.object({
   nextUp: z.object({ id: z.string(), name: z.string() }).nullable().optional(),
   list: z.array(z.object({ id: z.string(), name: z.string(), position: z.string(), drafted: z.boolean() })),
   available: z.array(z.object({ id: z.string(), name: z.string(), position: z.string() })),
+  // Filterable positions this league drafts (QB/RB/WR/TE always; PK/DEF only when it starts them).
+  positions: z.array(z.string()).optional(),
 });
 
 // GET /api/leagues/:leagueId/draft — the draft grid.
@@ -379,6 +381,8 @@ const DraftBoard = z.object({
       mine: z.boolean().optional(),
     })
   ),
+  // Filterable positions this league drafts (QB/RB/WR/TE always; PK/DEF only when it starts them).
+  positions: z.array(z.string()).optional(),
 });
 
 // GET /api/leagues/:leagueId/teams — every franchise's roster (opponent scouting).
