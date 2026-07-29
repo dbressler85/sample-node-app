@@ -74,6 +74,10 @@ function timeAgo(iso) {
 // Secondary sort for the player lists (Rankings / My Players / Watch). 'default' keeps the
 // list's natural order (the rank type on Rankings; the server order elsewhere).
 const LIST_SORTS = [['default', 'Default'], ['value', 'Value'], ['proj', 'Proj'], ['season', 'Yr pts'], ['name', 'Name'], ['position', 'Pos']];
+// The sort each tab lands on before you touch it. Free Agents defaults to Value — when you're shopping
+// the wire you want the best players first, not the server's most-leagues-available order (that order
+// is still available as the "Availability" chip). Everything else keeps its natural list order.
+const SORT_DEFAULTS = { rankings: 'default', free: 'value', watch: 'default', mine: 'default', search: 'default' };
 const POS_ORDER = { QB: 1, RB: 2, WR: 3, TE: 4, PK: 5, K: 5, DEF: 6 };
 // Sort a player list by the chosen key. Numeric keys sort desc with nulls sinking to the bottom
 // (a player with no known projection/points shouldn't float above one who has them).
@@ -131,7 +135,7 @@ export default function PlayersScreen({ active = true, onOpenPlayer, onStartWaiv
   const [tep, setTep] = useState(false); // TE-premium lens: independent on/off, orthogonal to the QB lens
   const [newsQuery, setNewsQuery] = useState(''); // in-tab News filter
   const [newsSort, setNewsSort] = useState('recent'); // News tab sort: 'impact' | 'recent' (default: newest first)
-  const [listSort, setListSort] = useState('default'); // secondary sort for Rankings/My Players/Watch
+  const [sortByTab, setSortByTab] = useState({}); // per-tab secondary sort; unset falls back to SORT_DEFAULTS
   const [tagOverride, setTagOverride] = useState({}); // id -> 'target'|'avoid'|null (optimistic)
   const [watchOverride, setWatchOverride] = useState({}); // id -> bool (optimistic)
   const [addAcross, setAddAcross] = useState(null); // {id,name} → batch "claim across leagues" sheet
@@ -319,6 +323,13 @@ export default function PlayersScreen({ active = true, onOpenPlayer, onStartWaiv
 
   const searching = query.trim().length >= 2;
 
+  // Secondary sort, remembered PER TAB (search has its own slot). Reading the current tab's stored
+  // choice, or its SORT_DEFAULTS fallback, means Free Agents can default to Value while Rankings keeps
+  // its rank order — and a sort you pick on one tab no longer leaks onto the others.
+  const sortTab = searching ? 'search' : tab;
+  const listSort = sortByTab[sortTab] || SORT_DEFAULTS[sortTab] || 'default';
+  const setListSort = useCallback((k) => setSortByTab((m) => ({ ...m, [sortTab]: k })), [sortTab]);
+
   // A player's rank in the CURRENT rank type's natural order, so the rank number stays true
   // even when the list is re-sorted by name/position (you still see where he ranks). Memoized
   // so it only rebuilds when the rankings change, not on every keystroke/state tick.
@@ -449,13 +460,13 @@ export default function PlayersScreen({ active = true, onOpenPlayer, onStartWaiv
               <View style={styles.freeIntro}>
                 <Text style={styles.freeIntroText}>
                   {free
-                    ? `Free agents available in one or more of your ${free.totalLeagues} league${free.totalLeagues === 1 ? '' : 's'}, most-available first. Tap a player to add him, or use Sort to rank by value.`
+                    ? `Free agents available in one or more of your ${free.totalLeagues} league${free.totalLeagues === 1 ? '' : 's'}, best value first. Tap a player to add him, or re-sort by availability, projection, or name.`
                     : 'Free agents available across your leagues.'}
                 </Text>
               </View>
               <ChipSelect label="Pos" options={POSITIONS} value={pos} onChange={setPos} />
               <ValueLens format={format} setFormat={setFormat} tep={tep} setTep={setTep} />
-              <ChipSelect label="Sort" options={LIST_SORTS} value={listSort} onChange={setListSort} defaultLabel="Best available" />
+              <ChipSelect label="Sort" options={LIST_SORTS} value={listSort} onChange={setListSort} defaultLabel="Availability" />
               <FlatList
                 data={freeData}
                 keyExtractor={(p) => p.id}
