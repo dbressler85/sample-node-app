@@ -117,11 +117,25 @@ function start() {
 // than the 12h FantasyCalc TTL, so a background pass — not a user — is what re-fetches when it ages out.
 // Requires an active session cookie to prime against; if nobody's signed in, the next real request
 // warms it. require() here (not at top) so this stays a leaf and can't cycle with playerhub.
+let valueLastRun = null; // { at, trigger } — surfaced on /_metrics so the prime is observable
+
 async function primeValues() {
   const active = sessions.active();
   if (!active.length) return;
   const playerhub = require('./playerhub');
   await playerhub.primeGlobals(active[0].cookie).catch(() => {});
+  valueLastRun = { at: Date.now(), trigger: 'timer' };
+}
+// Prime immediately against a specific cookie — called right after LOGIN (fire-and-forget), so the
+// first board/roster load of a session is already warm instead of waiting for the next 6h tick (the
+// boot pass no-ops when nobody's signed in yet). Idempotent: a warm cache makes this a cheap no-op, so
+// it only does real work on the first login after a cold deploy. Never blocks the login response.
+function primeNow(cookie) {
+  if (config.demoMode || !cookie) return;
+  const playerhub = require('./playerhub');
+  playerhub.primeGlobals(cookie)
+    .then(() => { valueLastRun = { at: Date.now(), trigger: 'login' }; })
+    .catch(() => {});
 }
 function startValuePrime() {
   if (valueTimer) return;
@@ -145,7 +159,10 @@ function stats() {
     windowEt: `${config.warmStartHourEt}:00–${config.warmEndHourEt}:00 ET (day ${config.warmDayEt})`,
     intervalMs: config.warmIntervalMs,
     lastRun,
+    // Background global prime (value lenses + player DB + stats): whether it's running and when it last
+    // ran (trigger 'login' | 'timer'). Lets you confirm at a glance that the prime is actually priming.
+    valuePrime: { on: !!valueTimer, intervalMs: config.valuePrimeIntervalMs, lastRun: valueLastRun },
   };
 }
 
-module.exports = { start, stop, warmOnce, startValuePrime, inWindow, stats };
+module.exports = { start, stop, warmOnce, startValuePrime, primeNow, inWindow, stats };

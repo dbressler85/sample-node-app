@@ -5,6 +5,7 @@ const mfl = require('../lib/mfl');
 const config = require('../config');
 const sessions = require('../store/sessions');
 const loginGuard = require('../lib/loginGuard');
+const warm = require('../services/warm');
 
 const router = express.Router();
 
@@ -29,6 +30,10 @@ router.post('/login', async (req, res, next) => {
     const cookie = config.demoMode ? 'demo-cookie' : await mfl.login(username, password);
     loginGuard.succeed(ip);
     const token = sessions.create({ cookie, username: username || 'demo' });
+    // Kick the background global prime now that we have a live cookie — fire-and-forget so it never
+    // delays the login response. Warms the value lenses / player DB / stats so this session's first
+    // board load is instant instead of waiting for the 6h tick. No-op when already warm.
+    warm.primeNow(cookie);
     res.json({ token, username: username || 'demo', season: config.season, demoMode: config.demoMode });
   } catch (err) {
     loginGuard.fail(ip); // bad creds / MFL rejection — count it toward the lockout
