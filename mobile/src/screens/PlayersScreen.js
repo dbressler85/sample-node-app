@@ -18,6 +18,7 @@ import PopChip from '../components/PopChip';
 import useActFlash from '../useActFlash';
 import useAutoReload from '../useAutoReload';
 import { ScreenTitle, Value } from '../components/Brand';
+import { STALE } from '../staleTiers';
 
 const TABS = [
   ['rankings', 'Rankings'],
@@ -83,6 +84,16 @@ function sortPlayers(list, key) {
   if (key === 'position') return arr.sort((a, b) => (POS_ORDER[a.position] || 9) - (POS_ORDER[b.position] || 9) || (b.value || 0) - (a.value || 0));
   return arr;
 }
+// Re-price a row through the selected value lens using its attached `lensValues`
+// (1qb / 1qb_tep / sf / sf_tep → { v: dynasty, w: win-now }). Lets Free Agents / Watch re-value +
+// re-sort on a 1QB/2QB/TE-prem toggle with NO refetch, exactly like the Rankings board. Falls back to
+// the row's server value for a player FantasyCalc has no lens value for (or a payload without lenses).
+function priceByLens(p, lens) {
+  const lv = p.lensValues && p.lensValues[lens];
+  if (!lv) return p;
+  return { ...p, value: lv.v != null ? lv.v : p.value, winNow: lv.w != null ? lv.w : p.winNow };
+}
+
 // Descending compare that keeps nulls/undefined at the end regardless of sort direction.
 function nullLast(a, b) {
   if (a == null && b == null) return 0;
@@ -141,8 +152,13 @@ export default function PlayersScreen({ active = true, onOpenPlayer, onStartWaiv
   }, [query, pos, format, tep]);
 
   const tk = tep ? 'tep' : 'std'; // cache-key fragment for the TE-premium lens
+  const lens = `${format === 'sf' ? 'sf' : '1qb'}${tep ? '_tep' : ''}`; // selected value lens → lensValues key
   const rankKey = `players:rankings:${rankType}:${pos || 'all'}:${format}:${tk}`;
-  const freeKey = `players:free:${format}:${tk}`; // free-agent board, per value lens — cached on the resource store
+  // Free-agent + watch boards are LENS-AGNOSTIC keys: the fetched rows carry every lens in `lensValues`,
+  // so a 1QB/2QB/TE-prem toggle re-prices them locally (see freeData/watchData) instead of changing the
+  // cache key and re-running the heavy cross-league fan-out. Only the free-agent SET (who's available)
+  // needs the network, and that doesn't move with the lens.
+  const freeKey = 'players:free';
 
   const loadRankings = useCallback(async () => {
     try {
@@ -166,11 +182,12 @@ export default function PlayersScreen({ active = true, onOpenPlayer, onStartWaiv
   // Free agents: refetch and cache on the resource store (in-memory + disk), so re-entering the tab
   // repaints instantly from cache instead of blanking to a skeleton and re-running the heavy backend
   // fan-out every time. Fetches without clearing, so the current board stays up while it revalidates.
+  // Lens-agnostic: fetch the available SET once (rows carry all lenses), re-price locally on a toggle.
   const loadFree = useCallback(() => {
-    bestAvailablePreferDevice(format, tep)
+    bestAvailablePreferDevice()
       .then((res) => { setFree(res); primeResource(freeKey, res); setValue(freeKey, res); })
       .catch((e) => setError(friendlyError(e.message)));
-  }, [format, tep, freeKey]);
+  }, [freeKey]);
 
   // Infinite scroll: fetch the next window and append. Guard on loadingMore so the
   // FlatList's onEndReached (which can fire repeatedly) only kicks off one fetch, and
@@ -203,7 +220,10 @@ export default function PlayersScreen({ active = true, onOpenPlayer, onStartWaiv
   // instantly and only reloads once it's stale, instead of blanking to a skeleton and refetching
   // every time. Cold (or a new filter with nothing cached) still paints disk then refreshes.
   // (Search is transient; My Players / News / Watch load fresh when opened.)
-  const RANK_STALE_MS = 45 * 1000;
+  // Values move ~twice a day (FantasyCalc) and the prime keeps them warm, so trust a painted board for
+  // hours before a passive re-check — not 45s. A lens toggle re-prices locally; a pull-to-refresh or any
+  // write still refreshes immediately.
+  const RANK_STALE_MS = STALE.VALUES;
   useEffect(() => {
     if (tab !== 'rankings') return undefined;
     let alive = true;
@@ -248,9 +268,10 @@ export default function PlayersScreen({ active = true, onOpenPlayer, onStartWaiv
     if (tab === 'news' && !news) api.news().then(setNews).catch((e) => setError(friendlyError(e.message)));
     // Watchlist changes as you star players elsewhere, so refetch each open — but WITHOUT clearing the
     // current list (mirror My Players), so the prior watch stays on screen while it revalidates instead
-    // of blanking to a spinner. Re-prices when `format` changes too.
-    if (tab === 'watch') api.watchlist(format, tep).then(setWatch).catch((e) => setError(friendlyError(e.message)));
-  }, [tab, mine, news, format, tep, reloadMine]);
+    // of blanking to a spinner. Lens-agnostic now: rows carry every lens, so a 1QB/2QB/TE-prem toggle
+    // re-prices watchData locally (no refetch); we only re-pull to catch newly-starred players.
+    if (tab === 'watch') api.watchlist().then(setWatch).catch((e) => setError(friendlyError(e.message)));
+  }, [tab, mine, news, reloadMine]);
 
   // Free agents get the same stale-while-revalidate treatment as Rankings: paint the cached board at
   // once (instant re-entry), then refresh in the background if it's stale. The heavy cross-league
@@ -308,12 +329,14 @@ export default function PlayersScreen({ active = true, onOpenPlayer, onStartWaiv
   // get a brand-new array identity (and re-sort 300+ rows) on every unrelated re-render.
   const searchData = useMemo(() => (searchRes ? sortPlayers(searchRes.players, listSort) : []), [searchRes, listSort]);
   const rankingsData = useMemo(() => (rankings ? sortPlayers(rankings.players, listSort) : []), [rankings, listSort]);
-  const watchData = useMemo(() => (watch ? sortPlayers(watch.players, listSort) : []), [watch, listSort]);
+  // Watch + Free re-price through the selected lens locally (their cache keys are lens-agnostic), so a
+  // 1QB/2QB/TE-prem toggle is an instant re-value + re-sort with no refetch — the same feel as Rankings.
+  const watchData = useMemo(() => (watch ? sortPlayers(watch.players.map((p) => priceByLens(p, lens)), listSort) : []), [watch, listSort, lens]);
   // Free agents: server sends them best-first (by value); default keeps that order. Position
   // filter reuses the shared `pos` chip; secondary sort reuses `listSort`.
   const freeData = useMemo(
-    () => (free ? sortPlayers(free.players.filter((p) => !pos || p.position === pos), listSort) : []),
-    [free, pos, listSort]
+    () => (free ? sortPlayers(free.players.filter((p) => !pos || p.position === pos).map((p) => priceByLens(p, lens)), listSort) : []),
+    [free, pos, listSort, lens]
   );
   const mineData = useMemo(
     () => (mine ? sortPlayers(mine.players.filter((p) => !pos || p.position === pos), listSort) : []),
@@ -551,7 +574,7 @@ export default function PlayersScreen({ active = true, onOpenPlayer, onStartWaiv
             // Reflect the add: the player is no longer free, so refetch the active board (kept on screen
             // while it revalidates). Watch rows re-derive their "N free" count from the fresh watchlist.
             if (tab === 'free') loadFree();
-            else if (tab === 'watch') api.watchlist(format, tep).then(setWatch).catch(() => {});
+            else if (tab === 'watch') api.watchlist().then(setWatch).catch(() => {});
           }}
         />
       ) : null}

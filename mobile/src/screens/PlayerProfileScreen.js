@@ -11,6 +11,7 @@ import TradeBaitSheet from '../components/TradeBaitSheet';
 import { TargetIcon, AvoidIcon, WatchIcon } from '../components/PlayerActionIcons';
 import useAndroidBack from '../useAndroidBack';
 import useCachedResource from '../useCachedResource';
+import { STALE } from '../staleTiers';
 import PartialNote from '../components/PartialNote';
 import ValueCredit from '../components/ValueCredit';
 
@@ -103,7 +104,9 @@ export default function PlayerProfileScreen({ playerId, seed, onBack, onOpenTrad
   // per-player, so switching players paints that player's own cached value. `reload` after an
   // add/drop reflects the action in the cross-league standing (C3). If nothing is cached yet, a
   // `seed` from the caller (name/pos/team/value) still fills the header immediately.
-  const { data: p, error, reload } = useCachedResource(`player:profile:${playerId}`, () => api.playerProfile(playerId));
+  // A profile's slow-movers (bio, value ~12h, prior-season stats) don't need a 45s re-check; an hour is
+  // plenty, and any add/drop/tag write refreshes it on the next open.
+  const { data: p, error, reload } = useCachedResource(`player:profile:${playerId}`, () => api.playerProfile(playerId), { staleMs: STALE.SLOW });
   const [sheet, setSheet] = useState(null); // 'add' | 'drop' | 'trade'
   const [watched, setWatched] = useState(false);
   const [tag, setTag] = useState(null); // 'target' | 'avoid' | null

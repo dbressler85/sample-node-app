@@ -18,6 +18,7 @@ const { withRetry } = require('../lib/retry');
 const scoringLib = require('../lib/scoring');
 const availabilityLib = require('../lib/availability');
 const enrichmentLib = require('../lib/enrichment');
+const valueLenses = require('../lib/valueLenses');
 const nflLib = require('../lib/nfl');
 const leagueFormat = require('../lib/leagueformat');
 const pointsMaps = require('../lib/pointsMaps');
@@ -1050,7 +1051,9 @@ async function reorder(cookie, token, leagueId, orderedIds) {
 // (docs/DATA_SOURCES.md Q3).
 async function getBestAvailable(cookie, token, { deviceReads = null, format = null, tep = false } = {}) {
   const leagues = await leaguesService.orderedLeagues(cookie, token);
-  const [byId, enr, ctx] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(leagueFormat.lensFormat(format, tep), cookie), ctxFor(cookie)]);
+  // `enr` is the single default-lens snapshot for the row's baseline `value`; `lensSnaps` carries all
+  // four lenses so the board re-prices on the client's 1QB/2QB/TE-prem toggle with no refetch.
+  const [byId, enr, ctx, lensSnaps] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(leagueFormat.lensFormat(format, tep), cookie), ctxFor(cookie), valueLenses.buildLensSnaps(cookie)]);
   // Season-to-date points + this week's projection, under the owner's primary league's scoring — the
   // key streaming signal for free agents (who to grab this week), on every row.
   const points = await pointsMaps.maps(cookie, leagues[0] || null, ctx.week);
@@ -1090,6 +1093,7 @@ async function getBestAvailable(cookie, token, { deviceReads = null, format = nu
   const players = [...map.values()]
     .map((p) => ({ ...p, leagueCount: p.leagues.length }))
     .sort((a, b) => b.leagueCount - a.leagueCount || (b.value || 0) - (a.value || 0));
+  valueLenses.attachLensValues(players, lensSnaps);
 
   return { totalLeagues: leagues.length, players };
 }

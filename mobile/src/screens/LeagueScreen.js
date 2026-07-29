@@ -8,6 +8,7 @@ import NeonSign from '../components/NeonSign';
 import PopChip from '../components/PopChip';
 import useAndroidBack from '../useAndroidBack';
 import useCachedResource from '../useCachedResource';
+import { STALE } from '../staleTiers';
 import { leagueTeamsPreferDevice, standingsPreferDevice, transactionsPreferDevice } from '../mflDevice';
 
 // The league hub: the ordinary league views the app was missing — Standings,
@@ -110,7 +111,9 @@ function RostersTab({ leagueId, onOpenPlayer }) {
   // Device-first: when device reads are enabled + ready, this league's rosters are fetched straight from
   // MFL on-device and enriched with the backend's player dictionary + franchise names; otherwise (or on
   // any device-read failure) it silently falls back to the backend. `_source` says which path served it.
-  const { data, error, refreshing, reload } = useCachedResource(`league:teams:${leagueId}`, () => leagueTeamsPreferDevice(leagueId));
+  // Team/franchise names are essentially fixed mid-season — trust them for hours, not 45s (a rename or a
+  // roster write still refreshes on the next open via markAllStale).
+  const { data, error, refreshing, reload } = useCachedResource(`league:teams:${leagueId}`, () => leagueTeamsPreferDevice(leagueId), { staleMs: STALE.STATIC });
   const [sel, setSel] = useState(null);
   const [pos, setPos] = useState(null); // position filter (null = all)
   const [sort, setSort] = useState('value'); // value | name | pos

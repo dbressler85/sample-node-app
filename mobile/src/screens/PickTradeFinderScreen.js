@@ -7,6 +7,7 @@ import ErrorView from '../components/ErrorView';
 import PressableScale from '../components/PressableScale';
 import useAndroidBack from '../useAndroidBack';
 import useCachedResource from '../useCachedResource';
+import { STALE } from '../staleTiers';
 import { Value, TopbarTitle } from '../components/Brand';
 
 // The ranked-partner shortlist behind Pick Capital's Shop / Get-picks CTAs. Each row is a rival worth
@@ -30,9 +31,11 @@ const VERDICT = {
 
 export default function PickTradeFinderScreen({ leagueId, name, intent, onBack, onOpenDeal }) {
   const shop = intent === 'shop';
+  // Partner picks move only on trades (write-invalidated), so an hourly passive re-check suffices.
   const { data, error, refreshing, loading, reload } = useCachedResource(
     `pickPartners:${leagueId}:${intent}`,
     () => api.pickPartners(leagueId, intent),
+    { staleMs: STALE.SLOW },
   );
   useAndroidBack(useCallback(() => { onBack(); return true; }, [onBack]));
 

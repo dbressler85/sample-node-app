@@ -17,6 +17,7 @@ const playersLib = require('../lib/players');
 const nflLib = require('../lib/nfl');
 const newsLib = require('../lib/news');
 const enrichmentLib = require('../lib/enrichment');
+const valueLenses = require('../lib/valueLenses');
 const seasonStatsLib = require('../lib/seasonStats');
 const pointsMaps = require('../lib/pointsMaps');
 const leagueFormat = require('../lib/leagueformat');
@@ -41,19 +42,10 @@ const GENERIC_SCORING = { ppr: 1, tePremium: 0, passTd: 4 };
 // Value-lens ('1qb' | 'sf') → snapshot format. Single source in lib/leagueformat (docs/DATA_SOURCES.md Q3).
 const lensFormat = leagueFormat.lensFormat;
 
-// Every Players-board value lens — 1QB / 2QB × TE-premium off/on, at the 12-team default (99% of
-// leagues). These are what the SF↔1QB and TE-prem toggles select. Attaching ALL of them to each
-// ranking row lets the client re-price + re-sort the board on a toggle INSTANTLY, with no round-trip:
-// the numbers only move ~once a day. It's four lenses but really two FantasyCalc datasets (TE-prem is
-// a multiplier we derive, not a fetch), both memoized + kept warm by the background prime — so it's cheap.
-const RANK_LENSES = [['1qb', false], ['1qb', true], ['sf', false], ['sf', true]];
-const lensId = (fmt, tep) => `${fmt === 'sf' ? 'sf' : '1qb'}${tep ? '_tep' : ''}`;
-async function buildLensSnaps(cookie) {
-  const entries = await Promise.all(
-    RANK_LENSES.map(async ([fmt, tep]) => [lensId(fmt, tep), await enrichmentLib.snapshot(lensFormat(fmt, tep), cookie)])
-  );
-  return Object.fromEntries(entries);
-}
+// Every Players-board value lens (1QB / 2QB × TE-premium off/on, 12-team default) lives in lib/valueLenses
+// now — rankings, best-available, and watchlist all attach the same `lensValues` so the client re-prices
+// on a toggle with no refetch. See that module for why it's four lenses but only two FantasyCalc datasets.
+const buildLensSnaps = valueLenses.buildLensSnaps;
 // The background warm set (called on a timer by warm.js): the slow-moving, LEAGUE-AGNOSTIC reads that
 // gate the mobile app's cold loads, kept warm so no user's request eats a cold fetch. All fail-soft.
 //  • the big global player DB
@@ -327,14 +319,7 @@ async function rankings(cookie, token, { type = 'value', position, format, tep, 
 
   // Attach every value lens (dynasty `v` + win-now `w`) to each row, so a 1QB/2QB/TE-prem (or
   // market↔win-now) toggle on the client is an instant re-price + re-sort with NO refetch.
-  const lensKeys = Object.keys(lensSnaps);
-  for (const row of list) {
-    row.lensValues = {};
-    for (const key of lensKeys) {
-      const s = lensSnaps[key];
-      row.lensValues[key] = { v: s.value(row.id), w: s.winNow ? s.winNow(row.id) : null };
-    }
-  }
+  valueLenses.attachLensValues(list, lensSnaps);
 
   const note =
     total === 0
