@@ -66,6 +66,18 @@ export default function WaiversScreen({ active = true, initialLeagueId, initialP
   // unmount), throttled reloads, and it keeps the list on a failed refresh. `loadOverview`
   // (reload) is also called after a claim to reflect it immediately.
   const { data: overview, error: overviewError, refreshing: ovRefreshing, reload: loadOverview } = useCachedResource('waivers:overview', () => waiversOverviewPreferDevice(), { active });
+  // Auto-heal a per-league "could not load waiver settings" (a transient throttle): if any card came
+  // back with an error, silently re-pull the overview a few times with backoff — the league that lost
+  // the throttle race usually wins it on a later attempt. Resets once the errors clear, so it never
+  // loops forever on a genuine outage.
+  const ovRetry = useRef(0);
+  useEffect(() => {
+    const hasErr = !!(overview && overview.leagues && overview.leagues.some((l) => l.error));
+    if (!hasErr) { ovRetry.current = 0; return undefined; }
+    if (ovRetry.current >= 3) return undefined;
+    const t = setTimeout(() => { ovRetry.current += 1; loadOverview(); }, 1500 * (ovRetry.current + 1));
+    return () => clearTimeout(t);
+  }, [overview, loadOverview]);
   // Pending claims go through the same cached hook so switching to the Pending tab paints the last
   // snapshot INSTANTLY (the screen unmounts on every tab switch, so a bare fetch showed a cold
   // full-screen spinner every single time). It revalidates in the background and after a claim.
