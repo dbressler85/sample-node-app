@@ -3,6 +3,7 @@
 const mfl = require('./mfl');
 const mflRead = require('./mflRead'); // shared read core (device-origin spike): owns the parse
 const { withRetry } = require('./retry');
+const config = require('../config');
 
 // Repository layer over MFL's export envelopes.
 //
@@ -250,10 +251,18 @@ function normFranchiseAssets(fr) {
   // (services/waivers.js), so a bid can't exceed an already-spent balance (docs/DATA_SOURCES.md Q5).
   // Kept only for completeness of the assets shape; do not use it for bid/budget math.
   const faab = fr && fr.blindBiddingDollars ? mfl.num(fr.blindBiddingDollars.amount) : null;
-  const picks = [
-    ...readAssetPicks(fr && fr.currentYearDraftPicks),
-    ...readAssetPicks(fr && fr.futureYearDraftPicks),
-  ];
+  const current = readAssetPicks(fr && fr.currentYearDraftPicks); // DP_ tokens → resolved slot (e.g. "1.03")
+  const future = readAssetPicks(fr && fr.futureYearDraftPicks); // FP_ tokens → generic round (e.g. "2026 1st")
+  // MFL can list a CURRENT-season pick in BOTH blocks: resolved to its slot in the current block AND
+  // generically by round in the future block — surfacing the same physical pick twice on the trade desk
+  // (a spurious "2026 1st" next to the real "1.03"/"1.10"). Once the draft order is set the resolved
+  // current-year slot is authoritative, so drop any future pick for the CURRENT season whose round
+  // already has a resolved current-year slot. Genuinely-unresolved current-season rounds (no DP slot
+  // yet) and all future years are untouched.
+  const season = Number(config.season);
+  const resolvedRounds = new Set(current.filter((p) => p.round != null).map((p) => p.round));
+  const dedupedFuture = future.filter((p) => !(p.kind === 'future' && p.year === season && resolvedRounds.has(p.round)));
+  const picks = [...current, ...dedupedFuture];
   return { id: mfl.text(fr && fr.id), playerIds, faab, picks };
 }
 
