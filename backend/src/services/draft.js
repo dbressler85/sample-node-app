@@ -13,6 +13,7 @@ const config = require('../config');
 const demo = require('../demo/fixtures');
 const mfl = require('../lib/mfl');
 const mflRepo = require('../lib/mflRepo');
+const { withRetry } = require('../lib/retry');
 const enrichmentLib = require('../lib/enrichment');
 const leagueFormat = require('../lib/leagueformat');
 const leagueContext = require('../lib/leagueContext');
@@ -586,7 +587,14 @@ async function makePick(cookie, token, leagueId, playerId, comments) {
     // Misc API reference. ROUND/PICK must match the current On-The-Clock slot (validated above);
     // MFL rejects a stale/taken pick and its error is surfaced. Works for live AND slow/email drafts.
     const note = typeof comments === 'string' ? comments.trim().slice(0, 255) : '';
-    await mfl.miscRequest('live_draft', {
+    // Retry a transient throttle before giving up — the WRITE was previously bare while draft READS were
+    // hardened (mflRepo.draftResults), so a single 429 in a busy pipe surfaced as a raw "(429)" and the
+    // user lost their pick on the clock. withRetry re-issues through the same request queue, whose global
+    // 429 cooldown (penaltyUntil) already delays the next attempt past the throttle window — so this is a
+    // SPACED retry, not a hammer. Re-submitting the same ROUND/PICK is safe: a 429 rejects the request
+    // before MFL processes it, and if the slot was genuinely taken in between MFL returns its own error
+    // (surfaced as-is), so a retry can never double-draft.
+    await withRetry(() => mfl.miscRequest('live_draft', {
       host: league.host,
       cookie,
       L: league.leagueId,
@@ -596,7 +604,7 @@ async function makePick(cookie, token, leagueId, playerId, comments) {
       PICK: clock.pick,
       COMMENTS: note || undefined, // optional note for the draft log ("meant for email drafts")
       JSON: 1,
-    });
+    }), 3, 700);
     // The pick lands on my roster and the draft grid — drop this league's cached reads so the board
     // and roster reflect it immediately (a fresh draftResults may lag a beat).
     rosterService.invalidate(cookie, leagueId);

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { View, Text, StyleSheet, Pressable, FlatList, SectionList, ActivityIndicator, Modal, TextInput } from 'react-native';
 import { appAlert } from "../components/AppAlert";
 import { toast } from '../components/Toast';
-import { api } from '../api';
+import { api, friendlyError } from '../api';
 import { colors, positionColors } from '../theme';
 import { displayLg, displayLabel } from '../typography';
 import { TopbarTitle } from '../components/Brand';
@@ -296,7 +296,7 @@ export default function DraftScreen({ league, demoMode, covered = false, onBack,
       primeResource(boardKey, res);
       haptics.success(); // making a pick has no toast/celebrate — give the moment its own beat
     } catch (e) {
-      appAlert('Could not draft', e.message, undefined, { tone: 'error' });
+      appAlert('Could not draft', friendlyError(e.message), undefined, { tone: 'error' });
     } finally {
       setPicking(null);
     }
