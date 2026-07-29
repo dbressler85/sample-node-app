@@ -175,6 +175,11 @@ const config = {
   // How often to re-warm during the window. Default 5min = the roster TTL, so rosters are never more
   // than one cycle stale and a league already refreshed by real traffic is a no-op cache hit.
   warmIntervalMs: int(process.env.MFL_WARM_INTERVAL_MS, 5 * 60 * 1000),
+  // How often the background GLOBAL prime runs (player DB + FantasyCalc value lenses for the common
+  // league sizes + prior-season stats), so a user's request never eats a cold fetch. Every 6h — SHORTER
+  // than the 12h FantasyCalc TTL, so a background pass always re-fetches when the data ages out before a
+  // user hits the miss. Mostly a no-op cache hit otherwise. Independent of the Sunday game-day window.
+  valuePrimeIntervalMs: int(process.env.MFL_VALUE_PRIME_INTERVAL_MS, 6 * 60 * 60 * 1000),
 
   // Operational metrics endpoint (GET /api/_metrics): MFL call volume, cache hit-rate, throttle
   // state, warm-loop stats. It exposes no user data, but it IS operational, so it's gated by a

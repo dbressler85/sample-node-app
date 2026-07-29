@@ -41,6 +41,39 @@ const GENERIC_SCORING = { ppr: 1, tePremium: 0, passTd: 4 };
 // Value-lens ('1qb' | 'sf') → snapshot format. Single source in lib/leagueformat (docs/DATA_SOURCES.md Q3).
 const lensFormat = leagueFormat.lensFormat;
 
+// Every Players-board value lens — 1QB / 2QB × TE-premium off/on, at the 12-team default (99% of
+// leagues). These are what the SF↔1QB and TE-prem toggles select. Attaching ALL of them to each
+// ranking row lets the client re-price + re-sort the board on a toggle INSTANTLY, with no round-trip:
+// the numbers only move ~once a day. It's four lenses but really two FantasyCalc datasets (TE-prem is
+// a multiplier we derive, not a fetch), both memoized + kept warm by the background prime — so it's cheap.
+const RANK_LENSES = [['1qb', false], ['1qb', true], ['sf', false], ['sf', true]];
+const lensId = (fmt, tep) => `${fmt === 'sf' ? 'sf' : '1qb'}${tep ? '_tep' : ''}`;
+async function buildLensSnaps(cookie) {
+  const entries = await Promise.all(
+    RANK_LENSES.map(async ([fmt, tep]) => [lensId(fmt, tep), await enrichmentLib.snapshot(lensFormat(fmt, tep), cookie)])
+  );
+  return Object.fromEntries(entries);
+}
+// The background warm set (called on a timer by warm.js): the slow-moving, LEAGUE-AGNOSTIC reads that
+// gate the mobile app's cold loads, kept warm so no user's request eats a cold fetch. All fail-soft.
+//  • the big global player DB
+//  • the 12-team board value lenses (also side-warms Sleeper trend / ownership / adds, which the
+//    enrichment snapshot fetches as part of buildLive)
+//  • the 10-team FantasyCalc datasets — 10-team is the 2nd-most-common size, so warming it means those
+//    leagues' roster/trade value reads hit warm cache too (TE-prem is derived, so 2 numQbs datasets
+//    cover all four 10-team lenses). 12-team is already covered by the board lenses above.
+//  • prior-season raw player stats (scored per-league on demand — the raw stats are league-agnostic)
+async function primeGlobals(cookie) {
+  const jobs = [
+    playersLib.load(cookie),
+    buildLensSnaps(cookie),
+    enrichmentLib.snapshot({ numQbs: 1, ppr: 1, tePpr: 1, numTeams: 10 }, cookie),
+    enrichmentLib.snapshot({ numQbs: 2, ppr: 1, tePpr: 1, numTeams: 10 }, cookie),
+  ];
+  if (!config.demoMode) seasonStatsLib.prewarm(Number(config.season) - 1);
+  await Promise.all(jobs.map((p) => Promise.resolve(p).catch(() => {})));
+}
+
 // Availability context (current week + injury/bye maps). Live now really fetches
 // these from MFL so search / rankings / profiles badge OUT/injured/bye players
 // instead of showing everyone as ACTIVE.
@@ -239,7 +272,7 @@ async function search(cookie, token, { q, position, status, format, tep } = {}) 
 
 async function rankings(cookie, token, { type = 'value', position, format, tep, offset = 0, limit = 40 } = {}) {
   if (!config.demoMode) seasonStatsLib.prewarm(Number(config.season) - 1); // warm prior-season stats off the critical path, before any profile opens
-  const [byId, enr, ctx] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(lensFormat(format, tep), cookie), ctxFor(cookie)]);
+  const [byId, enr, ctx, lensSnaps] = await Promise.all([playersLib.load(cookie), enrichmentLib.snapshot(lensFormat(format, tep), cookie), ctxFor(cookie), buildLensSnaps(cookie)]);
   const ranks = computeRanks(byId, enr);
   const { myRostered, mineBy, freeBy, leagueCount, leaguesTotal, leaguesLoaded, partial, league0 } = await buildSets(cookie, token);
   const points = await pointsMaps.maps(cookie, league0, ctx.week);
@@ -291,6 +324,17 @@ async function rankings(cookie, token, { type = 'value', position, format, tep, 
   const list = light
     .slice(start, start + size)
     .map((x) => annotate(x.p, byId, ranks, myRostered, mineBy, freeBy, enr, ctx, tags, watchSet, leagueCount, points));
+
+  // Attach every value lens (dynasty `v` + win-now `w`) to each row, so a 1QB/2QB/TE-prem (or
+  // market↔win-now) toggle on the client is an instant re-price + re-sort with NO refetch.
+  const lensKeys = Object.keys(lensSnaps);
+  for (const row of list) {
+    row.lensValues = {};
+    for (const key of lensKeys) {
+      const s = lensSnaps[key];
+      row.lensValues[key] = { v: s.value(row.id), w: s.winNow ? s.winNow(row.id) : null };
+    }
+  }
 
   const note =
     total === 0
@@ -774,4 +818,4 @@ async function compare(cookie, token, ids) {
   return { players: players.filter(Boolean) };
 }
 
-module.exports = { search, rankings, profile, compare, previewAdd, submitAdd, submitDrop, invalidateGather, gather, _pprPointsFromBox: pprPointsFromBox };
+module.exports = { search, rankings, profile, compare, previewAdd, submitAdd, submitDrop, invalidateGather, gather, primeGlobals, _pprPointsFromBox: pprPointsFromBox };

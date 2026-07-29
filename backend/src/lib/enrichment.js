@@ -23,9 +23,12 @@ const players = require('./players');
 const { createMemo } = require('./memo');
 
 const TTL_MS = 6 * 60 * 60 * 1000; // 6h — dynasty values/trends change slowly
-// FantasyCalc's Terms of Use ask that cached results ideally be retrieved once per day, so its
-// values get a longer, dedicated TTL than the other (Sleeper/ownership/adds) providers above.
-const FC_TTL_MS = 24 * 60 * 60 * 1000; // 24h — align FantasyCalc refresh with their ToU (§3e)
+// FantasyCalc's Terms of Use ask that cached results ideally be retrieved ~once per day. But we don't
+// know WHAT TIME of day they refresh — a single 24h cache risks fetching just before their update and
+// then serving ~24h-stale values. So refresh TWICE a day (12h): it bounds staleness to ~12h regardless
+// of their timing, and 2 pulls/dataset/day is still a trivial, ToU-respectful volume. The background
+// prime (warm.js) re-fetches on a shorter cadence so a user's request never eats the refresh.
+const FC_TTL_MS = 12 * 60 * 60 * 1000; // 12h — twice-daily, so we can't be a full day behind FantasyCalc
 const SLEEPER_TREND_URL = 'https://api.sleeper.app/v1/players/nfl/trending/add?lookback_hours=48&limit=300';
 
 const DEFAULT_FORMAT = { numQbs: 1, ppr: 1, tePpr: 1 };
