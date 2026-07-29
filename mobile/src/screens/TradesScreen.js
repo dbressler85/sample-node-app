@@ -14,6 +14,8 @@ import NeonSign from '../components/NeonSign';
 import useActFlash from '../useActFlash';
 import useAndroidBack from '../useAndroidBack';
 import { peekResource, primeResource } from '../useCachedResource';
+import { getValue, setValue } from '../cache';
+import { STALE } from '../staleTiers';
 
 const posList = (arr) => (arr && arr.length ? arr.map((x) => x.pos).join(', ') : '—');
 
@@ -155,6 +157,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
       const d = await api.leagueTrades(league.leagueId);
       setData(d);
       primeResource(deskKey, d);
+      setValue(deskKey, d); // disk write-through, so reopening a league after an app restart paints instantly
       // Default the partner only if none is chosen — prefer the seeded partner (the
       // team that holds the player you came to trade for), else the first.
       if (d.partners && d.partners.length) setPartnerId((cur) => cur || (seed && seed.partnerFranchiseId) || d.partners[0].franchiseId);
@@ -163,9 +166,27 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
     } finally {
       setLoading(false);
     }
-  }, [league.leagueId]);
+  }, [league.leagueId, deskKey, seed]);
 
-  useEffect(() => { load(); }, [load]);
+  // Cache-first: paint the memory snapshot (seeded above) and only re-fan-out the heavy desk read when
+  // it's gone stale — reopening a league's desk no longer fires a full refetch every single time. Cold
+  // start seeds the disk copy first (partner + fit panel included), so a blank spinner shows only when
+  // nothing is cached. Any trade write marks the desk stale, so a proposal/response still refreshes it.
+  useEffect(() => {
+    const hit = peekResource(deskKey);
+    if (hit) { if (Date.now() - hit.at > STALE.DEFAULT) load(); return undefined; }
+    let alive = true;
+    getValue(deskKey).then((cached) => {
+      if (alive && cached != null) {
+        setData(cached);
+        primeResource(deskKey, cached, 0);
+        setLoading(false);
+        if (cached.partners && cached.partners.length) setPartnerId((cur) => cur || (seed && seed.partnerFranchiseId) || cached.partners[0].franchiseId);
+      }
+      if (alive) load();
+    });
+    return () => { alive = false; };
+  }, [deskKey, load, seed]);
 
   // As soon as desk data is available (cached or freshly loaded), make sure a partner is selected —
   // defensive complement to the lazy init + load()'s default, so the fit panel + "you get" list never

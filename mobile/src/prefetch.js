@@ -17,7 +17,7 @@ import { isCellular } from './net';
 // (unlike A-10, which never gates a feature on the network type).
 const RESOURCES = [
   { tab: 'trades', key: 'trades:overview', fetch: () => api.trades() },
-  { tab: 'players', key: 'players:rankings:value:all:1qb', fetch: () => api.playerRankings('value', null, '1qb') },
+  { tab: 'players', key: 'players:rankings:value:all:1qb:std', fetch: () => api.playerRankings('value', null, '1qb') },
   { tab: 'waivers', key: 'waivers:overview', fetch: () => waiversOverviewPreferDevice() },
   { tab: 'lineups', key: 'lineups:auto', fetch: () => lineupsPreferDevice('auto'), device: true },
   { tab: 'scores', key: 'scores:overview', fetch: () => api.scoreboard() },
