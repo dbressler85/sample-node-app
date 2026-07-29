@@ -35,6 +35,17 @@ router.post('/push/prefs', (req, res, next) => {
   }
 });
 
+// POST /api/push/test — send a diagnostic push to this account's registered device NOW and return
+// Expo's verdict, so the app can tell the user exactly where push stands (no token registered / Expo
+// rejected it / accepted). The one end-to-end check that doesn't need a real draft or trade to happen.
+router.post('/push/test', async (req, res, next) => {
+  try {
+    res.json(await notifications.sendTest(req.account));
+  } catch (err) {
+    next(err);
+  }
+});
+
 // POST /api/push/unregister — stop notifications for this session's device.
 router.post('/push/unregister', async (req, res, next) => {
   try {
