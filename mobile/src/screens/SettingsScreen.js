@@ -54,6 +54,31 @@ export default function SettingsScreen({ onBack, onOpenHelp, onLogout }) {
       .finally(() => setTesting(false));
   }, []);
 
+  const [diagnosing, setDiagnosing] = useState(false);
+
+  // Diagnose the WHOLE pipeline, not just delivery: a test push proves the device+FCM leg, but a
+  // missing on-clock/trade alert can also be a dead background session (the poller has no cookie) or
+  // a not-yet-primed device. This reads the server's own view and names the first broken link.
+  const diagnose = useCallback(() => {
+    setDiagnosing(true);
+    api.pushStatus()
+      .then((s) => {
+        const lines = [];
+        if (!s.registered) lines.push('• This device is NOT registered for push. Allow notifications, then fully close and reopen the app.');
+        else lines.push('• Device registered ✓');
+        lines.push(s.sessionLive ? '• Background session live ✓ (the server can check your drafts)' : '• No live background session — the server can’t poll your leagues while the app is closed. Re-open the app and sign in again.');
+        if (s.registered) lines.push(s.primed ? '• Device primed ✓' : '• Device not yet primed — the first check after install only syncs state; on-clock alerts fire from the next check on.');
+        if (Array.isArray(s.onClockNow)) {
+          lines.push(s.onClockNow.length ? `• Server sees you ON THE CLOCK now in: ${s.onClockNow.map((d) => d.name).join(', ')}` : '• Server does not see you on the clock right now.');
+        }
+        if (!s.config.expoAccessToken) lines.push('• Owner: no Expo access token set — Android delivery (FCM) may be unconfigured.');
+        if (!s.config.sessionSecret) lines.push('• Owner: SESSION_SECRET not set — background sessions are wiped on every backend redeploy (a likely cause of silent gaps).');
+        appAlert('Notification diagnosis', lines.join('\n\n'), undefined, { tone: s.registered && s.sessionLive ? 'success' : 'warn' });
+      })
+      .catch((e) => appAlert('Couldn’t run diagnosis', e.message, undefined, { tone: 'error' }))
+      .finally(() => setDiagnosing(false));
+  }, []);
+
   useAndroidBack(useCallback(() => { onBack(); return true; }, [onBack]));
 
   const load = useCallback(() => {
@@ -132,6 +157,17 @@ export default function SettingsScreen({ onBack, onOpenHelp, onLogout }) {
         </Pressable>
         <Text style={styles.testHint}>Sends a push to this device right now to confirm notifications are working.</Text>
 
+        {/* Deeper check: names the exact broken link (device / background session / priming / FCM). */}
+        <Pressable
+          style={({ pressed }) => [styles.diagnoseBtn, pressed && { opacity: 0.7 }, diagnosing && { opacity: 0.5 }]}
+          onPress={diagnose}
+          disabled={diagnosing}
+          accessibilityRole="button"
+          accessibilityLabel="Diagnose notifications"
+        >
+          {diagnosing ? <ActivityIndicator color={colors.textDim} /> : <Text style={styles.diagnoseBtnText}>Diagnose notifications</Text>}
+        </Pressable>
+
         {onOpenHelp ? (
           <>
             <Text style={[styles.sectionLabel, { marginTop: 26 }]}>Help</Text>
@@ -198,6 +234,9 @@ const styles = StyleSheet.create({
   testBtn: { marginTop: 16, alignItems: 'center', justifyContent: 'center', minHeight: 44, borderRadius: 10, borderWidth: 1, borderColor: colors.accent, paddingVertical: 11 },
   testBtnText: { color: colors.accent, fontSize: 14, fontWeight: '800' },
   testHint: { color: colors.textDim, fontSize: 12, textAlign: 'center', marginTop: 8, lineHeight: 16 },
+  // Secondary (quieter) than the test button — a diagnostic, not the primary action.
+  diagnoseBtn: { marginTop: 10, alignItems: 'center', justifyContent: 'center', minHeight: 40, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingVertical: 10 },
+  diagnoseBtnText: { color: colors.textDim, fontSize: 13, fontWeight: '700' },
   error: { color: colors.bad, fontSize: 13, marginBottom: 12 },
   helpRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, gap: 12 },
   chev: { color: colors.textDim, fontSize: 22, fontWeight: '300' },
