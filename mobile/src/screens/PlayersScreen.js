@@ -30,12 +30,15 @@ const TABS = [
 // Only ever hand an http(s) URL to the OS opener — a hostile/compromised upstream news `url`
 // must not be able to launch arbitrary schemes (tel:, sms:, market:, custom app deep links).
 const isHttpUrl = (u) => typeof u === 'string' && /^https?:\/\//i.test(u);
+// Rank MODE — what the board is ordered by. Rookies is a mode too (rookie-only board), so it lives
+// here with the others instead of being stranded on the end of the position row.
 const RANK_TYPES = [
-  ['value', 'Market value'],
+  ['value', 'Market'],
   ['winnow', 'Win-now'],
   ['myvalue', 'My value'],
-  ['owned', 'Most owned'],
+  ['owned', 'Owned'],
   ['trending', 'Trending'],
+  ['rookies', 'Rookies'],
 ];
 const POSITIONS = [
   [null, 'All'],
@@ -331,7 +334,10 @@ export default function PlayersScreen({ active = true, onOpenPlayer, onStartWaiv
   const rankingsData = useMemo(() => (rankings ? sortPlayers(rankings.players, listSort) : []), [rankings, listSort]);
   // Watch + Free re-price through the selected lens locally (their cache keys are lens-agnostic), so a
   // 1QB/2QB/TE-prem toggle is an instant re-value + re-sort with no refetch — the same feel as Rankings.
-  const watchData = useMemo(() => (watch ? sortPlayers(watch.players.map((p) => priceByLens(p, lens)), listSort) : []), [watch, listSort, lens]);
+  const watchData = useMemo(
+    () => (watch ? sortPlayers(watch.players.filter((p) => !pos || p.position === pos).map((p) => priceByLens(p, lens)), listSort) : []),
+    [watch, listSort, lens, pos]
+  );
   // Free agents: server sends them best-first (by value); default keeps that order. Position
   // filter reuses the shared `pos` chip; secondary sort reuses `listSort`.
   const freeData = useMemo(
@@ -378,9 +384,9 @@ export default function PlayersScreen({ active = true, onOpenPlayer, onStartWaiv
 
       {searching ? (
         <>
-          <PosFilter pos={pos} setPos={setPos} />
+          <ChipSelect label="Pos" options={POSITIONS} value={pos} onChange={setPos} />
           <ValueLens format={format} setFormat={setFormat} tep={tep} setTep={setTep} />
-          {searchRes && searchRes.players.length ? <SortRow value={listSort} onChange={setListSort} /> : null}
+          {searchRes && searchRes.players.length ? <ChipSelect label="Sort" options={LIST_SORTS} value={listSort} onChange={setListSort} /> : null}
           {!searchRes ? (
             <PlayerListSkeleton />
           ) : (
@@ -406,17 +412,10 @@ export default function PlayersScreen({ active = true, onOpenPlayer, onStartWaiv
 
           {tab === 'rankings' ? (
             <>
-              <View style={styles.typeRow}>
-                {RANK_TYPES.map(([k, label]) => (
-                  <Pressable key={k} style={[styles.typeChip, rankType === k && styles.typeChipActive]} onPress={() => setRankType(k)}>
-                    <Text style={[styles.typeText, rankType === k && { color: colors.text }]}>{label}</Text>
-                  </Pressable>
-                ))}
-                <View style={styles.typeInfo}><InfoDot id="ranking" size={16} /></View>
-              </View>
-              <PosFilter pos={pos} setPos={setPos} rankType={rankType} setRankType={setRankType} />
+              <ChipSelect label="Rank" info="ranking" options={RANK_TYPES} value={rankType} onChange={setRankType} />
+              <ChipSelect label="Pos" options={POSITIONS} value={pos} onChange={setPos} />
               <ValueLens format={format} setFormat={setFormat} tep={tep} setTep={setTep} />
-              <SortRow value={listSort} onChange={setListSort} />
+              <ChipSelect label="Sort" options={LIST_SORTS} value={listSort} onChange={setListSort} />
               {/* Honest partial-load signal: "owned in N leagues" counts are over the leagues that
                   loaded — if some were throttled, say so instead of showing a subset as the whole. */}
               {rankings ? <PartialNote loaded={rankings.leaguesLoaded} total={rankings.leaguesTotal} loading={rankAuto.retrying} onRetry={loadRankings} /> : null}
@@ -454,9 +453,9 @@ export default function PlayersScreen({ active = true, onOpenPlayer, onStartWaiv
                     : 'Free agents available across your leagues.'}
                 </Text>
               </View>
+              <ChipSelect label="Pos" options={POSITIONS} value={pos} onChange={setPos} />
               <ValueLens format={format} setFormat={setFormat} tep={tep} setTep={setTep} />
-              <PosFilter pos={pos} setPos={setPos} />
-              <SortRow value={listSort} onChange={setListSort} defaultLabel="Best available" />
+              <ChipSelect label="Sort" options={LIST_SORTS} value={listSort} onChange={setListSort} defaultLabel="Best available" />
               <FlatList
                 data={freeData}
                 keyExtractor={(p) => p.id}
@@ -474,8 +473,13 @@ export default function PlayersScreen({ active = true, onOpenPlayer, onStartWaiv
             </>
           ) : tab === 'watch' ? (
             <>
-              {watch && watch.players.length ? <ValueLens format={format} setFormat={setFormat} tep={tep} setTep={setTep} /> : null}
-              {watch && watch.players.length ? <SortRow value={listSort} onChange={setListSort} /> : null}
+              {watch && watch.players.length ? (
+                <>
+                  <ChipSelect label="Pos" options={POSITIONS} value={pos} onChange={setPos} />
+                  <ValueLens format={format} setFormat={setFormat} tep={tep} setTep={setTep} />
+                  <ChipSelect label="Sort" options={LIST_SORTS} value={listSort} onChange={setListSort} />
+                </>
+              ) : null}
               <FlatList
               data={watchData}
               keyExtractor={(p) => p.id}
@@ -496,8 +500,8 @@ export default function PlayersScreen({ active = true, onOpenPlayer, onStartWaiv
               {mine && mine._source === 'device' ? (
                 <DeviceNote center text={`Your rosters live from MFL on-device · ${mine.totalLeagues} league${mine.totalLeagues === 1 ? '' : 's'}`} />
               ) : null}
-              <PosFilter pos={pos} setPos={setPos} />
-              <SortRow value={listSort} onChange={setListSort} />
+              <ChipSelect label="Pos" options={POSITIONS} value={pos} onChange={setPos} />
+              <ChipSelect label="Sort" options={LIST_SORTS} value={listSort} onChange={setListSort} />
               {/* Honest exposure: "N leagues" per row counts only the leagues we could read. Nulling `mine`
                   re-triggers the load effect (device-first, backend fallback). */}
               {mine ? <PartialNote loaded={mine.leaguesLoaded} total={mine.leaguesTotal} loading={mineAuto.retrying} onRetry={reloadMine} /> : null}
@@ -534,14 +538,7 @@ export default function PlayersScreen({ active = true, onOpenPlayer, onStartWaiv
                   </Pressable>
                 ) : null}
               </View>
-              <View style={styles.newsSortRow}>
-                <Text style={styles.newsSortLabel}>Sort</Text>
-                {NEWS_SORTS.map(([k, label]) => (
-                  <Pressable key={k} style={[styles.newsSortChip, newsSort === k && styles.newsSortChipActive]} onPress={() => setNewsSort(k)}>
-                    <Text style={[styles.newsSortText, newsSort === k && { color: colors.text }]}>{label}</Text>
-                  </Pressable>
-                ))}
-              </View>
+              <ChipSelect label="Sort" options={NEWS_SORTS} value={newsSort} onChange={setNewsSort} />
               <FlatList
                 data={newsData}
                 keyExtractor={(n) => n.id}
@@ -711,26 +708,27 @@ function PlayerListSkeleton({ count = 9 }) {
   );
 }
 
-// `style={posScroll}` with flexGrow:0 (and alignItems:'center' on the row) keeps this
-// horizontal strip at chip height — without it the ScrollView stretched to fill the
-// column and the chips rendered as full-height bars while the list was loading.
-// When given rankType/setRankType (rankings tab only) it also hosts the Rookies filter.
-function PosFilter({ pos, setPos, rankType, setRankType }) {
-  // Wrapping row (not a horizontal scroll) so the position chips never side-scroll — they flow onto a
-  // second line on a narrow screen.
+// One labeled row of "pick one" chips — the single control grammar shared by every filter/sort on
+// this screen (rank mode, position, list sort, news sort). A leading uppercase label names the row,
+// an optional InfoDot explains it, then the chips. Every tab stacks these in the same order
+// (Rank → Pos → Value → Sort) so the controls read as one tidy form, not a per-tab pile.
+function ChipSelect({ label, info, options, value, onChange, defaultLabel }) {
   return (
-    <View style={styles.posRow}>
-      {POSITIONS.map(([k, label]) => (
-        <PopChip key={label} active={pos === k} onPress={() => setPos(k)} style={styles.posChip} activeStyle={styles.posChipActive} textStyle={styles.posChipText} activeTextStyle={{ color: colors.text }} label={label} />
+    <View style={styles.controlRow}>
+      <Text style={styles.controlLabel}>{label}</Text>
+      {info ? <InfoDot id={info} size={16} /> : null}
+      {options.map(([k, lbl]) => (
+        <PopChip
+          key={String(k)}
+          active={value === k}
+          onPress={() => onChange(k)}
+          style={styles.ctlChip}
+          activeStyle={styles.ctlChipActive}
+          textStyle={styles.ctlChipText}
+          activeTextStyle={{ color: colors.text }}
+          label={k === 'default' && defaultLabel ? defaultLabel : lbl}
+        />
       ))}
-      {setRankType ? (
-        <Pressable
-          style={[styles.posChip, styles.rookChip, rankType === 'rookies' && styles.rookChipActive]}
-          onPress={() => setRankType(rankType === 'rookies' ? 'value' : 'rookies')}
-        >
-          <Text style={[styles.posChipText, rankType === 'rookies' && { color: colors.accent }]}>Rookies</Text>
-        </Pressable>
-      ) : null}
     </View>
   );
 }
@@ -738,32 +736,29 @@ function PosFilter({ pos, setPos, rankType, setRankType }) {
 // Value lens: re-price (and, where value drives order, re-sort) the whole board through a chosen
 // market. Two INDEPENDENT axes: the 1QB↔2QB segmented control (a QB is worth far more in 2QB), and a
 // TE-premium on/off pill (a TE is worth more when he scores extra per catch). They don't affect each
-// other — you can view 1QB + TE-premium, 2QB + TE-premium, either alone, or neither.
+// other — you can view 1QB + TE-premium, 2QB + TE-premium, either alone, or neither. Shares the same
+// labeled-row grammar (label · InfoDot · controls) as the ChipSelect rows so the stack stays uniform.
 function ValueLens({ format, setFormat, tep, setTep }) {
   return (
-    <View style={styles.lensRow}>
-      <View style={styles.lensLabelWrap}>
-        <Text style={styles.lensLabel}>Value lens</Text>
-        <InfoDot id="format" />
+    <View style={styles.controlRow}>
+      <Text style={styles.controlLabel}>Value</Text>
+      <InfoDot id="format" size={16} />
+      <View style={styles.lensToggle}>
+        {[['1qb', '1QB'], ['sf', '2QB']].map(([k, label]) => (
+          <Pressable key={k} style={[styles.lensSeg, format === k && styles.lensSegActive]} onPress={() => setFormat(k)}>
+            <Text style={[styles.lensSegText, format === k && styles.lensSegTextActive]}>{label}</Text>
+          </Pressable>
+        ))}
       </View>
-      <View style={styles.lensControls}>
-        <View style={styles.lensToggle}>
-          {[['1qb', '1QB'], ['sf', '2QB']].map(([k, label]) => (
-            <Pressable key={k} style={[styles.lensSeg, format === k && styles.lensSegActive]} onPress={() => setFormat(k)}>
-              <Text style={[styles.lensSegText, format === k && styles.lensSegTextActive]}>{label}</Text>
-            </Pressable>
-          ))}
-        </View>
-        <Pressable
-          style={[styles.tepToggle, tep && styles.tepToggleOn]}
-          onPress={() => setTep((v) => !v)}
-          accessibilityRole="switch"
-          accessibilityState={{ checked: tep }}
-          accessibilityLabel="TE premium"
-        >
-          <Text style={[styles.tepToggleText, tep && styles.tepToggleTextOn]}>TE PREM</Text>
-        </Pressable>
-      </View>
+      <Pressable
+        style={[styles.tepToggle, tep && styles.tepToggleOn]}
+        onPress={() => setTep((v) => !v)}
+        accessibilityRole="switch"
+        accessibilityState={{ checked: tep }}
+        accessibilityLabel="TE premium"
+      >
+        <Text style={[styles.tepToggleText, tep && styles.tepToggleTextOn]}>TE PREM</Text>
+      </Pressable>
     </View>
   );
 }
@@ -828,19 +823,6 @@ function NewsRow({ n, onPress }) {
   );
 }
 
-// `defaultLabel` renames the 'default' (server-order) chip per tab — on Free Agents that order is
-// "available in the most of your leagues, then by value", so "Default" is opaque; call it what it is.
-function SortRow({ value, onChange, defaultLabel }) {
-  return (
-    <View style={styles.newsSortRow}>
-      <Text style={styles.newsSortLabel}>Sort</Text>
-      {LIST_SORTS.map(([k, label]) => (
-        <PopChip key={k} active={value === k} onPress={() => onChange(k)} style={styles.newsSortChip} activeStyle={styles.newsSortChipActive} textStyle={styles.newsSortText} activeTextStyle={{ color: colors.text }} label={k === 'default' && defaultLabel ? defaultLabel : label} />
-      ))}
-    </View>
-  );
-}
-
 function Center({ children }) {
   return <View style={styles.center}>{children}</View>;
 }
@@ -858,56 +840,32 @@ const styles = StyleSheet.create({
   segActive: { backgroundColor: colors.cardAlt },
   segText: { color: colors.textDim, fontSize: 13, fontWeight: '700' },
   segTextActive: { color: colors.text },
-  typeRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, rowGap: 8, paddingHorizontal: 16, paddingVertical: 6 },
-  // flexGrow:0 keeps the horizontal strip at chip height instead of stretching to fill the
-  // column (the same fix the positional filter needed).
-  typeScroll: { flexGrow: 0, flexShrink: 0 },
-  typeScrollRow: { alignItems: 'center', gap: 8, paddingRight: 8 },
-  typeInfo: { justifyContent: 'center', paddingHorizontal: 4 },
-  typeChip: { backgroundColor: colors.card, borderRadius: 8, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 6 },
-  typeChipActive: { backgroundColor: colors.cardAlt, borderColor: colors.accent },
-  typeText: { color: colors.textDim, fontSize: 12, fontWeight: '700' },
-  posScroll: { flexGrow: 0, flexShrink: 0 },
-  posRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, rowGap: 8, paddingHorizontal: 16, paddingVertical: 6 },
-  posChip: { backgroundColor: colors.card, borderRadius: 8, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 13, paddingVertical: 5 },
-  rookChip: { borderColor: colors.gold + '55' },
-  rookChipActive: { backgroundColor: colors.accent + '22', borderColor: colors.accent },
   grow: { flex: 1 },
-  posChipActive: { backgroundColor: colors.cardAlt, borderColor: colors.accent },
-  posChipText: { color: colors.textDim, fontSize: 12, fontWeight: '800' },
-  // Label on the left, market toggle on the right — filling the row. (It used to be right-aligned, which
-  // stranded a big blank rectangle on the left where the filter/sort rows below start, reading as an odd gap.)
-  lensRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, gap: 10, paddingBottom: 6, paddingTop: 2 },
-  lensLabelWrap: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  lensLabel: { color: colors.violetText, fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
+  // The single control grammar: one labeled, wrapping row of chips, used for every filter/sort
+  // (rank mode, position, list sort, news sort) and the value lens. Uniform padding so a stack of
+  // them reads as one tidy form. A short uppercase label leads each row; chips flow and wrap.
+  controlRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, rowGap: 8, paddingHorizontal: 16, paddingVertical: 5 },
+  controlLabel: { color: colors.violetText, fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5, marginRight: 2, minWidth: 34 },
+  ctlChip: { backgroundColor: colors.card, borderRadius: 8, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 5 },
+  ctlChipActive: { backgroundColor: colors.cardAlt, borderColor: colors.accent },
+  ctlChipText: { color: colors.textDim, fontSize: 12, fontWeight: '800' },
+  // Value-lens controls: a 1QB/2QB segmented toggle + a TE-premium pill, both distinct from the
+  // pick-one chips above (a mode toggle, not a filter) — accent-tinted when engaged.
   lensToggle: { flexDirection: 'row', backgroundColor: colors.card, borderRadius: 8, borderWidth: 1, borderColor: colors.border, padding: 2 },
   lensSeg: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 6, borderWidth: 1, borderColor: 'transparent' },
   lensSegActive: { backgroundColor: colors.accent + '22', borderColor: colors.accent },
   lensSegText: { color: colors.textDim, fontSize: 12, fontWeight: '800' },
   lensSegTextActive: { color: colors.accent },
-  lensControls: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   tepToggle: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
   tepToggleOn: { backgroundColor: colors.accent + '22', borderColor: colors.accent },
   tepToggleText: { color: colors.textDim, fontSize: 12, fontWeight: '800', letterSpacing: 0.3 },
   tepToggleTextOn: { color: colors.accent },
-  // Combined lens + sort strip: one row, thin divider between the two groups.
-  // Height-constrain the horizontal controls strip (like typeScroll/posScroll) — without this
-  // a horizontal ScrollView in the flex column balloons vertically and centers its chips,
-  // stranding a big gap above and below the row.
-  lensSortScroll: { flexGrow: 0, flexShrink: 0 },
-  lensSortRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, gap: 8, paddingTop: 2, paddingBottom: 6 },
-  lsDivider: { width: StyleSheet.hairlineWidth, alignSelf: 'stretch', minHeight: 22, backgroundColor: colors.border, marginHorizontal: 4 },
   rightCol: { alignItems: 'flex-end', marginLeft: 10, gap: 7 },
   watchRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   quickAdd: { borderWidth: 1, borderColor: colors.good, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
   quickAddText: { color: colors.good, fontSize: 12, fontWeight: '800' },
   newsSearchWrap: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, marginBottom: 6 },
-  newsSortRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', rowGap: 6, paddingHorizontal: 16, gap: 8, marginBottom: 6 },
-  newsSortLabel: { color: colors.violetText, fontSize: 12, fontWeight: '700', marginRight: 2 },
-  newsSortChip: { backgroundColor: colors.card, borderRadius: 8, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 5 },
-  newsSortChipActive: { backgroundColor: colors.cardAlt, borderColor: colors.accent },
-  newsSortText: { color: colors.textDim, fontSize: 12, fontWeight: '700' },
   newsSearch: { flex: 1, color: colors.text, fontSize: 14, paddingVertical: 9 },
   freeIntro: { paddingHorizontal: 16, paddingBottom: 4, paddingTop: 2 },
   freeIntroText: { color: colors.textDim, fontSize: 12, lineHeight: 17 },
