@@ -155,6 +155,11 @@ const config = {
   // stay in memory (the prior behavior) — safe, but lost on restart.
   sessionSecret: process.env.SESSION_SECRET || null,
 
+  // Optional Expo access token for the push-send API. Not required for basic Expo push, but if the
+  // Expo project has "enhanced security" (push security) enabled, sends must carry it as a bearer
+  // token or Expo rejects them. Set EXPO_ACCESS_TOKEN on the host to supply it.
+  expoAccessToken: process.env.EXPO_ACCESS_TOKEN || null,
+
   // --- Sunday pre-warm worker ------------------------------------------------
   // On game day, keep the lineup-relevant reads (rosters, projections, free agents, league settings,
   // schedule) for active users' leagues WARM in the shared cache during the morning→kickoff window,

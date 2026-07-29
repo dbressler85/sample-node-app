@@ -16,6 +16,7 @@
 // Extensible by design: add an event type by pushing to `msgs` in buildFor and
 // tracking its "seen" set on the per-device state (see draft/trade below).
 
+const config = require('../config');
 const persist = require('../store/persist');
 const sessionsStore = require('../store/sessions');
 const draftService = require('./draft');
@@ -101,21 +102,67 @@ function setPrefs(token, incoming) {
   return { ok: true, prefs: d[token].prefs };
 }
 
-// Default Expo push sender (POST to Expo's service). Swapped out in tests.
+// Remove every registration pointing at a dead Expo token (Expo says DeviceNotRegistered —
+// the app was uninstalled or the token rotated), so the scheduler stops trying it forever.
+function pruneExpoToken(expoPushToken) {
+  const d = db();
+  let changed = false;
+  for (const k of Object.keys(d)) {
+    if (d[k] && d[k].expoPushToken === expoPushToken) { delete d[k]; changed = true; }
+  }
+  if (changed) persist.touch();
+}
+
+// Default Expo push sender (POST to Expo's service). Swapped out in tests. Unlike the old
+// fire-and-forget version, this READS Expo's response: a rejected request (bad credentials, FCM not
+// configured, malformed) and per-message ticket errors (DeviceNotRegistered, MessageTooBig, …) are
+// logged with detail instead of silently swallowed — that silence is why "no push ever arrived"
+// went undiagnosed. Returns { tickets, errors } so callers (the test endpoint) can surface it.
 async function expoSend(messages) {
-  if (!messages.length) return;
+  if (!messages.length) return { tickets: [], errors: [] };
+  const headers = { Accept: 'application/json', 'Accept-Encoding': 'gzip, deflate', 'Content-Type': 'application/json' };
+  if (config.expoAccessToken) headers.Authorization = `Bearer ${config.expoAccessToken}`;
   try {
-    await fetch(EXPO_PUSH_URL, {
-      method: 'POST',
-      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-      body: JSON.stringify(messages),
+    const res = await fetch(EXPO_PUSH_URL, { method: 'POST', headers, body: JSON.stringify(messages) });
+    let body = null;
+    try { body = await res.json(); } catch (_) { /* non-JSON error body */ }
+    if (!res.ok) {
+      const detail = body && body.errors ? JSON.stringify(body.errors) : `HTTP ${res.status}`;
+      console.log(`[notifications] expo push REJECTED: ${detail}`);
+      return { tickets: [], errors: [{ status: res.status, detail }] };
+    }
+    const tickets = (body && body.data) || [];
+    const errors = [];
+    tickets.forEach((t, i) => {
+      if (t && t.status === 'error') {
+        const code = t.details && t.details.error;
+        const to = messages[i] && messages[i].to;
+        errors.push({ message: t.message, code: code || null, to });
+        console.log(`[notifications] ticket error: ${t.message}${code ? ` (${code})` : ''}`);
+        if (code === 'DeviceNotRegistered' && to) pruneExpoToken(to);
+      }
     });
+    return { tickets, errors };
   } catch (e) {
     console.log(`[notifications] expo send failed: ${e.message}`);
+    return { tickets: [], errors: [{ message: e.message }] };
   }
 }
 let sender = expoSend;
 function _setSender(fn) { sender = fn; }
+
+// Send a diagnostic push to this account's registered device and RETURN Expo's verdict, so the app
+// can show exactly where the pipeline stands without waiting for a real draft/trade event:
+//   • no-token  → the device never registered (permission denied, or not built with push)
+//   • errors[]  → Expo rejected it (e.g. FCM not configured for Android, or DeviceNotRegistered)
+//   • ok:true   → Expo ACCEPTED it; if the phone still shows nothing, the gap is device/OS delivery
+async function sendTest(account, send = sender) {
+  const entry = db()[account];
+  if (!entry || !entry.expoPushToken) return { ok: false, reason: 'no-token' };
+  const result = (await send([{ to: entry.expoPushToken, title: 'Dynasty Central', body: 'Test notification — push is working ✅', data: { type: 'test' } }])) || {};
+  const errors = result.errors || [];
+  return { ok: errors.length === 0, reason: errors.length ? 'expo-error' : 'ok', errors, tickets: result.tickets || [] };
+}
 
 // Compute the messages to send for one device given fresh draft + trade state,
 // plus the new "seen" sets to store. Only *newly* on-the-clock leagues and
@@ -268,9 +315,12 @@ async function tick(deps = {}) {
       state.primed = true;
       persist.touch();
       if (msgs.length) {
-        await send(msgs);
-        sent += msgs.length;
-        console.log(`[notifications] sent ${msgs.length} to a device`);
+        const r = (await send(msgs)) || {};
+        const errCount = (r.errors || []).length;
+        sent += msgs.length - errCount;
+        // Honest log: how many Expo actually ACCEPTED (the old code logged "sent" even when Expo
+        // rejected every message, which is exactly why silent failures never surfaced).
+        console.log(`[notifications] built ${msgs.length} for a device — ${msgs.length - errCount} accepted${errCount ? `, ${errCount} errored (see ticket error above)` : ''}`);
       }
     } catch (e) {
       console.log(`[notifications] tick error: ${e.message}`);
@@ -279,4 +329,4 @@ async function tick(deps = {}) {
   return { tokens: tokens.length, sent };
 }
 
-module.exports = { registerToken, unregister, getPrefs, setPrefs, tick, buildFor, _setSender, DEFAULT_PREFS };
+module.exports = { registerToken, unregister, getPrefs, setPrefs, tick, buildFor, sendTest, _setSender, DEFAULT_PREFS };
