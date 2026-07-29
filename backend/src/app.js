@@ -39,9 +39,12 @@ app.use(express.json());
 app.use(morgan('dev'));
 
 // Liveness/health probes must never be rate-limited or need a body — declare BEFORE the limiter.
-app.get('/api/health', (req, res) => {
-  res.json({ ok: true, season: config.season, demoMode: config.demoMode });
-});
+// Answer BOTH `/api/health` and the bare root `/`: Render's deploy health check (and generic uptime
+// pingers) probe `/` by default, and a 404 there reads as an unhealthy service and TIMES OUT THE
+// DEPLOY (observed: "HEAD / 404" → "Timed Out"). A GET handler also serves HEAD, so both pass.
+const health = (req, res) => res.json({ ok: true, season: config.season, demoMode: config.demoMode });
+app.get('/', health);
+app.get('/api/health', health);
 
 // Per-IP API rate limit — an abuse backstop with a GENEROUS ceiling (a dynasty power user's cold-open
 // fans a burst of per-league reads across 15–20 leagues; that must never trip it). Keyed on req.ip,
