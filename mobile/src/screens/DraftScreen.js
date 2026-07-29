@@ -22,7 +22,10 @@ const STATUS = {
   complete: { label: 'Complete', color: colors.textDim },
   none: { label: 'No draft', color: colors.textDim },
 };
-const POSITIONS = ['QB', 'RB', 'WR', 'TE'];
+// Fallback filter chips before the board response lands (or for an older backend without `positions`).
+// The live list comes from the server per league — QB/RB/WR/TE always, plus PK/DEF where the league
+// starts a kicker/defense — so the chips match what's actually draftable in THIS league.
+const DEFAULT_POSITIONS = ['QB', 'RB', 'WR', 'TE'];
 
 function fmtDate(iso) {
   try {
@@ -246,6 +249,8 @@ export default function DraftScreen({ league, demoMode, covered = false, onBack,
     if (!data || !data.available) return [];
     return position ? data.available.filter((p) => p.position === position) : data.available;
   }, [data, position]);
+  // Server-supplied draftable positions for this league (adds PK/DEF only where they're started).
+  const posFilters = data && Array.isArray(data.positions) && data.positions.length ? data.positions : DEFAULT_POSITIONS;
 
   // The full board (results) tab, grouped by round for the SectionList. Each section is a round of
   // slots in pick order — made picks and the upcoming ones alike, so you can see every pick and who
@@ -473,9 +478,9 @@ export default function DraftScreen({ league, demoMode, covered = false, onBack,
                 <Pressable style={[styles.posChip, !position && styles.posChipActive]} onPress={() => setPosition(null)}>
                   <Text style={[styles.posText, !position && { color: colors.text }]}>All</Text>
                 </Pressable>
-                {POSITIONS.map((p) => (
+                {posFilters.map((p) => (
                   <Pressable key={p} style={[styles.posChip, position === p && styles.posChipActive]} onPress={() => setPosition(position === p ? null : p)}>
-                    <Text style={[styles.posText, position === p && { color: colors.text }]}>{p}</Text>
+                    <Text style={[styles.posText, position === p && { color: colors.text }]}>{p === 'PK' ? 'K' : p}</Text>
                   </Pressable>
                 ))}
               </View>

@@ -265,32 +265,61 @@ async function fetchPoolInputs(cookie, league) {
   return { ids, adp };
 }
 
-// The pure assembly half: filter out drafted players, resolve + ADP-annotate, sort by market ADP
-// (dynasty value as tiebreak/tail), cap at 60. No I/O — safe to run the instant its inputs are in.
-function assemblePool({ ids, adp }, drafted, byId, enr, position) {
-  let pool = ids.filter((id) => !drafted.has(String(id))).map((id) => {
+// How many kickers / defenses to surface on the "All" board for a league that rosters them. They
+// carry no ADP and ~0 dynasty value, so they'd never survive the skill-pool cap on merit — but they
+// ARE draftable (late rounds), so reserve a slice for each so the K/DEF filter chip has players and
+// the board can draft one. Kept small: real drafts take one of each near the end.
+const KDEF_BOARD_CAP = 24;
+
+// Order by ADP (market-consensus draft order) — objective and owner-independent. Players with a
+// known ADP sort ahead of those without; ties and the ADP-less tail fall back to dynasty value.
+function byAdpThenValue(a, b) {
+  if (a.adp != null && b.adp != null) return a.adp - b.adp || (b.value || 0) - (a.value || 0);
+  if (a.adp != null) return -1;
+  if (b.adp != null) return 1;
+  return (b.value || 0) - (a.value || 0);
+}
+const isKickerOrDef = (p) => p.position === 'PK' || p.position === 'DEF';
+
+// The pure assembly half: filter out drafted players, resolve + ADP-annotate, then rank. No I/O.
+// `opts.usesKicker` / `opts.usesDef` — when the league starts a K/DEF, ensure those players reach the
+// board (they'd otherwise be cut by the ADP-ranked skill cap); leagues without those slots never see
+// them. A specific `position` request just returns that position, ADP/value-ranked.
+function assemblePool({ ids, adp }, drafted, byId, enr, position, opts = {}) {
+  const all = ids.filter((id) => !drafted.has(String(id))).map((id) => {
     const p = resolvePlayer(byId, id, enr);
     const a = adp.get(String(id));
     p.adp = a != null ? a : null;
     return p;
   });
-  if (position) pool = pool.filter((p) => p.position === position);
-  // Order by ADP (market-consensus draft order) — objective and owner-independent.
-  // Players with a known ADP sort ahead of those without; ties and the ADP-less tail
-  // fall back to dynasty value so the board is never arbitrary.
-  pool.sort((a, b) => {
-    if (a.adp != null && b.adp != null) return a.adp - b.adp || (b.value || 0) - (a.value || 0);
-    if (a.adp != null) return -1;
-    if (b.adp != null) return 1;
-    return (b.value || 0) - (a.value || 0);
-  });
-  return pool.slice(0, 60);
+  if (position) return all.filter((p) => p.position === position).sort(byAdpThenValue).slice(0, 60);
+  // "All" board: the top skill/flex players by ADP, then a bounded tail of the kickers/defenses this
+  // league actually rosters (so they're filterable and draftable without pushing skill players off).
+  const board = all.filter((p) => !isKickerOrDef(p)).sort(byAdpThenValue).slice(0, 60);
+  if (opts.usesKicker) board.push(...all.filter((p) => p.position === 'PK').sort(byAdpThenValue).slice(0, KDEF_BOARD_CAP));
+  if (opts.usesDef) board.push(...all.filter((p) => p.position === 'DEF').sort(byAdpThenValue).slice(0, KDEF_BOARD_CAP));
+  return board;
+}
+
+// Which positions a league drafts → the board's filter chips + whether the pool surfaces K/DEF.
+// QB/RB/WR/TE are always draftable; PK/DEF only when a starting slot can hold them (requirements are
+// normalized to 'PK'/'DEF'). Defensive default (no reqs) = the skill four, so a read failure never
+// hides the standard chips.
+function draftPositionsFrom(reqs) {
+  const elig = new Set();
+  for (const r of reqs || []) for (const e of r.eligible || []) elig.add(e);
+  const usesKicker = elig.has('PK');
+  const usesDef = elig.has('DEF');
+  const positions = ['QB', 'RB', 'WR', 'TE'];
+  if (usesKicker) positions.push('PK');
+  if (usesDef) positions.push('DEF');
+  return { usesKicker, usesDef, positions };
 }
 
 // Fetch-then-assemble in one step. Kept for callers that don't need to overlap the fetch with other
 // work (getPickInventory's draft-list path); getLeague instead fetches inputs in its parallel batch.
-async function buildPool(cookie, league, drafted, byId, enr, position) {
-  return assemblePool(await fetchPoolInputs(cookie, league), drafted, byId, enr, position);
+async function buildPool(cookie, league, drafted, byId, enr, position, opts) {
+  return assemblePool(await fetchPoolInputs(cookie, league), drafted, byId, enr, position, opts);
 }
 
 // --- public API -------------------------------------------------------------
@@ -481,13 +510,16 @@ async function getOverview(cookie, token, { deviceReads = null } = {}) {
 // the league's dynasty context, and my team's roster summary — all fail-soft so a hiccup never blanks
 // the board. (getLeague and getDraftList used to inline this identical fan-out.)
 async function loadDraftContext(cookie, league) {
-  const [byId, enr, context, teamSummary] = await Promise.all([
+  const [byId, enr, context, teamSummary, reqs] = await Promise.all([
     playersLib.load(cookie),
     enrichmentLib.snapshot(await leagueFormat.format(cookie, league), cookie),
     leagueContext.build(cookie, league).catch(() => null),
     rosterService.getRoster(cookie, league.leagueId).then((r) => r.summary).catch(() => null),
+    // Starting-lineup requirements → whether this league drafts kickers/defenses (memoized, shared
+    // with the enrichment format read above, so it's near-free). Fail-soft to the skill-only default.
+    leagueFormat.requirements(cookie, league).catch(() => []),
   ]);
-  return { byId, enr, context, teamSummary };
+  return { byId, enr, context, teamSummary, reqs };
 }
 
 // The `context` payload both draft screens return: the league context with my team's dynasty read
@@ -513,7 +545,7 @@ async function getLeague(cookie, token, leagueId, { position } = {}) {
   // never loaded). (1) the scoring/lineup + my-team dynasty CONTEXT; (2) owner NAMES for the board tab;
   // (3) the POOL INPUTS (free-agent ids + ADP) — the assembly that needs `drafted`/`byId` runs after,
   // but the fetch doesn't; (4) the auto-detected CLOCK config.
-  const [{ byId, enr, context, teamSummary }, names, poolInputs, clockConfig] = await Promise.all([
+  const [{ byId, enr, context, teamSummary, reqs }, names, poolInputs, clockConfig] = await Promise.all([
     loadDraftContext(cookie, league),
     config.demoMode
       ? Promise.resolve(demo.draftFranchiseNames(league.leagueId))
@@ -537,8 +569,9 @@ async function getLeague(cookie, token, leagueId, { position } = {}) {
   const clock = onClockSlot(status, slots);
   const drafted = new Set(slots.filter((s) => s.playerId).map((s) => s.playerId));
   // Pool inputs were fetched in the parallel batch above; assembly is pure (no I/O) now that we know
-  // which players are already drafted.
-  const available = assemblePool(poolInputs, drafted, byId, enr, position);
+  // which players are already drafted. Kickers/defenses join the pool only when the league starts them.
+  const { usesKicker, usesDef, positions } = draftPositionsFrom(reqs);
+  const available = assemblePool(poolInputs, drafted, byId, enr, position, { usesKicker, usesDef });
   // Overlay personal tags so the board can highlight your Targets and dim your Avoids.
   for (const p of available) p.tag = playerTags.get(token, p.id) || null;
 
@@ -563,6 +596,9 @@ async function getLeague(cookie, token, leagueId, { position } = {}) {
     board: slots,
     myPicks: slots.filter((s) => s.franchiseId === league.franchiseId),
     available,
+    // The position filter chips the board should show — QB/RB/WR/TE plus PK/DEF only when this league
+    // starts them, so the chip row matches what's actually draftable here.
+    positions,
     context: draftContextPayload(context, teamSummary),
   };
 }
@@ -801,7 +837,8 @@ async function liveDraftListIds(cookie, league) {
 // drafted, rostered, or already on the list). `position` filters the add-pool.
 async function getDraftList(cookie, token, leagueId, { position } = {}) {
   const league = await findLeague(cookie, leagueId);
-  const { byId, enr, context, teamSummary } = await loadDraftContext(cookie, league);
+  const { byId, enr, context, teamSummary, reqs } = await loadDraftContext(cookie, league);
+  const { usesKicker, usesDef, positions } = draftPositionsFrom(reqs);
   const draft = await loadDraft(cookie, token, league).catch(() => null);
   const slots = draft ? slotsFor(draft).map((s) => ({ ...s, player: s.playerId ? resolvePlayer(byId, s.playerId, enr) : null })) : [];
   const status = draft ? statusOf(draft, slots) : 'none';
@@ -826,7 +863,7 @@ async function getDraftList(cookie, token, leagueId, { position } = {}) {
 
   // A value-ranked pool to add from, minus anyone drafted, rostered, or already on the list.
   const onList = new Set(ids.map(String));
-  const available = (await buildPool(cookie, league, drafted, byId, enr, position).catch(() => []))
+  const available = (await buildPool(cookie, league, drafted, byId, enr, position, { usesKicker, usesDef }).catch(() => []))
     .filter((p) => !onList.has(String(p.id)))
     .map((p) => ({ ...p, tag: playerTags.get(token, p.id) || null }));
 
@@ -840,6 +877,7 @@ async function getDraftList(cookie, token, leagueId, { position } = {}) {
     nextUp,
     list,
     available,
+    positions,
     context: draftContextPayload(context, teamSummary),
   };
 }

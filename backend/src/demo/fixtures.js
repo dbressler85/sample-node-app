@@ -431,8 +431,10 @@ const DYNASTY = {
   '19006': { age: 21, value: 58 }, // Cormier RB
 };
 
-// Rookie draft class (ids into PLAYERS) — the shared pool for rookie drafts.
-const DRAFT_CLASS = ['19003', '19002', '19001', '19005', '19006', '19004'];
+// Rookie draft class (ids into PLAYERS) — the shared pool for rookie drafts. Kickers (17001-4) and
+// defenses (18001-4) ride along so leagues that START a K/DEF surface them on the board; leagues that
+// don't roster those slots never see them (the draft pool gates K/DEF on the league's requirements).
+const DRAFT_CLASS = ['19003', '19002', '19001', '19005', '19006', '19004', '17001', '17002', '17003', '17004', '18001', '18002', '18003', '18004'];
 
 // Average draft position for the class — the market-consensus order, deliberately NOT
 // the same as dynasty value (e.g. the RB goes 1st by ADP even though a superflex QB is
