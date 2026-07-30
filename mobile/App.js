@@ -50,6 +50,8 @@ import { NavHubIcon, NavPersonIcon, NavTradesIcon, NavWaiversIcon, NavLineupsIco
 import { CelebrationHost } from './src/components/Celebrate';
 import { ToastHost } from './src/components/Toast';
 import { AppAlertHost } from './src/components/AppAlert';
+import { PaywallHost } from './src/components/PaywallHost';
+import { EntitlementProvider } from './src/entitlement';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import { colors } from './src/theme';
 
@@ -581,6 +583,7 @@ export default function App() {
   // containers so it shows through, with opaque cards floating on top. Login draws its
   // own hero-intensity backdrop over this one.
   return (
+    <EntitlementProvider>
     <View style={styles.root}>
       {/* The backdrop is decorative — if it ever throws (e.g. an SVG quirk on a device),
           isolate it so the app still runs instead of white-screening. */}
@@ -621,7 +624,13 @@ export default function App() {
       <ErrorBoundary silent>
         <WelcomeModal visible={authed && showWelcome} onClose={closeWelcome} />
       </ErrorBoundary>
+      {/* Pro paywall — mounted last so it sits above every tab, overlay, and alert. Surfaced
+          imperatively (a gated action or a "Go Pro" tap); renders nothing until then. */}
+      <ErrorBoundary silent>
+        <PaywallHost />
+      </ErrorBoundary>
     </View>
+    </EntitlementProvider>
   );
 }
 

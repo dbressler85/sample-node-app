@@ -17,3 +17,9 @@ export const API_URL = raw.replace(/\/+$/, '');
 // OFF by default; it ALSO requires the backend's DEVICE_READS_ENABLED (only then is the session cookie
 // handed to the device). Enable per build: EXPO_PUBLIC_DEVICE_READS=1.
 export const DEVICE_READS = process.env.EXPO_PUBLIC_DEVICE_READS === '1';
+
+// Pro entitlements enforcement. OFF by default: the entitlement layer still computes the tier + trial
+// and renders the paywall UI, but every gate is ALLOWED, so the live app is unchanged until billing +
+// data licensing are ready. Flip to '1' (EXPO_PUBLIC_ENFORCE_PRO=1) only after RevenueCat is wired and
+// the FantasyCalc/RotoBaller commercial terms are signed.
+export const ENFORCE_PRO = process.env.EXPO_PUBLIC_ENFORCE_PRO === '1';

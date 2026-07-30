@@ -1,8 +1,10 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, Pressable, ActivityIndicator, RefreshControl } from 'react-native';
 import { api } from '../api';
-import { colors } from '../theme';
+import { colors, rgb, glow } from '../theme';
 import { displayLabel } from '../typography';
+import { useEntitlement } from '../entitlement';
+import { presentPaywall } from '../entitlement/paywallBus';
 import { TopbarTitle } from '../components/Brand';
 import useAndroidBack from '../useAndroidBack';
 import { peekResource, primeResource } from '../useCachedResource';
@@ -127,6 +129,9 @@ export default function ProfileScreen({ onBack, onOpenPortfolio, onOpenSettings,
           </View>
         ) : null}
 
+        {/* Pro status / upgrade — gold = value. Trial shows days left; free nudges to Pro. */}
+        <ProStatus />
+
         {/* Account actions */}
         <View style={styles.card}>
           {onOpenTrophies ? <ActionRow label="Trophy Case" icon={{ glyph: 'trophy', color: 'gold' }} onPress={onOpenTrophies} /> : null}
@@ -138,6 +143,31 @@ export default function ProfileScreen({ onBack, onOpenPortfolio, onOpenSettings,
         <View style={{ height: 30 }} />
       </ScrollView>
     </View>
+  );
+}
+
+function ProStatus() {
+  const { isPro, reason, trial } = useEntitlement();
+  const subscribed = reason === 'subscribed';
+  const status = subscribed
+    ? 'Active — thanks for supporting the app'
+    : reason === 'trial'
+      ? `Free trial · ${trial.daysLeft} day${trial.daysLeft === 1 ? '' : 's'} left`
+      : 'Act across all your leagues from one place';
+  const cta = subscribed ? 'Manage ›' : isPro ? 'View ›' : 'Go Pro ›';
+  return (
+    <Pressable
+      onPress={() => presentPaywall({ source: 'profile' })}
+      style={({ pressed }) => [styles.card, styles.proCard, glow(rgb.gold, { edge: 0.5, wash: 0.1, halo: 0.3, radius: 14 }), pressed && { opacity: 0.85 }]}
+    >
+      <View style={styles.proRow}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.proTitle}>Dynasty Central <Text style={styles.proWord}>PRO</Text></Text>
+          <Text style={styles.proSub}>{status}</Text>
+        </View>
+        <Text style={styles.proCta}>{cta}</Text>
+      </View>
+    </Pressable>
   );
 }
 
@@ -175,6 +205,12 @@ const styles = StyleSheet.create({
   avatarText: { color: colors.accent, fontSize: 20, fontWeight: '900', letterSpacing: 0.5 },
   name: { color: colors.text, fontSize: 20, fontWeight: '900' },
   sub: { color: colors.textDim, fontSize: 13, fontWeight: '600', marginTop: 2 },
+  proCard: { paddingVertical: 14 },
+  proRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  proTitle: { color: colors.text, fontSize: 15, fontWeight: '800' },
+  proWord: { color: colors.gold, fontWeight: '900', letterSpacing: 0.6 },
+  proSub: { color: colors.textDim, fontSize: 12, fontWeight: '600', marginTop: 3 },
+  proCta: { color: colors.gold, fontSize: 14, fontWeight: '800' },
   demoPill: { backgroundColor: colors.accent + '22', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
   demoPillText: { color: colors.accent, fontSize: 11, fontWeight: '900', letterSpacing: 0.5 },
   cardHeadRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
