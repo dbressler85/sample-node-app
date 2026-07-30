@@ -23,3 +23,9 @@ export const DEVICE_READS = process.env.EXPO_PUBLIC_DEVICE_READS === '1';
 // data licensing are ready. Flip to '1' (EXPO_PUBLIC_ENFORCE_PRO=1) only after RevenueCat is wired and
 // the FantasyCalc/RotoBaller commercial terms are signed.
 export const ENFORCE_PRO = process.env.EXPO_PUBLIC_ENFORCE_PRO === '1';
+
+// RevenueCat public SDK key (Android) — a PUBLISHABLE key (safe in the client, starts with "goog_").
+// When unset, the billing layer stays in stub/dormant mode (no store calls), so Expo Go and the current
+// APK keep working. Set it via eas.json env or an EAS secret once RevenueCat is configured. See
+// docs/REVENUECAT_SETUP.md.
+export const REVENUECAT_ANDROID_KEY = process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_KEY || null;

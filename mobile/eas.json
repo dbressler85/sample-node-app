@@ -12,7 +12,10 @@
       },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://dynasty-central-backend.onrender.com",
-        "EXPO_PUBLIC_DEVICE_READS": "1"
+        "EXPO_PUBLIC_DEVICE_READS": "1",
+        "//pro": "Paste the RevenueCat goog_ public key to enable billing; set ENFORCE_PRO to 1 to bite the gates. Unset = dormant. See docs/REVENUECAT_SETUP.md.",
+        "EXPO_PUBLIC_REVENUECAT_ANDROID_KEY": "",
+        "EXPO_PUBLIC_ENFORCE_PRO": ""
       }
     },
     "production": {
@@ -21,7 +24,10 @@
         "buildType": "app-bundle"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://dynasty-central-backend.onrender.com"
+        "EXPO_PUBLIC_API_URL": "https://dynasty-central-backend.onrender.com",
+        "//pro": "Paste the RevenueCat goog_ public key to enable billing; set ENFORCE_PRO to 1 to bite the gates. Unset = dormant. See docs/REVENUECAT_SETUP.md.",
+        "EXPO_PUBLIC_REVENUECAT_ANDROID_KEY": "",
+        "EXPO_PUBLIC_ENFORCE_PRO": ""
       }
     }
   },
