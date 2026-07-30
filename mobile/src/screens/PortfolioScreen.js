@@ -8,6 +8,7 @@ import { TopbarTitle } from '../components/Brand';
 import useAndroidBack from '../useAndroidBack';
 import useCachedResource from '../useCachedResource';
 import Sparkline from '../components/Sparkline';
+import OutlookDonut from '../components/OutlookDonut';
 import PressableScale from '../components/PressableScale';
 import Reveal from '../components/Reveal';
 import AnimatedNumber from '../components/AnimatedNumber';
@@ -39,6 +40,8 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
   const [holdView, setHoldView] = useState('value'); // Top holdings ranking: 'value' (biggest bets) | 'exposure' (most leagues)
   const [showAllRisk, setShowAllRisk] = useState(false); // Value at risk: 8 by default, expand to the full list
   const [riskView, setRiskView] = useState('value'); // Value at risk ranking: 'value' | 'exposure' (leagues held)
+  const [portTab, setPortTab] = useState('overview'); // sub-tab (tabs-lite): 'overview' | 'teams'
+  const [teamSort, setTeamSort] = useState('value'); // Teams tab sort: 'value' | 'trend' | 'strength'
 
   useAndroidBack(useCallback(() => { onBack(); return true; }, [onBack]));
 
@@ -169,6 +172,18 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
         <View style={{ width: 60 }} />
       </View>
 
+      {/* Sub-tabs (tabs-lite): Overview keeps the full analysis scroll; Teams is the per-team view. */}
+      <View style={styles.segRow}>
+        {[['overview', 'Overview'], ['teams', 'Teams']].map(([k, lbl]) => (
+          <Pressable key={k} onPress={() => setPortTab(k)} style={[styles.seg, portTab === k && styles.segOn]} accessibilityRole="tab" accessibilityState={{ selected: portTab === k }}>
+            <Text style={[styles.segText, portTab === k && styles.segTextOn]}>{lbl}</Text>
+          </Pressable>
+        ))}
+      </View>
+
+      {portTab === 'teams' ? (
+        <TeamsView d={d} refreshing={refreshing} reload={reload} onOpenLeague={onOpenLeague} teamSort={teamSort} setTeamSort={setTeamSort} />
+      ) : (
       <FlatList
         data={visibleHoldings}
         keyExtractor={(h) => h.id}
@@ -625,7 +640,111 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
           </View>
         )}
       />
+      )}
     </View>
+  );
+}
+
+// The Teams sub-tab: the outlook-mix donut (win-now / ascending / balanced / rebuilding) + a sortable
+// list of your rosters (value · trend · share · outlook · format), each tapping into its roster.
+const OUTLOOK_MIX = [
+  { key: 'winNow', label: 'Win-now', color: colors.warn },
+  { key: 'ascending', label: 'Ascending', color: colors.good },
+  { key: 'balanced', label: 'Balanced', color: colors.accent },
+  { key: 'rebuilding', label: 'Rebuilding', color: colors.bad },
+];
+// Map a team's outlook STRING (portfolio service vocabulary) to its slice colour. Same validated
+// categorical set as the donut (CVD-checked), distinct from the UI color law's semantic use.
+function outlookColor(o) {
+  if (o === 'Win-now window') return colors.warn;
+  if (o === 'Ascending') return colors.good;
+  if (o === 'Rebuilding') return colors.bad;
+  return colors.accent; // Balanced / unknown
+}
+
+function TeamsView({ d, refreshing, reload, onOpenLeague, teamSort, setTeamSort }) {
+  const mix = d.outlookMix || {};
+  const segments = OUTLOOK_MIX.map((o) => ({ key: o.key, color: o.color, value: mix[o.key] || 0 }));
+  const teamCount = d.totals.teams || 0;
+  const teams = [...(d.byLeague || [])].sort((a, b) => {
+    if (teamSort === 'trend') return (b.trend7 ? b.trend7.pct : -1e9) - (a.trend7 ? a.trend7.pct : -1e9);
+    if (teamSort === 'strength') return (b.strengthPct || 0) - (a.strengthPct || 0);
+    return (b.value || 0) - (a.value || 0);
+  });
+  return (
+    <FlatList
+      data={teams}
+      keyExtractor={(l) => l.leagueId}
+      contentContainerStyle={styles.body}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={reload} tintColor={colors.accent} />}
+      renderItem={({ item: l }) => <TeamRow l={l} onOpenLeague={onOpenLeague} />}
+      ListHeaderComponent={(
+        <View>
+          <View style={styles.card}>
+            <Text style={[styles.cardTitle, displayLabel()]}>Team outlook</Text>
+            <View style={styles.outlookRow}>
+              <OutlookDonut segments={segments} centerTop={teamCount} centerBottom={teamCount === 1 ? 'team' : 'teams'} />
+              <View style={styles.legend}>
+                {OUTLOOK_MIX.map((o) => (
+                  <View key={o.key} style={styles.legendRow}>
+                    <View style={[styles.legendDot, { backgroundColor: o.color }]} />
+                    <Text style={styles.legendLabel} numberOfLines={1}>{o.label}</Text>
+                    <Text style={styles.legendCount}>{mix[o.key] || 0}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          </View>
+          <View style={styles.teamSortRow}>
+            {[['value', 'Value'], ['trend', 'Trend'], ['strength', 'Strength']].map(([k, lbl]) => (
+              <Pressable key={k} onPress={() => setTeamSort(k)} style={[styles.teamSortChip, teamSort === k && styles.teamSortChipOn]}>
+                <Text style={[styles.teamSortText, teamSort === k && styles.teamSortTextOn]}>{lbl}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      )}
+      ListFooterComponent={<View style={{ paddingTop: 6 }}><ValueCredit center /><View style={{ height: 30 }} /></View>}
+    />
+  );
+}
+
+function TeamRow({ l, onOpenLeague }) {
+  const t = l.trend7;
+  const oColor = outlookColor(l.outlook);
+  const meta = [
+    l.loadFailed ? "couldn't load" : l.outlook || 'Balanced',
+    l.format ? l.format.label : null,
+    l.strengthPct != null ? `${l.strengthPct}% str` : null,
+  ].filter(Boolean).join(' · ');
+  const inner = (
+    <>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.teamName} numberOfLines={1}>{l.name}</Text>
+        <View style={styles.teamMetaRow}>
+          <View style={[styles.oDot, { backgroundColor: oColor }]} />
+          <Text style={styles.teamMeta} numberOfLines={1}>{meta}</Text>
+        </View>
+      </View>
+      {l.history && l.history.length >= 2 ? (
+        <View style={styles.teamSpark}>
+          <Sparkline data={l.history.map((h) => h.value)} width={54} height={26} color={t && t.dir === 'down' ? colors.bad : colors.good} strokeWidth={1.5} />
+        </View>
+      ) : null}
+      <View style={styles.teamRight}>
+        <Text style={styles.teamVal}>{l.value != null ? l.value.toLocaleString() : '—'}</Text>
+        <View style={styles.teamTrendRow}>
+          {l.share != null ? <Text style={styles.teamShare}>{l.share}%</Text> : null}
+          {t ? <Text style={[styles.teamTrend, { color: trendColor(t.dir) }]}>{trendGlyph(t.dir)} {t.pct >= 0 ? '+' : ''}{t.pct}%</Text> : null}
+        </View>
+      </View>
+      {onOpenLeague ? <Text style={styles.leagueChev}>›</Text> : null}
+    </>
+  );
+  return onOpenLeague ? (
+    <PressableScale style={styles.teamRow} onPress={() => onOpenLeague({ leagueId: l.leagueId, name: l.name })}>{inner}</PressableScale>
+  ) : (
+    <View style={styles.teamRow}>{inner}</View>
   );
 }
 
@@ -852,6 +971,36 @@ const styles = StyleSheet.create({
   leagueRisk: { color: colors.warn, fontSize: 12, fontWeight: '800', marginRight: 12 },
   leagueVal: { color: colors.gold, fontSize: 15, fontWeight: '900', width: 44, textAlign: 'right' },
   leagueChev: { color: colors.textDim, fontSize: 18, fontWeight: '700', marginLeft: 8 },
+
+  // --- Sub-tabs + Teams view ---------------------------------------------------
+  segRow: { flexDirection: 'row', gap: 8, marginHorizontal: 16, marginTop: 6, marginBottom: 4 },
+  seg: { flex: 1, paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, alignItems: 'center' },
+  segOn: { borderColor: colors.accent, backgroundColor: colors.accent + '1F' },
+  segText: { color: colors.textDim, fontSize: 14, fontWeight: '800' },
+  segTextOn: { color: colors.accent },
+  outlookRow: { flexDirection: 'row', alignItems: 'center', gap: 18 },
+  legend: { flex: 1, gap: 8 },
+  legendRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  legendDot: { width: 10, height: 10, borderRadius: 5 },
+  legendLabel: { color: colors.text, fontSize: 13, fontWeight: '600', flex: 1 },
+  legendCount: { color: colors.text, fontSize: 14, fontWeight: '900' },
+  teamSortRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
+  teamSortChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
+  teamSortChipOn: { borderColor: colors.accent, backgroundColor: colors.accent + '1F' },
+  teamSortText: { color: colors.textDim, fontSize: 12, fontWeight: '700' },
+  teamSortTextOn: { color: colors.accent },
+  teamRow: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.card, borderRadius: 14, borderWidth: 1, borderColor: colors.border, paddingVertical: 11, paddingHorizontal: 14, marginBottom: 8 },
+  teamName: { color: colors.text, fontSize: 15, fontWeight: '800' },
+  teamMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 },
+  oDot: { width: 8, height: 8, borderRadius: 4 },
+  teamMeta: { color: colors.textDim, fontSize: 12, fontWeight: '600', flex: 1 },
+  teamSpark: { width: 54 },
+  teamRight: { alignItems: 'flex-end', minWidth: 68 },
+  teamVal: { color: colors.gold, fontSize: 16, fontWeight: '900' },
+  teamTrendRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
+  teamShare: { color: colors.textDim, fontSize: 11, fontWeight: '700' },
+  teamTrend: { fontSize: 11, fontWeight: '900' },
+
   error: { color: colors.bad, textAlign: 'center', marginBottom: 14 },
   retry: { backgroundColor: colors.card, borderRadius: 10, paddingHorizontal: 20, paddingVertical: 10, borderWidth: 1, borderColor: colors.border },
   retryText: { color: colors.text, fontWeight: '700' },
