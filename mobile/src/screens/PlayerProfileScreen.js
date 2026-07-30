@@ -14,6 +14,7 @@ import useCachedResource from '../useCachedResource';
 import { STALE } from '../staleTiers';
 import PartialNote from '../components/PartialNote';
 import ValueCredit from '../components/ValueCredit';
+import NewsCredit from '../components/NewsCredit';
 
 const RELATION = {
   rostered: { label: 'Rostered', color: colors.good },
@@ -407,6 +408,7 @@ export default function PlayerProfileScreen({ playerId, seed, onBack, onOpenTrad
                 </Text>
               </Pressable>
             ))}
+            <NewsCredit style={{ marginTop: 6 }} />
           </Card>
         ) : null}
 

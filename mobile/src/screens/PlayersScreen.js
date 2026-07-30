@@ -14,6 +14,7 @@ import Reveal from '../components/Reveal';
 import PartialNote from '../components/PartialNote';
 import DeviceNote from '../components/DeviceNote';
 import ValueCredit from '../components/ValueCredit';
+import NewsCredit from '../components/NewsCredit';
 import PopChip from '../components/PopChip';
 import useActFlash from '../useActFlash';
 import useAutoReload from '../useAutoReload';
@@ -572,6 +573,7 @@ export default function PlayersScreen({ active = true, onOpenPlayer, onStartWaiv
                     <Text style={styles.note}>{newsQuery ? `No news matches “${newsQuery}”.` : 'No news affecting your rostered players right now.'}</Text>
                   )
                 }
+                ListFooterComponent={newsData.length ? <NewsCredit center style={styles.credit} /> : null}
               />
             </>
           )}

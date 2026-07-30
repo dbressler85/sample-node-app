@@ -8,8 +8,8 @@
 
 Dynasty Central ("the app", "we", "us") is an independent companion app for managing
 MyFantasyLeague dynasty leagues. This policy explains what data the app handles and why. The
-app is **not affiliated with, endorsed by, or sponsored by** MyFantasyLeague, FantasyCalc, or
-Sleeper.
+app is **not affiliated with, endorsed by, or sponsored by** MyFantasyLeague, FantasyCalc,
+Sleeper, or RotoBaller.
 
 ## What we handle, and why
 
@@ -33,8 +33,9 @@ service **only to route those notifications** — never for advertising or analy
 notifications off in Settings or your device settings at any time.
 
 **League and player data.** The app retrieves your league, roster, and player data from
-MyFantasyLeague on your behalf, and shows market player values from public sources
-(FantasyCalc, Sleeper). We do not send your personal data to those value sources.
+MyFantasyLeague on your behalf, shows market player values from public sources (FantasyCalc,
+Sleeper), and shows player news from RotoBaller. We do not send your personal data to those
+sources.
 
 ## What we do NOT do
 

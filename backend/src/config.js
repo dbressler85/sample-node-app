@@ -137,6 +137,18 @@ const config = {
   // feed the numbers. Set MFL_ADP_IS_KEEPER=NKR to restore MFL's mixed default.
   mflAdpIsKeeper: process.env.MFL_ADP_IS_KEEPER || 'KR',
 
+  // Player news feed (RotoBaller). RotoBaller licenses its fantasy player-news feed to partners
+  // (XML/RSS or JSON) for embedding in apps — commercial use is permitted under that partnership,
+  // with attribution + a link back to rotoballer.com (the app shows a tappable "News · RotoBaller"
+  // credit and each item deep-links to the source). The partner feed URL is account-specific and
+  // may embed a partner key, so it is NEVER committed — set ROTOBALLER_FEED_URL in the host env
+  // (Render dashboard). When unset, live news is simply empty (we do NOT silently fall back to an
+  // unlicensed source); DEMO mode always uses the local fixture regardless. Optional overrides let
+  // you point at a differently-shaped feed without a code change.
+  newsFeedUrl: process.env.ROTOBALLER_FEED_URL || null,
+  // How long to cache the fetched feed. News moves faster than dynasty values, so keep it short.
+  newsCacheTtlMs: int(process.env.NEWS_CACHE_TTL_MS, 20 * 60 * 1000),
+
   // A league's next waiver run counts as an imminent, act-now item within this window — it
   // surfaces as a Home action and a highlight on the Waivers screen. Default 3 days: tight enough
   // for the in-season cadence (where the window closes fast) and still fine in the offseason.

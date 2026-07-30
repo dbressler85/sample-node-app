@@ -162,7 +162,7 @@ async function enrichForExposure(cookie, token, ids, primaryLeagueId) {
 async function getNews(cookie, token) {
   const exposure = await getExposure(cookie, token);
   const byPlayer = new Map(exposure.players.map((p) => [p.id, p]));
-  // Demo has a fixture; live pulls ESPN news mapped to MFL players by name.
+  // Demo has a fixture; live pulls RotoBaller's partner feed mapped to MFL players by name.
   const items = config.demoMode ? demo.news() : await newsLib.mflNews(cookie);
 
   let news = items.map((n) => {
@@ -202,7 +202,7 @@ async function getNews(cookie, token) {
   }
   news = [...byStory.values()];
 
-  // Live: the ESPN feed is league-wide, so keep only news that touches a player
+  // Live: the news feed is league-wide, so keep only news that touches a player
   // you actually roster — that's the "which of my teams does this hit" moat.
   if (!config.demoMode) news = news.filter((n) => n.affectedCount > 0);
 

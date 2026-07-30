@@ -11,8 +11,18 @@ same datum is available from more than one place — which source wins and why.
 
 Providers: **MFL** (MyFantasyLeague — the league system of record), **FantasyCalc** (dynasty +
 win-now values, 30-day value momentum, per-slot draft-pick values, and ages — all **format-aware**:
-per `numQbs` / `ppr` / `numTeams`), **Sleeper** (trending adds + headshots), **ESPN** (news), **app
-stores** (`state.json`, the app's own data), and **computed** (values the app derives, not reads).
+per `numQbs` / `ppr` / `numTeams`), **Sleeper** (trending adds + headshots), **RotoBaller** (player
+news, via their partner feed), **app stores** (`state.json`, the app's own data), and **computed**
+(values the app derives, not reads).
+
+**RotoBaller partner-feed compliance.** Player news comes from RotoBaller's partner feed, which they
+license for embedding (commercial use permitted under the partnership) on the condition that the
+source is **attributed** with a visible, tappable link back to rotoballer.com. We honor that: a
+"News · RotoBaller.com" credit sits on the News tab and the profile News card
+(`components/NewsCredit.js`), and each item deep-links to its own RotoBaller story. The feed URL is
+account-specific (may embed a partner key), so it is **never committed** — it's set via
+`ROTOBALLER_FEED_URL` in the host env. When unset, live news is empty; we never fall back to an
+unlicensed source.
 
 **FantasyCalc Terms of Use compliance.** We lean on FantasyCalc for player *and* draft-pick
 dynasty values, so we honor their ToU: (a) **non-commercial** use only (this is a solo, unpaid
@@ -40,7 +50,7 @@ per-player/-pick values rendered inside the app.
 | **Ownership %** | MFL `topOwns` → `enr.ownership()` | `lib/enrichment.js:291` | Single source (FantasyCalc has no ownership field). |
 | **Trend** (48h add heat) | **Blend**: Sleeper trending adds **+** MFL `topAdds` (summed) → `enr.trend()` | `lib/enrichment.js:279-285,290` | Intentional additive blend; mixes two add-count units into one number. |
 | **ADP** | **MFL `adp` export** (board order AND profile bio) | `lib/adp.js:43`; `draft.js:245`; `playerhub.js` | Resolved ([Q2](#q2--adp--resolved-adp-export)): the profile bio now reads the `adp` export, not `playerProfile.adp`. |
-| **News** + severity | ESPN news feed | `lib/news.js:97`; crosswalk `:82-93` | Player match is **by name** over the DB index; namesake collisions are skipped, not guessed (`news.js:109`). Severity is regex-derived from the headline. |
+| **News** + severity | RotoBaller partner feed (`ROTOBALLER_FEED_URL`) | `lib/news.js` (`mflNews`, `resolveAthletes`) | Player match is **by name** — the feed's explicit player tag first, else a headline scan — over the DB index; namesake collisions are skipped, not guessed. Severity is regex-derived from the headline + feed category tags. Unset feed URL → empty (no unlicensed fallback). |
 | **Headshot** | Sleeper id via FantasyCalc crosswalk | `services/playerhub.js:527`; `lib/enrichment.js:133` | |
 | Bio (DOB/height/weight) | MFL `playerProfile` | `lib/mflRepo.js:234-246`; `playerhub.js:484` | Global export; fetched only on the single-player profile screen. |
 
@@ -99,7 +109,7 @@ per-player/-pick values rendered inside the app.
 | Current NFL **week** | `nfl.currentWeek` (MFL `nflSchedule.week` gated by kickoff-proximity; `MFL_WEEK` override) | `lib/nfl.js:40` | `dashboard.liveMatchup` reads `liveScoring.week` instead — [Q7](#q7--consolidation--code-health-not-blocking). |
 | **Season** | `config.season` (`MFL_SEASON` env or current UTC year) | `config.js:21` | Single source. |
 | **Byes** | Derived: DB team codes ∉ that week's `nflSchedule` matchups | `lib/nfl.js:125` | Depends on both schedule + DB team codes. |
-| **Injuries** / game status | MFL `injuries` `injury[].{id,status}` | `lib/nfl.js:157` | Authoritative for availability. ESPN news severity is a parallel display-only narrative (unreconciled — [Q8](#q8--documented-as-is-limitations)). |
+| **Injuries** / game status | MFL `injuries` `injury[].{id,status}` | `lib/nfl.js:157` | Authoritative for availability. RotoBaller news severity is a parallel display-only narrative (unreconciled — [Q8](#q8--documented-as-is-limitations)). |
 | Next kickoff (lineup lock) | MFL `nflSchedule` `matchup.kickoff` | `lib/nfl.js:174` | |
 | Strength-of-schedule / opp difficulty | **none wired** — `difficulty: null` hardcoded | `lib/nfl.js:208` | Noted as a gap, not a source. |
 
@@ -283,7 +293,7 @@ confirms them. (Not a source conflict; deferred.)
 
 ### Q8 — Documented-as-is limitations
 Not bugs, but worth confirming the app should keep behaving this way:
-- **Injury signal:** MFL `injuries` is authoritative for availability; ESPN news `severity` is a
+- **Injury signal:** MFL `injuries` is authoritative for availability; RotoBaller news `severity` is a
   parallel, unreconciled display narrative (they can disagree).
 - **News→player** matching is by name; namesakes (two "Mike Williams") are silently dropped.
 - **SoS/opponent difficulty** is unwired (`null`).

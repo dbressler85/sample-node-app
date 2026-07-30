@@ -48,14 +48,15 @@ WHAT YOU GET
   waiver claim resolves, or when a starting lineup needs attention.
 
 Values are market-anchored (FantasyCalc) and format-aware — 1QB or Superflex, TE-premium,
-league size — so the numbers reflect YOUR leagues, not a generic redraft board.
+league size — so the numbers reflect YOUR leagues, not a generic redraft board. Player news is
+powered by RotoBaller.
 
 REQUIRES a MyFantasyLeague account. Your MFL password is only used to sign you in to
 MyFantasyLeague — it is never stored by Dynasty Central.
 
 Dynasty Central is an independent app and is not affiliated with, endorsed by, or sponsored
-by MyFantasyLeague, FantasyCalc, or Sleeper. All league data is your own, retrieved from
-MyFantasyLeague on your behalf.
+by MyFantasyLeague, FantasyCalc, Sleeper, or RotoBaller. All league data is your own, retrieved
+from MyFantasyLeague on your behalf.
 ```
 
 ## Category & metadata

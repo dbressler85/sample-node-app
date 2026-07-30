@@ -1,19 +1,27 @@
 'use strict';
 
-// Player news from ESPN's free, no-key NFL news feed. ESPN tags each article with
-// the athletes it involves; we map those to our MFL players by name (ESPN keys by
-// its own athlete ids, so name-match is the light, no-crosswalk route). The result
-// is normalized into the app's news-item shape so exposure/playerhub can map each
-// item to the leagues it affects.
+// Player news from RotoBaller's partner feed. RotoBaller licenses its fantasy
+// player-news feed (XML/RSS or JSON) to partners for embedding — commercial use is
+// permitted under that partnership, with attribution + a link back to the source
+// (the app shows a "News · RotoBaller" credit and each item deep-links to the story).
+//
+// The partner feed URL is account-specific (and may carry a partner key), so it is
+// NEVER committed — it comes from config.newsFeedUrl (env ROTOBALLER_FEED_URL). When
+// it's unset, live news is empty rather than falling back to any unlicensed source.
+//
+// Items are mapped to our MFL players by name — RotoBaller tags each item with the
+// player it's about (an explicit player field when the feed carries one), and we fall
+// back to scanning the headline for a known player name. The result is normalized into
+// the app's news-item shape so exposure/playerhub can map each item to the leagues it
+// affects.
 
 const config = require('../config');
 const playersLib = require('./players');
 
-const TTL_MS = 20 * 60 * 1000; // 20 min — news moves faster than dynasty values
-const ESPN_NEWS_URL = 'https://site.api.espn.com/apis/site/v2/sports/football/nfl/news?limit=50';
 let cache = { at: 0, articles: [] };
 
-// Rough severity from the headline/blurb, since ESPN doesn't grade it.
+// Rough severity from the headline/blurb + any feed category tags (injury/breaking),
+// since the feed doesn't hand us a graded level.
 function severityOf(text) {
   const t = String(text).toLowerCase();
   if (/\b(out|ruled out|injured reserve|\bir\b|suspend|torn|acl|mcl|surgery|carted|done for the)\b/.test(t)) return 'high';
@@ -21,7 +29,7 @@ function severityOf(text) {
   return 'low';
 }
 
-// Normalize a name for matching across "Last, First" (MFL) and "First Last" (ESPN),
+// Normalize a name for matching across "Last, First" (MFL) and "First Last" (feed),
 // dropping suffixes and punctuation.
 function normName(name) {
   let n = String(name || '').toLowerCase();
@@ -36,38 +44,131 @@ function normName(name) {
     .trim();
 }
 
-async function fetchEspn() {
-  if (cache.articles.length && Date.now() - cache.at < TTL_MS) return cache.articles;
+// --- feed decoding (RSS/Atom or JSON, no XML dependency) ---------------------
+
+function decodeEntities(s) {
+  return String(s)
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#0*39;|&apos;/g, "'")
+    .replace(/&#x2019;/gi, '’')
+    .replace(/&amp;/g, '&')
+    .trim();
+}
+
+// First inner text of <name ...>…</name> inside a block (any namespace prefix ok).
+function xmlTag(block, name) {
+  const m = block.match(new RegExp(`<(?:[\\w-]+:)?${name}\\b[^>]*>([\\s\\S]*?)</(?:[\\w-]+:)?${name}>`, 'i'));
+  return m ? decodeEntities(m[1]) : '';
+}
+// All inner texts of a repeated tag (e.g. <category>).
+function xmlTagAll(block, name) {
+  const re = new RegExp(`<(?:[\\w-]+:)?${name}\\b[^>]*>([\\s\\S]*?)</(?:[\\w-]+:)?${name}>`, 'gi');
+  const out = [];
+  let m;
+  while ((m = re.exec(block))) out.push(decodeEntities(m[1]));
+  return out;
+}
+
+// A feed item's explicit player name(s), if the feed tags them. Partner feeds carry a
+// player field; we probe the likely element names (and a category tagged as a player)
+// so we don't depend on one exact spelling.
+function xmlPlayerNames(block) {
+  const names = [];
+  for (const t of ['player', 'playername', 'player_name', 'athlete']) {
+    for (const v of xmlTagAll(block, t)) if (v) names.push(v);
+  }
+  // <category domain="player">Name</category> style tags.
+  const re = /<category\b[^>]*\b(?:domain|scheme)="[^"]*player[^"]*"[^>]*>([\s\S]*?)<\/category>/gi;
+  let m;
+  while ((m = re.exec(block))) { const v = decodeEntities(m[1]); if (v) names.push(v); }
+  return names;
+}
+
+function parseRss(xml) {
+  const blocks = xml.match(/<(?:item|entry)\b[\s\S]*?<\/(?:item|entry)>/gi) || [];
+  return blocks.map((b, i) => {
+    const headline = xmlTag(b, 'title');
+    const description = xmlTag(b, 'description') || xmlTag(b, 'summary') || xmlTag(b, 'content');
+    // RSS <link>URL</link>; Atom <link href="URL"/>.
+    let url = xmlTag(b, 'link');
+    if (!url) { const lm = b.match(/<link\b[^>]*\bhref="([^"]+)"/i); if (lm) url = decodeEntities(lm[1]); }
+    const published = xmlTag(b, 'pubDate') || xmlTag(b, 'published') || xmlTag(b, 'updated') || null;
+    const id = xmlTag(b, 'guid') || xmlTag(b, 'id') || url || `rb-${i}`;
+    return {
+      id: String(id),
+      headline,
+      description,
+      url: url || null,
+      published: published || null,
+      tags: xmlTagAll(b, 'category').map((c) => c.toLowerCase()),
+      playerNames: xmlPlayerNames(b),
+    };
+  });
+}
+
+function parseJsonFeed(json) {
+  const arr = Array.isArray(json)
+    ? json
+    : (json && (json.items || json.articles || json.news || json.data)) || [];
+  return (Array.isArray(arr) ? arr : []).map((a, i) => {
+    const player = a.player || a.playerName || a.player_name || a.athlete;
+    const players = Array.isArray(a.players) ? a.players : [];
+    const playerNames = [
+      ...(typeof player === 'string' ? [player] : player && player.name ? [player.name] : []),
+      ...players.map((p) => (typeof p === 'string' ? p : p && p.name) || '').filter(Boolean),
+    ];
+    const rawTags = a.tags || a.categories || a.meta || [];
+    return {
+      id: String(a.id || a.guid || a.url || a.link || `rb-${i}`),
+      headline: a.title || a.headline || '',
+      description: a.description || a.summary || a.content_text || a.content || '',
+      url: a.url || a.link || (a.links && a.links.web && a.links.web.href) || null,
+      published: a.date_published || a.published || a.pubDate || a.date || null,
+      tags: (Array.isArray(rawTags) ? rawTags : [rawTags]).map((t) => String((t && t.name) || t).toLowerCase()),
+      playerNames,
+    };
+  });
+}
+
+// Fetch + normalize the configured feed into raw articles. Detects JSON vs XML by the
+// response content-type / leading character. Serves a last-good snapshot on failure and
+// an empty list when no feed URL is configured (never falls back to an unlicensed source).
+async function fetchFeed() {
+  if (!config.newsFeedUrl) return [];
+  if (cache.articles.length && Date.now() - cache.at < config.newsCacheTtlMs) return cache.articles;
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 10000);
-    let json;
+    let body;
+    let ctype;
     try {
-      const res = await fetch(ESPN_NEWS_URL, { signal: ctrl.signal, headers: { Accept: 'application/json', 'User-Agent': config.userAgent } });
+      const res = await fetch(config.newsFeedUrl, {
+        signal: ctrl.signal,
+        headers: { Accept: 'application/rss+xml, application/xml, application/json;q=0.9, */*;q=0.8', 'User-Agent': config.userAgent },
+      });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      json = await res.json();
+      ctype = (res.headers && res.headers.get && res.headers.get('content-type')) || '';
+      body = await res.text();
     } finally {
       clearTimeout(timer);
     }
-    const articles = (Array.isArray(json && json.articles) ? json.articles : []).map((a, i) => {
-      const cats = Array.isArray(a.categories) ? a.categories : [];
-      const athletes = cats
-        .filter((c) => c.type === 'athlete')
-        .map((c) => ({ name: (c.athlete && (c.athlete.displayName || c.athlete.description)) || c.description || '' }))
-        .filter((x) => x.name);
-      return {
-        id: String(a.id || a.guid || `espn-${i}`),
-        headline: a.headline || a.title || '',
-        description: a.description || '',
-        published: a.published || null,
-        url: (a.links && a.links.web && a.links.web.href) || null,
-        athletes,
-      };
-    });
+    const looksJson = /json/i.test(ctype) || /^\s*[[{]/.test(body);
+    let articles;
+    if (looksJson) {
+      let json;
+      try { json = JSON.parse(body); } catch { json = null; }
+      articles = json ? parseJsonFeed(json) : [];
+    } else {
+      articles = parseRss(body);
+    }
+    articles = articles.filter((a) => a.headline);
     cache = { at: Date.now(), articles };
     return articles;
   } catch (e) {
-    console.log(`[news] espn error=${e.message}`);
+    console.log(`[news] rotoballer error=${e.message}`);
     return cache.articles.length ? cache.articles : []; // last-good on failure
   }
 }
@@ -92,10 +193,46 @@ function nameToIdIndex(byId) {
   return idx;
 }
 
-// ESPN articles mapped to the app's news-item shape, one item per tagged athlete
+// Resolve the players an article is about: prefer the feed's explicit player tag(s);
+// otherwise scan the headline for a known player name. Scanning tests consecutive
+// 3- then 2-word windows left-to-right (player names are 2–3 tokens), advancing past a
+// hit so we don't re-match its words — cheap (a few lookups per article) and reuses the
+// exact-name index, so a namesake collision (>1 id) is left for the caller to skip
+// rather than guessed. Returns unique { name, ids } candidates.
+function resolveAthletes(article, nameToIds) {
+  const out = [];
+  const seenName = new Set();
+  const add = (name) => {
+    const n = normName(name);
+    if (!n || seenName.has(n)) return;
+    seenName.add(n);
+    const ids = nameToIds.get(n);
+    if (ids) out.push({ name: n, ids });
+  };
+
+  if (article.playerNames && article.playerNames.length) {
+    for (const name of article.playerNames) add(name);
+    if (out.length) return out;
+  }
+
+  // Headline scan fallback.
+  const words = normName(article.headline).split(' ').filter(Boolean);
+  for (let i = 0; i < words.length; ) {
+    let matched = false;
+    for (const span of [3, 2]) {
+      if (i + span > words.length) continue;
+      const cand = words.slice(i, i + span).join(' ');
+      if (nameToIds.has(cand)) { add(cand); i += span; matched = true; break; }
+    }
+    if (!matched) i += 1;
+  }
+  return out;
+}
+
+// Feed articles mapped to the app's news-item shape, one item per tagged player
 // that resolves to an MFL player: { id, playerId, headline, severity, url, published }.
 async function mflNews(cookie) {
-  const [articles, byId] = await Promise.all([fetchEspn(), playersLib.load(cookie)]);
+  const [articles, byId] = await Promise.all([fetchFeed(), playersLib.load(cookie)]);
   const nameToIds = nameToIdIndex(byId);
 
   const items = [];
@@ -103,19 +240,22 @@ async function mflNews(cookie) {
   let unmatched = 0;
   let ambiguous = 0;
   for (const a of articles) {
-    for (const ath of a.athletes) {
-      const ids = nameToIds.get(normName(ath.name));
-      if (!ids) { unmatched += 1; continue; }
-      if (ids.length > 1) { ambiguous += 1; continue; } // don't guess between namesakes
-      const pid = ids[0];
+    const athletes = resolveAthletes(a, nameToIds);
+    if (!athletes.length) { unmatched += 1; continue; }
+    const tagText = (a.tags || []).join(' ');
+    let severity = severityOf(`${a.headline} ${a.description} ${tagText}`);
+    if (severity === 'low' && /injur|breaking|ruled out|suspend/.test(tagText)) severity = 'medium';
+    for (const ath of athletes) {
+      if (ath.ids.length > 1) { ambiguous += 1; continue; } // don't guess between namesakes
+      const pid = ath.ids[0];
       const key = `${a.id}-${pid}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      items.push({ id: key, playerId: pid, headline: a.headline, severity: severityOf(`${a.headline} ${a.description}`), url: a.url, published: a.published });
+      items.push({ id: key, playerId: pid, headline: a.headline, severity, url: a.url, published: a.published });
     }
   }
-  console.log(`[news] espn matched=${items.length} unmatched=${unmatched} ambiguous=${ambiguous}`);
+  console.log(`[news] rotoballer matched=${items.length} unmatched=${unmatched} ambiguous=${ambiguous}`);
   return items;
 }
 
-module.exports = { mflNews, fetchEspn, normName, severityOf };
+module.exports = { mflNews, fetchFeed, normName, severityOf };

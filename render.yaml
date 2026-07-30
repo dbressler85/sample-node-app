@@ -76,6 +76,12 @@ services:
       # required for the throughput above; set only if you specifically use it.
       - key: MFL_API_KEY
         sync: false
+      # RotoBaller partner news feed URL (XML/RSS or JSON). RotoBaller licenses this feed for
+      # embedding under their partner program — set the account-specific URL they give you here.
+      # It may embed a partner key, so it's dashboard-managed (sync:false), never committed. When
+      # unset, the app's News tab is simply empty in live (no unlicensed fallback).
+      - key: ROTOBALLER_FEED_URL
+        sync: false
       # Encrypts persisted sessions at rest. Auto-generated & kept stable by Render;
       # needed (with DATA_DIR on a disk) to keep users logged in across restarts.
       - key: SESSION_SECRET
