@@ -713,15 +713,26 @@ function TeamsView({ d, refreshing, reload, onOpenLeague, teamSort, setTeamSort 
 function TeamRow({ l, onOpenLeague }) {
   const t = l.trend7;
   const oColor = outlookColor(l.outlook);
+  const rec = l.record ? `${l.record.wins}-${l.record.losses}${l.record.ties ? `-${l.record.ties}` : ''}` : null;
   const meta = [
     l.loadFailed ? "couldn't load" : l.outlook || 'Balanced',
+    rec,
     l.format ? l.format.label : null,
-    l.strengthPct != null ? `${l.strengthPct}% str` : null,
+    l.strengthLabel,
   ].filter(Boolean).join(' · ');
   const inner = (
     <>
       <View style={{ flex: 1 }}>
-        <Text style={styles.teamName} numberOfLines={1}>{l.name}</Text>
+        <View style={styles.teamNameRow}>
+          <Text style={[styles.teamName, { flexShrink: 1 }]} numberOfLines={1}>{l.name}</Text>
+          {l.windowSignal ? (
+            <View style={[styles.winPill, { borderColor: l.windowSignal === 'sell' ? colors.warn : colors.good }]}>
+              <Text style={[styles.winPillText, { color: l.windowSignal === 'sell' ? colors.warn : colors.good }]}>
+                {l.windowSignal === 'sell' ? 'Sell window' : 'Go for it'}
+              </Text>
+            </View>
+          ) : null}
+        </View>
         <View style={styles.teamMetaRow}>
           <View style={[styles.oDot, { backgroundColor: oColor }]} />
           <Text style={styles.teamMeta} numberOfLines={1}>{meta}</Text>
@@ -1065,7 +1076,10 @@ const styles = StyleSheet.create({
   teamSortText: { color: colors.textDim, fontSize: 12, fontWeight: '700' },
   teamSortTextOn: { color: colors.accent },
   teamRow: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.card, borderRadius: 14, borderWidth: 1, borderColor: colors.border, paddingVertical: 11, paddingHorizontal: 14, marginBottom: 8 },
+  teamNameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   teamName: { color: colors.text, fontSize: 15, fontWeight: '800' },
+  winPill: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 1 },
+  winPillText: { fontSize: 10, fontWeight: '900', letterSpacing: 0.2 },
   teamMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 },
   oDot: { width: 8, height: 8, borderRadius: 4 },
   teamMeta: { color: colors.textDim, fontSize: 12, fontWeight: '600', flex: 1 },

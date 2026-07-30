@@ -145,6 +145,8 @@ const Portfolio = z.object({
       trend7: z.object({ dir: z.string(), pct: z.number(), days: z.number() }).nullable().optional(),
       history: z.array(z.object({ date: z.string(), value: z.number() })).optional(),
       format: z.object({ numQbs: z.number(), ppr: z.number(), tePremium: z.boolean(), numTeams: z.number().nullable(), label: z.string() }).nullable().optional(),
+      record: z.object({ wins: z.number(), losses: z.number(), ties: z.number().nullable().optional() }).nullable().optional(),
+      windowSignal: z.string().nullable().optional(), // 'sell' | 'push' | null — contender-window mismatch
     })
   ),
   // Format/settings distribution across the owner's leagues (Portfolio Allocation tab). Optional.
