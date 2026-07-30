@@ -8,7 +8,6 @@ import useAndroidBack from '../useAndroidBack';
 import { peekResource, primeResource } from '../useCachedResource';
 import Sparkline from '../components/Sparkline';
 import NeonSign from '../components/NeonSign';
-import ErrorView from '../components/ErrorView';
 
 // The signed-in manager's home base: who you are, your portfolio at a glance, the shape of
 // your leagues (outlook mix), your personal activity (tags / watchlist), and the account
@@ -33,18 +32,10 @@ export default function ProfileScreen({ onBack, onOpenPortfolio, onOpenSettings,
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  if (error && !me) {
-    return (
-      <View style={styles.container}>
-        <ErrorView message={error} onRetry={() => { setError(null); load(); }} />
-      </View>
-    );
-  }
-  if (!me) {
-    return <View style={[styles.container, styles.center]}><ActivityIndicator color={colors.accent} size="large" /></View>;
-  }
-
-  const name = me.username || 'Manager';
+  // NEVER gate the whole screen on the /api/me read — the account actions (esp. Log out) need no data
+  // and must be on-screen and tappable the instant Profile opens, even on a cold/slow backend. Identity
+  // and the portfolio glance fill in as they arrive; a failed /api/me shows an inline retry, not a wall.
+  const name = (me && me.username) || 'Manager';
   const initials = name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 2).toUpperCase() || 'DC';
   const mix = port && port.outlookMix;
   const tags = port && port.tags;
@@ -62,15 +53,22 @@ export default function ProfileScreen({ onBack, onOpenPortfolio, onOpenSettings,
         contentContainerStyle={styles.body}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.accent} />}
       >
-        {/* Manager card */}
+        {/* Inline, non-blocking: if identity failed to load, offer a retry without hiding the actions. */}
+        {error && !me ? (
+          <Pressable onPress={() => { setError(null); load(); }} style={styles.errBanner}>
+            <Text style={styles.errBannerText}>Couldn’t load your profile — tap to retry.</Text>
+          </Pressable>
+        ) : null}
+
+        {/* Manager card — identity fills in from /api/me; a placeholder holds the layout until it lands. */}
         <View style={styles.card}>
           <View style={styles.idRow}>
-            <View style={styles.avatar}><Text style={styles.avatarText}>{initials}</Text></View>
+            <View style={styles.avatar}><Text style={styles.avatarText}>{me ? initials : '·'}</Text></View>
             <View style={{ flex: 1 }}>
               <Text style={styles.name} numberOfLines={1}>{name}</Text>
-              <Text style={styles.sub}>{me.leagues} league{me.leagues === 1 ? '' : 's'} · {me.season} season</Text>
+              <Text style={styles.sub}>{me ? `${me.leagues} league${me.leagues === 1 ? '' : 's'} · ${me.season} season` : 'Loading your profile…'}</Text>
             </View>
-            {me.demoMode ? <View style={styles.demoPill}><Text style={styles.demoPillText}>DEMO</Text></View> : null}
+            {me && me.demoMode ? <View style={styles.demoPill}><Text style={styles.demoPillText}>DEMO</Text></View> : null}
           </View>
         </View>
 
@@ -195,6 +193,8 @@ const styles = StyleSheet.create({
   actionRowBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   actionText: { color: colors.text, fontSize: 15, fontWeight: '700' },
   actionChev: { color: colors.textDim, fontSize: 18, fontWeight: '700' },
+  errBanner: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.bad, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 14 },
+  errBannerText: { color: colors.bad, fontSize: 13, fontWeight: '700', textAlign: 'center' },
   error: { color: colors.bad, textAlign: 'center', marginBottom: 14 },
   retry: { backgroundColor: colors.card, borderRadius: 10, paddingHorizontal: 20, paddingVertical: 10, borderWidth: 1, borderColor: colors.border },
   retryText: { color: colors.text, fontWeight: '700' },
