@@ -695,6 +695,7 @@ function TeamsView({ d, refreshing, reload, onOpenLeague, teamSort, setTeamSort 
               </View>
             </View>
           </View>
+          <FormatCard formatMix={d.formatMix} />
           <View style={styles.teamSortRow}>
             {[['value', 'Value'], ['trend', 'Trend'], ['strength', 'Strength']].map(([k, lbl]) => (
               <Pressable key={k} onPress={() => setTeamSort(k)} style={[styles.teamSortChip, teamSort === k && styles.teamSortChipOn]}>
@@ -745,6 +746,80 @@ function TeamRow({ l, onOpenLeague }) {
     <PressableScale style={styles.teamRow} onPress={() => onOpenLeague({ leagueId: l.leagueId, name: l.name })}>{inner}</PressableScale>
   ) : (
     <View style={styles.teamRow}>{inner}</View>
+  );
+}
+
+// A proportional stacked bar (no SVG) — segments sized by count, separated by a 2px surface gap. Always
+// paired with a printed legend of counts, so identity is never colour-alone.
+function MiniStack({ segments }) {
+  const shown = (segments || []).filter((s) => s.value > 0);
+  if (!shown.length) return <View style={styles.miniStack} />;
+  return (
+    <View style={styles.miniStack}>
+      {shown.map((s, i) => (
+        <View key={s.label} style={{ flex: s.value, backgroundColor: s.color, marginLeft: i === 0 ? 0 : 2, borderRadius: 3 }} />
+      ))}
+    </View>
+  );
+}
+
+function FormatRow({ label, segments }) {
+  const shown = (segments || []).filter((s) => s.value > 0);
+  return (
+    <View style={styles.fmtRow}>
+      <Text style={styles.fmtRowLabel}>{label}</Text>
+      <View style={{ flex: 1 }}>
+        <MiniStack segments={segments} />
+        <Text style={styles.fmtRowLegend} numberOfLines={1}>{shown.map((s) => `${s.label} ${s.value}`).join(' · ')}</Text>
+      </View>
+    </View>
+  );
+}
+
+// League-settings distribution across your leagues (the "what kind of leagues do I play" mix), plus the
+// derived positional-demand insight — the point of the card. QB is the biggest value lever, so it leads.
+function FormatCard({ formatMix }) {
+  if (!formatMix) return null;
+  const qb = formatMix.qb || {};
+  const ppr = formatMix.ppr || {};
+  const te = formatMix.te || {};
+  const sz = formatMix.size || {};
+  const sf = qb.superflex || 0;
+  const one = qb['1qb'] || 0;
+  const qbTotal = sf + one;
+  const insight = qbTotal === 0
+    ? null
+    : sf / qbTotal >= 0.6
+      ? 'Superflex-heavy — QBs are your scarcest, most valuable trade chips across the portfolio.'
+      : sf / qbTotal <= 0.4
+        ? 'Mostly 1QB — QB value stays modest across your portfolio; running backs and receivers carry it.'
+        : 'A mix of QB formats — price your QBs league by league (Superflex pays far more).';
+  const teTotal = (te.premium || 0) + (te.standard || 0);
+  const sizeChips = Object.keys(sz).sort((a, b) => Number(a) - Number(b)).map((k) => `${k}-team ${sz[k]}`).join(' · ');
+  return (
+    <View style={styles.card}>
+      <Text style={[styles.cardTitle, displayLabel()]}>League formats</Text>
+      <FormatRow label="QB" segments={[{ label: 'Superflex', value: sf, color: colors.accent }, { label: '1QB', value: one, color: colors.violet }]} />
+      <FormatRow
+        label="Scoring"
+        segments={[
+          { label: 'Full PPR', value: ppr.full || 0, color: colors.good },
+          { label: 'Half', value: ppr.half || 0, color: colors.good + '88' },
+          { label: 'Std', value: ppr.standard || 0, color: colors.border },
+        ]}
+      />
+      <View style={styles.fmtMetaRow}>
+        <Text style={styles.fmtMetaLabel}>TE-premium</Text>
+        <Text style={styles.fmtMetaVal}>{te.premium || 0}{teTotal ? ` of ${teTotal}` : ''}</Text>
+      </View>
+      {sizeChips ? (
+        <View style={styles.fmtMetaRow}>
+          <Text style={styles.fmtMetaLabel}>Sizes</Text>
+          <Text style={styles.fmtMetaVal} numberOfLines={1}>{sizeChips}</Text>
+        </View>
+      ) : null}
+      {insight ? <Text style={styles.fmtInsight}>{insight}</Text> : null}
+    </View>
   );
 }
 
@@ -1000,6 +1075,14 @@ const styles = StyleSheet.create({
   teamTrendRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
   teamShare: { color: colors.textDim, fontSize: 11, fontWeight: '700' },
   teamTrend: { fontSize: 11, fontWeight: '900' },
+  miniStack: { flexDirection: 'row', height: 10, borderRadius: 3, overflow: 'hidden', backgroundColor: colors.bg },
+  fmtRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
+  fmtRowLabel: { color: colors.textDim, fontSize: 12, fontWeight: '800', width: 58 },
+  fmtRowLegend: { color: colors.textDim, fontSize: 11, fontWeight: '600', marginTop: 4 },
+  fmtMetaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 3 },
+  fmtMetaLabel: { color: colors.textDim, fontSize: 12, fontWeight: '700' },
+  fmtMetaVal: { color: colors.text, fontSize: 12, fontWeight: '700', flexShrink: 1, marginLeft: 10, textAlign: 'right' },
+  fmtInsight: { color: colors.violetText, fontSize: 12, fontWeight: '700', marginTop: 8, lineHeight: 17 },
 
   error: { color: colors.bad, textAlign: 'center', marginBottom: 14 },
   retry: { backgroundColor: colors.card, borderRadius: 10, paddingHorizontal: 20, paddingVertical: 10, borderWidth: 1, borderColor: colors.border },
