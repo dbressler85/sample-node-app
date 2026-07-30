@@ -14,6 +14,7 @@ import {
   Platform,
 } from 'react-native';
 import { appAlert } from "../components/AppAlert";
+import { useRequirePro } from '../entitlement';
 import { api } from '../api';
 import { waiversOverviewPreferDevice } from '../mflDevice';
 import { colors, positionColors, size } from '../theme';
@@ -648,6 +649,7 @@ function PendingView({ pending, onCancel, onOpenPlayer }) {
 }
 
 function ClaimSheet({ leagueId, addId, onClose, onOpenLineup, onDone }) {
+  const requirePro = useRequirePro();
   const [preview, setPreview] = useState(null);
   const [bench, setBench] = useState([]);
   const [dropId, setDropId] = useState(null);
@@ -694,6 +696,7 @@ function ClaimSheet({ leagueId, addId, onClose, onOpenLineup, onDone }) {
   }
 
   async function doSubmit() {
+    if (!requirePro('waivers.file')) return; // Pro gate (inert until enforced)
     setBusy(true);
     try {
       const body = { addId };

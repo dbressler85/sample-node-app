@@ -39,6 +39,12 @@ test('trialStatus: exactly at the boundary and past it → expired, 0 days', () 
   assert.equal(past.daysLeft, 0);
 });
 
+test('deriveTier: a comped account wins outright (owner/whitelist), even with no trial or sub', () => {
+  const t = core.deriveTier({ comped: true, subscribed: false, trialStartedAt: NOW - 30 * DAY_MS, now: NOW });
+  assert.equal(t.isPro, true);
+  assert.equal(t.reason, 'comped');
+});
+
 test('deriveTier: an active subscription always wins, even past the trial', () => {
   const t = core.deriveTier({ subscribed: true, trialStartedAt: NOW - 30 * DAY_MS, now: NOW });
   assert.equal(t.isPro, true);

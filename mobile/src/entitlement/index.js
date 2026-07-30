@@ -1,9 +1,11 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ENFORCE_PRO } from '../config';
+import { api } from '../api';
 import { deriveTier, canUse, TRIAL_DAYS } from './core';
 import * as billing from './billing';
 import { presentPaywall } from './paywallBus';
+import { _setAccountEntitlementHandlers } from './accountBus';
 
 // The entitlement React layer: loads the reverse-trial clock + store subscription, derives the tier via
 // the pure core, and exposes it to the app. Enforcement is OFF by default (ENFORCE_PRO) so this is fully
@@ -17,8 +19,27 @@ const Ctx = createContext(null);
 export function EntitlementProvider({ children }) {
   const [trialStartedAt, setTrialStartedAt] = useState(null);
   const [subscribed, setSubscribed] = useState(false);
+  const [comped, setComped] = useState(false); // server whitelist (owner/comped friend), from /api/me
   const [ready, setReady] = useState(false);
   const [nowTick, setNowTick] = useState(() => Date.now());
+
+  // Account-level comp: App calls refreshEntitlementAccount() after a login lands (and resets on
+  // logout), since App renders this provider and can't consume its context. We read /api/me — guarded
+  // so a pre-login mount never fires an unauthenticated request. Fail-soft: any error → not comped.
+  useEffect(() => {
+    _setAccountEntitlementHandlers({
+      refresh: async () => {
+        try {
+          const me = await api.me();
+          setComped(!!(me && me.pro));
+        } catch (e) {
+          /* not logged in yet / unreachable → not comped */
+        }
+      },
+      reset: () => setComped(false),
+    });
+    return () => _setAccountEntitlementHandlers(null);
+  }, []);
 
   // Boot: start (or read) the reverse-trial clock, configure billing, read the current entitlement.
   useEffect(() => {
@@ -77,8 +98,8 @@ export function EntitlementProvider({ children }) {
   }, []);
 
   const tier = useMemo(
-    () => deriveTier({ subscribed, trialStartedAt, now: nowTick, trialDays: TRIAL_DAYS }),
-    [subscribed, trialStartedAt, nowTick]
+    () => deriveTier({ comped, subscribed, trialStartedAt, now: nowTick, trialDays: TRIAL_DAYS }),
+    [comped, subscribed, trialStartedAt, nowTick]
   );
 
   const value = useMemo(

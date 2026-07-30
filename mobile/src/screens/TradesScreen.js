@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, TextInput, Modal, Animated, KeyboardAvoidingView, Platform } from 'react-native';
 import { appAlert } from "../components/AppAlert";
+import { useRequirePro } from '../entitlement';
 import { api } from '../api';
 import tradeMath from '../tradeMath';
 import { colors, positionColors, size } from '../theme';
@@ -107,6 +108,7 @@ function partnerTendency(partner) {
 }
 
 export default function TradesScreen({ league, onBack, initialTab, seed, onOpenPlayer, onSent, onOpenRoster }) {
+  const requirePro = useRequirePro();
   // Seed the desk read (partners, my players/picks, offers) from the survive-remount cache, keyed
   // per league — reopening a league's desk paints instantly instead of a cold spinner. In-progress
   // BUILD state (send/receive/faab) is intentionally NOT cached: each open starts a fresh offer.
@@ -214,6 +216,8 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
   }, [data, seed]);
 
   async function respond(offer, action, comments) {
+    // Accepting is a Pro action; rejecting/withdrawing stays free. (Inert until enforced.)
+    if (action === 'accept' && !requirePro('trades.propose')) return;
     setBusy(offer.id);
     try {
       await api.respondTrade(league.leagueId, offer.id, action, comments);
@@ -448,6 +452,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
   }, [data, seed, applySuggestion, startCounter]);
 
   async function submitProposal() {
+    if (!requirePro('trades.propose')) return; // Pro gate (inert until enforced)
     setSending(true);
     try {
       const res = await api.proposeTrade(league.leagueId, {

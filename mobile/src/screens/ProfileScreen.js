@@ -148,13 +148,16 @@ export default function ProfileScreen({ onBack, onOpenPortfolio, onOpenSettings,
 
 function ProStatus() {
   const { isPro, reason, trial } = useEntitlement();
-  const subscribed = reason === 'subscribed';
-  const status = subscribed
-    ? 'Active — thanks for supporting the app'
-    : reason === 'trial'
-      ? `Free trial · ${trial.daysLeft} day${trial.daysLeft === 1 ? '' : 's'} left`
-      : 'Act across all your leagues from one place';
-  const cta = subscribed ? 'Manage ›' : isPro ? 'View ›' : 'Go Pro ›';
+  const active = reason === 'subscribed' || reason === 'comped';
+  const status =
+    reason === 'comped'
+      ? 'Unlocked — full access'
+      : reason === 'subscribed'
+        ? 'Active — thanks for supporting the app'
+        : reason === 'trial'
+          ? `Free trial · ${trial.daysLeft} day${trial.daysLeft === 1 ? '' : 's'} left`
+          : 'Act across all your leagues from one place';
+  const cta = active ? 'Details ›' : isPro ? 'View ›' : 'Go Pro ›';
   return (
     <Pressable
       onPress={() => presentPaywall({ source: 'profile' })}

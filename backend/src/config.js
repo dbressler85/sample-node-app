@@ -149,6 +149,15 @@ const config = {
   // How long to cache the fetched feed. News moves faster than dynasty values, so keep it short.
   newsCacheTtlMs: int(process.env.NEWS_CACHE_TTL_MS, 20 * 60 * 1000),
 
+  // Accounts comped to full Pro access, by MFL username — so the owner (and any friends you want to
+  // grant) never have to subscribe to their own app. Comma-separated, case-insensitive; surfaced on
+  // /api/me as `pro:true` and honored by the app's entitlement layer. Dashboard-managed, so you can
+  // comp someone without an app rebuild. Example: PRO_WHITELIST="dbressler85,buddy".
+  proWhitelist: (process.env.PRO_WHITELIST || '')
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean),
+
   // A league's next waiver run counts as an imminent, act-now item within this window — it
   // surfaces as a Home action and a highlight on the Waivers screen. Default 3 days: tight enough
   // for the in-season cadence (where the window closes fast) and still fine in the offseason.

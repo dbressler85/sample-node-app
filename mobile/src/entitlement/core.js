@@ -55,11 +55,14 @@ export function trialStatus(now, trialStartedAt, trialDays = TRIAL_DAYS) {
   };
 }
 
-// The tier decision. An active paid entitlement (`subscribed`, from the store) always wins; otherwise
-// the reverse trial grants Pro until it lapses; then free. `reason` powers copy + analytics:
-//   'subscribed' → paid · 'trial' → in the 7-day full-access trial · 'expired' → trial ended · 'none' → trial never started.
-export function deriveTier({ subscribed = false, trialStartedAt = null, now, trialDays = TRIAL_DAYS }) {
+// The tier decision. A comped account (server whitelist) wins outright; then an active paid entitlement
+// (`subscribed`, from the store); then the reverse trial grants Pro until it lapses; then free. `reason`
+// powers copy + analytics:
+//   'comped' → whitelisted (owner/friend) · 'subscribed' → paid · 'trial' → in the 7-day full-access
+//   trial · 'expired' → trial ended · 'none' → trial never started.
+export function deriveTier({ comped = false, subscribed = false, trialStartedAt = null, now, trialDays = TRIAL_DAYS }) {
   const trial = trialStatus(now, trialStartedAt, trialDays);
+  if (comped) return { tier: 'pro', isPro: true, reason: 'comped', trial };
   if (subscribed) return { tier: 'pro', isPro: true, reason: 'subscribed', trial };
   if (trial.inTrial) return { tier: 'pro', isPro: true, reason: 'trial', trial };
   return { tier: 'free', isPro: false, reason: trial.started ? 'expired' : 'none', trial };

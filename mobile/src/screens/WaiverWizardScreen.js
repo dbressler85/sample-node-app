@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, ActivityIndicator } from 'react-native';
 import { appAlert } from "../components/AppAlert";
+import { useRequirePro } from '../entitlement';
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import { TopbarTitle } from '../components/Brand';
@@ -18,6 +19,7 @@ import useAndroidBack from '../useAndroidBack';
 // demand — the current one, plus a prefetch of the next — so the first step paints
 // immediately instead of blocking on the whole N-league fan-out (was ~30s cold).
 export default function WaiverWizardScreen({ leagues, seedAddId = null, onBack, onOpenPlayer }) {
+  const requirePro = useRequirePro();
   const [index, setIndex] = useState(0);
   const [full, setFull] = useState({}); // leagueId -> suggestion | { loading:true } | { error }
   const [addId, setAddId] = useState(null);
@@ -217,6 +219,7 @@ export default function WaiverWizardScreen({ leagues, seedAddId = null, onBack, 
   }
 
   async function doSubmitClaims(claims) {
+    if (!requirePro('waivers.file')) return; // Pro gate (inert until enforced)
     setSubmitting(true);
     try {
       const names = [...queue.map((q) => q.add.name), ...(valid && add ? [add.name] : [])].map((n) => shortName(n));

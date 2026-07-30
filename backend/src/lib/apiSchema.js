@@ -206,6 +206,8 @@ const Me = z.object({
   account: z.string().nullable().optional(),
   season: z.union([z.number(), z.string()]).nullable().optional(),
   leagues: z.number(),
+  demoMode: z.boolean().optional(),
+  pro: z.boolean().optional(), // comped account (PRO_WHITELIST) → full Pro without a subscription
 });
 
 // GET /api/players/rankings — the paginated rankings board.

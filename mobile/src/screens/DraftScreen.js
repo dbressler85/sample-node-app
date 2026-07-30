@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, FlatList, SectionList, ActivityIndicator, Modal, TextInput } from 'react-native';
 import { appAlert } from "../components/AppAlert";
+import { useRequirePro } from '../entitlement';
 import { toast } from '../components/Toast';
 import { api, friendlyError } from '../api';
 import { colors, positionColors } from '../theme';
@@ -196,6 +197,7 @@ const PickClock = React.memo(function PickClock({ pickClock, mine }) {
 });
 
 export default function DraftScreen({ league, demoMode, covered = false, onBack, onOpenPlayer, onOpenTrades, onOpenDraftList }) {
+  const requirePro = useRequirePro();
   // Seed the board from the survive-remount cache so reopening the draft paints the last board
   // instantly instead of a cold spinner; the live poll (below) keeps it current.
   const boardKey = `draft:${league.leagueId}`;
@@ -294,6 +296,7 @@ export default function DraftScreen({ league, demoMode, covered = false, onBack,
 
   async function draftPlayer(p, comment) {
     if (!myTurn) return;
+    if (!requirePro('draft.pick')) return; // Pro gate (inert until enforced)
     setConfirming(null);
     setPicking(p.id);
     try {
