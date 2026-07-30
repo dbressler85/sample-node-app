@@ -121,7 +121,12 @@ let refreshInFlight = false; // guards the fan-out across remounts (a per-mount 
 // visible cards stall ("Updating 0/15" frozen for 30s+). Bumping this on each warmHome makes the old
 // queue's workers bail before their next read, handing budget back to the new visible fan-out.
 let warmGen = 0;
-const HOME_STALE_MS = 45 * 1000;
+// How long the cross-league Home triage stays "fresh" before a passive return (from an overlay/tab)
+// re-fans-out all your leagues. Kept generous — dynasty triage doesn't change second to second, and
+// any ACTION you take (set lineup, file claim, make a pick) resets this to 0 via onCacheInvalidate, so
+// post-action returns still refresh immediately. Only idle back-and-forth navigation is spared the
+// full fan-out (it just repaints the cached Home). Matches the backend roster cache TTL (5m).
+const HOME_STALE_MS = 5 * 60 * 1000;
 
 // After any write, mark Home's snapshot stale so returning to it refetches the triage rather
 // than showing pre-action state through the throttle (keep the values for an instant paint).
@@ -190,8 +195,11 @@ export async function warmHome() {
     const onDeckP = api.onDeck().then((d) => { patchHome({ onDeck: d }); setValue('ondeck', d); primeResource('ondeck', d); return d; }).catch(() => null);
     api.watchlistAlerts().then((r) => { patchHome({ watchAlerts: r.alerts || [] }); }).catch(() => {});
 
-    patchHome({ progress: { done: 0, total: list.length } });
-    const collected = {};
+    // Seed from the last-known statuses so a RE-fan-out (returning to Home) revalidates IN PLACE —
+    // each league's tile/outlook updates as its fresh read lands, and nothing ever drops back to a
+    // blank/zero state mid-refresh. Cold start (no prior statuses) seeds empty and fills 0→N as before.
+    const collected = { ...(homeCache.statuses || {}) };
+    patchHome({ progress: { done: Object.keys(collected).length, total: list.length } });
     await runPool(list, CONCURRENCY, async (lg) => {
       try {
         const t = await leagueTriagePreferDevice(lg.leagueId);
@@ -593,9 +601,10 @@ function PortfolioCard({ p, loading, onPortfolio }) {
   const segments = HOME_MODES.map((m) => ({ key: m.key, color: m.color, value: p[m.key] || 0 }));
   const resolved = segments.reduce((s, x) => s + x.value, 0);
   const unread = p.outlookUnknown || 0;
-  // Only show the distribution once EVERY league is in — a donut over a loading/partial subset (e.g.
-  // "3 of 15") next to a "6/15 updating" counter is confusing and isn't apples-to-apples.
-  const ready = !loading && unread === 0 && resolved > 0;
+  // Show the distribution once EVERY league is in, and KEEP showing it during a background refresh —
+  // gating on data-completeness (not the `loading` flag) so returning to Home doesn't blank a donut
+  // that's already complete. A genuinely partial/first load stays on the placeholder.
+  const ready = unread === 0 && resolved > 0;
   return (
     <PressableScale style={styles.portCard} onPress={onPortfolio} accessibilityRole="button" accessibilityLabel="Open your portfolio">
       {ready ? (
