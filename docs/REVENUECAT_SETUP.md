@@ -32,6 +32,38 @@ above consistent avoids confusion.
 
 ---
 
+## Part 0 — Business setup (decide before you create the Play account)
+
+> Not legal or tax advice — confirm with a lawyer/CPA for your state. US-framed.
+
+The one **low-reversibility** decision in this whole process: the Google Play account **type
+(Individual vs Organization) generally can't be changed after creation**, and moving an app between
+accounts is a painful manual transfer. So settle your business structure *before* creating the
+monetized Play account and *before* signing the data licenses.
+
+**Why an entity for this app:** it charges money, handles users' MFL credentials (in transit), and
+redistributes licensed third-party data (FantasyCalc / RotoBaller / MFL) — an above-average liability
+surface. A **single-member LLC** shields personal assets, is pass-through for taxes (no added
+complexity at low revenue), and is who signs the data licenses.
+
+Sequencing:
+
+- [ ] Decide: launch free as an **Individual** to validate, or go monetized as an **Organization**
+  (recommended if you're committed to charging).
+- [ ] **Form a single-member LLC** in your **home state** (Delaware/Wyoming is usually overkill for a
+  solo app and adds foreign-registration hassle).
+- [ ] Get an **EIN** from the IRS (free) and open a **business bank account**.
+- [ ] Get a **D-U-N-S number** (free, ~a few days) — required for a Play **Organization** account.
+- [ ] **Sign the FantasyCalc + RotoBaller licenses as the LLC** (see `docs/LICENSING_OUTREACH.md`).
+- [ ] Create the **Play Console account as an Organization** under the LLC; point the Play/RevenueCat
+  payouts at the business bank account.
+- [ ] (Optional) A small **tech E&O / general-liability** policy as belt-and-suspenders.
+
+If you launch as an Individual first, know that converting to a monetized entity later means a Play
+**account migration** — so form the LLC *before* you flip on billing.
+
+---
+
 ## Prerequisites
 
 - [ ] **Google Play Developer account** ($25 one-time) — https://play.google.com/console

@@ -16,6 +16,8 @@ paywall it; we monetize only our own tooling; and we send traffic back to them.*
      (rotoballer.com/fantasy-sports-player-news-feeds-and-apis) / their partnerships contact.
 3. Keep a copy of any written reply — "express written permission" is the thing the FantasyCalc terms
    require, so the email thread *is* the agreement.
+4. Ideally **sign as your business entity**, not personally — see "Part 0 — Business setup" in
+   `docs/REVENUECAT_SETUP.md` (form the LLC before signing licenses so the entity holds them).
 
 > Not legal advice — adjust wording to fit your situation. These are drafted to be honest, short, and
 > easy to say yes to.
