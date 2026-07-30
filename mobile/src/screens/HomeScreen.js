@@ -12,7 +12,7 @@ import PressableScale from '../components/PressableScale';
 import AnimatedNumber from '../components/AnimatedNumber';
 import GearIcon from '../components/GearIcon';
 import NeonSign from '../components/NeonSign';
-import InfoDot from '../components/InfoDot';
+import OutlookDonut from '../components/OutlookDonut';
 
 const CONCURRENCY = 4;
 // Background-warm concurrency: deliberately LOW (2, vs the 4 the visible cards get) so the after-cards
@@ -564,35 +564,53 @@ function Portfolio({ p, phase, loading, onLeagues, onPortfolio, onOpenOnDeck, on
           onPress={onOpenOnDeck}
         />
       </View>
-      <PressableScale style={styles.portfolioLink} onPress={onPortfolio}>
-        <Text style={styles.portfolioLinkText}>Portfolio · understand your holdings</Text>
-        <Text style={styles.teamChev}>›</Text>
-      </PressableScale>
-      <View style={styles.chips}>
-        {offseason ? (
-          <>
-            {/* Team-outlook breakdown, tap any to open the portfolio detail. Trades and
-                Waivers used to live here too — dropped as redundant with the trade
-                inbox row below and the bottom-nav tabs. */}
-            <Chip label="Win now" value={p.contenders} loading={loading} onPress={onPortfolio} />
-            <Chip label="Ascending" value={p.ascending} loading={loading} onPress={onPortfolio} />
-            <Chip label="Balanced" value={p.balanced} loading={loading} onPress={onPortfolio} />
-            <Chip label="Rebuilding" value={p.rebuilding} loading={loading} onPress={onPortfolio} />
-            {/* Leagues whose roster couldn't be read this pass — shown so the four buckets visibly
-                reconcile to the league count instead of summing short. Tap opens the portfolio, where the
-                unread leagues are listed by name. */}
-            {p.outlookUnknown > 0 ? <Chip label="Unread" value={p.outlookUnknown} loading={loading} onPress={onPortfolio} /> : null}
-            <View style={styles.chipInfo}><InfoDot id="outlook" size={16} /></View>
-          </>
-        ) : (
-          <>
-            <Chip label="Lineups to set" value={p.lineupsToSet} warn={p.lineupsToSet > 0} loading={loading} />
-            <Chip label="Holes" value={p.holes} bad={p.holes > 0} loading={loading} />
-            <Chip label="Injuries" value={p.injuries} bad={p.injuries > 0} loading={loading} />
-          </>
-        )}
-      </View>
+      {/* Portfolio glance: the team-outlook distribution as a donut, tapping anywhere into the
+          Portfolio. Replaces the old text banner + the row of per-mode count chips. */}
+      <PortfolioCard p={p} loading={loading} onPortfolio={onPortfolio} />
+      {/* In-season, keep the urgent action counts (these aren't outlook "modes"). */}
+      {!offseason ? (
+        <View style={styles.chips}>
+          <Chip label="Lineups to set" value={p.lineupsToSet} warn={p.lineupsToSet > 0} loading={loading} />
+          <Chip label="Holes" value={p.holes} bad={p.holes > 0} loading={loading} />
+          <Chip label="Injuries" value={p.injuries} bad={p.injuries > 0} loading={loading} />
+        </View>
+      ) : null}
     </View>
+  );
+}
+
+// The team-outlook modes, in the CVD-validated categorical order (see OutlookDonut / PortfolioScreen).
+const HOME_MODES = [
+  { key: 'contenders', label: 'Win now', color: colors.warn },
+  { key: 'ascending', label: 'Ascending', color: colors.good },
+  { key: 'balanced', label: 'Balanced', color: colors.accent },
+  { key: 'rebuilding', label: 'Rebuilding', color: colors.bad },
+];
+
+// Portfolio glance card: outlook-distribution donut + legend + "understand your holdings" caption; the
+// whole tile taps into the Portfolio. Replaces the old banner + per-mode count chips.
+function PortfolioCard({ p, loading, onPortfolio }) {
+  const segments = HOME_MODES.map((m) => ({ key: m.key, color: m.color, value: p[m.key] || 0 }));
+  const total = segments.reduce((s, x) => s + x.value, 0);
+  const unread = p.outlookUnknown || 0;
+  return (
+    <PressableScale style={styles.portCard} onPress={onPortfolio} accessibilityRole="button" accessibilityLabel="Open your portfolio">
+      <OutlookDonut segments={segments} size={92} stroke={14} centerTop={loading && total === 0 ? '·' : total} centerBottom={total === 1 ? 'team' : 'teams'} />
+      <View style={styles.portCardBody}>
+        <Text style={styles.portCardTitle}>Portfolio</Text>
+        <Text style={styles.portCardSub}>Understand your holdings ›</Text>
+        <View style={styles.portLegend}>
+          {HOME_MODES.map((m) => (
+            <View key={m.key} style={styles.portLegendItem}>
+              <View style={[styles.portLegendDot, { backgroundColor: m.color }]} />
+              <Text style={styles.portLegendLabel} numberOfLines={1}>{m.label}</Text>
+              <Text style={styles.portLegendCount}>{p[m.key] || 0}</Text>
+            </View>
+          ))}
+        </View>
+        {unread > 0 ? <Text style={styles.portUnread}>{unread} league{unread === 1 ? '' : 's'} still loading</Text> : null}
+      </View>
+    </PressableScale>
   );
 }
 
@@ -691,6 +709,16 @@ const styles = StyleSheet.create({
   allLeaguesText: { color: colors.accent, fontSize: 15, fontWeight: '800' },
   portfolioLink: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 16, paddingVertical: 13, marginTop: 10 },
   portfolioLinkText: { color: colors.accent, fontSize: 14, fontWeight: '800' },
+  portCard: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: colors.card, borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 14, marginTop: 10 },
+  portCardBody: { flex: 1 },
+  portCardTitle: { color: colors.text, fontSize: 16, fontWeight: '900' },
+  portCardSub: { color: colors.accent, fontSize: 13, fontWeight: '700', marginTop: 1, marginBottom: 8 },
+  portLegend: { flexDirection: 'row', flexWrap: 'wrap' },
+  portLegendItem: { flexDirection: 'row', alignItems: 'center', gap: 6, width: '50%', paddingVertical: 3 },
+  portLegendDot: { width: 9, height: 9, borderRadius: 4.5 },
+  portLegendLabel: { color: colors.textDim, fontSize: 12, fontWeight: '600', flex: 1 },
+  portLegendCount: { color: colors.text, fontSize: 13, fontWeight: '900', marginRight: 8 },
+  portUnread: { color: colors.textDim, fontSize: 11, fontWeight: '600', marginTop: 6 },
   teamName: { color: colors.text, fontSize: 15, fontWeight: '700', marginRight: 10 },
   teamSub: { color: colors.textDim, fontSize: 12, marginTop: 3 },
   onDeckRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 15, marginBottom: 14 },
