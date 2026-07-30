@@ -138,9 +138,12 @@ What **you** do:
    npx expo install react-native-purchases
    ```
    (This repo pins a working 8.x; `expo install` makes sure it matches your installed SDK exactly.)
-2. [ ] Put the **`goog_…` public key** into the build env — either edit `mobile/eas.json`
-   (`EXPO_PUBLIC_REVENUECAT_ANDROID_KEY`) or store it as an **EAS secret** of the same name.
-3. [ ] Leave `EXPO_PUBLIC_ENFORCE_PRO` **unset** for now (gates stay inert while you test the flow).
+2. [ ] Put the **`goog_…` public key** into the build env as an **EAS environment variable / secret**
+   named `EXPO_PUBLIC_REVENUECAT_ANDROID_KEY` (EAS dashboard → Environment variables, or
+   `eas env:create`). Do **NOT** add it to `eas.json` with an empty value — EAS rejects empty env
+   values (`eas.json is not valid`); only add a key to `eas.json` when you have a real value to commit.
+3. [ ] Leave `EXPO_PUBLIC_ENFORCE_PRO` **unset** for now (gates stay inert while you test the flow); set
+   it to `1` as an EAS env var only at go-live.
 
 ---
 
