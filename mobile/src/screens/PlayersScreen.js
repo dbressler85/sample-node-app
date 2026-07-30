@@ -77,6 +77,11 @@ const LIST_SORTS = [['default', 'Default'], ['value', 'Value'], ['proj', 'Proj']
 // Free Agents leads with Value (its default) and relabels the server-order chip to what it actually is
 // — availability across your leagues — so the sort you land on is also the first chip you see.
 const FREE_SORTS = [['value', 'Value'], ['default', 'Availability'], ['proj', 'Proj'], ['season', 'Yr pts'], ['name', 'Name'], ['position', 'Pos']];
+// Watch + My Players relabel the 'default' (server-order) chip to what that order ACTUALLY is, instead
+// of an opaque "Default": the watchlist surfaces claimable/actionable players first (free → draftable →
+// value), and My Players ranks by exposure (how many of your leagues you roster the player in, then value).
+const WATCH_SORTS = [['default', 'Actionable'], ['value', 'Value'], ['proj', 'Proj'], ['season', 'Yr pts'], ['name', 'Name'], ['position', 'Pos']];
+const MINE_SORTS = [['default', 'Exposure'], ['value', 'Value'], ['proj', 'Proj'], ['season', 'Yr pts'], ['name', 'Name'], ['position', 'Pos']];
 // The sort each tab lands on before you touch it. Free Agents defaults to Value — when you're shopping
 // the wire you want the best players first, not the server's most-leagues-available order (that order
 // is still available as the "Availability" chip). Everything else keeps its natural list order.
@@ -491,7 +496,7 @@ export default function PlayersScreen({ active = true, onOpenPlayer, onStartWaiv
                 <>
                   <ChipSelect label="Pos" options={POSITIONS} value={pos} onChange={setPos} />
                   <ValueLens format={format} setFormat={setFormat} tep={tep} setTep={setTep} />
-                  <ChipSelect label="Sort" options={LIST_SORTS} value={listSort} onChange={setListSort} />
+                  <ChipSelect label="Sort" options={WATCH_SORTS} value={listSort} onChange={setListSort} />
                 </>
               ) : null}
               <FlatList
@@ -515,7 +520,7 @@ export default function PlayersScreen({ active = true, onOpenPlayer, onStartWaiv
                 <DeviceNote center text={`Your rosters live from MFL on-device · ${mine.totalLeagues} league${mine.totalLeagues === 1 ? '' : 's'}`} />
               ) : null}
               <ChipSelect label="Pos" options={POSITIONS} value={pos} onChange={setPos} />
-              <ChipSelect label="Sort" options={LIST_SORTS} value={listSort} onChange={setListSort} />
+              <ChipSelect label="Sort" options={MINE_SORTS} value={listSort} onChange={setListSort} />
               {/* Honest exposure: "N leagues" per row counts only the leagues we could read. Nulling `mine`
                   re-triggers the load effect (device-first, backend fallback). */}
               {mine ? <PartialNote loaded={mine.leaguesLoaded} total={mine.leaguesTotal} loading={mineAuto.retrying} onRetry={reloadMine} /> : null}
