@@ -83,12 +83,16 @@ export default function ProfileScreen({ onBack, onOpenPortfolio, onOpenSettings,
           {port ? (
             <>
               <Text style={styles.total}>{port.totals.rosterValue.toLocaleString()}</Text>
-              {change ? (
+              {/* Partial load → the total is only some of your leagues; hide the trend + sparkline
+                  (same apples-to-apples rule as the Portfolio screen) and say so. */}
+              {port.totals.partial ? (
+                <Text style={styles.changeFlat}>{port.totals.teams} of {port.totals.leagues} leagues · pull to refresh</Text>
+              ) : change ? (
                 <Text style={[styles.change, { color: change.absolute === 0 ? colors.textDim : change.absolute > 0 ? colors.good : colors.bad }]}>
                   {change.absolute >= 0 ? '▲' : '▼'} {change.absolute >= 0 ? '+' : '−'}{Math.abs(change.absolute).toLocaleString()} ({change.absolute >= 0 ? '+' : '−'}{Math.abs(change.pct)}%) · {change.days}d
                 </Text>
               ) : <Text style={styles.changeFlat}>total dynasty value</Text>}
-              {port.history && port.history.length >= 2 ? (
+              {!port.totals.partial && port.history && port.history.length >= 2 ? (
                 <View style={styles.spark}>
                   <Sparkline
                     data={port.history.map((h) => h.value)}
