@@ -85,6 +85,16 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   assert('strengthLabel' in d.byLeague[0], `byLeague row exposes strengthLabel, got ${JSON.stringify(d.byLeague[0])}`);
   console.log('✓ per-league breakdown present (with strengthLabel)');
 
+  // Team-as-unit enrichments (Portfolio Teams tab): share of the portfolio, a format badge, and a
+  // value-history point (trend7 is null on the first recorded day, like holdings).
+  assert(d.byLeague[0].share === 100, `single team is 100% of the portfolio, got ${d.byLeague[0].share}`);
+  assert(d.byLeague[0].format && d.byLeague[0].format.numQbs === 1 && d.byLeague[0].format.label === '1QB · PPR', `team format badge present, got ${JSON.stringify(d.byLeague[0].format)}`);
+  assert('trend7' in d.byLeague[0] && Array.isArray(d.byLeague[0].history) && d.byLeague[0].history.length >= 1, `team carries trend7 + a history series, got ${JSON.stringify({ t: d.byLeague[0].trend7, h: (d.byLeague[0].history || []).length })}`);
+  // Format/settings distribution across leagues (Allocation tab): this 1QB / full-PPR league counted once.
+  assert(d.formatMix && d.formatMix.qb['1qb'] === 1 && d.formatMix.qb.superflex === 0, `formatMix QB distribution, got ${JSON.stringify(d.formatMix && d.formatMix.qb)}`);
+  assert(d.formatMix.ppr.full === 1 && d.formatMix.te.standard === 1, `formatMix ppr/te distribution, got ${JSON.stringify({ ppr: d.formatMix.ppr, te: d.formatMix.te })}`);
+  console.log('✓ team-as-unit: share + format badge + history/trend7; portfolio formatMix distribution');
+
   // Top holdings: each player aggregated across leagues, biggest first, with exposure + share.
   assert(d.holdings.length === 3, `3 holdings, got ${d.holdings.length}`);
   assert(d.holdings[0].id === '1' && d.holdings[0].value === 100 && d.holdings[0].leagues === 1, `top holding is the young WR at 100 in 1 league, got ${JSON.stringify(d.holdings[0])}`);

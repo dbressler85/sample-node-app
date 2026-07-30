@@ -28,6 +28,8 @@ const waiverStore = require('../store/waivers');
 const playerTags = require('../store/playerTags');
 const historyStore = require('../store/portfolioHistory');
 const pvHistory = require('../store/playerValueHistory');
+const leagueHistory = require('../store/leagueValueHistory');
+const leagueFormat = require('../lib/leagueformat');
 const tradebaitStore = require('../store/tradebait');
 const tradebaitService = require('./tradebait');
 
@@ -387,6 +389,12 @@ async function getDashboard(cookie, token, { deviceRosters = null } = {}) {
   const deadlineByLeague = {};
   valid.forEach(({ league }, i) => { if (deadlineList[i]) deadlineByLeague[String(league.leagueId)] = deadlineList[i]; });
 
+  // Per-league format (QB count / PPR / TE-premium / size) — cheap cached reads, best-effort, in
+  // parallel. Feeds each team's `format` badge and the portfolio-wide `formatMix` distribution.
+  const formatList = await Promise.all(valid.map(({ league }) => leagueFormat.format(cookie, league).catch(() => null)));
+  const formatByLeague = new Map();
+  valid.forEach(({ league }, i) => { if (formatList[i]) formatByLeague.set(String(league.leagueId), formatList[i]); });
+
   let totalValue = 0;
   let playerCount = 0;
   let ageValueSum = 0; // value-weighted age numerator
@@ -468,10 +476,23 @@ async function getDashboard(cookie, token, { deviceRosters = null } = {}) {
     else if (s.outlook === 'Ascending') outlookMix.ascending += 1;
     else if (s.outlook === 'Rebuilding') outlookMix.rebuilding += 1;
     else outlookMix.balanced += 1;
+    // Per-team value history → 7-day trend + a sparkline series (Teams view). Demo seeds a synthetic
+    // series the first time so the trend/sparkline aren't empty before real days accumulate.
+    const teamVal = s.rosterValue != null ? Math.round(s.rosterValue) : null;
+    let teamTrend7 = null;
+    let teamSeries = [];
+    if (teamVal != null && teamVal >= 0) {
+      if (config.demoMode && leagueHistory.series(token, league.leagueId).length === 0 && teamVal > 0) {
+        leagueHistory.seed(token, league.leagueId, syntheticHistory(teamVal, 21));
+      }
+      teamSeries = leagueHistory.record(token, league.leagueId, teamVal);
+      teamTrend7 = sevenDayTrend(teamSeries, teamVal);
+    }
+    const fmt = formatByLeague.get(String(league.leagueId)) || null;
     byLeague.push({
       leagueId: league.leagueId,
       name: league.name,
-      value: s.rosterValue != null ? Math.round(s.rosterValue) : null,
+      value: teamVal,
       coreAge: s.coreAge != null ? s.coreAge : null,
       strengthPct: s.strengthPct != null ? s.strengthPct : null,
       strengthLabel: s.strengthLabel || null,
@@ -479,6 +500,13 @@ async function getDashboard(cookie, token, { deviceRosters = null } = {}) {
       atRiskValue: Math.round(leagueRisk),
       atRiskPct: pct(leagueRisk, s.rosterValue || 0),
       tradeDeadline: deadlineByLeague[String(league.leagueId)] || null,
+      // Team-as-unit enrichments (Portfolio Teams tab). `share` is filled in post-loop, once the
+      // portfolio total is final.
+      trend7: teamTrend7,
+      history: teamSeries.slice(-30),
+      format: fmt
+        ? { numQbs: fmt.numQbs, ppr: fmt.ppr, tePremium: !!fmt.tep, numTeams: fmt.numTeams || null, label: leagueFormat.label(fmt) }
+        : null,
     });
   }
 
@@ -516,6 +544,21 @@ async function getDashboard(cookie, token, { deviceRosters = null } = {}) {
     });
   }
   byLeague.sort((a, b) => (b.value || 0) - (a.value || 0));
+  // Each team's share of the whole portfolio's value (now that the total is final).
+  for (const t of byLeague) t.share = t.value != null ? pct(t.value, totalValue) : null;
+
+  // Format/settings distribution across your leagues — the "what kind of leagues do I play" mix that
+  // tells you which player types are scarce/valuable portfolio-wide (e.g. Superflex → QBs are gold).
+  const formatMix = { qb: { '1qb': 0, superflex: 0 }, ppr: { standard: 0, half: 0, full: 0 }, te: { standard: 0, premium: 0 }, size: {} };
+  for (const { league } of valid) {
+    const fmt = formatByLeague.get(String(league.leagueId));
+    if (!fmt) continue;
+    if (fmt.numQbs >= 2) formatMix.qb.superflex += 1; else formatMix.qb['1qb'] += 1;
+    if (fmt.ppr >= 1) formatMix.ppr.full += 1; else if (fmt.ppr >= 0.5) formatMix.ppr.half += 1; else formatMix.ppr.standard += 1;
+    if (fmt.tep) formatMix.te.premium += 1; else formatMix.te.standard += 1;
+    const sz = fmt.numTeams ? String(fmt.numTeams) : '?';
+    formatMix.size[sz] = (formatMix.size[sz] || 0) + 1;
+  }
 
   // Top holdings: your positions by aggregate value across all leagues, with exposure
   // (how many of your leagues roster them) and what share of the whole portfolio each is.
@@ -665,6 +708,7 @@ async function getDashboard(cookie, token, { deviceRosters = null } = {}) {
       top,
     },
     outlookMix,
+    formatMix,
     tags: { avoids: taggedRostered.avoid.size, targets: taggedRostered.target.size },
     taggedPlayers,
     holdings,
