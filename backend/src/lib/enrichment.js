@@ -74,16 +74,33 @@ let sleeperInflight = null;
 let ownershipInflight = null;
 let addsInflight = null;
 
-async function fetchJson(url, ms = 10000) {
+async function fetchJson(url, ms = 10000, onHeaders = null) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), ms);
   try {
     const res = await fetch(url, { signal: ctrl.signal, headers: { Accept: 'application/json', 'User-Agent': config.userAgent } });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (onHeaders) { try { onHeaders(res.headers); } catch (e) { /* a diagnostic must never break the fetch */ } }
     return await res.json();
   } finally {
     clearTimeout(timer);
   }
+}
+
+// One-off diagnostic (see docs/LICENSING_OUTREACH.md): log FantasyCalc's response headers so we can
+// learn their publish cadence and whether they send freshness validators. `last-modified` is their
+// data's publish timestamp — watching it over a couple of days reveals WHEN values update, so we can
+// time our single daily fetch to land just after (and if `etag`/`last-modified` are present we can use
+// cheap conditional requests). Throttled to a couple of lines/hour. Safe to remove once captured.
+let lastFcHeaderLogAt = 0;
+function logFcHeaders(headers) {
+  const now = Date.now();
+  if (now - lastFcHeaderLogAt < 10 * 60 * 1000) return;
+  lastFcHeaderLogAt = now;
+  const g = (k) => (headers && headers.get ? headers.get(k) : null) || '-';
+  console.log(
+    `[enrichment] fantasycalc headers date=${g('date')} last-modified=${g('last-modified')} etag=${g('etag')} age=${g('age')} cache-control=${g('cache-control')} expires=${g('expires')}`
+  );
 }
 
 function bucketPpr(v, fallback) {
@@ -170,7 +187,7 @@ async function buildFantasyCalc(format, key, hit) {
   const trend30 = new Map(); // mflId -> 30-day value momentum, signed, on the dynasty 0-100 scale
   try {
     const url = `https://api.fantasycalc.com/values/current?isDynasty=true&numQbs=${format.numQbs}&ppr=${format.ppr}&numTeams=${format.numTeams}`;
-    const rows = await fetchJson(url);
+    const rows = await fetchJson(url, 10000, logFcHeaders);
     const list = Array.isArray(rows) ? rows : [];
     // Dynasty value and redraft (win-now) value are on different scales, so each is normalized to
     // 0-100 by its OWN max — a win-now lens then reads "100 = the most valuable player to win THIS
