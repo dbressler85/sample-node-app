@@ -2,13 +2,13 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, Pressable, ActivityIndicator, Image, Linking } from 'react-native';
 import { appAlert } from "../components/AppAlert";
 import { api } from '../api';
-import { colors, positionColors } from '../theme';
+import { colors, positionColors, rgb } from '../theme';
 import { displayLabel } from '../typography';
 import AvailabilityBadge from '../components/AvailabilityBadge';
 import AddAcrossSheet from '../components/AddAcrossSheet';
 import TradeAcrossSheet from '../components/TradeAcrossSheet';
 import TradeBaitSheet from '../components/TradeBaitSheet';
-import { TargetIcon, AvoidIcon, WatchIcon } from '../components/PlayerActionIcons';
+import { TargetIcon, AvoidIcon, WatchIcon, NeonToggle } from '../components/PlayerActionIcons';
 import useAndroidBack from '../useAndroidBack';
 import useCachedResource from '../useCachedResource';
 import { STALE } from '../staleTiers';
@@ -281,15 +281,15 @@ export default function PlayerProfileScreen({ playerId, seed, onBack, onOpenTrad
             him on your watchlist. Tap an active Target/Avoid again to clear. */}
         <View style={styles.tagRow}>
           <Pressable style={[styles.tagBtn, tag === 'target' && styles.tagTargetOn]} onPress={() => applyTag('target')} accessibilityRole="button" accessibilityState={{ selected: tag === 'target' }} accessibilityLabel={tag === 'target' ? 'Clear target' : 'Target this player'}>
-            <TargetIcon size={17} color={tag === 'target' ? colors.good : colors.textDim} />
+            <NeonToggle active={tag === 'target'} triplet={rgb.good} renderGlyph={(on) => <TargetIcon size={17} color={on ? colors.good : colors.textDim} glow={on} />} />
             <Text style={[styles.tagTxt, tag === 'target' && styles.tagTxtOn]}>Target</Text>
           </Pressable>
           <Pressable style={[styles.tagBtn, tag === 'avoid' && styles.tagAvoidOn]} onPress={() => applyTag('avoid')} accessibilityRole="button" accessibilityState={{ selected: tag === 'avoid' }} accessibilityLabel={tag === 'avoid' ? 'Clear avoid' : 'Avoid this player'}>
-            <AvoidIcon size={17} color={tag === 'avoid' ? colors.bad : colors.textDim} />
+            <NeonToggle active={tag === 'avoid'} triplet={rgb.bad} renderGlyph={(on) => <AvoidIcon size={17} color={on ? colors.bad : colors.textDim} glow={on} />} />
             <Text style={[styles.tagTxt, tag === 'avoid' && styles.tagTxtOn]}>Avoid</Text>
           </Pressable>
           <Pressable style={[styles.tagBtn, watched && styles.tagWatchOn]} onPress={toggleWatch} accessibilityRole="button" accessibilityState={{ selected: watched }} accessibilityLabel={watched ? 'Remove from watchlist' : 'Add to watchlist'}>
-            <WatchIcon size={17} color={watched ? colors.watch : colors.textDim} filled={watched} />
+            <NeonToggle active={watched} triplet={rgb.watch} renderGlyph={(on) => <WatchIcon size={17} color={on ? colors.watch : colors.textDim} filled={on} glow={on} />} />
             <Text style={[styles.tagTxt, watched && styles.tagTxtOn]}>Watch</Text>
           </Pressable>
         </View>

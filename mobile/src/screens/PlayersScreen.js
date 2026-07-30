@@ -5,7 +5,7 @@ import { exposurePreferDevice, bestAvailablePreferDevice } from '../mflDevice';
 import { colors, positionColors, rgb } from '../theme';
 import AvailabilityBadge from '../components/AvailabilityBadge';
 import AddAcrossSheet from '../components/AddAcrossSheet';
-import { TargetIcon, AvoidIcon, WatchIcon, GlowChip } from '../components/PlayerActionIcons';
+import { TargetIcon, AvoidIcon, WatchIcon, NeonToggle } from '../components/PlayerActionIcons';
 import { getValue, setValue } from '../cache';
 import { peekResource, primeResource } from '../useCachedResource';
 import InfoDot from '../components/InfoDot';
@@ -653,13 +653,13 @@ function PlayerRow({ p, rank, sub, tag, watched, showTrend, showWinNow, onTag, o
             {acts ? (
               <>
                 <Pressable hitSlop={13} onPress={() => onTag(p.id, t === 'target' ? null : 'target', t)} accessibilityLabel="Target">
-                  <GlowChip active={t === 'target'} triplet={rgb.good}><TargetIcon size={18} color={t === 'target' ? colors.good : colors.textDim} glow={t === 'target'} /></GlowChip>
+                  <NeonToggle active={t === 'target'} triplet={rgb.good} renderGlyph={(on) => <TargetIcon size={18} color={on ? colors.good : colors.textDim} glow={on} />} />
                 </Pressable>
                 <Pressable hitSlop={13} onPress={() => onTag(p.id, t === 'avoid' ? null : 'avoid', t)} accessibilityLabel="Avoid">
-                  <GlowChip active={t === 'avoid'} triplet={rgb.bad}><AvoidIcon size={18} color={t === 'avoid' ? colors.bad : colors.textDim} glow={t === 'avoid'} /></GlowChip>
+                  <NeonToggle active={t === 'avoid'} triplet={rgb.bad} renderGlyph={(on) => <AvoidIcon size={18} color={on ? colors.bad : colors.textDim} glow={on} />} />
                 </Pressable>
                 <Pressable hitSlop={13} onPress={() => onWatch(p.id, !w)} accessibilityLabel="Watch">
-                  <GlowChip active={w} triplet={rgb.watch}><WatchIcon size={18} color={w ? colors.watch : colors.textDim} filled={w} glow={w} /></GlowChip>
+                  <NeonToggle active={w} triplet={rgb.watch} renderGlyph={(on) => <WatchIcon size={18} color={on ? colors.watch : colors.textDim} filled={on} glow={on} />} />
                 </Pressable>
               </>
             ) : null}

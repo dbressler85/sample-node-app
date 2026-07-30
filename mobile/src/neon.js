@@ -82,6 +82,23 @@ function flickerPlan({ tone = 'clean', reduced = false } = {}) {
   };
 }
 
+// The flicker-OUT plan: tapping an already-lit sign "off". A real tube doesn't cut clean — it gives a
+// last gasp and sputters down to dark. Ends at 0 (fully extinguished). The mirror of flickerPlan for a
+// toggle going off. Reduce-motion snaps straight to off (never strands a half-lit tube).
+function extinguishPlan({ reduced = false } = {}) {
+  if (reduced) return { settled: 0, frames: [] };
+  return {
+    settled: 0,
+    frames: [
+      { to: 0.5, dur: 40 }, // dips
+      { to: 0.9, dur: 35 }, // a last gasp brightens
+      { to: 0.12, dur: 55 }, // drops hard
+      { to: 0.34, dur: 35 }, // faint after-flicker
+      { to: 0, dur: 80 }, // out
+    ],
+  };
+}
+
 // A PERPETUAL dying-tube loop (docs §3): for a persistent negative/empty state (an empty inbox, a
 // dead clock), the sign sits mostly-lit and keeps sputtering — never fully catching, never fully
 // dying. The frames start and end at the same value so Animated.loop has no visible seam. Reduce-motion
@@ -127,6 +144,7 @@ module.exports = {
   EVENT_SIGNS,
   signFor,
   flickerPlan,
+  extinguishPlan,
   ailingPlan,
   planDuration,
   SPARKS,
