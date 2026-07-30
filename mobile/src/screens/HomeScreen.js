@@ -591,24 +591,36 @@ const HOME_MODES = [
 // whole tile taps into the Portfolio. Replaces the old banner + per-mode count chips.
 function PortfolioCard({ p, loading, onPortfolio }) {
   const segments = HOME_MODES.map((m) => ({ key: m.key, color: m.color, value: p[m.key] || 0 }));
-  const total = segments.reduce((s, x) => s + x.value, 0);
+  const resolved = segments.reduce((s, x) => s + x.value, 0);
   const unread = p.outlookUnknown || 0;
+  // Only show the distribution once EVERY league is in — a donut over a loading/partial subset (e.g.
+  // "3 of 15") next to a "6/15 updating" counter is confusing and isn't apples-to-apples.
+  const ready = !loading && unread === 0 && resolved > 0;
   return (
     <PressableScale style={styles.portCard} onPress={onPortfolio} accessibilityRole="button" accessibilityLabel="Open your portfolio">
-      <OutlookDonut segments={segments} size={92} stroke={14} centerTop={loading && total === 0 ? '·' : total} centerBottom={total === 1 ? 'team' : 'teams'} />
+      {ready ? (
+        <OutlookDonut segments={segments} size={92} stroke={14} centerTop={resolved} centerBottom={resolved === 1 ? 'team' : 'teams'} />
+      ) : (
+        <View style={styles.portDonutLoading}><ActivityIndicator color={colors.accent} /></View>
+      )}
       <View style={styles.portCardBody}>
         <Text style={styles.portCardTitle}>Portfolio</Text>
         <Text style={styles.portCardSub}>Understand your holdings ›</Text>
-        <View style={styles.portLegend}>
-          {HOME_MODES.map((m) => (
-            <View key={m.key} style={styles.portLegendItem}>
-              <View style={[styles.portLegendDot, { backgroundColor: m.color }]} />
-              <Text style={styles.portLegendLabel} numberOfLines={1}>{m.label}</Text>
-              <Text style={styles.portLegendCount}>{p[m.key] || 0}</Text>
-            </View>
-          ))}
-        </View>
-        {unread > 0 ? <Text style={styles.portUnread}>{unread} league{unread === 1 ? '' : 's'} still loading</Text> : null}
+        {ready ? (
+          <View style={styles.portLegend}>
+            {HOME_MODES.map((m) => (
+              <View key={m.key} style={styles.portLegendItem}>
+                <View style={[styles.portLegendDot, { backgroundColor: m.color }]} />
+                <Text style={styles.portLegendLabel} numberOfLines={1}>{m.label}</Text>
+                <Text style={styles.portLegendCount}>{p[m.key] || 0}</Text>
+              </View>
+            ))}
+          </View>
+        ) : (
+          <Text style={styles.portUnread}>
+            {loading ? 'Building your outlook across your leagues…' : `${Math.max(0, p.leagues - unread)} of ${p.leagues} leagues loaded — pull to refresh`}
+          </Text>
+        )}
       </View>
     </PressableScale>
   );
@@ -710,6 +722,7 @@ const styles = StyleSheet.create({
   portfolioLink: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 16, paddingVertical: 13, marginTop: 10 },
   portfolioLinkText: { color: colors.accent, fontSize: 14, fontWeight: '800' },
   portCard: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: colors.card, borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 14, marginTop: 10 },
+  portDonutLoading: { width: 92, height: 92, alignItems: 'center', justifyContent: 'center' },
   portCardBody: { flex: 1 },
   portCardTitle: { color: colors.text, fontSize: 16, fontWeight: '900' },
   portCardSub: { color: colors.accent, fontSize: 13, fontWeight: '700', marginTop: 1, marginBottom: 8 },

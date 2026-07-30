@@ -202,10 +202,15 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
         <View style={styles.card}>
           <Text style={styles.totalLabel}>Total dynasty value · {d.totals.teams} team{d.totals.teams === 1 ? '' : 's'}</Text>
           <AnimatedNumber value={d.totals.rosterValue} style={styles.totalValue} />
-          <ChangeLine change={d.change} />
+          {/* While partial (some leagues didn't load), the total is only a FRACTION of your portfolio, so
+              the trend + sparkline are hidden — comparing a partial aggregate to a complete one reads as a
+              fake catastrophic drop. The banner explains it; pull-to-refresh loads the rest. */}
+          {!d.totals.partial ? <ChangeLine change={d.change} /> : null}
           <PartialNote loaded={d.totals.teams} total={d.totals.leagues} onRetry={reload} />
           {d._source === 'device' ? <DeviceNote text={`Rosters live from MFL on-device · ${d.totals.leagues} league${d.totals.leagues === 1 ? '' : 's'}`} /> : null}
-          {d.history && d.history.length >= 2 ? (
+          {d.totals.partial ? (
+            <Text style={styles.buildingHint}>Value trend hidden until all {d.totals.leagues} leagues load — pull to refresh.</Text>
+          ) : d.history && d.history.length >= 2 ? (
             <View style={styles.chartWrap}>
               <Sparkline
                 data={d.history.map((h) => h.value)}
@@ -682,18 +687,23 @@ function TeamsView({ d, refreshing, reload, onOpenLeague, teamSort, setTeamSort 
         <View>
           <View style={styles.card}>
             <Text style={[styles.cardTitle, displayLabel()]}>Team outlook</Text>
-            <View style={styles.outlookRow}>
-              <OutlookDonut segments={segments} centerTop={teamCount} centerBottom={teamCount === 1 ? 'team' : 'teams'} />
-              <View style={styles.legend}>
-                {OUTLOOK_MIX.map((o) => (
-                  <View key={o.key} style={styles.legendRow}>
-                    <View style={[styles.legendDot, { backgroundColor: o.color }]} />
-                    <Text style={styles.legendLabel} numberOfLines={1}>{o.label}</Text>
-                    <Text style={styles.legendCount}>{mix[o.key] || 0}</Text>
-                  </View>
-                ))}
+            {d.totals.partial ? (
+              // The distribution isn't apples-to-apples until every league is in — hide the donut while partial.
+              <Text style={styles.buildingHint}>Outlook mix shown once all {d.totals.leagues} leagues load — pull to refresh.</Text>
+            ) : (
+              <View style={styles.outlookRow}>
+                <OutlookDonut segments={segments} centerTop={teamCount} centerBottom={teamCount === 1 ? 'team' : 'teams'} />
+                <View style={styles.legend}>
+                  {OUTLOOK_MIX.map((o) => (
+                    <View key={o.key} style={styles.legendRow}>
+                      <View style={[styles.legendDot, { backgroundColor: o.color }]} />
+                      <Text style={styles.legendLabel} numberOfLines={1}>{o.label}</Text>
+                      <Text style={styles.legendCount}>{mix[o.key] || 0}</Text>
+                    </View>
+                  ))}
+                </View>
               </View>
-            </View>
+            )}
           </View>
           <FormatCard formatMix={d.formatMix} />
           <View style={styles.teamSortRow}>

@@ -667,14 +667,25 @@ async function getDashboard(cookie, token, { deviceRosters = null } = {}) {
   moverList.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
   const movers = moverList.slice(0, 6);
 
-  // Value-over-time: record today's point and read back the series. Demo mode seeds a
-  // synthetic ramp the first time so the sparkline isn't empty on a fresh account.
+  // Value-over-time. Only snapshot (and show a trend for) a COMPLETE portfolio: recording a partial
+  // total — a fraction of your leagues — poisons the series so a later day reads a fake catastrophic
+  // drop (e.g. "4 of 15 loaded" → −74%). When partial, read the existing (complete) series without
+  // appending and suppress the change delta; the app hides the trend + sparkline while partial so it's
+  // never comparing a partial aggregate against a full one. Demo seeds a ramp on a fresh account.
   const totalRounded = Math.round(totalValue);
-  if (config.demoMode && historyStore.history(token).length === 0 && totalRounded > 0) {
-    historyStore.seed(token, syntheticHistory(totalRounded));
+  const partial = failedLeagues.length > 0;
+  let series;
+  let change;
+  if (partial) {
+    series = historyStore.history(token);
+    change = null;
+  } else {
+    if (config.demoMode && historyStore.history(token).length === 0 && totalRounded > 0) {
+      historyStore.seed(token, syntheticHistory(totalRounded));
+    }
+    series = historyStore.record(token, totalRounded);
+    change = seriesChange(series);
   }
-  const series = historyStore.record(token, totalRounded);
-  const change = seriesChange(series);
 
   // Your tagged rostered players, listed so the app can show them and untag inline. One row per
   // distinct player (aggregated across leagues), Targets and Avoids, biggest value first.
