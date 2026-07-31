@@ -315,9 +315,17 @@ export default function DraftScreen({ league, demoMode, covered = false, onBack,
     setPicking(p.id);
     try {
       const res = await api.makeDraftPick(league.leagueId, p.id, comment && comment.trim() ? comment.trim() : undefined);
-      setData(res);
-      primeResource(boardKey, res);
-      applyPickToHome(league.leagueId, res); // drop this league off Home's "on the clock" immediately
+      if (res && res.board) {
+        // Full confirmation board came back (already includes the pick) — paint it.
+        setData(res);
+        primeResource(boardKey, res);
+        applyPickToHome(league.leagueId, res); // drop this league off Home's "on the clock" immediately
+      } else {
+        // Pick SUCCEEDED but the board rebuild lagged (a transient throttle) — the backend returned a
+        // success sentinel, not a board. Refresh to pull in the updated board rather than showing an
+        // error for a pick that actually went through.
+        load();
+      }
       haptics.success(); // making a pick has no toast/celebrate — give the moment its own beat
     } catch (e) {
       appAlert('Could not draft', friendlyError(e.message), undefined, { tone: 'error' });

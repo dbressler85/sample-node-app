@@ -668,7 +668,17 @@ async function makePick(cookie, token, leagueId, playerId, comments) {
     franchiseId: league.franchiseId,
     playerId: String(playerId),
   });
-  return getLeague(cookie, token, leagueId);
+  // The pick is DONE (submitted to MFL + recorded locally). Rebuilding the confirmation board is a heavy
+  // fan-out that can hit a transient throttle — but a failure THERE must never read as a failed pick. Try
+  // to return the fresh board (it already includes the pick via the draftStore overlay); if that rebuild
+  // throws, return a lightweight success sentinel and let the client refresh. loadDraft merges the stored
+  // pick, so the very next board load shows it regardless.
+  try {
+    return await getLeague(cookie, token, leagueId);
+  } catch (e) {
+    console.log(`[draft] pick recorded but board rebuild failed (will refresh): league=${leagueId} ${e.message}`);
+    return { picked: true, leagueId: String(leagueId), player: String(playerId), round: clock.round, pick: clock.pick };
+  }
 }
 
 function throwBad(msg) {
