@@ -69,7 +69,13 @@ async function request(path, { method = 'GET', body } = {}) {
     throw new Error((data && data.error) || 'Session expired. Please log in again.');
   }
   if (!res.ok) {
-    throw new Error((data && data.error) || `Request failed (${res.status})`);
+    // Prefer `detail` over `error`: the backend puts the HUMAN-READABLE MFL guidance there (e.g. a 429's
+    // "MyFantasyLeague rate limit hit. Give it a moment and refresh.") while `error` carries the raw,
+    // developer-facing string ("MFL request failed (429) for draftResults…"). Surfacing detail is the
+    // "always surface MFL's error detail, never just the status code" rule applied at the client boundary —
+    // so a rate-limited draft/waiver/board load tells the user to wait instead of inviting a retry-hammer
+    // that only deepens the cooldown.
+    throw new Error((data && (data.detail || data.error)) || `Request failed (${res.status})`);
   }
   // A successful write changes server state the cached screens reflect — mark their snapshots
   // stale so the next view refetches instead of showing pre-action data through the throttle.

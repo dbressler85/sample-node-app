@@ -1341,7 +1341,13 @@ async function leagueSuggestionOne(cookie, token, league, { seedAddId = null } =
         // Phase 1: independent base reads in PARALLEL — league settings, format (SF/PPR/TEP, also keys
         // the value snapshot), the player DB, and the week/injury/bye context.
         const [settings, fmt, byId, ctx] = await Promise.all([
-          loadSettings(league, cookie),
+          // fresh:false — a wizard SUGGESTION is read-only; it only needs the system + roster size + FAAB
+          // balance for display, so serve settings from the 24h `league` cache. getSuggestions fans this
+          // across EVERY league at once (Promise.all over leagues), so fresh:true forced a simultaneous
+          // near-live burst that tripped MFL's per-IP limiter — the same "Could not load waiver settings"
+          // failure just fixed in getOverview. The bid-validating submit path (loadClaimCtx) reads
+          // fresh:true on its own, so a queued bid still can't exceed a spent budget.
+          loadSettings(league, cookie, { fresh: false }),
           leagueFormat.format(cookie, league),
           playersLib.load(cookie),
           ctxFor(cookie),
