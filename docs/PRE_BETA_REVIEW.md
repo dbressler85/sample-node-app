@@ -151,4 +151,152 @@ prevent.
 
 ---
 
-<!-- PRODUCT-OWNER PASS APPENDED BELOW -->
+## Product-owner pass (expert dynasty-fantasy review)
+
+*Companion to the technical review above. A features-and-flows pass from the seat of a dynasty power
+user who runs 15 leagues and has churned through Sleeper, DynastyGM/Nerds, KTC, FantasyCalc, and
+Fantrax. Read-only; no code changed.*
+
+### Verdict up front
+This is **not** a single-league app with a switcher — the cross-league plumbing is real and it's the
+best thing here. Home triage, Portfolio, exposure, Set-All lineups, the cross-league Waiver Wizard, the
+player hub's add/drop-across-leagues, the watchlist, and On-the-Block all reason over *all* your leagues
+at once, not one-at-a-time. Two features genuinely say something **no other dynasty tool can say**:
+**cross-league arbitrage** ("you value Player X at 58 in League A and 41 in League B — sell in A") and
+**cross-league exposure** ("you're 40% Bijan across 6 leagues — one hamstring wrecks your week
+everywhere"). That's the moat. The risk to beta is not the vision — it's that (a) the whole thing has
+never been proven against a **real MFL account**, and (b) the paid line rides on a values feed the app
+is contractually **not allowed to sell against yet**.
+
+### Where it's already strong (don't re-litigate)
+- **The cockpit is a real cockpit.** The Command Center's outlook donut + Under-Center count +
+  per-league triage is exactly the "one screen instead of 15 tabs" promise, wired to actual cross-league
+  fan-outs, not mocked.
+- **Portfolio is the hook, and it earns it.** Value-over-time, position allocation, value-at-risk (hurt
+  starters + aging cores), top holdings summed across leagues, and **arbitrage** — the screen a power
+  user opens daily and can't get anywhere else.
+- **The trade brain is ahead of the field.** Win-now-vs-dynasty lens that flips based on *that team's*
+  outlook, two-sided construction verdicts, counters that respect construction, tag-biased suggestions,
+  and **format-aware pick values** (an SF 1.01 isn't priced like a 1QB pick). Most competitors do none
+  of this cross-league.
+- **Format awareness is table-stakes-complete:** SF/2QB, TE-premium, PPR, and league size all move
+  value; taxi/IR/FAAB/trade-deadline/waiver-run windows are all read from MFL.
+- **Data honesty is a competitive weapon.** Partial-load notes, "N of M leagues loaded," and value-
+  source attribution are more disciplined than most commercial apps. Keep it.
+- **The free/paid line is cleanly drawn and documented** (reads free; act+automate Pro; a few personal
+  writes stay free; on-the-clock alerts free so you never paywall a missed pick).
+
+### Core value prop — where it lands vs. under-delivers
+- **Lands:** the *daily/weekly* cross-league workflow — triage → Set-All lineups → cross-league waiver
+  run → portfolio glance. 30 minutes of tab-juggling collapsed to one screen. That's the magic.
+- **Under-delivered — the trade *finder* is reactive, not proactive.** Today you seed a deal from a
+  target and the app helps build it. The dynasty dream is the inverse: **"Here are the 4 fairest deals
+  available right now across all your leagues, ranked by how much they help each roster's window."** The
+  app already computes every ingredient (needs/surplus, both outlooks, format value, trade bait).
+  Surfacing it as a standing cross-league feed would be the single most differentiated thing to ship.
+- **Under-delivered — value trust is single-sourced.** Everything hangs on FantasyCalc. Power users are
+  tribal about values (KTC vs FC vs their own). The ±10% Target/Avoid tag is a nudge, not control. Some
+  testers bounce the first time a FC number offends them.
+- **Under-delivered — offseason/prep mode is thin.** No rookie rankings/tiers, no startup value board,
+  no devy. In-season the app is strong; the moment football stops, a dynasty addict's attention goes to
+  rookie prep and startups — and there's nothing here yet.
+
+### Feature gaps a dynasty manager will immediately miss
+- **Rookie draft board with rookie-specific tiers** (already tracked as unbuilt). Its absence is
+  conspicuous — every dynasty app has it.
+- **Startup/devy value boards** — off-thesis for beta but the two most-requested long-term.
+- **The two weekly notifications that matter most are missing:** *injury to one of your starters* and
+  *waiver results cleared*. A dynasty manager wants "your RB1 is doubtful, 3 leagues affected" and "you
+  won Player X in 2 leagues, lost in 1" more than almost anything. (Draft-clock, trade-offer, lineup-
+  attention, and watchlist alerts already exist.)
+- **In-season playoff-push mode.** Standings/seeds + a bracket screen exist, but no cross-league "who's
+  alive / win-and-in / already eliminated (go full sell)" roll-up — the in-season sibling of the outlook
+  donut, and it drives real behavior.
+- **A "rebuild plan" nudge.** You classify each team Win-now/Ascending/Rebuilding/Balanced — the payoff
+  is telling a rebuilder *what to do* ("here are the vets to sell and their best market"). Today the
+  label is a dead-end insight in several places.
+
+### UX / onboarding / first-run (a 15-league power user's first 5 minutes)
+- **The cold load is the first impression, and it's your scariest moment.** A 15-league fan-out is the
+  product's opening act. Set the expectation explicitly ("Loading all 15 leagues — this is the slow
+  part, once") and make sure the demo→real transition doesn't strand a new user.
+- **Onboarding must teach the free/Pro model up front,** or free users experience the paywall as a
+  bait-and-switch. One clean line: "See everything free. The 7-day trial unlocks acting across every
+  league — after that, reading stays free." It's a *reverse* trial (full Pro for 7 days) — say so.
+- **Which leagues are dynasty?** MFL managers mix dynasty, redraft, and best-ball. The app assumes
+  dynasty framing everywhere (outlook, aging cores, pick value). A redraft league getting a "core age"
+  verdict erodes trust. Detect or let the user flag league type.
+
+### Monetization fit
+- **The line (read-free / act-paid) is right for dynasty** — the cockpit hooks you, and *acting* is the
+  recurring habit worth money. But the wow is in the **free reads**; conversion rides the **weekly act
+  pain**, not the one-time wow. Telegraph time saved during the trial ("15 lineups set in 20 seconds,"
+  "cleared 6 leagues' waivers without leaving this screen").
+- **The single feature most worth paying for is one-tap Set-All + the cross-league waiver run** — the "I
+  never open 15 MFL tabs on Sunday morning again" line item. Lead the paywall with the time-saver, not
+  the (trust-gated) trade brain.
+- **BLOCKER before charging:** FantasyCalc's ToU is non-commercial; a paid release needs their written
+  permission (`LICENSING_OUTREACH.md`), and there's no fallback value source wired. Product gate, not
+  just legal.
+- **Server-side Pro enforcement is cosmetic today** (client gates only). Fine for a free beta with
+  enforcement off; must be real before taking money.
+- **Pricing ($44.99/yr, $7.99/mo)** is sane — under DynastyGM's stack, above impulse. Holds only if
+  value trust holds; single-source unverified values are the churn risk at that price.
+
+### Competitive positioning — what must be great to win a power user
+1. **The Sunday-morning cross-league act run (Set-All + Waiver Wizard) must be visibly faster than by
+   hand.** The wedge no one else owns for MFL — it has to feel like a cheat code.
+2. **Portfolio + arbitrage must be trustworthy and only-here.** Your identity and your best screenshot.
+3. **The trade brain must respect *your window*** — make the win-now-vs-dynasty-by-outlook logic legible
+   so users feel the app knows they're contending in League A and tanking in League B.
+
+**Table-stakes gaps to name honestly:** rookie rankings (missing), a second/own value source (missing),
+and the strategic one — **MFL-only caps the TAM hard.** Sleeper is the dominant dynasty platform; most
+15-league managers have leagues on both. MFL-only is a *defensible beachhead* (MFL power users are
+underserved), but it's a ceiling, not a moat. Own the MFL niche first, know that's the conversation.
+
+### Beta-specific priorities & riskiest assumptions
+- **Riskiest by far:** the live MFL read/write path works. Everything (login, `myleagues`, rosters,
+  Set-All import, waiver file, trade propose, draft pick) is coded to the docs but **never exercised
+  against a real account**. If a write 500s on day 1, the beta dies and no feedback survives it. Verify
+  end-to-end on a real login before a single external tester touches it.
+- **Validate willingness-to-pay for *automation specifically*.** Watch whether trial users convert on
+  the weekly act loop or just read free and act manually in MFL.
+- **Measure real cold-load times at 15 leagues** with real testers, not the demo fixture.
+- **Get feedback first on the three trust pillars:** (1) do the values feel right, (2) is Set-All
+  trustworthy enough to fire without hand-checking every lineup, (3) does the trade verdict match gut.
+- **Push delivery is unverified on a real device** — the notifications you're selling must actually
+  arrive.
+
+### Ranked recommendations for beta
+
+**Must-have for beta**
+1. **Prove the live MFL path end-to-end against a real account** — the entire product is unvalidated
+   against real data; a broken write on day 1 ends the beta before feedback starts.
+2. **First-run that teaches read-free / act-Pro + the reverse trial, and sets the cold-load
+   expectation** — otherwise the paywall reads as bait-and-switch and the 15-league load reads as broken.
+3. **Make Set-All + the cross-league waiver run *feel* like a time machine, and telegraph time saved
+   in-trial** — the one payable feature a power user misses the instant it's gone; conversion lives here.
+4. **Detect/flag league type (dynasty vs redraft)** — dynasty framing on a redraft league silently
+   torches trust with the exact users you're courting.
+
+**High-value soon**
+5. **Proactive cross-league trade finder** ("fairest deals available now, ranked by each team's window")
+   — you already compute every input; the most differentiated screen you could ship.
+6. **Injury-to-starter + waiver-cleared notifications** — the two weekly alerts a dynasty manager wants
+   most; neither exists yet.
+7. **Value-source trust: a stronger tag tier and/or a second/importable source** — single black-box FC
+   values are the churn risk against a $45 price and an opinionated audience.
+8. **In-season playoff-push roll-up** ("alive / win-and-in / eliminated → sell") across leagues.
+9. **Rookie rankings with rookie-specific tiers** — table stakes; the first "wait, where's…" a tester
+   hits.
+
+**Later bets**
+10. **Sleeper support** — the real TAM unlock, but off-thesis; win the MFL niche first.
+11. **Rebuild/contend action plans** — turn the outlook label into "here's who to sell/buy."
+12. **Startup + devy value boards; pick-value-over-time / trade-history ledger** — offseason depth, not
+    beta-blocking.
+
+**Non-product gates before charging (flagged, not scheduled):** FantasyCalc commercial permission (or an
+alternative value source) and real server-side Pro enforcement. Neither blocks a free beta; both block
+the paywall.
