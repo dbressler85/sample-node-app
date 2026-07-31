@@ -401,7 +401,7 @@ export default function HomeScreen({ active = true, demoMode, onOpenLineup, onOp
               : `${portfolio.leagues} leagues${phase === 'offseason' ? ' · Offseason' : ''}${demoMode ? ' · DEMO' : ''}`}
           </Text>
         </View>
-        <NavTools />
+        <NavTools active={active} />
       </View>
 
       <FlatList

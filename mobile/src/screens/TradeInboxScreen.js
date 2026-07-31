@@ -221,7 +221,7 @@ export default function TradeInboxScreen({ active = true, onBack, onOpenLeague, 
               <Text style={styles.blockLink}>⇄ Block</Text>
             </Pressable>
           ) : null}
-          <NavTools />
+          <NavTools active={active} />
         </View>
       </View>
       {summary ? (

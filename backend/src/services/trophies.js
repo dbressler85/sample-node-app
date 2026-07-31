@@ -122,19 +122,27 @@ async function detect(cookie, token, { yearsBack = 12 } = {}) {
 
   const perLeague = await Promise.all(
     leagues.map(async (league) => {
-      const titles = [];
-      const mine = String(league.franchiseId);
-      const record = (year, place) => titles.push({ leagueId: league.leagueId, leagueName: league.name, team: league.franchiseName || `Team ${mine}`, year, place });
-      for (let year = thisSeason - 1; year >= thisSeason - back; year -= 1) {
-        const res = await playoffs.championFor(cookie, league, String(year));
-        if (!res.exists) break; // no bracket that year → league predates it; stop scanning back
-        // A franchise finishes in exactly ONE podium slot per season — check gold → silver → bronze and
-        // stop at the first that's mine, so a season yields at most one trophy.
-        if (res.champion && String(res.champion.franchiseId) === mine) record(year, 1);
-        else if (res.runnerUp && String(res.runnerUp.franchiseId) === mine) record(year, 2);
-        else if (res.third && String(res.third.franchiseId) === mine) record(year, 3);
+      // Per-league isolation: one league's scan must never reject the whole Promise.all and blank the
+      // entire case (the C5 quiet-degradation contract). championFor is already fail-soft, so this is
+      // belt-and-suspenders, but it also protects against any future non-fail-soft read added here.
+      try {
+        const titles = [];
+        const mine = String(league.franchiseId);
+        const record = (year, place) => titles.push({ leagueId: league.leagueId, leagueName: league.name, team: league.franchiseName || `Team ${mine}`, year, place });
+        for (let year = thisSeason - 1; year >= thisSeason - back; year -= 1) {
+          const res = await playoffs.championFor(cookie, league, String(year));
+          if (!res.exists) break; // no bracket that year → league predates it; stop scanning back
+          // A franchise finishes in exactly ONE podium slot per season — check gold → silver → bronze and
+          // stop at the first that's mine, so a season yields at most one trophy.
+          if (res.champion && String(res.champion.franchiseId) === mine) record(year, 1);
+          else if (res.runnerUp && String(res.runnerUp.franchiseId) === mine) record(year, 2);
+          else if (res.third && String(res.third.franchiseId) === mine) record(year, 3);
+        }
+        return titles;
+      } catch (e) {
+        console.log(`[trophies] detect league=${league.leagueId} error=${e.message}`);
+        return [];
       }
-      return titles;
     })
   );
 

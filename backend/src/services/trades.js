@@ -427,11 +427,18 @@ async function getOverview(cookie, token) {
         } catch (e) { /* value-only */ }
         return { offers, fit, leagueId: String(league.leagueId) };
       } catch (e) {
-        return { offers: [], fit: null, leagueId: String(league.leagueId) };
+        // A throttled read here is NOT "no offers here." Returning an empty, unmarked group conflated
+        // the two, silently hiding a REAL pending offer (and its expiry) from the inbox, On Deck, and
+        // the push — the exact "a 429 reads as no data" LESSON. Mark the league `failed` and log it so
+        // the count reflects only what loaded and the client can say "couldn't check N leagues" and
+        // retry, instead of understating the inbox to zero. (portfolio/exposure/drafts already do this.)
+        logDegrade(`trades.getOverview league=${league.leagueId}`, e);
+        return { offers: [], fit: null, leagueId: String(league.leagueId), failed: true };
       }
     })
   );
   const offers = groups.flatMap((g) => g.offers).filter((o) => o.direction === 'incoming');
+  const failedLeagues = groups.filter((g) => g.failed).length;
   const fitByLeague = new Map(groups.map((g) => [g.leagueId, g.fit]));
   return {
     offers,
@@ -440,6 +447,11 @@ async function getOverview(cookie, token) {
     leagues: leagues.map((l) => ({ leagueId: l.leagueId, name: l.name, fit: fitByLeague.get(String(l.leagueId)) || null })),
     // Advisory-only timing nudge (draft season vs in-season) — doesn't touch any value.
     seasonal: season.advisory(),
+    // Honesty on a throttled fan-out: `count` covers only the leagues whose inbox actually loaded, so
+    // expose partiality (mirrors dashboard/exposure) rather than implying a possibly-understated zero.
+    partial: failedLeagues > 0,
+    leaguesLoaded: leagues.length - failedLeagues,
+    leagueCount: leagues.length,
     summary: {
       count: offers.length,
       favorable: offers.filter((o) => o.analysis.verdict === 'favorable').length,

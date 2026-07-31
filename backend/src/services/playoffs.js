@@ -169,20 +169,31 @@ function reconstruct(defs, weeklySchedule, names, myFranchiseId, seeds) {
     brackets.push(buildBracket((thirdMeta && thirdMeta.id) || 'consolation', (thirdMeta && thirdMeta.name) || 'Consolation', (thirdMeta && thirdMeta.bracketWinnerTitle) || '3rd Place', [{ week: finalWeek, games: thirdGames }], names, myFranchiseId, seeds));
   }
 
-  // Champion = winner of the championship bracket's final game.
+  // Champion = winner of the championship bracket's final game. CONSERVATIVE: the final is the SINGLE
+  // final-week game between two still-undefeated teams. If the final week yielded more than one such
+  // game — parallel brackets that START the same week (e.g. a separate consolation ladder whose teams
+  // also carry 0 tracked losses) — we can't tell which is the real final, so we DON'T guess a champion.
+  // These finishers feed trophies.detect (auto-add), where a wrong guess plants a FALSE trophy in a
+  // user's case; a missed auto-detect (they add it by hand) is the far cheaper failure.
   const finalRound = champRounds[champRounds.length - 1];
-  const finalGame = finalRound && finalRound.games[0];
+  const finalGame = finalRound && finalRound.games.length === 1 ? finalRound.games[0] : null;
   const championId = finalGame ? finalGame.winnerId : null;
   const champion = championId
     ? { franchiseId: String(championId), name: names.get(String(championId)) || `Team ${championId}`, title: pickText(champMeta, 'bracketWinnerTitle') || 'League Champion' }
     : null;
 
-  // Podium: the runner-up is the LOSER of the championship final; 3rd is the WINNER of the consolation
-  // (3rd-place) game between the two semifinal losers. Both require a played final/consolation game
-  // (a null winnerId ⇒ not decided yet), so an in-progress season yields null — same gate as champion.
+  // Podium: runner-up = loser of that single championship final. 3rd = winner of the game between the
+  // two CHAMPIONSHIP SEMIFINAL LOSERS specifically — not "any leftover final-week game", which in a
+  // parallel consolation ladder could be a 5th/7th-place game. Identify the semifinal losers from the
+  // second-to-last championship round and match the 3rd-place game to exactly those two franchises; if
+  // no such game exists (small bracket, or ambiguous), 3rd stays null. All require a played game.
   const finisher = (fid) => (fid ? { franchiseId: String(fid), name: names.get(String(fid)) || `Team ${fid}` } : null);
   const runnerUp = finalGame && finalGame.winnerId ? finisher(finalGame.loserId) : null;
-  const thirdGame = thirdGames.length ? thirdGames[0] : null;
+  const semifinalRound = champRounds.length >= 2 ? champRounds[champRounds.length - 2].games : [];
+  const semifinalLosers = new Set(semifinalRound.map((g) => g.loserId).filter(Boolean));
+  const thirdGame = semifinalLosers.size === 2
+    ? thirdGames.find((g) => semifinalLosers.has(g.aId) && semifinalLosers.has(g.bId))
+    : null;
   const third = thirdGame && thirdGame.winnerId ? finisher(thirdGame.winnerId) : null;
 
   return { available: true, brackets, champion, runnerUp, third };

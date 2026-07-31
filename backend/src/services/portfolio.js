@@ -646,9 +646,18 @@ async function getDashboard(cookie, token, { deviceRosters = null } = {}) {
   // the top holdings so we don't write value history for the entire (now full) book each load.
   // Record value history for the holdings the app shows (a bit beyond the default 12) so both the
   // movers and each Top-holding's 7-day trend arrow have a series, without writing the entire book.
+  // PARTIAL cross-league load = some leagues' rosters failed to read, so every holding's value is summed
+  // over only the leagues that loaded (understated). The SAME poisoning that was fixed for the aggregate
+  // total applies per-player: recording an understated value overwrites today's good point and corrupts
+  // the series for ~a week, and computing a mover/trend against a full-load baseline fabricates a
+  // catastrophic drop (the "-74%" class). So when partial, record nothing, null the per-holding trend,
+  // and build no movers — the app hides both while partial. (`partial` is reused by the total-series
+  // block below.)
+  const partial = failedLeagues.length > 0;
   const RECORD_N = 30;
   const moverList = [];
   holdings.slice(0, RECORD_N).forEach((h, i) => {
+    if (partial) { h.trend7 = null; return; }
     if (config.demoMode && pvHistory.series(token, h.id).length === 0 && h.value > 0) {
       pvHistory.seed(token, h.id, syntheticPlayerHistory(h.value, i));
     }
@@ -673,7 +682,6 @@ async function getDashboard(cookie, token, { deviceRosters = null } = {}) {
   // appending and suppress the change delta; the app hides the trend + sparkline while partial so it's
   // never comparing a partial aggregate against a full one. Demo seeds a ramp on a fresh account.
   const totalRounded = Math.round(totalValue);
-  const partial = failedLeagues.length > 0;
   let series;
   let change;
   if (partial) {

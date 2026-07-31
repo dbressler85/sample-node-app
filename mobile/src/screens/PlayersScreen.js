@@ -378,7 +378,7 @@ export default function PlayersScreen({ active = true, onOpenPlayer, onStartWaiv
     <View style={styles.container}>
       <View style={[styles.header, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}>
         <ScreenTitle focused={active}>Players</ScreenTitle>
-        <NavTools />
+        <NavTools active={active} />
       </View>
 
       <View style={styles.searchWrap}>

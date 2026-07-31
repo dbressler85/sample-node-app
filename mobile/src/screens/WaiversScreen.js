@@ -218,7 +218,7 @@ export default function WaiversScreen({ active = true, initialLeagueId, initialP
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <View pointerEvents="box-none" style={{ position: 'absolute', right: 20, top: 8, zIndex: 5 }}><NavTools /></View>
+        <View pointerEvents="box-none" style={{ position: 'absolute', right: 20, top: 8, zIndex: 5 }}><NavTools active={active} /></View>
         <ScreenTitle focused={active}>Waivers</ScreenTitle>
         {summary && !openLeagueId ? (
           <Text style={styles.subtitle}>

@@ -33,6 +33,12 @@ const { createMemo } = require('../lib/memo');
 // asked once per league by several screens (Watch tab, Home alerts, player profile). Memoize
 // it so those don't each fire a fresh draftResults read — and concurrent callers coalesce.
 const draftOpenMemo = createMemo({ ttlMs: config.mflCacheTtlMs });
+// Pins the heavy ~2000-player free-agent pool during a LIVE draft so the 15s board poll stops re-issuing
+// it every ~5 min (the biggest recurring MFL read mid-draft, and the main 429 amplifier). The draftable
+// pool only shrinks as players come off the board, and assemblePool subtracts the locally-known drafted
+// set on every poll — so a 15-min-pinned pool stays accurate while draftResults remains the sole
+// recurring read. Coalesced + TTL'd per cookie+league.
+const draftPoolMemo = createMemo({ ttlMs: 15 * 60 * 1000 });
 
 // Once a league's free agency is confirmed OPEN (its draft is complete, or there's no draft on file at
 // all), it does NOT re-close for the season — so remember that verdict for hours and skip the per-league
@@ -256,13 +262,16 @@ function slotsFor(draft) {
 // The pool's network inputs (free-agent id list + ADP map) — the heavy part, and the part that does
 // NOT depend on the draft board or the enrichment context. Split out so a caller can fetch it
 // CONCURRENTLY with those (see getLeague) instead of serially after, roughly halving the cold-load wait.
-async function fetchPoolInputs(cookie, league) {
+async function fetchPoolInputs(cookie, league, { pin = false } = {}) {
   // ADP is fetched in BOTH modes (demo ADP drives the demo board order); only the id source is gated.
-  const [ids, adp] = await Promise.all([
-    config.demoMode ? Promise.resolve(demo.draftClass()) : waiversService.freeAgentIds(cookie, league, 2000),
-    adpLib.adpMap(cookie).catch(() => new Map()),
-  ]);
-  return { ids, adp };
+  const fetch = () =>
+    Promise.all([
+      config.demoMode ? Promise.resolve(demo.draftClass()) : waiversService.freeAgentIds(cookie, league, 2000),
+      adpLib.adpMap(cookie).catch(() => new Map()),
+    ]).then(([ids, adp]) => ({ ids, adp }));
+  // `pin` (set while a draft is in progress) serves the pool from the long draftPoolMemo so a live-draft
+  // poll doesn't re-issue this 2000-player read every few minutes; assemblePool keeps it current.
+  return pin ? draftPoolMemo.get(`${cookie}|${league.leagueId}`, fetch) : fetch();
 }
 
 // How many kickers / defenses to surface on the "All" board for a league that rosters them. They
@@ -558,6 +567,9 @@ async function getLeague(cookie, token, leagueId, { position } = {}) {
   // re-issues through the cooldown-slowed queue before giving up.
   const draft = config.demoMode ? await loadDraft(cookie, token, league) : await withRetry(() => loadDraft(cookie, token, league), 3, 500);
   if (!draft) return { leagueId: league.leagueId, name: league.name, status: 'none' };
+  // While the draft is IN PROGRESS, pin the free-agent pool (see fetchPoolInputs) so the 15s poll stops
+  // re-fetching 2000 players every few minutes; assemblePool keeps it accurate against the live picks.
+  const inDraft = statusOf(draft, slotsFor(draft)) === 'in_progress';
 
   // Cold-load speed: the four heavy reads a draft board needs are mutually independent, so fetch them
   // CONCURRENTLY instead of context → names → pool → clock in series (which made the board feel like it
@@ -573,7 +585,7 @@ async function getLeague(cookie, token, leagueId, { position } = {}) {
     config.demoMode
       ? Promise.resolve(demo.draftFranchiseNames(league.leagueId))
       : leaguesService.franchiseNames(cookie, league).catch(() => new Map()),
-    fetchPoolInputs(cookie, league),
+    fetchPoolInputs(cookie, league, { pin: inDraft }),
     config.demoMode ? Promise.resolve(null) : leagueFormat.draftClockConfig(cookie, league).catch(() => null),
   ]), 3, 500);
   const ownerName = (fid) =>

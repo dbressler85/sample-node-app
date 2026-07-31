@@ -112,7 +112,7 @@ export default function LineupsScreen({ active = true, onOpenLineup, onStartWiza
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <View pointerEvents="box-none" style={{ position: 'absolute', right: 20, top: 8, zIndex: 5 }}><NavTools /></View>
+        <View pointerEvents="box-none" style={{ position: 'absolute', right: 20, top: 8, zIndex: 5 }}><NavTools active={active} /></View>
         <ScreenTitle focused={active}>Lineups</ScreenTitle>
         {summary ? (
           <Text style={styles.subtitle}>

@@ -73,7 +73,7 @@ export default function ScoresScreen({ onOpenLineup, active = true }) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <View pointerEvents="box-none" style={{ position: 'absolute', right: 20, top: 8, zIndex: 5 }}><NavTools /></View>
+        <View pointerEvents="box-none" style={{ position: 'absolute', right: 20, top: 8, zIndex: 5 }}><NavTools active={active} /></View>
         <ScreenTitle focused={active}>Scoreboard</ScreenTitle>
         {s ? (
           <View style={styles.subtitleRow}>

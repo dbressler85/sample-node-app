@@ -25,11 +25,16 @@ function ToolButton({ onPress, label, glyph, color, grade }) {
   );
 }
 
-export default function NavTools() {
+// `active` = this tab is the visible one. The bug sign flickers (an "ailing" Animated.loop that never
+// stops) ONLY on the active tab — under keep-alive every tab stays mounted, and native-driven loops
+// don't pause for a hidden view, so a per-tab ailing loop would leave up to six perpetual animations
+// running forever. Off the active tab the bug renders steady (no loop). Reduce-motion already collapses
+// the loop to a settled tube regardless.
+export default function NavTools({ active = true }) {
   const { openProfile, openSettings, openBugReport } = useNavTools();
   return (
     <View style={styles.row}>
-      <ToolButton onPress={openBugReport} label="Report a bug" glyph="bug" color="white" grade="ailing" />
+      <ToolButton onPress={openBugReport} label="Report a bug" glyph="bug" color="white" grade={active ? 'ailing' : 'inline'} />
       <ToolButton onPress={openSettings} label="Settings" glyph="settings" color="accent" grade="inline" />
       <ToolButton onPress={openProfile} label="Profile" glyph="person" color="accent" grade="inline" />
     </View>

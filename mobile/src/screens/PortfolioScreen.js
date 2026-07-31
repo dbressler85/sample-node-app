@@ -229,8 +229,11 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
           </View>
         </View>
 
-        {/* Movers — which of your holdings rose/fell most since we started tracking. */}
-        {d.movers && d.movers.length ? (
+        {/* Movers — which of your holdings rose/fell most since we started tracking. Hidden on a partial
+            load: a holding's value is understated when some leagues failed, so its "move" would be a
+            fake drop (same reason ChangeLine/Sparkline hide above). Backend also returns movers:[] when
+            partial; this gate covers a stale-payload / build-skew window either direction. */}
+        {!d.totals.partial && d.movers && d.movers.length ? (
           <View style={styles.card}>
             <Text style={[styles.cardTitle, displayLabel()]}>Your movers</Text>
             {d.movers.map((m, i) => {
