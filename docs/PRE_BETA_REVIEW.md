@@ -8,6 +8,18 @@ addresses after further edits.
 
 ---
 
+## Live-testing status (owner, as of this review)
+
+The owner has been testing against **real MFL leagues** — **draft, trade bait, trades, and waivers**
+are exercised on live data (many of this session's fixes came directly out of that testing). This
+de-risks the "never proven against a real account" assumption both the beta-readiness and product
+passes originally led with. **Still unproven on a real account:** **Set-All lineup import** (the
+headline paid feature) and **push-notification delivery on a device**; also worth measuring is the
+full ~15-league cold-load time with all real leagues. Prioritize verifying those before external
+testers.
+
+---
+
 ## What's already solid (verified — don't re-litigate)
 
 - **Throttle/429 architecture is coherent and correct.** Retry now lives at the read *source*
@@ -164,9 +176,10 @@ player hub's add/drop-across-leagues, the watchlist, and On-the-Block all reason
 at once, not one-at-a-time. Two features genuinely say something **no other dynasty tool can say**:
 **cross-league arbitrage** ("you value Player X at 58 in League A and 41 in League B — sell in A") and
 **cross-league exposure** ("you're 40% Bijan across 6 leagues — one hamstring wrecks your week
-everywhere"). That's the moat. The risk to beta is not the vision — it's that (a) the whole thing has
-never been proven against a **real MFL account**, and (b) the paid line rides on a values feed the app
-is contractually **not allowed to sell against yet**.
+everywhere"). That's the moat. The risk to beta is not the vision — it's that (a) parts of the live MFL write path
+are still unproven against a **real account** (see the Live-testing status note above — draft, trade
+bait, trades, and waivers ARE validated live; **Set-All lineups and push delivery are not**), and (b)
+the paid line rides on a values feed the app is contractually **not allowed to sell against yet**.
 
 ### Where it's already strong (don't re-litigate)
 - **The cockpit is a real cockpit.** The Command Center's outlook donut + Under-Center count +
@@ -256,10 +269,12 @@ and the strategic one — **MFL-only caps the TAM hard.** Sleeper is the dominan
 underserved), but it's a ceiling, not a moat. Own the MFL niche first, know that's the conversation.
 
 ### Beta-specific priorities & riskiest assumptions
-- **Riskiest by far:** the live MFL read/write path works. Everything (login, `myleagues`, rosters,
-  Set-All import, waiver file, trade propose, draft pick) is coded to the docs but **never exercised
-  against a real account**. If a write 500s on day 1, the beta dies and no feedback survives it. Verify
-  end-to-end on a real login before a single external tester touches it.
+- **Riskiest remaining:** the live MFL write paths NOT yet exercised on a real account. Login,
+  `myleagues`, rosters, **draft pick, trade propose, trade bait, and waiver file are live-validated by
+  the owner** (this session's draft/waiver/trade fixes came out of that testing). Still unproven live:
+  **Set-All lineup import** (the headline paid feature) and **push-notification delivery on a device**.
+  Verify both end-to-end on a real account before external testers touch them — a Set-All that mis-sets
+  a lineup, or notifications that never arrive, would each kill trust fast.
 - **Validate willingness-to-pay for *automation specifically*.** Watch whether trial users convert on
   the weekly act loop or just read free and act manually in MFL.
 - **Measure real cold-load times at 15 leagues** with real testers, not the demo fixture.
@@ -271,8 +286,9 @@ underserved), but it's a ceiling, not a moat. Own the MFL niche first, know that
 ### Ranked recommendations for beta
 
 **Must-have for beta**
-1. **Prove the live MFL path end-to-end against a real account** — the entire product is unvalidated
-   against real data; a broken write on day 1 ends the beta before feedback starts.
+1. **Prove the remaining live MFL write paths on a real account** — draft/trade/trade-bait/waiver are
+   owner-validated; **Set-All lineups and push delivery are not**, and Set-All is the headline paid
+   feature. A mis-set lineup or a no-show notification on day 1 kills trust before feedback starts.
 2. **First-run that teaches read-free / act-Pro + the reverse trial, and sets the cold-load
    expectation** — otherwise the paywall reads as bait-and-switch and the 15-league load reads as broken.
 3. **Make Set-All + the cross-league waiver run *feel* like a time machine, and telegraph time saved
