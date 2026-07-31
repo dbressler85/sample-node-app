@@ -29,3 +29,12 @@ export const ENFORCE_PRO = process.env.EXPO_PUBLIC_ENFORCE_PRO === '1';
 // APK keep working. Set it via eas.json env or an EAS secret once RevenueCat is configured. See
 // docs/REVENUECAT_SETUP.md.
 export const REVENUECAT_ANDROID_KEY = process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_KEY || null;
+
+// Public URLs for the hosted legal docs + the support contact, surfaced in Profile → Account (a Google
+// Play requirement once you charge). Replace the placeholders with your real hosted URLs / email — via
+// these env vars or by editing the fallbacks. See docs/play-store/TERMS.md + PRIVACY_POLICY.md.
+export const LEGAL = {
+  terms: process.env.EXPO_PUBLIC_TERMS_URL || 'https://dynastycentral.app/terms',
+  privacy: process.env.EXPO_PUBLIC_PRIVACY_URL || 'https://dynastycentral.app/privacy',
+  supportEmail: process.env.EXPO_PUBLIC_SUPPORT_EMAIL || 'support@dynastycentral.app',
+};
