@@ -75,6 +75,11 @@ export default function useCachedResource(key, fetcher, { staleMs = DEFAULT_STAL
   // Explicit user refresh (pull-to-refresh / retry): shows the pull control. The mount effect uses
   // revalidate(false) so its background reload stays silent.
   const reload = useCallback(() => revalidate(true), [revalidate]);
+  // SILENT background reload — same fetch, but never flips `refreshing`, so it can't flash the
+  // pull-to-refresh spinner over already-painted content. For programmatic self-heal (e.g. re-pulling
+  // an overview that came back with a per-league error) where a visible spinner would misread as a
+  // stuck load the user didn't start.
+  const refetch = useCallback(() => revalidate(false), [revalidate]);
 
   useEffect(() => {
     let alive = true;
@@ -119,6 +124,7 @@ export default function useCachedResource(key, fetcher, { staleMs = DEFAULT_STAL
     // A blank full-screen spinner is only warranted when we have nothing to show at all.
     loading: data == null && fetching,
     reload,
+    refetch, // silent background reload (no pull spinner) — for programmatic self-heal
     setData,
   };
 }

@@ -1268,7 +1268,14 @@ async function getOverview(cookie, token, { deviceReads = null } = {}) {
         // fetch them all together so the league costs one throttle round-trip, not four in sequence.
         const dr = deviceReads ? deviceReads[String(league.leagueId)] : null;
         const [settings, roster, fa, waiverRun, pending] = await Promise.all([
-          loadSettings(league, cookie),
+          // fresh:false — the landing is READ-ONLY (it only displays FAAB balance / priority / system /
+          // roster size), so serve settings from the 24h `league` cache like getBoard does. The overview
+          // fans this read across EVERY league at once; with fresh:true each league forced a near-live
+          // (60s) `league` hop on every load, and that simultaneous burst tripped MFL's per-IP limiter —
+          // surfacing as "Could not load waiver settings" for whichever leagues lost the race. The
+          // bid-validating paths (preview/submit via loadClaimCtx) still read fresh:true, so a queued bid
+          // can never exceed a spent budget.
+          loadSettings(league, cookie, { fresh: false }),
           rosterService.myRosterLight(cookie, league.leagueId),
           freeAgentSummary(cookie, league, dr),
           config.demoMode ? Promise.resolve(null) : nextWaiverRun(cookie, league),
