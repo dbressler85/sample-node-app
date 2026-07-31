@@ -18,6 +18,7 @@ const tradeRoutes = require('./routes/trades');
 const tradeBaitRoutes = require('./routes/tradebait');
 const draftRoutes = require('./routes/draft');
 const trophyRoutes = require('./routes/trophies');
+const bugReportRoutes = require('./routes/bugReport');
 const pushRoutes = require('./routes/push');
 const metricsRoutes = require('./routes/metrics');
 
@@ -69,6 +70,7 @@ app.use('/api', tradeRoutes);
 app.use('/api', tradeBaitRoutes);
 app.use('/api', draftRoutes);
 app.use('/api', trophyRoutes);
+app.use('/api', bugReportRoutes);
 app.use('/api', pushRoutes);
 app.use('/api', lineupRoutes);
 app.use('/api', apiRoutes);

@@ -88,6 +88,9 @@ export const api = {
     request('/api/auth/login', { method: 'POST', body: { username, password } }),
   logout: () => request('/api/auth/logout', { method: 'POST' }),
   health: () => request('/api/health'),
+  // Beta bug report: { message, diagnostics }. The backend emails it to the developer's private address
+  // (held in a server env var); the client never learns where it goes.
+  bugReport: (body) => request('/api/bug-report', { method: 'POST', body }),
   // Device-origin: fetch THIS session's MFL cookie (+ host/season) so the app can read straight from
   // MFL. Throws (404) when the backend hasn't enabled device reads — callers treat that as "off".
   mflCreds: () => request('/api/session/mfl-cookie'),

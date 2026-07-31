@@ -16,6 +16,7 @@ const COLORS = {
   warn: { hex: '#FFA23A', rgb: '255,162,58' },
   watch: { hex: '#E4F24A', rgb: '228,242,74' },
   cold: { hex: '#93A2BE', rgb: '147,162,190' },
+  white: { hex: '#EAF1FF', rgb: '234,241,255' }, // a white tube — the beta bug-report sign (flickers)
 };
 // The near-white tube CORE every neon sign shares — the hot inner filament the color blooms around.
 const CORE = '#F6FBFF';

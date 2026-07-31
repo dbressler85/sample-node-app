@@ -16,6 +16,7 @@ import AvailabilityBadge from '../components/AvailabilityBadge';
 import MatchupLine from '../components/MatchupLine';
 import { toast } from '../components/Toast';
 import ErrorView from '../components/ErrorView';
+import NavTools from '../components/NavTools';
 import useAndroidBack from '../useAndroidBack';
 import useCachedResource from '../useCachedResource';
 import { ScreenTitle } from '../components/Brand';
@@ -111,6 +112,7 @@ export default function LineupsScreen({ active = true, onOpenLineup, onStartWiza
   return (
     <View style={styles.container}>
       <View style={styles.header}>
+        <View pointerEvents="box-none" style={{ position: 'absolute', right: 20, top: 8, zIndex: 5 }}><NavTools /></View>
         <ScreenTitle focused={active}>Lineups</ScreenTitle>
         {summary ? (
           <Text style={styles.subtitle}>

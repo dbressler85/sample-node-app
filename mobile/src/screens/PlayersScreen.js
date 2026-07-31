@@ -10,6 +10,7 @@ import { getValue, setValue } from '../cache';
 import { peekResource, primeResource } from '../useCachedResource';
 import InfoDot from '../components/InfoDot';
 import Pulse from '../components/Pulse';
+import NavTools from '../components/NavTools';
 import Reveal from '../components/Reveal';
 import PartialNote from '../components/PartialNote';
 import DeviceNote from '../components/DeviceNote';
@@ -375,8 +376,9 @@ export default function PlayersScreen({ active = true, onOpenPlayer, onStartWaiv
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
+      <View style={[styles.header, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}>
         <ScreenTitle focused={active}>Players</ScreenTitle>
+        <NavTools />
       </View>
 
       <View style={styles.searchWrap}>

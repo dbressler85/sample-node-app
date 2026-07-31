@@ -221,6 +221,18 @@ const config = {
   // is in ms. (Health checks and the default are exempt/looser — see app.js.)
   rateLimitWindowMs: int(process.env.RATE_LIMIT_WINDOW_MS, 60 * 1000),
   rateLimitMax: int(process.env.RATE_LIMIT_MAX, 600),
+
+  // Beta bug reports (routes/bugReport.js). The DESTINATION address lives ONLY here (a server env var) —
+  // it is never sent to the client, so the app can be inspected end-to-end without revealing a personal
+  // inbox. Two optional transports; whichever is set is used (webhook preferred), else the report is
+  // persisted server-side as a fallback so nothing is lost:
+  //   • BUG_REPORT_WEBHOOK — an HTTPS endpoint we POST the report JSON to (e.g. a webhook→email relay).
+  //   • BUG_SMTP_URL + BUG_REPORT_TO — an SMTP connection string + the inbox to email (via nodemailer).
+  // BUG_REPORT_FROM is the optional From address (defaults to BUG_REPORT_TO). NONE are ever committed.
+  bugReportTo: process.env.BUG_REPORT_TO || null,
+  bugReportFrom: process.env.BUG_REPORT_FROM || null,
+  bugSmtpUrl: process.env.BUG_SMTP_URL || null,
+  bugReportWebhook: process.env.BUG_REPORT_WEBHOOK || null,
 };
 
 module.exports = config;

@@ -10,7 +10,7 @@ import { ScreenTitle } from '../components/Brand';
 import Pulse from '../components/Pulse';
 import PressableScale from '../components/PressableScale';
 import AnimatedNumber from '../components/AnimatedNumber';
-import GearIcon from '../components/GearIcon';
+import NavTools from '../components/NavTools';
 import NeonSign from '../components/NeonSign';
 import OutlookDonut from '../components/OutlookDonut';
 
@@ -401,19 +401,7 @@ export default function HomeScreen({ active = true, demoMode, onOpenLineup, onOp
               : `${portfolio.leagues} leagues${phase === 'offseason' ? ' · Offseason' : ''}${demoMode ? ' · DEMO' : ''}`}
           </Text>
         </View>
-        <View style={styles.topActions}>
-          {onOpenSettings ? (
-            <Pressable onPress={onOpenSettings} hitSlop={10} accessibilityLabel="Settings" style={styles.gearBtn}>
-              <GearIcon size={22} />
-            </Pressable>
-          ) : null}
-          {onOpenProfile ? (
-            <Pressable onPress={onOpenProfile} hitSlop={10} accessibilityLabel="Profile" style={styles.avatarBtn}>
-              <View style={styles.avatarHead} />
-              <View style={styles.avatarBody} />
-            </Pressable>
-          ) : null}
-        </View>
+        <NavTools />
       </View>
 
       <FlatList

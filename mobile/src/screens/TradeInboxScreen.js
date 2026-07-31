@@ -4,6 +4,7 @@ import { appAlert } from "../components/AppAlert";
 import { useRequirePro } from '../entitlement';
 import { api } from '../api';
 import { ScreenTitle } from '../components/Brand';
+import NavTools from '../components/NavTools';
 import useCachedResource from '../useCachedResource';
 import { getValue, setValue } from '../cache';
 import { colors, positionColors } from '../theme';
@@ -214,11 +215,14 @@ export default function TradeInboxScreen({ active = true, onBack, onOpenLeague, 
           other main-nav tabs (Command Center / Players / Waivers / Lineups / Scoreboard). */}
       <View style={styles.topbar}>
         <ScreenTitle focused={active}>Trades</ScreenTitle>
-        {onOpenBlock ? (
-          <Pressable onPress={onOpenBlock} hitSlop={10}>
-            <Text style={styles.blockLink}>⇄ Block</Text>
-          </Pressable>
-        ) : null}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+          {onOpenBlock ? (
+            <Pressable onPress={onOpenBlock} hitSlop={10}>
+              <Text style={styles.blockLink}>⇄ Block</Text>
+            </Pressable>
+          ) : null}
+          <NavTools />
+        </View>
       </View>
       {summary ? (
         <Text style={styles.subtitle}>

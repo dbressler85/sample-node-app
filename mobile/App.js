@@ -51,6 +51,9 @@ import { CelebrationHost } from './src/components/Celebrate';
 import { ToastHost } from './src/components/Toast';
 import { AppAlertHost } from './src/components/AppAlert';
 import { PaywallHost } from './src/components/PaywallHost';
+import { NavToolsProvider } from './src/components/NavTools';
+import BugReportSheet from './src/components/BugReportSheet';
+import { installGlobalErrorCapture } from './src/bugReport';
 import { EntitlementProvider } from './src/entitlement';
 import { refreshEntitlementAccount, resetEntitlementAccount } from './src/entitlement/accountBus';
 import ErrorBoundary from './src/components/ErrorBoundary';
@@ -88,6 +91,10 @@ export default function App() {
   const [showWelcome, setShowWelcome] = useState(false);
   const pushArmed = useRef(false); // register-for-push fires once per session, after the ceremony (never mid-animation)
   const [tab, setTab] = useState('home');
+  const [bugReportOpen, setBugReportOpen] = useState(false);
+  // Start capturing uncaught JS errors as bug-report breadcrumbs (chains the existing handler, so the
+  // app's own crash handling is untouched). One-shot; safe if ErrorUtils is absent.
+  useEffect(() => { installGlobalErrorCapture(); }, []);
   // Overlays form a stack so back returns to the previous screen (e.g. Trades or
   // Draft opened from a roster returns to that roster, not Home).
   const [overlayStack, setOverlayStack] = useState([]);
@@ -319,6 +326,7 @@ export default function App() {
   const openPortfolio = () => pushOverlay({ type: 'portfolio' });
   const openProfile = () => pushOverlay({ type: 'profile' });
   const openSettings = () => pushOverlay({ type: 'settings' });
+  const openBugReport = () => setBugReportOpen(true);
   const openHelp = () => pushOverlay({ type: 'help' });
   const openOnDeck = () => pushOverlay({ type: 'onDeck' });
   // A `seed` (name/pos/team/value the caller already has) lets the profile paint its header
@@ -591,6 +599,7 @@ export default function App() {
   // own hero-intensity backdrop over this one.
   return (
     <EntitlementProvider>
+    <NavToolsProvider value={{ openProfile, openSettings, openBugReport }}>
     <View style={styles.root}>
       {/* The backdrop is decorative — if it ever throws (e.g. an SVG quirk on a device),
           isolate it so the app still runs instead of white-screening. */}
@@ -636,7 +645,13 @@ export default function App() {
       <ErrorBoundary silent>
         <PaywallHost />
       </ErrorBoundary>
+      {/* Beta bug-report sheet — surfaced by the white bug sign in the nav-tool cluster. Mounted at the
+          root so it floats above every tab and overlay. `screen` = the tab in view when it opened. */}
+      <ErrorBoundary silent>
+        <BugReportSheet visible={authed && bugReportOpen} onClose={() => setBugReportOpen(false)} context={{ screen: tab, demoMode }} />
+      </ErrorBoundary>
     </View>
+    </NavToolsProvider>
     </EntitlementProvider>
   );
 }

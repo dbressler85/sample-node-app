@@ -23,6 +23,7 @@ import AvailabilityBadge from '../components/AvailabilityBadge';
 import ValueDelta from '../components/ValueDelta';
 import { toast } from '../components/Toast';
 import ErrorView from '../components/ErrorView';
+import NavTools from '../components/NavTools';
 import Reveal from '../components/Reveal';
 import Pulse from '../components/Pulse';
 import NeonSign from '../components/NeonSign';
@@ -217,6 +218,7 @@ export default function WaiversScreen({ active = true, initialLeagueId, initialP
   return (
     <View style={styles.container}>
       <View style={styles.header}>
+        <View pointerEvents="box-none" style={{ position: 'absolute', right: 20, top: 8, zIndex: 5 }}><NavTools /></View>
         <ScreenTitle focused={active}>Waivers</ScreenTitle>
         {summary && !openLeagueId ? (
           <Text style={styles.subtitle}>
