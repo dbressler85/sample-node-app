@@ -105,7 +105,11 @@ async function liveForLeague(cookie, league) {
 
 async function getScoreboard(cookie) {
   const leagues = await leaguesService.listLeagues(cookie);
-  const cards = (await mapLeagues(leagues, (l) => liveForLeague(cookie, l), null, 'scoreboard.live')).filter(Boolean);
+  // mapLeagues yields null for a league whose live read failed (throttle) — count those so the board can
+  // say "N of M leagues loaded" instead of silently showing fewer matchups than the user actually has.
+  const raw = await mapLeagues(leagues, (l) => liveForLeague(cookie, l), null, 'scoreboard.live');
+  const cards = raw.filter(Boolean);
+  const failedLeagues = raw.length - cards.length;
 
   // Closest games first; locked games sink to the bottom.
   cards.sort((a, b) => {
@@ -117,6 +121,12 @@ async function getScoreboard(cookie) {
   return {
     week: config.demoMode ? demo.week() : await nflLib.currentWeek(cookie),
     games: cards,
+    // Honesty on a throttled fan-out (mirrors dashboard/exposure): some leagues' live reads may have
+    // failed, so `total` covers only what loaded — expose partiality rather than implying you have fewer
+    // matchups than you do.
+    partial: failedLeagues > 0,
+    leaguesLoaded: cards.length,
+    leagueCount: leagues.length,
     summary: {
       total: cards.length,
       live: live.length,

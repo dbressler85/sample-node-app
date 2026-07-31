@@ -108,6 +108,11 @@ prevent.
 
 ## Tier 2 — Should fix around beta (hardening + a correction)
 
+> **Status:** #8, #9, #10, #11, #13 done; #12 done for the concrete scoreboard case (the shared
+> `mapLeaguesSettled` envelope is deferred as consolidation). **#7 deferred** — changing shared retry
+> semantics across ~10 call sites is risky without load-testing, and #5 (pinning the draft pool) already
+> cut the in-draft 429s that made the sustained-throttle hang likely. Revisit if cold-load hangs recur.
+
 7. **Un-over-layer the draft retries.** Retry lives at the read source now, so the outer `withRetry`
    wraps recently added to `getLeague`/`getOverview` partly double up; and `withRetry` retries
    *non-transient* errors too, so a genuine failure can stretch a cold load to 10–20s. Make `withRetry`

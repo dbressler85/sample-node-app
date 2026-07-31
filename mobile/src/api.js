@@ -1,6 +1,7 @@
 // Thin client for the Dynasty Central backend.
 import { API_URL } from './config';
 import { invalidateCaches } from './cache';
+import { recordEvent } from './bugReport';
 
 let authToken = null;
 
@@ -51,6 +52,7 @@ async function request(path, { method = 'GET', body } = {}) {
       }
       // Unreachable/stalled ≠ logged out. Keep the session; the caller shows an error /
       // the user can pull-to-refresh once the backend/network is back.
+      recordEvent(`api ${method} ${path} → unreachable`); // bug-report breadcrumb
       throw new Error(`Can't reach the backend at ${API_URL}. Check your connection and try again.`);
     } finally {
       clearTimeout(timer);
@@ -69,6 +71,7 @@ async function request(path, { method = 'GET', body } = {}) {
     throw new Error((data && data.error) || 'Session expired. Please log in again.');
   }
   if (!res.ok) {
+    recordEvent(`api ${method} ${path} → ${res.status}`); // bug-report breadcrumb (path + status only, no body/token)
     // Prefer `detail` over `error`: the backend puts the HUMAN-READABLE MFL guidance there (e.g. a 429's
     // "MyFantasyLeague rate limit hit. Give it a moment and refresh.") while `error` carries the raw,
     // developer-facing string ("MFL request failed (429) for draftResults…"). Surfacing detail is the

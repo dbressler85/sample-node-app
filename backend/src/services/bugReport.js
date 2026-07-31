@@ -17,6 +17,15 @@ function throwBad(message) {
   throw err;
 }
 
+// Defensive scrub: the client-collected diagnostics are structured and don't include secrets, but a
+// future client change could slip one in — so redact anything token/cookie/password-like from the
+// serialized blob before it's emailed/relayed/stored. Belt-and-suspenders; costs nothing.
+function scrubSecrets(s) {
+  return String(s)
+    .replace(/("(?:password|token|cookie|authorization|auth|secret|bearer)"\s*:\s*)"[^"]*"/gi, '$1"[redacted]"')
+    .replace(/Bearer\s+[A-Za-z0-9._~+/-]+=*/g, 'Bearer [redacted]');
+}
+
 function buildText(username, message, diagnostics) {
   let diagStr = '';
   try {
@@ -24,6 +33,7 @@ function buildText(username, message, diagnostics) {
   } catch (e) {
     diagStr = String(diagnostics);
   }
+  diagStr = scrubSecrets(diagStr);
   if (diagStr.length > MAX_DIAG) diagStr = `${diagStr.slice(0, MAX_DIAG)}\n…(truncated)`;
   return [
     `From: ${username || 'unknown'}`,

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, StatusBar, ActivityIndicator, SafeAreaView, Platform, Dimensions, Animated, Easing } from 'react-native';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import useAndroidBack from './src/useAndroidBack';
@@ -53,7 +53,7 @@ import { AppAlertHost } from './src/components/AppAlert';
 import { PaywallHost } from './src/components/PaywallHost';
 import { NavToolsProvider } from './src/components/NavTools';
 import BugReportSheet from './src/components/BugReportSheet';
-import { installGlobalErrorCapture } from './src/bugReport';
+import { installGlobalErrorCapture, recordEvent } from './src/bugReport';
 import { EntitlementProvider } from './src/entitlement';
 import { refreshEntitlementAccount, resetEntitlementAccount } from './src/entitlement/accountBus';
 import ErrorBoundary from './src/components/ErrorBoundary';
@@ -95,6 +95,9 @@ export default function App() {
   // Start capturing uncaught JS errors as bug-report breadcrumbs (chains the existing handler, so the
   // app's own crash handling is untouched). One-shot; safe if ErrorUtils is absent.
   useEffect(() => { installGlobalErrorCapture(); }, []);
+  // Breadcrumb the visited tab so a bug report carries the screen trail it promises. Tab keys only —
+  // no data. (Overlay opens go through pushOverlay, not tracked here; the tab trail is the useful part.)
+  useEffect(() => { recordEvent(`tab: ${tab}`); }, [tab]);
   // Overlays form a stack so back returns to the previous screen (e.g. Trades or
   // Draft opened from a roster returns to that roster, not Home).
   const [overlayStack, setOverlayStack] = useState([]);
@@ -326,7 +329,17 @@ export default function App() {
   const openPortfolio = () => pushOverlay({ type: 'portfolio' });
   const openProfile = () => pushOverlay({ type: 'profile' });
   const openSettings = () => pushOverlay({ type: 'settings' });
-  const openBugReport = () => setBugReportOpen(true);
+  // Stable NavTools context value (calls the always-stable state setters directly, mirroring
+  // pushOverlay's setClosing(false) reset). Memoized once so an App re-render — tab switch, overlay
+  // push/pop, font bump — doesn't hand NavTools a new value and reconcile all six headers' neon trees.
+  const navTools = useMemo(() => {
+    const openOverlay = (type) => { setClosing(false); setOverlayStack((s) => [...s, { type }]); };
+    return {
+      openProfile: () => openOverlay('profile'),
+      openSettings: () => openOverlay('settings'),
+      openBugReport: () => setBugReportOpen(true),
+    };
+  }, []);
   const openHelp = () => pushOverlay({ type: 'help' });
   const openOnDeck = () => pushOverlay({ type: 'onDeck' });
   // A `seed` (name/pos/team/value the caller already has) lets the profile paint its header
@@ -395,9 +408,6 @@ export default function App() {
             onOpenDraftHub={openDraftHub}
             onOpenOnDeck={openOnDeck}
             onOpenPlayer={openPlayer}
-            onOpenSettings={openSettings}
-            onOpenProfile={openProfile}
-            onLogout={handleLogout}
           />
         );
     }
@@ -599,7 +609,7 @@ export default function App() {
   // own hero-intensity backdrop over this one.
   return (
     <EntitlementProvider>
-    <NavToolsProvider value={{ openProfile, openSettings, openBugReport }}>
+    <NavToolsProvider value={navTools}>
     <View style={styles.root}>
       {/* The backdrop is decorative — if it ever throws (e.g. an SVG quirk on a device),
           isolate it so the app still runs instead of white-screening. */}

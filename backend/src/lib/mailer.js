@@ -29,19 +29,28 @@ function configured() {
 // diagnostics }). Throws if no transport is configured (the caller treats that as "persist instead").
 async function sendBugReport(payload) {
   if (config.bugReportWebhook) {
-    const res = await fetch(config.bugReportWebhook, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        subject: payload.subject,
-        text: payload.text,
-        username: payload.username,
-        message: payload.message,
-        diagnostics: payload.diagnostics,
-      }),
-    });
-    if (!res.ok) throw new Error(`bug-report webhook returned ${res.status}`);
-    return { via: 'webhook' };
+    // Bound the webhook call so a hung/slow relay can't hold the client's request open (which would
+    // defeat the whole point of the persist fallback). Abort after 5s and let the caller persist instead.
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 5000);
+    try {
+      const res = await fetch(config.bugReportWebhook, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          subject: payload.subject,
+          text: payload.text,
+          username: payload.username,
+          message: payload.message,
+          diagnostics: payload.diagnostics,
+        }),
+        signal: ctrl.signal,
+      });
+      if (!res.ok) throw new Error(`bug-report webhook returned ${res.status}`);
+      return { via: 'webhook' };
+    } finally {
+      clearTimeout(timer);
+    }
   }
   if (nodemailer && config.bugSmtpUrl && config.bugReportTo) {
     const transport = nodemailer.createTransport(config.bugSmtpUrl);

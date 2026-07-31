@@ -256,7 +256,7 @@ export async function warmHome() {
   }
 }
 
-export default function HomeScreen({ active = true, demoMode, onOpenLineup, onOpenLeague, onOpenLeagues, onOpenPortfolio, onOpenWaivers, onOpenTrades, onOpenTradeInbox, onOpenDraft, onOpenDraftHub, onOpenOnDeck, onOpenPlayer, onOpenSettings, onOpenProfile, onLogout }) {
+export default function HomeScreen({ active = true, demoMode, onOpenLineup, onOpenLeague, onOpenLeagues, onOpenPortfolio, onOpenWaivers, onOpenTrades, onOpenTradeInbox, onOpenDraft, onOpenDraftHub, onOpenOnDeck, onOpenPlayer }) {
   const [leagues, setLeagues] = useState(homeCache.leagues || []);
   const [statuses, setStatuses] = useState(homeCache.statuses || {}); // leagueId -> { name, status, items }
   const [drafts, setDrafts] = useState(homeCache.drafts || []); // only ACTIONABLE drafts (on the clock / live / imminent)
@@ -676,14 +676,6 @@ const styles = StyleSheet.create({
   topbar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8 },
   title: { color: colors.text, fontSize: 26, fontWeight: '900' },
   subtitle: { color: colors.textDim, fontSize: 13, marginTop: 2 },
-  topActions: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  gearBtn: { padding: 2 },
-  // A minimalist person silhouette (head + shoulders) clipped into a gold-ringed circle —
-  // the account entry point, drawn from plain views so it needs no asset or username.
-  avatarBtn: { width: 30, height: 30, borderRadius: 15, borderWidth: 1.5, borderColor: colors.accent, backgroundColor: colors.accent + '18', alignItems: 'center', justifyContent: 'flex-end', overflow: 'hidden' },
-  avatarHead: { width: 9, height: 9, borderRadius: 4.5, backgroundColor: colors.accent, marginBottom: 1.5 },
-  avatarBody: { width: 17, height: 10, borderTopLeftRadius: 9, borderTopRightRadius: 9, backgroundColor: colors.accent },
-  logout: { color: colors.accent, fontSize: 14, fontWeight: '600' },
   list: { paddingHorizontal: 16, paddingBottom: 32 },
   portfolio: { marginBottom: 4 },
   tileRow: { flexDirection: 'row', gap: 12 },
