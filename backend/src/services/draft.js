@@ -13,7 +13,7 @@ const config = require('../config');
 const demo = require('../demo/fixtures');
 const mfl = require('../lib/mfl');
 const mflRepo = require('../lib/mflRepo');
-const { withWriteRetry } = require('../lib/retry');
+const { withRetry, withWriteRetry } = require('../lib/retry');
 const enrichmentLib = require('../lib/enrichment');
 const leagueFormat = require('../lib/leagueformat');
 const leagueContext = require('../lib/leagueContext');
@@ -461,7 +461,19 @@ async function getOverview(cookie, token, { deviceReads = null } = {}) {
         // cached league list one step behind) must NOT silently read as 'none' — that hid a scheduled/live
         // draft and could cause a missed clock (docs/ARCHITECTURE_REVIEW_2026-07-device-origin.md A-8). Fall
         // back to a one-off backend read for just that league; every other league still comes from the device.
-        const draft = await loadDraft(cookie, token, league, dr);
+        // Retry a TRANSIENT read failure (a 429 during the Home fan-out) before giving up. loadDraft
+        // re-throws a throttle rather than returning null, and a bare catch below used to collapse that
+        // to status:'none' — which isDraftActionable filters out, so a LIVE draft vanished from Home
+        // while the separate league-status counter still read "all loaded." withRetry re-issues through
+        // the backend queue (already slowed by the adaptive penalty) so a momentary throttle can't hide
+        // an on-the-clock draft. Only a device-supplied read (dr) skips the retry — it never hit MFL.
+        // 4 attempts / 600ms base (≈3.6s of backoff) so the retry OUTLASTS a typical ~2s rate-limit
+        // cooldown — a hidden live draft means a missed pick clock, so err toward patience here. Runs in
+        // parallel with every other league's read and only on the throttled ones, and getOverview feeds
+        // Home's non-blocking background warm, so the extra wait never blocks the UI.
+        const draft = dr
+          ? await loadDraft(cookie, token, league, dr)
+          : await withRetry(() => loadDraft(cookie, token, league), 4, 600);
         if (!draft) return { leagueId: league.leagueId, name: league.name, status: 'none' };
         const slots = slotsFor(draft);
         const status = statusOf(draft, slots);
@@ -492,7 +504,11 @@ async function getOverview(cookie, token, { deviceReads = null } = {}) {
           picksMade: slots.filter((s) => s.playerId && !s.keeper).length,
         };
       } catch (e) {
-        return { leagueId: league.leagueId, name: league.name, status: 'none' };
+        // Retries exhausted: report 'error', NOT 'none'. 'none' means "read fine, no draft here" and is
+        // safe to ignore; a throttled read is NOT that, and mislabeling it 'none' is what hid a live
+        // draft. 'error' keeps it out of the actionable list (we genuinely don't know its state) while
+        // staying honest for the summary / a future "couldn't check N drafts" hint.
+        return { leagueId: league.leagueId, name: league.name, status: 'error', error: mfl.errorDetail ? mfl.errorDetail(e) : e.message };
       }
     })
   );
