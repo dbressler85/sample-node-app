@@ -11,6 +11,8 @@ const COLORS = {
   good: { hex: '#2FD196', rgb: '47,209,150' },
   bad: { hex: '#FF6470', rgb: '255,100,112' },
   gold: { hex: '#F3C14A', rgb: '243,193,74' },
+  silver: { hex: '#C9D2E0', rgb: '201,210,224' }, // podium runner-up medal (trophy case)
+  bronze: { hex: '#CC8B4A', rgb: '204,139,74' }, // podium 3rd-place medal (trophy case)
   warn: { hex: '#FFA23A', rgb: '255,162,58' },
   watch: { hex: '#E4F24A', rgb: '228,242,74' },
   cold: { hex: '#93A2BE', rgb: '147,162,190' },

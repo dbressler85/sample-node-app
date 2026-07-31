@@ -19,6 +19,8 @@ export const colors = {
   gold: '#F3C14A', // Championship Gold — the signature: VALUE / crest / on the clock (only)
   goldLite: '#FCE38F', // gold highlight (engraving top-light, championship node)
   goldDeep: '#7A5A18', // gold shadow / engraving hairline
+  silver: '#C9D2E0', // podium: runner-up medal — cool metallic, distinct from gold; trophy case only
+  bronze: '#CC8B4A', // podium: 3rd-place medal — warm metallic; trophy case only
   good: '#2FD196', // positive / win / gain — also the "target" tag hue
   bad: '#FF6470', // negative / loss / destructive — also the "avoid" tag hue
   warn: '#FFA23A', // caution / deadline — orange, kept distinct from gold

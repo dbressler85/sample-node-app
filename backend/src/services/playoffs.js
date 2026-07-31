@@ -177,7 +177,15 @@ function reconstruct(defs, weeklySchedule, names, myFranchiseId, seeds) {
     ? { franchiseId: String(championId), name: names.get(String(championId)) || `Team ${championId}`, title: pickText(champMeta, 'bracketWinnerTitle') || 'League Champion' }
     : null;
 
-  return { available: true, brackets, champion };
+  // Podium: the runner-up is the LOSER of the championship final; 3rd is the WINNER of the consolation
+  // (3rd-place) game between the two semifinal losers. Both require a played final/consolation game
+  // (a null winnerId ⇒ not decided yet), so an in-progress season yields null — same gate as champion.
+  const finisher = (fid) => (fid ? { franchiseId: String(fid), name: names.get(String(fid)) || `Team ${fid}` } : null);
+  const runnerUp = finalGame && finalGame.winnerId ? finisher(finalGame.loserId) : null;
+  const thirdGame = thirdGames.length ? thirdGames[0] : null;
+  const third = thirdGame && thirdGame.winnerId ? finisher(thirdGame.winnerId) : null;
+
+  return { available: true, brackets, champion, runnerUp, third };
 }
 
 async function getBrackets(cookie, leagueId) {
@@ -219,11 +227,14 @@ async function championFor(cookie, league, year) {
       mflRepo.playoffBrackets(league, cookie, { year }),
       mflRepo.schedule(league, cookie, { year }),
     ]);
-    if (!defs.length) return { exists: false, champion: null };
+    if (!defs.length) return { exists: false, champion: null, runnerUp: null, third: null };
     const built = reconstruct(defs, sched, new Map(), league.franchiseId);
-    return { exists: true, champion: built.available ? built.champion : null };
+    if (!built.available) return { exists: true, champion: null, runnerUp: null, third: null };
+    // Names aren't fetched here (detection only needs the franchise id; the caller supplies its own
+    // display name), so runnerUp/third carry `Team <id>` placeholders — matched by id, never shown.
+    return { exists: true, champion: built.champion, runnerUp: built.runnerUp, third: built.third };
   } catch (e) {
-    return { exists: false, champion: null };
+    return { exists: false, champion: null, runnerUp: null, third: null };
   }
 }
 

@@ -44,7 +44,9 @@ export default function ProfileScreen({ onBack, onOpenPortfolio, onOpenSettings,
   const name = (me && me.username) || 'Manager';
   const initials = name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 2).toUpperCase() || 'DC';
   const tags = port && port.tags;
-  const champs = trophies && trophies.summary ? trophies.summary.total : trophies ? (trophies.trophies || []).length : null;
+  // "Championships" = titles only (place 1), NOT every podium finish — silver/bronze shouldn't inflate
+  // the title count. Fall back to total for a pre-podium cached summary that has no `titles` field.
+  const champs = trophies && trophies.summary ? (trophies.summary.titles != null ? trophies.summary.titles : trophies.summary.total) : trophies ? (trophies.trophies || []).length : null;
   const recentTrophies = trophies ? (trophies.trophies || []).slice(0, 3) : [];
   const totalValue = port && port.totals ? port.totals.rosterValue : null;
   const fmt = (n) => (n == null ? '—' : n.toLocaleString());
@@ -109,13 +111,18 @@ export default function ProfileScreen({ onBack, onOpenPortfolio, onOpenSettings,
           </View>
           {recentTrophies.length ? (
             <View style={styles.troRow}>
-              {recentTrophies.map((t) => (
-                <View key={t.id} style={styles.troChip}>
-                  <NeonSign grade="inline" glyph="trophy" color="gold" size={14} />
-                  <Text style={styles.troYear}>{t.year}</Text>
-                  <Text style={styles.troLeague} numberOfLines={1}>{t.leagueName}</Text>
-                </View>
-              ))}
+              {recentTrophies.map((t) => {
+                // Tint the chip by podium finish (gold / silver / bronze), defaulting to gold.
+                const neon = t.place === 2 ? 'silver' : t.place === 3 ? 'bronze' : 'gold';
+                const hex = t.place === 2 ? colors.silver : t.place === 3 ? colors.bronze : colors.gold;
+                return (
+                  <View key={t.id} style={styles.troChip}>
+                    <NeonSign grade="inline" glyph="trophy" color={neon} size={14} />
+                    <Text style={[styles.troYear, { color: hex }]}>{t.year}</Text>
+                    <Text style={styles.troLeague} numberOfLines={1}>{t.leagueName}</Text>
+                  </View>
+                );
+              })}
             </View>
           ) : (
             <Text style={styles.troEmpty}>{trophies ? 'No titles yet — go win one.' : 'Loading your trophy case…'}</Text>
