@@ -91,7 +91,14 @@ export default function LineupsScreen({ active = true, onOpenLineup, onStartWiza
       );
       setPlan(null);
       await reload();
-      toast(`Lineups set · ${res.summary.leaguesUpdated} updated · +${res.summary.pointsGained} projected pts`);
+      // Telegraph the cross-league LEVERAGE — the whole reason to act here instead of league-by-league
+      // in MFL: one tap set N lineups. That "time machine" feel is what converts (docs/PRE_BETA_REVIEW.md
+      // PO pass). Fall back to the plain confirmation for a single league.
+      const n = res.summary.leaguesUpdated;
+      const pts = res.summary.pointsGained;
+      toast(n > 1
+        ? `${n} lineups set in one tap · +${pts} projected pts`
+        : `Lineup set · +${pts} projected pts`);
     } catch (e) {
       appAlert('Could not set lineups', e.message);
     } finally {

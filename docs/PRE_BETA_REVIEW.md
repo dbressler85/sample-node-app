@@ -321,3 +321,29 @@ underserved), but it's a ceiling, not a moat. Own the MFL niche first, know that
 **Non-product gates before charging (flagged, not scheduled):** FantasyCalc commercial permission (or an
 alternative value source) and real server-side Pro enforcement. Neither blocks a free beta; both block
 the paywall.
+
+---
+
+## Product must-have status (build pass)
+
+Where the four PO "must-have for beta" items stand after the build pass:
+
+1. **Prove the live MFL path** — OWNER ACTION (can't be automated). Draft/trade/trade-bait/waivers are
+   validated; **Set-All lineups + push delivery** are not. Actionable checklist added:
+   [`docs/BETA_LIVE_TEST.md`](BETA_LIVE_TEST.md). **This is the top pre-beta gate.**
+2. **First-run teaches the model + cold-load** — DONE. `WelcomeModal` now carries a phase-accurate
+   model point: while Pro enforcement is off it explains the beta (everything unlocked + how to report
+   bugs via the bug sign); when `ENFORCE_PRO` flips on it switches to read-free / act-Pro + the reverse
+   7-day trial. Cold-load expectation was already covered.
+3. **Set-All feels like a time machine** — DONE (lighter version). The Set-All completion now telegraphs
+   the cross-league leverage ("N lineups set in one tap · +X pts") instead of a flat "N updated." A
+   season-long "time saved / actions taken" stat (a stronger trial-conversion lever) is a later build.
+4. **Detect/flag league type (dynasty vs redraft)** — DEFERRED, needs a decision. `myleagues` doesn't
+   carry a keeper/dynasty flag, and inferring it from other MFL settings is fuzzy — **mis-detecting a
+   dynasty league as redraft would suppress the app's best features (outlook, pick value, aging cores),
+   which is worse than the current over-application.** So this needs a deliberate choice before building:
+   **(a)** best-effort auto-detect from the `league` export (keeper settings / roster continuity) with a
+   conservative default to "dynasty," or **(b)** a per-league user flag ("this is a redraft/best-ball
+   league") stored server-side, threaded into the services that emit dynasty framing. (b) is safer and
+   matches the PO's "detect OR let the user flag"; both are a medium build touching every dynasty-framing
+   surface. Recommend scoping as its own feature, not a rushed slice.

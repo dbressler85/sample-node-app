@@ -1,10 +1,28 @@
 import React from 'react';
 import { Modal, View, Text, ScrollView, StyleSheet } from 'react-native';
 import { colors } from '../theme';
+import { ENFORCE_PRO } from '../config';
 import { displayXL, displayLabel } from '../typography';
 import NeonCrest from './NeonCrest';
 import NeonSign from './NeonSign';
 import PressableScale from './PressableScale';
+
+// The free/Pro model, taught UP FRONT so it never reads as a bait-and-switch. Phase-accurate: while Pro
+// enforcement is off (beta) it explains the beta (everything unlocked + how to report bugs); once
+// enforcement is on (launch) it explains read-free / act-Pro and the reverse 7-day trial.
+const MODEL_POINT = ENFORCE_PRO
+  ? {
+      glyph: 'dot',
+      color: 'good',
+      title: 'Free to explore — Pro to act',
+      body: 'Reading everything — values, portfolio, trade grades, the waiver board — is always free. Your first 7 days unlock Pro: acting across every league from one screen (set all your lineups, file claims, send trades). After the trial, reading stays free.',
+    }
+  : {
+      glyph: 'bug',
+      color: 'white',
+      title: 'You’re in the beta',
+      body: 'Everything’s unlocked while we test. Hit a bug, or something feels off? Tap the flickering white bug sign at the top of any screen and tell me what happened — it goes straight to the developer.',
+    };
 
 // First-run intro (shown once, after the login ceremony settles). Dual purpose: it orients a brand-new
 // user AND buys time — while they read, the app is fanning out the (slow, first-time) per-league reads
@@ -16,6 +34,7 @@ const POINTS = [
     title: 'One login, every league',
     body: 'Manage trades, waivers, lineups, and rosters across all of your MyFantasyLeague dynasty leagues at once — that’s the whole point: multi-league management without logging in league by league.',
   },
+  MODEL_POINT,
   {
     glyph: 'hourglass',
     color: 'warn',
