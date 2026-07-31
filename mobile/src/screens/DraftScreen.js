@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { View, Text, StyleSheet, Pressable, FlatList, SectionList, ActivityIndicator, Modal, TextInput } from 'react-native';
 import { appAlert } from "../components/AppAlert";
 import { useRequirePro } from '../entitlement';
-import { toast } from '../components/Toast';
 import { api, friendlyError } from '../api';
 import { colors, positionColors } from '../theme';
 import { displayLg, displayLabel } from '../typography';
@@ -222,10 +221,11 @@ export default function DraftScreen({ league, demoMode, covered = false, onBack,
       setData(d);
       primeResource(boardKey, d);
     } catch (e) {
-      // Non-destructive: if a live board is already up, a failed background refresh
-      // (poll) must NOT paint a red banner over it — keep the last board, toast once.
-      if (dataRef.current) toast('Couldn’t refresh — showing the last update');
-      else setError(e.message);
+      // Non-destructive AND silent: a failed BACKGROUND refresh (poll / focus) keeps the last board on
+      // screen and says nothing. A live draft polls repeatedly, so toasting on every throttled tick was
+      // the "message pops up every 15–30s" spam — the board is already showing the last-good state, so
+      // the failure needs no announcement. Only a COLD load (nothing to show) surfaces the error inline.
+      if (!dataRef.current) setError(e.message);
     } finally {
       setLoading(false);
     }
@@ -238,7 +238,21 @@ export default function DraftScreen({ league, demoMode, covered = false, onBack,
   // when scheduled/complete.
   // Pause the live poll while this board is covered by another overlay (not visible) — but keep polling
   // when it's the top/visible screen so a live draft never freezes (UX_GUARDRAILS: reflect-live).
-  usePoll(load, 15000, !!(data && data.status === 'in_progress') && !picking && !covered);
+  // Poll cadence scales to the draft's PACE. A slow/email draft (hours per pick, nightly pauses) doesn't
+  // need a 15s refresh — that's pointless MFL load that, under a throttle, produced a refresh-failure on
+  // every tick. Key off the current pick's clock: the less time on it, the hotter the draft, the faster
+  // we poll. A genuinely live fast clock still refreshes every 15s so picks reflect promptly.
+  const pollMs = useMemo(() => {
+    const pc = data && data.pickClock;
+    if (!pc) return 30000; // live but no clock detail → moderate
+    if (pc.paused) return 300000; // paused overnight → check every 5 min
+    const rem = pc.remainingMs || 0;
+    if (rem > 60 * 60 * 1000) return 180000; // >1h on the clock (slow/email draft) → 3 min
+    if (rem > 15 * 60 * 1000) return 90000; // 15–60m → 90s
+    if (rem > 5 * 60 * 1000) return 30000; // 5–15m → 30s
+    return 15000; // <5m left (hot) → 15s
+  }, [data]);
+  usePoll(load, pollMs, !!(data && data.status === 'in_progress') && !picking && !covered);
 
   const myTurn = !!(data && data.onClock && data.onClock.mine);
   // In-app drafting works in BOTH modes now: live picks go through MFL's `live_draft` command
