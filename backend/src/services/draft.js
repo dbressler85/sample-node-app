@@ -553,7 +553,10 @@ function draftContextPayload(context, teamSummary) {
 // One league's full draft view: board, my picks, on the clock, available pool.
 async function getLeague(cookie, token, leagueId, { position } = {}) {
   const league = await findLeague(cookie, leagueId);
-  const draft = await loadDraft(cookie, token, league);
+  // Retry a transient throttle: loadDraft re-throws a 429 rather than faking a draftless league, so a
+  // single throttled read here used to blank the whole board ("Could not load the draft"). withRetry
+  // re-issues through the cooldown-slowed queue before giving up.
+  const draft = config.demoMode ? await loadDraft(cookie, token, league) : await withRetry(() => loadDraft(cookie, token, league), 3, 500);
   if (!draft) return { leagueId: league.leagueId, name: league.name, status: 'none' };
 
   // Cold-load speed: the four heavy reads a draft board needs are mutually independent, so fetch them
@@ -561,14 +564,18 @@ async function getLeague(cookie, token, leagueId, { position } = {}) {
   // never loaded). (1) the scoring/lineup + my-team dynasty CONTEXT; (2) owner NAMES for the board tab;
   // (3) the POOL INPUTS (free-agent ids + ADP) — the assembly that needs `drafted`/`byId` runs after,
   // but the fetch doesn't; (4) the auto-detected CLOCK config.
-  const [{ byId, enr, context, teamSummary, reqs }, names, poolInputs, clockConfig] = await Promise.all([
+  // Retry the heavy read quartet as a unit. loadDraftContext + fetchPoolInputs aren't individually
+  // fail-soft (a board with no player context / pool is useless), so a transient 429 on either used to
+  // throw the whole board. Wrapping in withRetry re-issues on a throttle — the cached reads (players,
+  // format, enrichment snapshot) return instantly, so only the throttled straggler pays the retry.
+  const [{ byId, enr, context, teamSummary, reqs }, names, poolInputs, clockConfig] = await withRetry(() => Promise.all([
     loadDraftContext(cookie, league),
     config.demoMode
       ? Promise.resolve(demo.draftFranchiseNames(league.leagueId))
       : leaguesService.franchiseNames(cookie, league).catch(() => new Map()),
     fetchPoolInputs(cookie, league),
     config.demoMode ? Promise.resolve(null) : leagueFormat.draftClockConfig(cookie, league).catch(() => null),
-  ]);
+  ]), 3, 500);
   const ownerName = (fid) =>
     names.get(fid) || (fid === league.franchiseId ? league.franchiseName : null) || `Team ${fid}`;
   const slots = slotsFor(draft).map((s) => ({
