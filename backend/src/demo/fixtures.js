@@ -703,9 +703,9 @@ module.exports = {
   playoffBrackets: (leagueId) => demoPlayoffBrackets(leagueId),
   // Championships the demo owner has won — seeds the trophy case (team, league, year).
   trophies: () => [
+    // One of each medal so the demo case shows the full podium (gold / silver / bronze).
     { leagueName: 'Dynasty Warlords', team: 'Gridiron Ghosts', year: 2024, leagueId: '64097', place: 1 },
-    { leagueName: 'Superflex Sickos', team: 'Gridiron Ghosts', year: 2023, leagueId: '40750', place: 2 },
-    { leagueName: 'Superflex Sickos', team: 'Gridiron Ghosts', year: 2022, leagueId: '40750', place: 1 },
+    { leagueName: 'Superflex Sickos', team: 'Gridiron Ghosts', year: 2022, leagueId: '40750', place: 2 },
     { leagueName: 'The Gridiron Empire', team: 'Ghosts of Gridiron', year: 2019, leagueId: null, place: 3 },
   ],
   transactions: (leagueId) => JSON.parse(JSON.stringify(TRANSACTIONS[leagueId] || [])),

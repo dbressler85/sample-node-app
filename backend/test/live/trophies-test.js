@@ -17,8 +17,10 @@ const TK = 'tok-1';
   assert(seeded.trophies.length === 3, `demo seeds 3 trophies, got ${seeded.trophies.length}`);
   assert(seeded.trophies[0].year >= seeded.trophies[1].year, 'sorted newest-year first');
   assert(seeded.summary.total === 3 && seeded.summary.latest === 2024, `summary: ${JSON.stringify(seeded.summary)}`);
-  assert(seeded.trophies.every((t) => t.id && t.team && t.leagueName && t.year), 'each trophy has id/team/league/year');
-  console.log('✓ demo seeds the fixture trophies (sorted, summarized)');
+  assert(seeded.trophies.every((t) => t.id && t.team && t.leagueName && t.year && t.place), 'each trophy has id/team/league/year/place');
+  // Podium breakdown: the demo seeds one of each medal, so the summary splits 1 title / 1 silver / 1 bronze.
+  assert(seeded.summary.titles === 1 && seeded.summary.silver === 1 && seeded.summary.bronze === 1, `podium breakdown: ${JSON.stringify(seeded.summary)}`);
+  console.log('✓ demo seeds the fixture trophies (sorted, summarized, podium breakdown)');
 
   // Add a new championship → appears, sorted in.
   const added = trophies.add(TK, { leagueName: 'Bestball Barons', team: 'Gridiron Ghosts', year: 2025 });
