@@ -242,15 +242,26 @@ export default function DraftScreen({ league, demoMode, covered = false, onBack,
   // need a 15s refresh — that's pointless MFL load that, under a throttle, produced a refresh-failure on
   // every tick. Key off the current pick's clock: the less time on it, the hotter the draft, the faster
   // we poll. A genuinely live fast clock still refreshes every 15s so picks reflect promptly.
+  // Poll cadence keyed to PROXIMITY, not just the current pick's nominal clock. Keying only off the
+  // current clock went stale in a real case: a slow-clock draft where picks actually come fast polled
+  // every few minutes, so the board fell behind — it read "2 picks away" while Home (fresher) already
+  // showed on-the-clock. So: my pick, or within a few picks of it → poll fast (never go stale right
+  // before my turn); paused overnight → slow; otherwise a steady moderate cadence. Cheap now that the
+  // free-agent pool is pinned during a live draft (only the small draftResults read refetches).
   const pollMs = useMemo(() => {
-    const pc = data && data.pickClock;
-    if (!pc) return 30000; // live but no clock detail → moderate
-    if (pc.paused) return 300000; // paused overnight → check every 5 min
-    const rem = pc.remainingMs || 0;
-    if (rem > 60 * 60 * 1000) return 180000; // >1h on the clock (slow/email draft) → 3 min
-    if (rem > 15 * 60 * 1000) return 90000; // 15–60m → 90s
-    if (rem > 5 * 60 * 1000) return 30000; // 5–15m → 30s
-    return 15000; // <5m left (hot) → 15s
+    if (!data || data.status !== 'in_progress') return 30000;
+    if (data.onClock && data.onClock.mine) return 15000; // it's my pick — keep it live
+    const cur = data.onClock ? data.onClock.overall : null;
+    const myNext =
+      cur != null
+        ? (data.myPicks || [])
+            .filter((s) => !s.player && typeof s.overall === 'number' && s.overall >= cur)
+            .map((s) => s.overall)
+            .sort((a, b) => a - b)[0]
+        : null;
+    if (myNext != null && myNext - cur <= 3) return 15000; // about to be up — don't fall behind
+    if (data.pickClock && data.pickClock.paused) return 300000; // paused overnight → every 5 min
+    return 45000; // live but not close to my turn → steady, honest cadence
   }, [data]);
   usePoll(load, pollMs, !!(data && data.status === 'in_progress') && !picking && !covered);
 
