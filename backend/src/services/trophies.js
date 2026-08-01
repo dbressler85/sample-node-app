@@ -160,9 +160,31 @@ async function detect(cookie, token, { yearsBack = 12 } = {}) {
 // refreshed case. The one-tap "find my titles" action; anything mis-detected is reversible (remove).
 async function detectAndAdd(cookie, token, opts) {
   const { candidates } = await detect(cookie, token, opts);
-  const fresh = candidates.filter((c) => !c.alreadyInCase);
-  const added = fresh.map((c) => trophyStore.add(token, normalize({ ...c, source: 'auto' })));
-  return { added, scanned: candidates.length, ...list(token) };
+  // Index the current case by the same (leagueId|year / leagueName|year) keys the store dedups on, so
+  // we can tell a genuinely-new finish from one already stored (possibly with a stale/missing place).
+  const byKey = new Map();
+  for (const t of trophyStore.list(token)) {
+    if (t.leagueId) byKey.set(`${t.leagueId}|${t.year}`.toLowerCase(), t);
+    if (t.leagueName) byKey.set(`${t.leagueName}|${t.year}`.toLowerCase(), t);
+  }
+  const added = [];
+  const corrected = [];
+  for (const c of candidates) {
+    const existing = byKey.get(`${c.leagueId || ''}|${c.year}`.toLowerCase()) || byKey.get(`${c.leagueName || ''}|${c.year}`.toLowerCase());
+    if (!existing) {
+      added.push(trophyStore.add(token, normalize({ ...c, source: 'auto' })));
+      continue;
+    }
+    // Self-heal: an AUTO trophy whose stored place is stale or missing (e.g. added before the podium
+    // feature, when every finish defaulted to gold) gets corrected to the freshly reconstructed place.
+    // A MANUAL entry is the owner's own call — never overwrite it.
+    const detectedPlace = normalize({ ...c }).place; // clamps to 1..3
+    if (existing.source === 'auto' && (existing.place || 1) !== detectedPlace) {
+      const row = trophyStore.update(token, existing.id, { place: detectedPlace });
+      if (row) corrected.push(row);
+    }
+  }
+  return { added, corrected, scanned: candidates.length, ...list(token) };
 }
 
 module.exports = { list, add, remove, detect, detectAndAdd };

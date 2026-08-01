@@ -14,12 +14,14 @@ import { STALE } from '../staleTiers';
 // (champion), silver (runner-up), and bronze (3rd). Each trophy shows the team, league, year, and its
 // medal. Add by hand or auto-detect from MFL's playoff history; long-press to remove.
 
-// Podium finish → its medal treatment. `neon` is the NeonSign color key (added to neon.js), `hex` tints
-// the card's top border + year, `label` names the finish. 1 defaults for any legacy trophy without place.
+// Podium finish → its medal treatment. `neon` is the NeonSign color key (gold/silver/bronze), `hex`
+// tints the card's top border + year, `label` names the finish with an EXPLICIT ordinal (1st/2nd/3rd)
+// so the place reads at a glance, not just from the medal color. 1 defaults for any legacy trophy
+// without a place.
 const MEDAL = {
-  1: { neon: 'gold', hex: colors.gold, label: 'Champion' },
-  2: { neon: 'silver', hex: colors.silver, label: 'Runner-up' },
-  3: { neon: 'bronze', hex: colors.bronze, label: '3rd place' },
+  1: { neon: 'gold', hex: colors.gold, label: '1st · Champion', short: '1st' },
+  2: { neon: 'silver', hex: colors.silver, label: '2nd · Runner-up', short: '2nd' },
+  3: { neon: 'bronze', hex: colors.bronze, label: '3rd · Third place', short: '3rd' },
 };
 const medalFor = (place) => MEDAL[place] || MEDAL[1];
 
@@ -64,9 +66,13 @@ export default function TrophyCaseScreen({ onBack }) {
       const res = await api.detectTrophies();
       apply(res);
       const n = (res.added || []).length;
+      const fixed = (res.corrected || []).length; // medals re-graded on a re-scan (e.g. gold → silver)
       if (n) {
         const lines = res.added.map((t) => `${medalFor(t.place).label} · ${t.year} · ${t.leagueName}`).join('\n');
-        appAlert(`Found ${n} finish${n === 1 ? '' : 'es'}!`, lines);
+        appAlert(`Found ${n} finish${n === 1 ? '' : 'es'}!`, fixed ? `${lines}\n\n(Also corrected ${fixed} medal${fixed === 1 ? '' : 's'} to the right place.)` : lines);
+      } else if (fixed) {
+        const lines = res.corrected.map((t) => `${medalFor(t.place).label} · ${t.year} · ${t.leagueName}`).join('\n');
+        appAlert(`Corrected ${fixed} medal${fixed === 1 ? '' : 's'}`, `Re-graded to the right podium finish:\n${lines}`);
       } else {
         appAlert('All caught up', 'No new podium finishes found in your MyFantasyLeague playoff history.');
       }
@@ -204,7 +210,7 @@ export default function TrophyCaseScreen({ onBack }) {
                     accessibilityState={{ selected: on }}
                   >
                     <NeonSign glyph="trophy" color={m.neon} grade="inline" size={16} />
-                    <Text style={[styles.placeChipText, on && { color: m.hex }]}>{m.label}</Text>
+                    <Text style={[styles.placeChipText, on && { color: m.hex }]}>{m.short}</Text>
                   </Pressable>
                 );
               })}
