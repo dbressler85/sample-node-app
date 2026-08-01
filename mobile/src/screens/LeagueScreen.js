@@ -30,6 +30,13 @@ export default function LeagueScreen({ league, onBack, onOpenPlayer, onOpenPlayo
   const { data: triage } = useCachedResource(`league:triage:${league.leagueId}`, () => leagueTriagePreferDevice(league.leagueId), { revalidateOnMount: true });
   const inSeason = triage && triage.phase === 'in_season';
 
+  // Live counts pulled from the triage items already in hand (no extra read): pending trade offers and
+  // pending waiver claims. They badge the matching action chip so "2 offers waiting" reads right on the
+  // Trades button — the in-cockpit inbox, without a new screen (roadmap #10).
+  const items = (triage && triage.items) || [];
+  const pendingTrades = items.filter((it) => it.type === 'trade_offer').length;
+  const pendingWaivers = items.filter((it) => it.type === 'waiver_pending').length;
+
   // The scoped action row — every in-league action one tap away, launching the existing leagueId-aware
   // screens. This is what turns the hub from a read-only kiosk into a cockpit. Draft is hidden in-season
   // (there's no draft to open — it would dead-end); it shows in the off/pre-season draft window. Waivers
@@ -37,8 +44,8 @@ export default function LeagueScreen({ league, onBack, onOpenPlayer, onOpenPlayo
   const actions = [
     onOpenRoster && { key: 'roster', label: 'My Team', onPress: () => onOpenRoster(league) },
     onOpenLineup && { key: 'lineup', label: 'Set Lineup', onPress: () => onOpenLineup(league) },
-    onOpenTrades && { key: 'trades', label: 'Trades', onPress: () => onOpenTrades(league) },
-    onOpenWaivers && { key: 'waivers', label: 'Waivers', onPress: () => onOpenWaivers({ leagueId: league.leagueId }) },
+    onOpenTrades && { key: 'trades', label: 'Trades', badge: pendingTrades, onPress: () => onOpenTrades(league) },
+    onOpenWaivers && { key: 'waivers', label: 'Waivers', badge: pendingWaivers, onPress: () => onOpenWaivers({ leagueId: league.leagueId }) },
     onOpenDraft && !inSeason && { key: 'draft', label: 'Draft', onPress: () => onOpenDraft(league) },
   ].filter(Boolean);
   // Lazy keep-alive: a sub-tab mounts the first time it's shown and then STAYS mounted (hidden via
@@ -75,8 +82,9 @@ export default function LeagueScreen({ league, onBack, onOpenPlayer, onOpenPlayo
       {actions.length ? (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.actionRow}>
           {actions.map((a) => (
-            <Pressable key={a.key} onPress={a.onPress} style={({ pressed }) => [styles.actionChip, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel={a.label}>
+            <Pressable key={a.key} onPress={a.onPress} style={({ pressed }) => [styles.actionChip, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel={a.badge ? `${a.label}, ${a.badge} waiting` : a.label}>
               <Text style={styles.actionChipText}>{a.label}</Text>
+              {a.badge ? <View style={styles.actionBadge}><Text style={styles.actionBadgeText}>{a.badge}</Text></View> : null}
             </Pressable>
           ))}
         </ScrollView>
@@ -412,8 +420,11 @@ const styles = StyleSheet.create({
   matchClose: { color: colors.warn, fontSize: 12, fontWeight: '800' },
   // Scoped action row — accent-outlined chips (actions, not values), horizontally scrollable.
   actionRow: { paddingHorizontal: 16, gap: 8, paddingTop: 8, paddingBottom: 2 },
-  actionChip: { backgroundColor: colors.cardAlt, borderRadius: 999, borderWidth: 1, borderColor: colors.accent, paddingHorizontal: 16, minHeight: 40, justifyContent: 'center' },
+  actionChip: { flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: colors.cardAlt, borderRadius: 999, borderWidth: 1, borderColor: colors.accent, paddingHorizontal: 16, minHeight: 40, justifyContent: 'center' },
   actionChipText: { color: colors.accent, fontSize: 14, fontWeight: '800' },
+  // Count badge — an accent-filled pill (state/action = accent per the color law), min-circle sized.
+  actionBadge: { minWidth: 20, height: 20, borderRadius: 10, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 },
+  actionBadgeText: { color: colors.onAccent, fontSize: 11, fontWeight: '900', fontVariant: ['tabular-nums'] },
   segment: { flexDirection: 'row', marginHorizontal: 16, backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 3, marginTop: 6, marginBottom: 4 },
   seg: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
   segActive: { backgroundColor: colors.cardAlt },
