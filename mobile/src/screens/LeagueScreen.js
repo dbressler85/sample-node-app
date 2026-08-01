@@ -1,15 +1,17 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, FlatList, ScrollView, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, Pressable, FlatList, ScrollView, RefreshControl } from 'react-native';
 import { colors, positionColors } from '../theme';
 import { TopbarTitle } from '../components/Brand';
 import ErrorView from '../components/ErrorView';
+import ListSkeleton from '../components/ListSkeleton';
+import EmptyView from '../components/EmptyView';
 import DeviceNote from '../components/DeviceNote';
 import NeonSign from '../components/NeonSign';
 import PopChip from '../components/PopChip';
 import useAndroidBack from '../useAndroidBack';
 import useCachedResource from '../useCachedResource';
 import { STALE } from '../staleTiers';
-import { leagueTeamsPreferDevice, standingsPreferDevice, transactionsPreferDevice } from '../mflDevice';
+import { leagueTeamsPreferDevice, leagueTriagePreferDevice, standingsPreferDevice, transactionsPreferDevice } from '../mflDevice';
 
 // The league hub: the ordinary league views the app was missing — Standings,
 // Rosters (browse every team = opponent scouting), and a Transactions feed. Reached
@@ -20,17 +22,34 @@ const TABS = [
   ['txns', 'Transactions'],
 ];
 
-export default function LeagueScreen({ league, onBack, onOpenPlayer, onOpenPlayoffs }) {
+export default function LeagueScreen({ league, onBack, onOpenPlayer, onOpenPlayoffs, onOpenRoster, onOpenLineup, onOpenTrades, onOpenWaivers, onOpenDraft }) {
   const [tab, setTab] = useState('standings');
+  // The scoped action row — every in-league action one tap away, launching the existing leagueId-aware
+  // screens. This is what turns the hub from a read-only kiosk into a cockpit. Waivers is a tab-jump
+  // for now (it clears the overlay stack); a league-scoped waivers overlay is the Tier-1 follow-up.
+  const actions = [
+    onOpenRoster && { key: 'roster', label: 'My Team', onPress: () => onOpenRoster(league) },
+    onOpenLineup && { key: 'lineup', label: 'Set Lineup', onPress: () => onOpenLineup(league) },
+    onOpenTrades && { key: 'trades', label: 'Trades', onPress: () => onOpenTrades(league) },
+    onOpenWaivers && { key: 'waivers', label: 'Waivers', onPress: () => onOpenWaivers({ leagueId: league.leagueId }) },
+    onOpenDraft && { key: 'draft', label: 'Draft', onPress: () => onOpenDraft(league) },
+  ].filter(Boolean);
+  // Lazy keep-alive: a sub-tab mounts the first time it's shown and then STAYS mounted (hidden via
+  // display:none), so its filter/sort/scroll survive a tab switch (UX C7) — but the first open still
+  // pays only Standings' read, not all three at once.
+  const [visited, setVisited] = useState({ standings: true });
+  const show = useCallback((k) => { setTab(k); setVisited((v) => (v[k] ? v : { ...v, [k]: true })); }, []);
   useAndroidBack(useCallback(() => { onBack(); return true; }, [onBack]));
 
   return (
     <View style={styles.container}>
       <View style={styles.topbar}>
-        <Pressable onPress={onBack} hitSlop={10}><Text style={styles.back}>‹ Leagues</Text></Pressable>
+        <Pressable onPress={onBack} hitSlop={10} style={styles.backBtn} accessibilityRole="button" accessibilityLabel="Back to Leagues">
+          <Text style={styles.back} numberOfLines={1}>‹ Leagues</Text>
+        </Pressable>
         <TopbarTitle numberOfLines={1}>{league.name}</TopbarTitle>
         {onOpenPlayoffs ? (
-          <Pressable onPress={() => onOpenPlayoffs(league)} hitSlop={10} style={styles.bracketBtn}>
+          <Pressable onPress={() => onOpenPlayoffs(league)} hitSlop={10} style={styles.bracketBtn} accessibilityRole="button" accessibilityLabel="Playoff bracket">
             <NeonSign grade="inline" glyph="trophy" color="gold" size={14} />
             <Text style={styles.bracketBtnText}>Bracket</Text>
           </Pressable>
@@ -39,18 +58,78 @@ export default function LeagueScreen({ league, onBack, onOpenPlayer, onOpenPlayo
         )}
       </View>
 
+      <AttentionRibbon league={league} onOpenLineup={onOpenLineup} onOpenWaivers={onOpenWaivers} onOpenTrades={onOpenTrades} />
+
+      {actions.length ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.actionRow}>
+          {actions.map((a) => (
+            <Pressable key={a.key} onPress={a.onPress} style={({ pressed }) => [styles.actionChip, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel={a.label}>
+              <Text style={styles.actionChipText}>{a.label}</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      ) : null}
+
       <View style={styles.segment}>
         {TABS.map(([k, label]) => (
-          <Pressable key={k} style={[styles.seg, tab === k && styles.segActive]} onPress={() => setTab(k)}>
+          <Pressable
+            key={k}
+            style={[styles.seg, tab === k && styles.segActive]}
+            onPress={() => show(k)}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: tab === k }}
+          >
             <Text style={[styles.segText, tab === k && styles.segTextActive]}>{label}</Text>
           </Pressable>
         ))}
       </View>
 
-      {tab === 'standings' ? <StandingsTab leagueId={league.leagueId} /> : null}
-      {tab === 'rosters' ? <RostersTab leagueId={league.leagueId} onOpenPlayer={onOpenPlayer} /> : null}
-      {tab === 'txns' ? <TransactionsTab leagueId={league.leagueId} onOpenPlayer={onOpenPlayer} /> : null}
+      {visited.standings ? (
+        <View style={[styles.tabHost, tab !== 'standings' && styles.tabHidden]}>
+          <StandingsTab leagueId={league.leagueId} />
+        </View>
+      ) : null}
+      {visited.rosters ? (
+        <View style={[styles.tabHost, tab !== 'rosters' && styles.tabHidden]}>
+          <RostersTab leagueId={league.leagueId} onOpenPlayer={onOpenPlayer} />
+        </View>
+      ) : null}
+      {visited.txns ? (
+        <View style={[styles.tabHost, tab !== 'txns' && styles.tabHidden]}>
+          <TransactionsTab leagueId={league.leagueId} onOpenPlayer={onOpenPlayer} />
+        </View>
+      ) : null}
     </View>
+  );
+}
+
+// The "what needs me in THIS league" glance — the same per-league triage Home fans out, scoped to one
+// league. Each triage item already carries a human `title` and an `action` ('lineup'|'waiver'|'trade'),
+// so a chip deep-links straight into the matching scoped screen. Offseason shows the team's outlook
+// instead. Renders nothing (no row) when there's nothing to surface, so a clean league stays calm.
+function AttentionRibbon({ league, onOpenLineup, onOpenWaivers, onOpenTrades }) {
+  const { data } = useCachedResource(`league:triage:${league.leagueId}`, () => leagueTriagePreferDevice(league.leagueId), { revalidateOnMount: true });
+  const items = (data && data.items) || [];
+  const outlook = data && data.dynasty && data.dynasty.outlook;
+  if (!data || (!items.length && !outlook)) return null;
+  const go = (action) => {
+    if (action === 'lineup' && onOpenLineup) onOpenLineup(league);
+    else if (action === 'waiver' && onOpenWaivers) onOpenWaivers({ leagueId: league.leagueId });
+    else if (action === 'trade' && onOpenTrades) onOpenTrades(league);
+  };
+  const sevColor = { high: colors.bad, medium: colors.warn, low: colors.textDim };
+  return (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.ribbon}>
+      {outlook ? (
+        <View style={styles.outlookChip}><Text style={styles.outlookText}>{outlook}</Text></View>
+      ) : null}
+      {items.map((it) => (
+        <Pressable key={it.id} onPress={() => go(it.action)} style={({ pressed }) => [styles.attnChip, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel={it.title}>
+          <View style={[styles.attnDot, { backgroundColor: sevColor[it.severity] || colors.textDim }]} />
+          <Text style={styles.attnText} numberOfLines={1}>{it.title}</Text>
+        </Pressable>
+      ))}
+    </ScrollView>
   );
 }
 
@@ -64,7 +143,7 @@ function StandingsTab({ leagueId }) {
   // (names + playoff line); silently falls back to the backend on any device-read failure.
   const { data, error, refreshing, reload } = useCachedResource(`league:standings:${leagueId}`, () => standingsPreferDevice(leagueId));
   if (error && !data) return <ErrorView message={error} onRetry={reload} onRefresh={reload} refreshing={refreshing} />;
-  if (!data) return <Center><ActivityIndicator color={colors.accent} size="large" /></Center>;
+  if (!data) return <ListSkeleton rows={8} />;
 
   return (
     <FlatList
@@ -138,7 +217,7 @@ function RostersTab({ leagueId, onOpenPlayer }) {
   }, [active, pos, sort]);
 
   if (error && !data) return <ErrorView message={error} onRetry={reload} onRefresh={reload} refreshing={refreshing} />;
-  if (!data) return <Center><ActivityIndicator color={colors.accent} size="large" /></Center>;
+  if (!data) return <ListSkeleton rows={8} />;
 
   return (
     <View style={{ flex: 1 }}>
@@ -181,7 +260,7 @@ function RostersTab({ leagueId, onOpenPlayer }) {
             <Text style={styles.pVal}>{item.value != null ? item.value : '—'}</Text>
           </Pressable>
         )}
-        ListEmptyComponent={<Text style={styles.empty}>{pos ? `No ${pos === 'PK' ? 'K' : pos}s on this roster.` : 'No roster to show.'}</Text>}
+        ListEmptyComponent={<EmptyView title={pos ? `No ${pos === 'PK' ? 'K' : pos}s on this roster` : 'No roster to show'} message={pos ? 'Clear the position filter to see the full roster.' : null} tone={colors.textDim} />}
       />
     </View>
   );
@@ -205,7 +284,7 @@ function TransactionsTab({ leagueId, onOpenPlayer }) {
   // any device-read failure. `_source` says which path served it.
   const { data, error, refreshing, reload } = useCachedResource(`league:txns:${leagueId}`, () => transactionsPreferDevice(leagueId));
   if (error && !data) return <ErrorView message={error} onRetry={reload} onRefresh={reload} refreshing={refreshing} />;
-  if (!data) return <Center><ActivityIndicator color={colors.accent} size="large" /></Center>;
+  if (!data) return <ListSkeleton rows={6} />;
 
   return (
     <FlatList
@@ -235,30 +314,40 @@ function TransactionsTab({ leagueId, onOpenPlayer }) {
           ))}
         </View>
       )}
-      ListEmptyComponent={<Text style={styles.empty}>No recent transactions.</Text>}
+      ListEmptyComponent={<EmptyView title="No recent transactions" message="Adds, drops, and trades in this league show up here." tone={colors.textDim} />}
     />
   );
 }
 
-function Center({ children }) {
-  return <View style={styles.center}>{children}</View>;
-}
-
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'transparent' },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 },
-  back: { color: colors.accent, fontSize: 16, fontWeight: '600', width: 66 },
-  title: { color: colors.text, fontSize: 17, fontWeight: '900', flex: 1, textAlign: 'center' },
-  bracketBtn: { width: 78, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4 },
+  // Sized to content (no fixed width) + single-line so "‹ Leagues" can't wrap; 44-min tap target.
+  backBtn: { minWidth: 78, minHeight: 44, justifyContent: 'center' },
+  back: { color: colors.accent, fontSize: 16, fontWeight: '600' },
+  bracketBtn: { width: 78, minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4 },
   bracketBtnText: { color: colors.accent, fontSize: 13, fontWeight: '800' },
+  // Attention ribbon — "what needs me here" chips, deep-linked by the triage item's action.
+  ribbon: { paddingHorizontal: 16, gap: 8, paddingTop: 8, paddingBottom: 2 },
+  attnChip: { flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: colors.card, borderRadius: 999, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, minHeight: 34 },
+  attnDot: { width: 7, height: 7, borderRadius: 4 },
+  attnText: { color: colors.text, fontSize: 12, fontWeight: '700', maxWidth: 200 },
+  outlookChip: { justifyContent: 'center', backgroundColor: colors.violet + '22', borderRadius: 999, borderWidth: 1, borderColor: colors.violetDim, paddingHorizontal: 12, minHeight: 34 },
+  outlookText: { color: colors.violetText, fontSize: 12, fontWeight: '800' },
+  // Scoped action row — accent-outlined chips (actions, not values), horizontally scrollable.
+  actionRow: { paddingHorizontal: 16, gap: 8, paddingTop: 8, paddingBottom: 2 },
+  actionChip: { backgroundColor: colors.cardAlt, borderRadius: 999, borderWidth: 1, borderColor: colors.accent, paddingHorizontal: 16, minHeight: 40, justifyContent: 'center' },
+  actionChipText: { color: colors.accent, fontSize: 14, fontWeight: '800' },
   segment: { flexDirection: 'row', marginHorizontal: 16, backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 3, marginTop: 6, marginBottom: 4 },
   seg: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
   segActive: { backgroundColor: colors.cardAlt },
   segText: { color: colors.textDim, fontSize: 13, fontWeight: '700' },
-  segTextActive: { color: colors.text },
+  segTextActive: { color: colors.accent, fontWeight: '800' }, // accent-tinted active (DESIGN_SYSTEM §10)
+  // Lazy keep-alive tab hosts: a mounted-but-inactive tab is display:none (removed from layout) so its
+  // FlatList scroll + filter state survive while the visible tab fills the screen.
+  tabHost: { flex: 1 },
+  tabHidden: { display: 'none' },
   list: { paddingHorizontal: 16, paddingBottom: 32, paddingTop: 6 },
-  empty: { color: colors.textDim, textAlign: 'center', marginTop: 40, fontSize: 14 },
 
   // standings
   stHead: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingBottom: 6 },

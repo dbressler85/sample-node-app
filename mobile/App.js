@@ -468,7 +468,19 @@ export default function App() {
       case 'leagues':
         return <LeaguesScreen onBack={popOverlay} onOpenLeague={openLeagueHub} onOpenDraftHub={openDraftHub} />;
       case 'league':
-        return <LeagueScreen league={o.league} onBack={popOverlay} onOpenPlayer={openPlayer} onOpenPlayoffs={openPlayoffs} />;
+        return (
+          <LeagueScreen
+            league={o.league}
+            onBack={popOverlay}
+            onOpenPlayer={openPlayer}
+            onOpenPlayoffs={openPlayoffs}
+            onOpenRoster={openRoster}
+            onOpenLineup={openLineup}
+            onOpenTrades={openTrades}
+            onOpenWaivers={openWaivers}
+            onOpenDraft={openDraft}
+          />
+        );
       case 'playoffs':
         return <PlayoffBracketScreen league={o.league} onBack={popOverlay} />;
       case 'trophies':
