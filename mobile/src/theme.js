@@ -44,15 +44,20 @@ export const positionColors = {
   DEF: '#8AA0C0',
 };
 
-// rgb triplets for the accents that drive the neon glow recipe (glow() takes a triplet string).
+// rgb triplets for the accents that drive the neon glow recipe (glow() takes a triplet string). This
+// is the SINGLE source for each hue's triplet — neon.js derives its tube colors from here (+ `colors`)
+// rather than re-hardcoding the same hexes, so the palette can't fork between the two files.
 export const rgb = {
   accent: '79,140,255',
   gold: '243,193,74',
+  silver: '201,210,224', // podium runner-up medal — pairs with colors.silver
+  bronze: '204,139,74', // podium 3rd-place medal — pairs with colors.bronze
   good: '47,209,150',
   bad: '255,100,112',
   warn: '255,162,58',
   watch: '228,242,74',
   violet: '139,92,246',
+  textDim: '147,162,190', // the muted blue-grey — neon's deadpan "cold" tube
 };
 
 // 4-based spacing scale — no raw padding/margin/gap literals in screens.

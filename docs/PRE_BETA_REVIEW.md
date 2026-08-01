@@ -171,12 +171,14 @@ prevent.
 - ~~Adopt-or-delete `SectionLabel`~~ **DONE** — deleted (nothing imported it); `DESIGN_SYSTEM.md §4.4/§7`
   corrected to describe the real per-screen `displayLabel()` + `violetText` treatment.
 - ~~Delete dead components `HubMark.js`, `LeagueCard.js`, `ProLock.js`~~ **DONE.**
-- Dedup the neon/theme palette (medal colors now forked in both); `fontWeight:'900'`→`weight.heavy`
-  token sweep (~174 sites, needs a visual pass). *(Still open — deferred for a build-time visual pass.)*
+- ~~Dedup the neon/theme palette (medal colors forked in both)~~ **DONE** — `neon.js` now derives its
+  tube colors from `theme.js` (`colors` + `rgb`, with silver/bronze/textDim triplets added there), so
+  the palette has one source. `fontWeight:'900'`→`weight.heavy` token sweep (~174 sites) is **still
+  open** — deferred for a build-time visual pass.
 - ~~Fix the stale `useCachedResource.js` header comment~~ **DONE** (rewritten to the keep-alive model).
-- **Still open:** the `PlayerProfileScreen` `DropSheet` is a fourth action sheet that could adopt the new
-  `BottomSheet`/`Checkbox` (and was flagged unbounded like AddAcross was) — left for when that screen is
-  next touched.
+- ~~`PlayerProfileScreen` `DropSheet`~~ **DONE** — adopted the shared `BottomSheet` + `Checkbox` (the
+  latter gained a `color` prop for its red destructive check), which also fixed its unbounded list
+  (now scrolls in the bounded sheet) and added the a11y checkbox role.
 
 ---
 
