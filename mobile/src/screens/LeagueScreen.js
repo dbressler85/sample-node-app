@@ -22,8 +22,18 @@ const TABS = [
   ['txns', 'Transactions'],
 ];
 
-export default function LeagueScreen({ league, onBack, onOpenPlayer, onOpenPlayoffs }) {
+export default function LeagueScreen({ league, onBack, onOpenPlayer, onOpenPlayoffs, onOpenRoster, onOpenLineup, onOpenTrades, onOpenWaivers, onOpenDraft }) {
   const [tab, setTab] = useState('standings');
+  // The scoped action row — every in-league action one tap away, launching the existing leagueId-aware
+  // screens. This is what turns the hub from a read-only kiosk into a cockpit. Waivers is a tab-jump
+  // for now (it clears the overlay stack); a league-scoped waivers overlay is the Tier-1 follow-up.
+  const actions = [
+    onOpenRoster && { key: 'roster', label: 'My Team', onPress: () => onOpenRoster(league) },
+    onOpenLineup && { key: 'lineup', label: 'Set Lineup', onPress: () => onOpenLineup(league) },
+    onOpenTrades && { key: 'trades', label: 'Trades', onPress: () => onOpenTrades(league) },
+    onOpenWaivers && { key: 'waivers', label: 'Waivers', onPress: () => onOpenWaivers({ leagueId: league.leagueId }) },
+    onOpenDraft && { key: 'draft', label: 'Draft', onPress: () => onOpenDraft(league) },
+  ].filter(Boolean);
   // Lazy keep-alive: a sub-tab mounts the first time it's shown and then STAYS mounted (hidden via
   // display:none), so its filter/sort/scroll survive a tab switch (UX C7) — but the first open still
   // pays only Standings' read, not all three at once.
@@ -47,6 +57,16 @@ export default function LeagueScreen({ league, onBack, onOpenPlayer, onOpenPlayo
           <View style={{ width: 78 }} />
         )}
       </View>
+
+      {actions.length ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.actionRow}>
+          {actions.map((a) => (
+            <Pressable key={a.key} onPress={a.onPress} style={({ pressed }) => [styles.actionChip, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel={a.label}>
+              <Text style={styles.actionChipText}>{a.label}</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      ) : null}
 
       <View style={styles.segment}>
         {TABS.map(([k, label]) => (
@@ -275,6 +295,10 @@ const styles = StyleSheet.create({
   back: { color: colors.accent, fontSize: 16, fontWeight: '600' },
   bracketBtn: { width: 78, minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4 },
   bracketBtnText: { color: colors.accent, fontSize: 13, fontWeight: '800' },
+  // Scoped action row — accent-outlined chips (actions, not values), horizontally scrollable.
+  actionRow: { paddingHorizontal: 16, gap: 8, paddingTop: 8, paddingBottom: 2 },
+  actionChip: { backgroundColor: colors.cardAlt, borderRadius: 999, borderWidth: 1, borderColor: colors.accent, paddingHorizontal: 16, minHeight: 40, justifyContent: 'center' },
+  actionChipText: { color: colors.accent, fontSize: 14, fontWeight: '800' },
   segment: { flexDirection: 'row', marginHorizontal: 16, backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 3, marginTop: 6, marginBottom: 4 },
   seg: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
   segActive: { backgroundColor: colors.cardAlt },
