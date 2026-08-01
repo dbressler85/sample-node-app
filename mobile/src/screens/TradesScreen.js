@@ -328,6 +328,17 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
     setDealNote(null);
   }
 
+  // "Send another offer" from a sent offer: jump to the Propose builder pre-aimed at the SAME owner,
+  // with both sides cleared for a fresh alternative. Managers routinely fire several options at one
+  // team; this makes the next one a single tap instead of re-selecting the partner on the Propose tab.
+  function startAnother(offer) {
+    if (!offer || !offer.withFranchiseId) return;
+    pickPartner(offer.withFranchiseId); // sets partner + clears the "you get" side and counter/deal note
+    setSend({}); // also clear the "you give" side — this is a brand-new offer, not a tweak of the last
+    setTab('propose');
+    toast(`Building another offer to ${offer.withName}`);
+  }
+
   // Ask the backend for a fair, needs-fitting package to acquire `targetId` and load it
   // into the "you send" side. Target defaults to the most valuable player you're getting.
   const applySuggestion = useCallback(async (targetId, pId) => {
@@ -589,7 +600,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
           ) : (
             activeOffers.map((o, i) => (
               <Reveal key={o.id} delay={Math.min(i, 6) * 55}>
-                <OfferCard offer={o} busy={busy === o.id} onAccept={accept} onReject={openReject} onWithdraw={withdraw} onCounter={startCounter} onOpenPlayer={onOpenPlayer} onReviewRoster={onOpenRoster ? () => onOpenRoster(league) : null} />
+                <OfferCard offer={o} busy={busy === o.id} onAccept={accept} onReject={openReject} onWithdraw={withdraw} onCounter={startCounter} onSendAnother={startAnother} onOpenPlayer={onOpenPlayer} onReviewRoster={onOpenRoster ? () => onOpenRoster(league) : null} />
               </Reveal>
             ))
           )}
@@ -821,7 +832,7 @@ function NetChip({ label, net, color }) {
   );
 }
 
-function OfferCard({ offer, busy, onAccept, onReject, onWithdraw, onCounter, onOpenPlayer, onReviewRoster }) {
+function OfferCard({ offer, busy, onAccept, onReject, onWithdraw, onCounter, onSendAnother, onOpenPlayer, onReviewRoster }) {
   const v = VERDICT[offer.analysis.verdict] || VERDICT.fair;
   const outgoing = offer.direction === 'outgoing';
   // A colored left stripe + a direction pill so received-vs-sent reads instantly, even at a glance.
@@ -908,16 +919,30 @@ function OfferCard({ offer, busy, onAccept, onReject, onWithdraw, onCounter, onO
           </View>
         </>
       ) : offer.canRevoke ? (
-        // Our own outgoing offer → withdraw it (revoke).
-        <View style={styles.cardActions}>
-          <Pressable style={[styles.act, styles.reject]} onPress={() => onWithdraw(offer)} disabled={busy}>
-            {busy ? <ActivityIndicator color={colors.bad} /> : <Text style={styles.rejectText}>Withdraw offer</Text>}
-          </Pressable>
-        </View>
+        // Our own outgoing offer → withdraw it (revoke), or fire ANOTHER option to the same owner.
+        // Sending several alternatives to one manager at once is a normal trade tactic, so make that
+        // one tap from a sent offer instead of hunting back to the Propose tab and re-picking the team.
+        <>
+          <View style={styles.cardActions}>
+            <Pressable style={[styles.act, styles.reject]} onPress={() => onWithdraw(offer)} disabled={busy}>
+              {busy ? <ActivityIndicator color={colors.bad} /> : <Text style={styles.rejectText}>Withdraw offer</Text>}
+            </Pressable>
+          </View>
+          {onSendAnother ? (
+            <Pressable style={({ pressed }) => [styles.counterBtn, pressed && { opacity: 0.7 }]} onPress={() => onSendAnother(offer)} disabled={busy}>
+              <View style={styles.counterBtnRow}>
+                <NeonSign glyph="swap" color="accent" grade="inline" size={13} />
+                <Text style={styles.counterBtnText}>Send another offer</Text>
+              </View>
+            </Pressable>
+          ) : null}
+        </>
       ) : (
         <Text style={styles.noRespond}>This offer can’t be actioned here — open it in MyFantasyLeague.</Text>
       )}
-      {onCounter ? (
+      {/* Counter is only for offers made TO you — you can't "counter" your own outgoing offer (that's
+          just sending another). So the balanced-counter action shows on incoming offers only. */}
+      {onCounter && !outgoing ? (
         <Pressable style={({ pressed }) => [styles.counterBtn, pressed && { opacity: 0.7 }]} onPress={() => onCounter(offer)} disabled={busy}>
           <View style={styles.counterBtnRow}>
             <NeonSign glyph="undo" color="accent" grade="inline" size={13} />
