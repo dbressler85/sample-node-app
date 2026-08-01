@@ -102,6 +102,9 @@ export default function App() {
   // Overlays form a stack so back returns to the previous screen (e.g. Trades or
   // Draft opened from a roster returns to that roster, not Home).
   const [overlayStack, setOverlayStack] = useState([]);
+  const overlayKey = useRef(0); // monotonic id per pushed overlay → a STABLE React key (never the array
+  // index), so a mounted screen can never be handed a different league's props by reconciliation. The
+  // stack is append/pop-top today, but stable keys make wrong-league prop-swap structurally impossible.
   const [closing, setClosing] = useState(false); // the top overlay is playing its exit animation (Traversal)
   const [waiversTarget, setWaiversTarget] = useState(null); // {leagueId, position, sort}
   const reduced = useReducedMotion(); // OS "reduce motion" — snap transitions to settled state when on
@@ -174,7 +177,7 @@ export default function App() {
 
   const overlay = overlayStack[overlayStack.length - 1] || null;
   // Pushing clears any pending close flag so a newly-opened overlay never inherits an exit.
-  const pushOverlay = (o) => { setClosing(false); setOverlayStack((s) => [...s, o]); };
+  const pushOverlay = (o) => { setClosing(false); setOverlayStack((s) => [...s, { ...o, _key: overlayKey.current++ }]); };
   // Traversal (docs/MOTION_AND_NEON_ROADMAP.md §2.2): popOverlay now REQUESTS a close — it flips the
   // `closing` flag so the top OverlayLayer plays its exit; finishPop removes it once that completes.
   // Every existing onBack / Android-back / onExit call site uses popOverlay unchanged, so they now
@@ -602,7 +605,7 @@ export default function App() {
         {overlayStack.map((o, i) => (
           // Each overlay is its own animated layer: it lifts in on open and drops out on back
           // (OverlayLayer). isTop + closing drive the exit; finishPop removes it once that completes.
-          <OverlayLayer key={i} isTop={i === overlayStack.length - 1} closing={closing} onClosed={finishPop}>
+          <OverlayLayer key={o._key ?? i} isTop={i === overlayStack.length - 1} closing={closing} onClosed={finishPop}>
             <ErrorBoundary silent>
               {/* Overlays fully occlude the app beneath, so their backdrop is the gradient only — no
                   crest watermark (skips re-rendering the neon crest behind every stacked drill-in). */}
