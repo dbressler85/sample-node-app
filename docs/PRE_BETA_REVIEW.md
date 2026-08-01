@@ -108,10 +108,14 @@ prevent.
 
 ## Tier 2 — Should fix around beta (hardening + a correction)
 
-> **Status:** #8, #9, #10, #11, #13 done; #12 done for the concrete scoreboard case (the shared
-> `mapLeaguesSettled` envelope is deferred as consolidation). **#7 deferred** — changing shared retry
-> semantics across ~10 call sites is risky without load-testing, and #5 (pinning the draft pool) already
-> cut the in-draft 429s that made the sustained-throttle hang likely. Revisit if cold-load hangs recur.
+> **Status:** #8, #9, #10, #11, #12, #13 done. #12's shared `mapLeaguesSettled` + `partiality`
+> envelope now lives in `lib/safe.js` and scoreboard adopts it — which also fixed a latent false-
+> `partial` in the offseason (a no-live-game league is now `ok:true/value:null`, distinct from a
+> throttled `ok:false`, so an empty board no longer reports "some leagues failed"). The helper is
+> available for the remaining fan-outs to adopt as they're touched. **#7 deferred** — changing shared
+> retry semantics across ~10 call sites is risky without load-testing, and #5 (pinning the draft pool)
+> already cut the in-draft 429s that made the sustained-throttle hang likely. Revisit if cold-load
+> hangs recur.
 
 7. **Un-over-layer the draft retries.** Retry lives at the read source now, so the outer `withRetry`
    wraps recently added to `getLeague`/`getOverview` partly double up; and `withRetry` retries

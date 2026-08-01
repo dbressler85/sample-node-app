@@ -47,6 +47,10 @@ async function safeCall(fn, fallback, ctx) {
 // each re-implementing concurrency + per-league isolation and (usually) swallowing silently. `fn` gets
 // (league, index). `fallback` is either a value or a `(league, index) => value` builder for a
 // league-specific default (e.g. `[leagueId, null]`). `ctx` labels the log; the league id is appended.
+function leagueIdOf(league, i) {
+  return (league && (league.leagueId || league.id)) || i;
+}
+
 async function mapLeagues(leagues, fn, fallback = null, ctx = 'mapLeagues') {
   const fb = typeof fallback === 'function' ? fallback : () => fallback;
   return Promise.all(
@@ -54,12 +58,48 @@ async function mapLeagues(leagues, fn, fallback = null, ctx = 'mapLeagues') {
       Promise.resolve()
         .then(() => fn(league, i))
         .catch((e) => {
-          const id = (league && (league.leagueId || league.id)) || i;
-          logDegrade(`${ctx} league=${id}`, e);
+          logDegrade(`${ctx} league=${leagueIdOf(league, i)}`, e);
           return fb(league, i);
         })
     )
   );
 }
 
-module.exports = { safe, safeCall, logDegrade, mapLeagues };
+// Like mapLeagues, but instead of collapsing a failure to a fallback VALUE it returns a settled
+// ENVELOPE per league: [{ leagueId, ok, value, error }]. The distinction is the whole point:
+//   ok:false            → fn actually threw (a real throttle / expired-cookie failure)
+//   ok:true, value:null → the league loaded fine and simply has nothing (an offseason scoreboard,
+//                          an inbox with no offers, a bye week)
+// A fan-out that collapses both to `null` (the mapLeagues + `.filter(Boolean)` shape) can't tell a
+// dropped league from an empty one, so it either under-reports coverage or fires a FALSE `partial` in
+// the offseason. The envelope lets an aggregate compute leaguesLoaded/partial from GENUINE failures.
+// Still isolates + logs each failure exactly like mapLeagues. `fn` gets (league, index).
+async function mapLeaguesSettled(leagues, fn, ctx = 'mapLeaguesSettled') {
+  return Promise.all(
+    (leagues || []).map((league, i) =>
+      Promise.resolve()
+        .then((/* */) => fn(league, i))
+        .then((value) => ({ leagueId: leagueIdOf(league, i), ok: true, value, error: null }))
+        .catch((e) => {
+          const id = leagueIdOf(league, i);
+          logDegrade(`${ctx} league=${id}`, e);
+          return { leagueId: id, ok: false, value: null, error: e };
+        })
+    )
+  );
+}
+
+// Roll a mapLeaguesSettled result into the standard partial-load honesty envelope every aggregate
+// exposes: { partial, leaguesLoaded, leagueCount }. `leaguesLoaded` counts leagues whose read
+// SUCCEEDED (whether or not the value was empty) — it answers "did we reach all your leagues," which
+// is the honest basis for "N of M loaded", not "how many had data". So the standard consumer shape is:
+//   const settled = await mapLeaguesSettled(leagues, fn, ctx);
+//   const values = settled.filter((s) => s.ok && s.value).map((s) => s.value);
+//   return { ...partiality(settled), items: values };
+function partiality(settled) {
+  const rows = settled || [];
+  const leaguesLoaded = rows.filter((s) => s && s.ok).length;
+  return { partial: leaguesLoaded < rows.length, leaguesLoaded, leagueCount: rows.length };
+}
+
+module.exports = { safe, safeCall, logDegrade, mapLeagues, mapLeaguesSettled, partiality };

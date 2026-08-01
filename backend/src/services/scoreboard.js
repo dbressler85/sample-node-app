@@ -10,7 +10,7 @@ const demo = require('../demo/fixtures');
 const mfl = require('../lib/mfl');
 const mflRepo = require('../lib/mflRepo');
 const nflLib = require('../lib/nfl');
-const { logDegrade, mapLeagues } = require('../lib/safe');
+const { mapLeaguesSettled, partiality } = require('../lib/safe');
 const leaguesService = require('./leagues');
 const playersLib = require('../lib/players');
 
@@ -67,49 +67,47 @@ async function liveForLeague(cookie, league) {
     card.me.yetToPlayers = await resolveYetToPlay(cookie, live.me.yetToPlayIds);
     return card;
   }
-  // Live: MFL liveScoring exposes per-franchise score, playersYetToPlay and
-  // gameSecondsRemaining. Best-effort; verify against a real account.
-  try {
-    const franchises = await mflRepo.liveScoring(league, cookie);
-    console.log(`[liveScoring] league=${league.leagueId} franchises=${franchises.length}`);
-    const mine = franchises.find((f) => String(f.id) === league.franchiseId);
-    if (!mine) return null; // no live data (e.g. offseason / no games in progress)
-    const opp = franchises.find((f) => String(f.id) === String(mine.opp_id));
-    const toCard = (f) => ({
-      score: Number(f && f.score) || 0,
-      yetToPlay: Number(f && f.playersYetToPlay) || 0,
-      projectedFinal: Number(f && f.projectedScore) || Number(f && f.score) || 0,
-    });
-    const names = await leaguesService.franchiseNames(cookie, league);
-    const oppName = opp ? names.get(String(opp.id)) || `Team ${opp.id}` : 'Opponent';
-    const card = buildCard(league, { me: toCard(mine), opp: toCard(opp) }, oppName);
-    // Which of MY players are still to play. liveScoring nests per-player status under
-    // franchise.players.player[]; a player with a full game clock (or an explicit not-yet
-    // status) hasn't played. Best-effort — falls back to an empty list (the count still shows)
-    // if the sub-shape differs. Verify against a real liveScoring response.
-    const myPlayers = mfl.toArray(mine.players && mine.players.player);
-    const ytpIds = myPlayers
-      .filter((pp) => {
-        const secs = Number(pp.gameSecondsRemaining);
-        const status = String(pp.status || '').toLowerCase();
-        return (Number.isFinite(secs) && secs >= 3600) || status === 'yettoplay' || status === 'notplayed';
-      })
-      .map((pp) => pp.id);
-    card.me.yetToPlayers = await resolveYetToPlay(cookie, ytpIds);
-    return card;
-  } catch (e) {
-    logDegrade(`scoreboard.liveForLeague league=${league.leagueId}`, e);
-    return null;
-  }
+  // Live: MFL liveScoring exposes per-franchise score, playersYetToPlay and gameSecondsRemaining.
+  // Best-effort; verify against a real account. A read FAILURE (throttle / expired cookie) throws so
+  // mapLeaguesSettled records the league as not-loaded (drives an honest `partial`); a successful read
+  // with no matchup for me returns null — loaded fine, simply nothing live. The two must stay distinct.
+  const franchises = await mflRepo.liveScoring(league, cookie);
+  console.log(`[liveScoring] league=${league.leagueId} franchises=${franchises.length}`);
+  const mine = franchises.find((f) => String(f.id) === league.franchiseId);
+  if (!mine) return null; // no live data (e.g. offseason / no games in progress) — ok, just empty
+  const opp = franchises.find((f) => String(f.id) === String(mine.opp_id));
+  const toCard = (f) => ({
+    score: Number(f && f.score) || 0,
+    yetToPlay: Number(f && f.playersYetToPlay) || 0,
+    projectedFinal: Number(f && f.projectedScore) || Number(f && f.score) || 0,
+  });
+  const names = await leaguesService.franchiseNames(cookie, league);
+  const oppName = opp ? names.get(String(opp.id)) || `Team ${opp.id}` : 'Opponent';
+  const card = buildCard(league, { me: toCard(mine), opp: toCard(opp) }, oppName);
+  // Which of MY players are still to play. liveScoring nests per-player status under
+  // franchise.players.player[]; a player with a full game clock (or an explicit not-yet
+  // status) hasn't played. Best-effort — falls back to an empty list (the count still shows)
+  // if the sub-shape differs. Verify against a real liveScoring response.
+  const myPlayers = mfl.toArray(mine.players && mine.players.player);
+  const ytpIds = myPlayers
+    .filter((pp) => {
+      const secs = Number(pp.gameSecondsRemaining);
+      const status = String(pp.status || '').toLowerCase();
+      return (Number.isFinite(secs) && secs >= 3600) || status === 'yettoplay' || status === 'notplayed';
+    })
+    .map((pp) => pp.id);
+  card.me.yetToPlayers = await resolveYetToPlay(cookie, ytpIds);
+  return card;
 }
 
 async function getScoreboard(cookie) {
   const leagues = await leaguesService.listLeagues(cookie);
-  // mapLeagues yields null for a league whose live read failed (throttle) — count those so the board can
-  // say "N of M leagues loaded" instead of silently showing fewer matchups than the user actually has.
-  const raw = await mapLeagues(leagues, (l) => liveForLeague(cookie, l), null, 'scoreboard.live');
-  const cards = raw.filter(Boolean);
-  const failedLeagues = raw.length - cards.length;
+  // Settled fan-out: a league whose live read THREW is ok:false (a genuine throttle drop), while a
+  // league with no live matchup is ok:true/value:null (offseason, loaded fine). `partial` is driven by
+  // the former only — so an offseason board no longer reports a false "some leagues failed", and a real
+  // throttle still surfaces "N of M leagues loaded" instead of silently showing fewer matchups.
+  const settled = await mapLeaguesSettled(leagues, (l) => liveForLeague(cookie, l), 'scoreboard.live');
+  const cards = settled.filter((s) => s.ok && s.value).map((s) => s.value);
 
   // Closest games first; locked games sink to the bottom.
   cards.sort((a, b) => {
@@ -121,12 +119,9 @@ async function getScoreboard(cookie) {
   return {
     week: config.demoMode ? demo.week() : await nflLib.currentWeek(cookie),
     games: cards,
-    // Honesty on a throttled fan-out (mirrors dashboard/exposure): some leagues' live reads may have
-    // failed, so `total` covers only what loaded — expose partiality rather than implying you have fewer
-    // matchups than you do.
-    partial: failedLeagues > 0,
-    leaguesLoaded: cards.length,
-    leagueCount: leagues.length,
+    // Standard partial-load honesty envelope (mirrors dashboard/exposure): partial + leaguesLoaded
+    // (leagues we could READ, incl. offseason-empty ones) + leagueCount, computed the shared way.
+    ...partiality(settled),
     summary: {
       total: cards.length,
       live: live.length,
