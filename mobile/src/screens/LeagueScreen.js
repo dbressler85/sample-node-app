@@ -24,15 +24,21 @@ const TABS = [
 
 export default function LeagueScreen({ league, onBack, onOpenPlayer, onOpenPlayoffs, onOpenRoster, onOpenLineup, onOpenTrades, onOpenWaivers, onOpenDraft }) {
   const [tab, setTab] = useState('standings');
+  // One per-league triage read, shared by the attention ribbon AND the action row (its `phase` gates
+  // which actions make sense). Loads independently of the tabs, so it never delays the Standings paint.
+  const { data: triage } = useCachedResource(`league:triage:${league.leagueId}`, () => leagueTriagePreferDevice(league.leagueId), { revalidateOnMount: true });
+  const inSeason = triage && triage.phase === 'in_season';
+
   // The scoped action row — every in-league action one tap away, launching the existing leagueId-aware
-  // screens. This is what turns the hub from a read-only kiosk into a cockpit. Waivers is a tab-jump
-  // for now (it clears the overlay stack); a league-scoped waivers overlay is the Tier-1 follow-up.
+  // screens. This is what turns the hub from a read-only kiosk into a cockpit. Draft is hidden in-season
+  // (there's no draft to open — it would dead-end); it shows in the off/pre-season draft window. Waivers
+  // is a tab-jump for now (it clears the overlay stack); a league-scoped waivers overlay is the follow-up.
   const actions = [
     onOpenRoster && { key: 'roster', label: 'My Team', onPress: () => onOpenRoster(league) },
     onOpenLineup && { key: 'lineup', label: 'Set Lineup', onPress: () => onOpenLineup(league) },
     onOpenTrades && { key: 'trades', label: 'Trades', onPress: () => onOpenTrades(league) },
     onOpenWaivers && { key: 'waivers', label: 'Waivers', onPress: () => onOpenWaivers({ leagueId: league.leagueId }) },
-    onOpenDraft && { key: 'draft', label: 'Draft', onPress: () => onOpenDraft(league) },
+    onOpenDraft && !inSeason && { key: 'draft', label: 'Draft', onPress: () => onOpenDraft(league) },
   ].filter(Boolean);
   // Lazy keep-alive: a sub-tab mounts the first time it's shown and then STAYS mounted (hidden via
   // display:none), so its filter/sort/scroll survive a tab switch (UX C7) — but the first open still
@@ -58,7 +64,7 @@ export default function LeagueScreen({ league, onBack, onOpenPlayer, onOpenPlayo
         )}
       </View>
 
-      <AttentionRibbon league={league} onOpenLineup={onOpenLineup} onOpenWaivers={onOpenWaivers} onOpenTrades={onOpenTrades} />
+      <AttentionRibbon triage={triage} league={league} onOpenLineup={onOpenLineup} onOpenWaivers={onOpenWaivers} onOpenTrades={onOpenTrades} />
 
       {actions.length ? (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.actionRow}>
@@ -107,11 +113,10 @@ export default function LeagueScreen({ league, onBack, onOpenPlayer, onOpenPlayo
 // league. Each triage item already carries a human `title` and an `action` ('lineup'|'waiver'|'trade'),
 // so a chip deep-links straight into the matching scoped screen. Offseason shows the team's outlook
 // instead. Renders nothing (no row) when there's nothing to surface, so a clean league stays calm.
-function AttentionRibbon({ league, onOpenLineup, onOpenWaivers, onOpenTrades }) {
-  const { data } = useCachedResource(`league:triage:${league.leagueId}`, () => leagueTriagePreferDevice(league.leagueId), { revalidateOnMount: true });
-  const items = (data && data.items) || [];
-  const outlook = data && data.dynasty && data.dynasty.outlook;
-  if (!data || (!items.length && !outlook)) return null;
+function AttentionRibbon({ triage, league, onOpenLineup, onOpenWaivers, onOpenTrades }) {
+  const items = (triage && triage.items) || [];
+  const outlook = triage && triage.dynasty && triage.dynasty.outlook;
+  if (!triage || (!items.length && !outlook)) return null;
   const go = (action) => {
     if (action === 'lineup' && onOpenLineup) onOpenLineup(league);
     else if (action === 'waiver' && onOpenWaivers) onOpenWaivers({ leagueId: league.leagueId });
