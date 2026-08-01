@@ -129,7 +129,9 @@ export default function LeagueScreen({ league, onBack, onOpenPlayer, onOpenPlayo
 // instead. Renders nothing (no row) when there's nothing to surface, so a clean league stays calm.
 function AttentionRibbon({ triage, league, onOpenLineup, onOpenWaivers, onOpenTrades }) {
   const items = (triage && triage.items) || [];
-  const outlook = triage && triage.dynasty && triage.dynasty.outlook;
+  const dynasty = triage && triage.dynasty;
+  const outlook = dynasty && dynasty.outlook;
+  const plan = dynasty && dynasty.plan; // { verb, directive, intent } — the actionable version of the label
   if (!triage || (!items.length && !outlook)) return null;
   const go = (action) => {
     if (action === 'lineup' && onOpenLineup) onOpenLineup(league);
@@ -140,7 +142,17 @@ function AttentionRibbon({ triage, league, onOpenLineup, onOpenWaivers, onOpenTr
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.ribbon}>
       {outlook ? (
-        <View style={styles.outlookChip}><Text style={styles.outlookText}>{outlook}</Text></View>
+        // The dynasty window as a PLAN, not a dead-end label: the verb (Contend/Build/Sell/Flex) headlines
+        // and the directive says what to do. Taps into Trades — where you'd act on it. Falls back to the
+        // bare label for older cached payloads with no plan.
+        plan && onOpenTrades ? (
+          <Pressable onPress={() => onOpenTrades(league)} style={({ pressed }) => [styles.planChip, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel={`${plan.verb}: ${plan.directive}`}>
+            <Text style={styles.planVerb}>{plan.verb}</Text>
+            <Text style={styles.planDirective} numberOfLines={1}>{plan.directive}</Text>
+          </Pressable>
+        ) : (
+          <View style={styles.outlookChip}><Text style={styles.outlookText}>{outlook}</Text></View>
+        )
       ) : null}
       {items.map((it) => (
         <Pressable key={it.id} onPress={() => go(it.action)} style={({ pressed }) => [styles.attnChip, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel={it.title}>
@@ -403,6 +415,10 @@ const styles = StyleSheet.create({
   attnText: { color: colors.text, fontSize: 12, fontWeight: '700', maxWidth: 200 },
   outlookChip: { justifyContent: 'center', backgroundColor: colors.violet + '22', borderRadius: 999, borderWidth: 1, borderColor: colors.violetDim, paddingHorizontal: 12, minHeight: 34 },
   outlookText: { color: colors.violetText, fontSize: 12, fontWeight: '800' },
+  // Plan chip — the actionable outlook: a verb headline + a one-line directive, taps into Trades.
+  planChip: { justifyContent: 'center', backgroundColor: colors.violet + '22', borderRadius: 14, borderWidth: 1, borderColor: colors.violetDim, paddingHorizontal: 12, paddingVertical: 5, minHeight: 34, maxWidth: 260 },
+  planVerb: { color: colors.violetText, fontSize: 12, fontWeight: '900', letterSpacing: 0.3, textTransform: 'uppercase' },
+  planDirective: { color: colors.textDim, fontSize: 11, fontWeight: '600', marginTop: 1 },
   // This week's matchup card — the in-season headline, taps through to Set Lineup.
   matchWrap: { paddingHorizontal: 16, paddingTop: 8 },
   matchCard: { backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 12 },

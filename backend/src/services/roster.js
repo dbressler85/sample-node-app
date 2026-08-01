@@ -78,6 +78,23 @@ function computeOutlook(coreAge, strengthPct, recordPct) {
   return 'Balanced';
 }
 
+// Turn the outlook LABEL into an actionable PLAN — the fix for the "dead-end insight" the outlook chip
+// was (it told you your window but not what to do in it). `intent` maps to Pick Capital's shop/acquire
+// flows: 'shop' = cash picks for a proven player (a contender's move); 'acquire' = bank picks (a
+// rebuilder/builder's move); null = no single lean. Pure + deterministic, so it's unit-safe.
+function outlookPlan(outlook) {
+  switch (outlook) {
+    case 'Win-now window':
+      return { verb: 'Contend', directive: 'Buy proven starters — spend picks to win now.', intent: 'shop' };
+    case 'Ascending':
+      return { verb: 'Build', directive: 'Hold your young core; add picks and buy low on upside.', intent: 'acquire' };
+    case 'Rebuilding':
+      return { verb: 'Sell', directive: 'Move aging vets for picks and young talent.', intent: 'acquire' };
+    default:
+      return { verb: 'Flex', directive: 'No fire sale — buy low, sell high, stay flexible.', intent: null };
+  }
+}
+
 // Percentile of each franchise by ACTUAL season record — win% (ties = half a win), tie-broken by
 // points-for — 0..1 where 1.0 = the best record in the league. Returns a Map(id → pct); empty when
 // standings are unreadable or no games have been played yet (preseason), so outlook cleanly falls
@@ -465,4 +482,4 @@ async function moveTaxi(cookie, token, leagueId, { promote = [], demote = [], dr
   return getRoster(cookie, leagueId);
 }
 
-module.exports = { getRoster, invalidate, computeOutlook, coreAgeOf, recordPctByFranchise, recordForFranchise, strengthLabel, leagueAgeContext, leagueFranchises, myRosterLight, myRosterEnriched, rosterFromDeviceFranchises, assembleRoster, moveIr, moveTaxi };
+module.exports = { getRoster, invalidate, computeOutlook, outlookPlan, coreAgeOf, recordPctByFranchise, recordForFranchise, strengthLabel, leagueAgeContext, leagueFranchises, myRosterLight, myRosterEnriched, rosterFromDeviceFranchises, assembleRoster, moveIr, moveTaxi };

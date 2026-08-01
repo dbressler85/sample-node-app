@@ -51,4 +51,23 @@ assert(roster.recordForFranchise([{ id: '0003', h2hw: 2, h2hl: 8 }], '9999') ===
 assert(roster.recordForFranchise([{ id: '0003', h2hw: 0, h2hl: 0 }], '0003') === null, 'preseason (0 games) → null record');
 console.log('✓ recordForFranchise returns raw W-L (null when the team is missing or no games played)');
 
+// 7) outlookPlan: the label → actionable buy/sell plan (fixes the "dead-end insight" of a bare outlook).
+// A contender SHOPS (cash picks for players); a rebuilder/builder ACQUIRES (bank picks); Balanced leans
+// neither way. Every outlook resolves to a non-empty verb + directive, and an unknown label degrades to
+// the Flex plan (never crashes a render).
+const contend = roster.outlookPlan('Win-now window');
+assert(contend.verb === 'Contend' && contend.intent === 'shop' && contend.directive, `Win-now → Contend/shop, got ${JSON.stringify(contend)}`);
+const sell = roster.outlookPlan('Rebuilding');
+assert(sell.verb === 'Sell' && sell.intent === 'acquire' && /vet/i.test(sell.directive), `Rebuilding → Sell/acquire, got ${JSON.stringify(sell)}`);
+const build = roster.outlookPlan('Ascending');
+assert(build.verb === 'Build' && build.intent === 'acquire', `Ascending → Build/acquire, got ${JSON.stringify(build)}`);
+const flex = roster.outlookPlan('Balanced');
+assert(flex.verb === 'Flex' && flex.intent === null, `Balanced → Flex/no-lean, got ${JSON.stringify(flex)}`);
+assert(roster.outlookPlan('nonsense').verb === 'Flex', 'an unknown outlook degrades to the Flex plan (never crashes)');
+for (const o of ['Win-now window', 'Ascending', 'Rebuilding', 'Balanced', null, undefined]) {
+  const p = roster.outlookPlan(o);
+  assert(p && p.verb && p.directive && ('intent' in p), `every outlook yields a full plan, ${o} gave ${JSON.stringify(p)}`);
+}
+console.log('✓ outlookPlan maps each window to a concrete buy/sell plan (contender shops, rebuilder acquires)');
+
 console.log('\nOUTLOOK RECORD HARNESS PASSED');
