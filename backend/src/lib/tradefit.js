@@ -145,30 +145,13 @@ function needsSurplus(franchises, requirements) {
   return out;
 }
 
-// A fair give-package for acquiring `targetValue`, biased to (a) players at the partner's
-// NEED positions — so the offer actually helps them — and (b) players YOU'RE already
-// shopping (your trade bait), since you want to move them anyway. Prefers a fair single,
-// else a small package; never a gross overpay. `mine` = [{ id, name, position, value }].
-function suggestGive(mine, targetValue, partnerNeeds, myBait) {
-  const needSet = new Set((partnerNeeds || []).map((n) => n.pos));
-  const bait = myBait instanceof Set ? myBait : new Set(myBait || []);
-  // Never propose a kicker or team defense in a suggested package — they're waiver streamers, not
-  // trade chips (kickers are value 0 and already excluded by the >0 gate; defenses are explicitly
-  // dropped here too).
-  const pool = mine
-    .filter((p) => (p.value || 0) > 0 && !['PK', 'DEF'].includes(p.position))
-    .map((p) => ({ ...p, fit: needSet.has(p.position), bait: bait.has(String(p.id)) }));
+// From a pool of my givers, pick the fairest single (90–110% of target, closeness-dominant so we
+// never overpay a need-fitter — the "send 79 for 66" fix), else assemble a small fair package, else
+// the smallest single. `prio` ranks candidates on the roster/tag fit built by the caller; it only
+// breaks near-ties on value, so fairness always leads. Shared by both passes of suggestGive.
+function pickFair(pool, targetValue, prio) {
   if (!pool.length) return [];
-  // Priority: a player who fits their need and/or is on your block outranks a plain
-  // filler. Personal tags lean it further — an AVOID is preferred to ship (+1), a TARGET
-  // is protected (−2, so it's used only when nothing else makes a fair package).
-  const prio = (p) => (p.fit ? 1 : 0) + (p.bait ? 1 : 0) + (p.tag === 'avoid' ? 1 : 0) - (p.tag === 'target' ? 2 : 0);
-  if (!targetValue) return [pool.sort((a, b) => prio(b) - prio(a) || (b.value || 0) - (a.value || 0))[0]];
-
-  // A fair single, in a TIGHT band (90–110% of target) so the suggestion is genuinely close on
-  // value — not a ~20% overpay. Sort by CLOSENESS first; priority (fits their need / your block /
-  // tag) only breaks a near-tie (values within ~5% of each other). This stops the engine from
-  // shipping a costlier need-fitting player when a fairer one exists (the "send 79 for 66" bug).
+  if (!targetValue) return [pool.slice().sort((a, b) => prio(b) - prio(a) || (b.value || 0) - (a.value || 0))[0]];
   const closeness = (p) => Math.abs(p.value - targetValue);
   const singles = pool
     .filter((p) => p.value >= targetValue * 0.9 && p.value <= targetValue * 1.1)
@@ -176,12 +159,12 @@ function suggestGive(mine, targetValue, partnerNeeds, myBait) {
       const da = closeness(a);
       const db = closeness(b);
       if (Math.abs(da - db) > targetValue * 0.05) return da - db; // clearly closer wins outright
-      return prio(b) - prio(a) || da - db; // near-equal on value → prefer fit/bait/avoid
+      return prio(b) - prio(a) || da - db; // near-equal on value → prefer the better roster/tag fit
     });
   if (singles.length) return [singles[0]];
-
-  // Otherwise assemble: closeness-aware, priority as a tiebreak, stopping when fair. Don't lead with
-  // a whale worth more than the target, and never overpay past ~112%.
+  // Assemble: prio-ordered so a multi-piece package is built from the pieces I most want to move
+  // (my surplus / their need / my block), stopping when fair. Never lead with a whale over target,
+  // never overpay past ~112%. This is what lets "two spare TEs for a 1st" beat "one scarce WR".
   const ordered = pool.slice().sort((a, b) => prio(b) - prio(a) || b.value - a.value);
   const pkg = [];
   let sum = 0;
@@ -193,8 +176,55 @@ function suggestGive(mine, targetValue, partnerNeeds, myBait) {
     if (pkg.length >= 3 || sum >= targetValue * 0.92) break;
   }
   if (pkg.length) return pkg;
-  // Everyone's too big (a stacked roster) — offer the smallest single.
-  return [pool.sort((a, b) => a.value - b.value)[0]];
+  return [pool.slice().sort((a, b) => a.value - b.value)[0]]; // everyone's too big — smallest single
+}
+
+// A fair give-package for acquiring `targetValue`, now aware of BOTH rosters. It biases to players
+// (a) at the partner's NEED positions (the offer helps them), (b) you're already shopping (bait), and
+// — new — (c) at YOUR SURPLUS positions, while steering AWAY from your scarcity: a position you're
+// thin at, or one that trading the player would leave a hole at. `myCtx = { needs, surplus, depth }`
+// is your own franchise's read (from needsSurplus); omit it and behavior is unchanged (the old
+// partner-only bias), so existing 4-arg callers are untouched. This is what stops "trade for a pick"
+// from proposing your scarce WR when you're three-deep at TE and the partner needs a TE.
+// `mine` = [{ id, name, position, value, tag }].
+function suggestGive(mine, targetValue, partnerNeeds, myBait, myCtx) {
+  const needSet = new Set((partnerNeeds || []).map((n) => n.pos));
+  const bait = myBait instanceof Set ? myBait : new Set(myBait || []);
+  const mySurplus = new Set(((myCtx && myCtx.surplus) || []).map((s) => s.pos));
+  const myNeed = new Set(((myCtx && myCtx.needs) || []).map((n) => n.pos));
+  const depth = (myCtx && myCtx.depth) || {};
+  // Would sending THIS player (on his own) leave me below the starters I'm forced to field at his
+  // spot? He's a needed body if he's startable-caliber and I hold no more than the required starters
+  // there. Mirrors hole detection from the give side, so the suggester won't hand over a starter I
+  // can't replace. (No depth passed → never flags, so the old behavior stands.)
+  const opensHole = (p) => {
+    const d = depth[p.position];
+    if (!d || !d.slots) return false;
+    const startable = p.value != null && p.value >= (d.threshold || 0);
+    return startable && (d.bodies || 0) - 1 < d.slots;
+  };
+  // Never propose a kicker or team defense in a suggested package — they're waiver streamers, not
+  // trade chips (kickers are value 0 and already excluded by the >0 gate; defenses are explicitly
+  // dropped here too).
+  const pool = mine
+    .filter((p) => (p.value || 0) > 0 && !['PK', 'DEF'].includes(p.position))
+    .map((p) => ({ ...p, fit: needSet.has(p.position), bait: bait.has(String(p.id)), surplus: mySurplus.has(p.position), scarce: myNeed.has(p.position) || opensHole(p) }));
+  if (!pool.length) return [];
+
+  // Priority: fits their need / on your block / at your SURPLUS → ship it; your Avoid leans out, your
+  // Target is protected, and a SCARCE position (your need or a spot you'd hole) is penalized so it's
+  // used only as a last resort. Empty myCtx → surplus/scarce are all false, so this reduces to the
+  // original fit+bait+tag priority.
+  const prio = (p) => (p.fit ? 1 : 0) + (p.bait ? 1 : 0) + (p.surplus ? 2 : 0) + (p.tag === 'avoid' ? 1 : 0) - (p.tag === 'target' ? 2 : 0) - (p.scarce ? 3 : 0);
+
+  // Pass 1: build the deal ONLY from pieces I can spare (not a position I'm thin at / would hole).
+  // "Trade from depth, not from need." If my spare pieces can make a fair deal, that's the suggestion.
+  const spendable = pool.filter((p) => !p.scarce);
+  const fromSpend = pickFair(spendable, targetValue, prio);
+  if (fromSpend.length) return fromSpend;
+  // Pass 2 (fallback): a genuinely top-heavy or thin-everywhere roster may have to move a starter —
+  // fall back to the whole pool, where prio still steers toward the least-painful piece.
+  return pickFair(pool, targetValue, prio);
 }
 
 // Roster-construction read on a deal, independent of raw value: does it fix a hole or open

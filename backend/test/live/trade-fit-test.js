@@ -115,6 +115,39 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   assert(give2.length === 1 && give2[0].id === 'rb', `near-equal value → fit (RB) breaks the tie, got ${JSON.stringify(give2.map((g) => g.name))}`);
   console.log('✓ suggestGive: closeness beats need-fitting overpay; fit still wins a near-tie');
 
+  // --- unit: two-sided suggester — trade from MY surplus, not MY scarcity ----------------------
+  // The reported bug: acquiring a pick suggested my SCARCE WR (I roster only four) instead of a spare
+  // TE (I'm three-deep) the partner NEEDS. Feed my own needs/surplus/depth and the engine must draw
+  // the give from a position I can spare. My roster: 3 TEs (surplus) + 4 WRs (I'm thin) + a spare RB.
+  const twoSided = require('../../src/lib/tradefit');
+  const myRoster = [
+    { id: 'te1', name: 'TE One', position: 'TE', value: 40 },
+    { id: 'te2', name: 'TE Two', position: 'TE', value: 30 },
+    { id: 'te3', name: 'TE Three', position: 'TE', value: 20 },
+    { id: 'wr1', name: 'WR One', position: 'WR', value: 45 },
+    { id: 'wr2', name: 'WR Two', position: 'WR', value: 35 },
+    { id: 'rb1', name: 'RB One', position: 'RB', value: 50 },
+  ];
+  // I'm deep at TE (surplus), thin at WR (need); depth forces 1 TE and 3 WR starters — so trading a WR
+  // would open a hole (4 bodies, must field 3), while a TE is spare (3 bodies, must field 1).
+  const myCtx = {
+    surplus: [{ pos: 'TE' }],
+    needs: [{ pos: 'WR' }],
+    depth: { TE: { slots: 1, threshold: 15, bodies: 3 }, WR: { slots: 3, threshold: 20, bodies: 4 } },
+  };
+  // Partner needs a TE. Acquire a pick worth ~one strong TE (40).
+  const spare1 = twoSided.suggestGive(myRoster, 40, [{ pos: 'TE' }], new Set(), myCtx);
+  console.log('two-sided single:', JSON.stringify(spare1.map((g) => `${g.name} ${g.position} ${g.value}`)));
+  assert(spare1.every((g) => g.position !== 'WR'), `never ships my scarce WR, got ${JSON.stringify(spare1.map((g) => g.position))}`);
+  assert(spare1.length === 1 && spare1[0].position === 'TE', `sends a spare TE the partner needs, got ${JSON.stringify(spare1.map((g) => g.name))}`);
+
+  // A bigger pick (65) that no single TE covers → a MULTI-PIECE package from my surplus, still no WR.
+  const spare2 = twoSided.suggestGive(myRoster, 65, [{ pos: 'TE' }], new Set(), myCtx);
+  console.log('two-sided package:', JSON.stringify(spare2.map((g) => `${g.name} ${g.position} ${g.value}`)));
+  assert(spare2.length >= 2, `assembles a multi-piece package to match a big pick, got ${spare2.length}`);
+  assert(spare2.every((g) => g.position === 'TE'), `the package is built from my surplus TEs, not my WRs, got ${JSON.stringify(spare2.map((g) => g.position))}`);
+  console.log('✓ two-sided suggestGive: deals from surplus (TE), avoids scarcity (WR), packages when needed');
+
   // suggestFor also values a PICK target — "trade FOR a pick you don't own" (the draft board's pick
   // trade icon). A pick token resolves to its pick-curve value, so a fair give package is suggested.
   const pickSug = await trades.suggestFor(CK, TOK, '1000', 'FP_0002_2027_1', '0002');

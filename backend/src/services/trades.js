@@ -650,7 +650,10 @@ async function suggestFor(cookie, token, leagueId, targetId, partnerFranchiseId)
   const myBait = baitMap.get(String(league.franchiseId)) || new Set();
   const mine = [...roster.starters, ...roster.bench]
     .map((p) => ({ id: p.id, name: p.name, position: p.position, value: enr.value(p.id) || 0, tag: playerTags.get(token, p.id) }));
-  const give = tradefit.suggestGive(mine, targetValue, partnerNeeds, myBait);
+  // Pass MY franchise's needs/surplus/depth so the package is drawn from my depth, not my scarcity
+  // (e.g. offer a spare TE the partner needs, not my only-four-deep WR).
+  const myCtx = ns[String(league.franchiseId)] || null;
+  const give = tradefit.suggestGive(mine, targetValue, partnerNeeds, myBait, myCtx);
   return {
     leagueId: league.leagueId,
     targetId: tid,
@@ -800,7 +803,7 @@ async function fullDealFor(cookie, token, leagueId, partnerFranchiseId) {
 
   let best = null;
   for (const target of candidates) {
-    const give = tradefit.suggestGive(mine.filter((m) => String(m.id) !== String(target.id)), target.value || 0, partnerNeeds, myBait);
+    const give = tradefit.suggestGive(mine.filter((m) => String(m.id) !== String(target.id)), target.value || 0, partnerNeeds, myBait, ns[myFid] || null);
     if (!give.length) continue;
     const score = dealScore(target, give);
     if (!best || score > best.score) best = { target, give, score };
