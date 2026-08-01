@@ -747,18 +747,19 @@ async function askFor(cookie, token, leagueId, sendIds, partnerFranchiseId) {
 // pay for it with a fair package from your side biased to THEIR needs + your bait. Considers the
 // strongest few targets and returns the best-scoring, needs-fitting, fair deal. Never ships your
 // Targets or acquires your Avoids if avoidable.
-async function fullDealFor(cookie, token, leagueId, partnerFranchiseId) {
-  const data = await tradeData(cookie, token, leagueId);
+// Build the single best deal with ONE partner from already-fetched `data` (tradeData) + `baitMap`. Pure
+// (no I/O) so a finder can call it across every partner on one data fetch. Returns the deal object, or
+// `{ error }` ('not_in_league' | 'no_pieces' | 'no_deal') so callers choose how to surface a miss.
+function buildBestDeal(data, token, partnerFranchiseId, baitMap) {
   const { league, byId, enr, roster, rawPartners, ns } = data;
   const partnerId = String(partnerFranchiseId || '');
   const partner = rawPartners.find((p) => String(p.franchiseId) === partnerId);
-  if (!partner) { const e = new Error('That team is not in this league.'); e.status = 404; throw e; }
+  if (!partner) return { error: 'not_in_league' };
   const myFid = String(league.franchiseId);
 
   const myIds = new Set([...roster.starters, ...roster.bench].map((p) => String(p.id)));
   const mine = [...roster.starters, ...roster.bench].map((p) => ({ id: String(p.id), name: p.name, position: p.position, value: enr.value(p.id) || 0, tag: playerTags.get(token, p.id) || null }));
 
-  const baitMap = await tradeBaitByFranchise(cookie, token, league);
   const myBait = baitMap.get(myFid) || new Set();
   const theirBait = baitMap.get(partnerId) || new Set();
 
@@ -772,7 +773,7 @@ async function fullDealFor(cookie, token, leagueId, partnerFranchiseId) {
   const theirPool = (partner.roster || [])
     .map((id) => { const a = asset(id, byId, enr); a.tag = playerTags.get(token, a.id) || null; a.bait = theirBait.has(String(a.id)); return a; })
     .filter((a) => a.kind === 'player' && (a.value || 0) > 0 && !myIds.has(String(a.id)));
-  if (!theirPool.length || !mine.length) { const e = new Error('Not enough tradeable pieces to build a deal.'); e.status = 422; throw e; }
+  if (!theirPool.length || !mine.length) return { error: 'no_pieces' };
 
   // How much I'd want to acquire each of their players.
   const targetScore = (a) => {
@@ -808,7 +809,7 @@ async function fullDealFor(cookie, token, leagueId, partnerFranchiseId) {
     const score = dealScore(target, give);
     if (!best || score > best.score) best = { target, give, score };
   }
-  if (!best) { const e = new Error('Could not build a fair deal with this team.'); e.status = 422; throw e; }
+  if (!best) return { error: 'no_deal' };
 
   const val = (arr) => Math.round(arr.reduce((s, a) => s + (a.value || 0), 0) * 10) / 10;
   const receive = [best.target];
@@ -837,9 +838,56 @@ async function fullDealFor(cookie, token, leagueId, partnerFranchiseId) {
     sendValue,
     verdict,
     rationale,
+    fairness: Math.round((1 - Math.abs(diff) / scaleV) * 100), // 0..100, higher = closer to even value
     myNeeds: [...myNeedSet],
     partnerNeeds: [...partnerNeedSet],
     format: leagueFormat.label(data.fmt),
+  };
+}
+
+async function fullDealFor(cookie, token, leagueId, partnerFranchiseId) {
+  const data = await tradeData(cookie, token, leagueId);
+  const baitMap = await tradeBaitByFranchise(cookie, token, data.league);
+  const deal = buildBestDeal(data, token, partnerFranchiseId, baitMap);
+  if (deal.error === 'not_in_league') { const e = new Error('That team is not in this league.'); e.status = 404; throw e; }
+  if (deal.error === 'no_pieces') { const e = new Error('Not enough tradeable pieces to build a deal.'); e.status = 422; throw e; }
+  if (deal.error) { const e = new Error('Could not build a fair deal with this team.'); e.status = 422; throw e; }
+  return deal;
+}
+
+// Single-league trade FINDER (#15): the fairest, roster-fitting deals available in ONE league right now,
+// ranked by your window. Reuses buildBestDeal across every partner on a single tradeData fetch, then
+// ranks: a contender is happy paying slightly UP for a win-now fit, a rebuilder wants value/fairness — so
+// the ranking leans on fairness + whether the deal fills MY need, with a small win-now nudge when I'm a
+// contender. Returns the top few, each a ready-to-open deal.
+async function findDeals(cookie, token, leagueId, { limit = 5 } = {}) {
+  const data = await tradeData(cookie, token, leagueId);
+  const baitMap = await tradeBaitByFranchise(cookie, token, data.league);
+  const myFid = String(data.league.franchiseId);
+  const myOutlook = (data.teamOutlook[myFid] || {}).outlook || null;
+  const contender = myOutlook === 'Win-now window';
+  const myNeedSet = new Set(((data.ns[myFid] || {}).needs || []).map((x) => x.pos));
+
+  const deals = [];
+  for (const pt of data.rawPartners) {
+    const deal = buildBestDeal(data, token, pt.franchiseId, baitMap);
+    if (deal.error) continue;
+    const fillsNeed = deal.receive.some((r) => myNeedSet.has(r.position));
+    // Rank: fairness leads; a need-filling deal is worth more; a contender tolerates a slightly "light"
+    // (I pay up) deal for a win-now piece, while for everyone else "light" is a demerit.
+    let rank = deal.fairness + (fillsNeed ? 25 : 0);
+    if (deal.verdict === 'favorable') rank += 10;
+    else if (deal.verdict === 'light') rank += contender ? 4 : -12;
+    deals.push({ ...deal, fillsNeed, rank });
+  }
+  deals.sort((a, b) => b.rank - a.rank);
+  return {
+    leagueId: data.league.leagueId,
+    name: data.league.name,
+    myOutlook,
+    myNeeds: [...myNeedSet],
+    format: leagueFormat.label(data.fmt),
+    deals: deals.slice(0, limit),
   };
 }
 
@@ -1394,4 +1442,4 @@ async function pickPartners(cookie, token, leagueId, intent) {
   };
 }
 
-module.exports = { getOverview, getLeague, getLeagueFit, respond, propose, analyze, crossLeaguePreview, crossLeaguePropose, suggestFor, askFor, fullDealFor, counterFor, pickPartners, nextTradeDeadline, effectiveDeadline, tradeFitSummary, tradeBaitByFranchise, personalAnalyze, tagNotes };
+module.exports = { getOverview, getLeague, getLeagueFit, respond, propose, analyze, crossLeaguePreview, crossLeaguePropose, suggestFor, askFor, fullDealFor, findDeals, counterFor, pickPartners, nextTradeDeadline, effectiveDeadline, tradeFitSummary, tradeBaitByFranchise, personalAnalyze, tagNotes };

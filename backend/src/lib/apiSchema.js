@@ -207,6 +207,28 @@ const LeagueMatchup = z.object({
     .nullable(),
 });
 
+// GET /api/leagues/:leagueId/trades/find — the single-league trade finder (fairest deals, ranked).
+const TradeFinder = z.object({
+  leagueId: z.string(),
+  name: z.string().nullable().optional(),
+  myOutlook: z.string().nullable().optional(),
+  myNeeds: z.array(z.string()).optional(),
+  format: z.string().nullable().optional(),
+  deals: z.array(
+    z.object({
+      partnerFranchiseId: z.string(),
+      partnerName: z.string().nullable().optional(),
+      receive: z.array(z.object({ id: z.string(), name: z.string() }).passthrough()),
+      send: z.array(z.object({ id: z.string(), name: z.string() }).passthrough()),
+      receiveValue: z.number(),
+      sendValue: z.number(),
+      verdict: z.string(),
+      fairness: z.number().nullable().optional(),
+      rationale: z.string().nullable().optional(),
+    }).passthrough()
+  ),
+});
+
 // GET /api/lineups — cross-league lineup overview (points gap + matchup per league).
 const Lineups = z.object({
   week: z.number().nullable().optional(),
@@ -494,6 +516,7 @@ const schemas = {
   Portfolio,
   Scoreboard,
   LeagueMatchup,
+  TradeFinder,
   Lineups,
   Me,
   Rankings,

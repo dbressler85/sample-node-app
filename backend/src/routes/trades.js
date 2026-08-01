@@ -70,6 +70,16 @@ router.get('/leagues/:leagueId/trades/suggest', async (req, res, next) => {
   }
 });
 
+// GET /api/leagues/:leagueId/trades/find — the single-league trade finder: the fairest, roster-fitting
+// deals available across ALL partners right now, ranked by your window. Each row is a ready-to-open deal.
+router.get('/leagues/:leagueId/trades/find', async (req, res, next) => {
+  try {
+    res.json(checkResponse(schemas.TradeFinder, await trades.findDeals(req.mflCookie, req.account, req.params.leagueId), 'GET /trades/find'));
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/leagues/:leagueId/trades/pick-partners?intent=shop|acquire — ranked trade partners for a
 // pick-oriented deal, each with a pre-built suggested deal. 'shop' = cash my picks for a vet (rebuilding
 // partners with aging value); 'acquire' = get picks for a player (win-now partners holding pick equity).
