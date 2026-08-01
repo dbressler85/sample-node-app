@@ -162,13 +162,21 @@ prevent.
   promise.
 
 **Consolidation (safe, no behavior change — whenever):**
-- Three "across" sheets (`AddAcrossSheet`/`TradeAcrossSheet`/`TradeBaitSheet`) → shared `BottomSheet` +
-  `CheckRow` (~250 of ~414 lines).
-- Adopt-or-delete the dead `SectionLabel` and fix `DESIGN_SYSTEM.md §4.4` (which claims it's done).
-- Delete dead components `HubMark.js`, `LeagueCard.js`, `ProLock.js`.
+- ~~Three "across" sheets~~ **DONE.** `AddAcrossSheet`/`TradeAcrossSheet`/`TradeBaitSheet` now share a
+  `BottomSheet` shell + a `Checkbox` primitive. (Went with `Checkbox`, not a full `CheckRow`: the row
+  layouts genuinely differ — TradeBait nests the check in a header row with a `LeagueContext` block
+  below — so a mega-row would over-abstract.) Adopting the bounded shell also **fixed a latent overflow
+  bug in AddAcrossSheet** (its list was unbounded and could push the title off the top edge, the same
+  bug TradeAcross already had).
+- ~~Adopt-or-delete `SectionLabel`~~ **DONE** — deleted (nothing imported it); `DESIGN_SYSTEM.md §4.4/§7`
+  corrected to describe the real per-screen `displayLabel()` + `violetText` treatment.
+- ~~Delete dead components `HubMark.js`, `LeagueCard.js`, `ProLock.js`~~ **DONE.**
 - Dedup the neon/theme palette (medal colors now forked in both); `fontWeight:'900'`→`weight.heavy`
-  token sweep (~174 sites, needs a visual pass).
-- Fix the stale `useCachedResource.js` header comment (still describes the pre-keep-alive unmount model).
+  token sweep (~174 sites, needs a visual pass). *(Still open — deferred for a build-time visual pass.)*
+- ~~Fix the stale `useCachedResource.js` header comment~~ **DONE** (rewritten to the keep-alive model).
+- **Still open:** the `PlayerProfileScreen` `DropSheet` is a fourth action sheet that could adopt the new
+  `BottomSheet`/`Checkbox` (and was flagged unbounded like AddAcross was) — left for when that screen is
+  next touched.
 
 ---
 

@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ActivityIndicator, ScrollView } from 'react-native';
 import { appAlert } from './AppAlert';
+import BottomSheet from './BottomSheet';
+import Checkbox from './Checkbox';
 import LeagueContext from './LeagueContext';
 import { api } from '../api';
 import { colors } from '../theme';
@@ -27,7 +29,7 @@ export default function TradeBaitSheet({ player, onClose, onDone }) {
   useEffect(() => { load(); }, [load]);
 
   const toggle = (id) =>
-    setSelected((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+    setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
   async function submit() {
     setBusy(true);
@@ -54,72 +56,64 @@ export default function TradeBaitSheet({ player, onClose, onDone }) {
   const eligible = data ? data.leagues.filter((l) => !l.onBait) : [];
 
   return (
-    <Pressable style={styles.backdrop} onPress={onClose}>
-      <Pressable style={styles.sheet} onPress={() => {}}>
-        <View style={styles.grabber} />
-        <Text style={styles.sheetTitle}>Shop {player.name}</Text>
-        <Text style={styles.sheetSub}>Put him on your trade block in the leagues you choose.</Text>
-        {error ? (
-          <View style={{ paddingVertical: 20, alignItems: 'center' }}>
-            <Text style={styles.empty}>{error}</Text>
-            <Pressable style={({ pressed }) => [styles.retry, pressed && { opacity: 0.85 }]} onPress={load}>
-              <Text style={styles.retryText}>Retry</Text>
-            </Pressable>
-          </View>
-        ) : !data ? (
-          <ActivityIndicator color={colors.accent} style={{ paddingVertical: 24 }} />
-        ) : data.leagues.length === 0 ? (
-          <Text style={styles.empty}>You don’t roster {player.name} in any league.</Text>
-        ) : (
-          <>
-            <ScrollView style={{ maxHeight: 460 }} contentContainerStyle={{ paddingBottom: 4 }}>
-              {data.leagues.map((l) => {
-                const already = !!l.onBait;
-                const on = already || selected.has(l.leagueId);
-                return (
-                  <Pressable
-                    key={l.leagueId}
-                    style={styles.row}
-                    onPress={() => (already ? null : toggle(l.leagueId))}
-                    disabled={already}
-                    accessibilityRole="checkbox"
-                    accessibilityState={{ checked: on, disabled: already }}
-                    accessibilityLabel={already ? `${l.name}, already on the block` : l.name}
-                  >
-                    <View style={styles.rowHead}>
-                      <View style={[styles.check, on && styles.checkOn, already && styles.checkLocked]}>
-                        {on ? <Text style={styles.checkMark}>✓</Text> : null}
-                      </View>
-                      <Text style={styles.leagueName} numberOfLines={1}>{l.name}</Text>
-                      {already ? <Text style={styles.onBlock}>On block</Text> : null}
-                    </View>
-                    {l.context ? <View style={styles.ctxWrap}><LeagueContext context={l.context} /></View> : null}
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-            <Pressable
-              style={({ pressed }) => [styles.confirm, (!selected.size || busy) && styles.confirmOff, pressed && selected.size && { opacity: 0.85 }]}
-              onPress={submit}
-              disabled={!selected.size || busy}
-            >
-              {busy ? <ActivityIndicator color={colors.onAccent} /> : (
-                <Text style={styles.confirmText}>
-                  {selected.size ? `Add to block in ${selected.size} league${selected.size === 1 ? '' : 's'}` : eligible.length ? 'Check a league to shop him' : 'Already on the block everywhere'}
-                </Text>
-              )}
-            </Pressable>
-          </>
-        )}
-      </Pressable>
-    </Pressable>
+    <BottomSheet onClose={onClose}>
+      <Text style={styles.sheetTitle}>Shop {player.name}</Text>
+      <Text style={styles.sheetSub}>Put him on your trade block in the leagues you choose.</Text>
+      {error ? (
+        <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+          <Text style={styles.empty}>{error}</Text>
+          <Pressable style={({ pressed }) => [styles.retry, pressed && { opacity: 0.85 }]} onPress={load}>
+            <Text style={styles.retryText}>Retry</Text>
+          </Pressable>
+        </View>
+      ) : !data ? (
+        <ActivityIndicator color={colors.accent} style={{ paddingVertical: 24 }} />
+      ) : data.leagues.length === 0 ? (
+        <Text style={styles.empty}>You don’t roster {player.name} in any league.</Text>
+      ) : (
+        <>
+          <ScrollView style={{ maxHeight: 460 }} contentContainerStyle={{ paddingBottom: 4 }}>
+            {data.leagues.map((l) => {
+              const already = !!l.onBait;
+              const on = already || selected.has(l.leagueId);
+              return (
+                <Pressable
+                  key={l.leagueId}
+                  style={styles.row}
+                  onPress={() => (already ? null : toggle(l.leagueId))}
+                  disabled={already}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: on, disabled: already }}
+                  accessibilityLabel={already ? `${l.name}, already on the block` : l.name}
+                >
+                  <View style={styles.rowHead}>
+                    <Checkbox checked={on} size={24} locked={already} style={styles.check} />
+                    <Text style={styles.leagueName} numberOfLines={1}>{l.name}</Text>
+                    {already ? <Text style={styles.onBlock}>On block</Text> : null}
+                  </View>
+                  {l.context ? <View style={styles.ctxWrap}><LeagueContext context={l.context} /></View> : null}
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+          <Pressable
+            style={({ pressed }) => [styles.confirm, (!selected.size || busy) && styles.confirmOff, pressed && selected.size && { opacity: 0.85 }]}
+            onPress={submit}
+            disabled={!selected.size || busy}
+          >
+            {busy ? <ActivityIndicator color={colors.onAccent} /> : (
+              <Text style={styles.confirmText}>
+                {selected.size ? `Add to block in ${selected.size} league${selected.size === 1 ? '' : 's'}` : eligible.length ? 'Check a league to shop him' : 'Already on the block everywhere'}
+              </Text>
+            )}
+          </Pressable>
+        </>
+      )}
+    </BottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: colors.scrim, justifyContent: 'flex-end' },
-  grabber: { alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: colors.border, marginBottom: 12 },
-  sheet: { backgroundColor: colors.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, borderTopWidth: 1, borderColor: colors.border },
   sheetTitle: { color: colors.text, fontSize: 18, fontWeight: '900' },
   sheetSub: { color: colors.textDim, fontSize: 13, marginTop: 3, marginBottom: 8 },
   empty: { color: colors.textDim, fontSize: 14, paddingVertical: 20, textAlign: 'center' },
@@ -127,10 +121,7 @@ const styles = StyleSheet.create({
   retryText: { color: colors.onAccent, fontSize: 15, fontWeight: '800' },
   row: { paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   rowHead: { flexDirection: 'row', alignItems: 'center' },
-  check: { width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: colors.border, marginRight: 12, alignItems: 'center', justifyContent: 'center' },
-  checkOn: { backgroundColor: colors.accent, borderColor: colors.accent },
-  checkLocked: { opacity: 0.6 },
-  checkMark: { color: colors.onAccent, fontWeight: '900', fontSize: 14 },
+  check: { marginRight: 12 },
   leagueName: { color: colors.text, fontSize: 15, fontWeight: '800', flex: 1 },
   onBlock: { color: colors.accent, fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4 },
   ctxWrap: { marginLeft: 36, marginTop: 6 },
