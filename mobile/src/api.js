@@ -164,6 +164,8 @@ export const api = {
   pushTest: () => request('/api/push/test', { method: 'POST' }),
   pushStatus: () => request('/api/push/status'),
   scoreboard: () => request('/api/scoreboard'),
+  // One league's live matchup — the scoped cockpit card (no cross-league fan-out). { week, game|null }.
+  leagueMatchup: (leagueId) => request(`/api/leagues/${leagueId}/matchup`),
   exposure: () => request('/api/players/exposure'),
   news: () => request('/api/news'),
 
@@ -254,6 +256,9 @@ export const api = {
   // Pick Capital shop/acquire: ranked trade partners for a pick-oriented deal (intent 'shop'|'acquire'),
   // each with a pre-built suggested deal.
   pickPartners: (leagueId, intent) => request(`/api/leagues/${leagueId}/trades/pick-partners?intent=${intent}`),
+  // Single-league trade finder: the fairest, roster-fitting deals across all partners, ranked by your
+  // window. Each row is a ready-to-open deal ({ receive, send, verdict, fairness, rationale }).
+  findDeals: (leagueId) => request(`/api/leagues/${leagueId}/trades/find`),
   // Manual per-league trade deadline (MFL exposes none). Pass 'YYYY-MM-DD' or null to clear.
   setTradeDeadline: (leagueId, deadline) => request(`/api/leagues/${leagueId}/trade-deadline`, { method: 'POST', body: { deadline } }),
   counterTrade: (leagueId, offerId) => request(`/api/leagues/${leagueId}/trades/counter?offer=${offerId}`),

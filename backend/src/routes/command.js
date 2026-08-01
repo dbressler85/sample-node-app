@@ -169,6 +169,16 @@ router.get('/scoreboard', async (req, res, next) => {
   }
 });
 
+// GET /api/leagues/:leagueId/matchup — this week's live matchup for ONE league (the cockpit card).
+// Scoped so opening a single league doesn't fan the whole cross-league scoreboard out.
+router.get('/leagues/:leagueId/matchup', async (req, res, next) => {
+  try {
+    res.json(checkResponse(schemas.LeagueMatchup, await scoreboard.getLeagueMatchup(req.mflCookie, req.params.leagueId), 'GET /leagues/:leagueId/matchup'));
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/players/exposure — every league you roster each player in.
 router.get('/players/exposure', async (req, res, next) => {
   try {

@@ -11,6 +11,7 @@ import PopChip from '../components/PopChip';
 import useAndroidBack from '../useAndroidBack';
 import useCachedResource from '../useCachedResource';
 import { STALE } from '../staleTiers';
+import { api } from '../api';
 import { leagueTeamsPreferDevice, leagueTriagePreferDevice, standingsPreferDevice, transactionsPreferDevice } from '../mflDevice';
 
 // The league hub: the ordinary league views the app was missing — Standings,
@@ -24,15 +25,28 @@ const TABS = [
 
 export default function LeagueScreen({ league, onBack, onOpenPlayer, onOpenPlayoffs, onOpenRoster, onOpenLineup, onOpenTrades, onOpenWaivers, onOpenDraft }) {
   const [tab, setTab] = useState('standings');
+  // One per-league triage read, shared by the attention ribbon AND the action row (its `phase` gates
+  // which actions make sense). Loads independently of the tabs, so it never delays the Standings paint.
+  const { data: triage } = useCachedResource(`league:triage:${league.leagueId}`, () => leagueTriagePreferDevice(league.leagueId), { revalidateOnMount: true });
+  const inSeason = triage && triage.phase === 'in_season';
+
+  // Live counts pulled from the triage items already in hand (no extra read): pending trade offers and
+  // pending waiver claims. They badge the matching action chip so "2 offers waiting" reads right on the
+  // Trades button — the in-cockpit inbox, without a new screen (roadmap #10).
+  const items = (triage && triage.items) || [];
+  const pendingTrades = items.filter((it) => it.type === 'trade_offer').length;
+  const pendingWaivers = items.filter((it) => it.type === 'waiver_pending').length;
+
   // The scoped action row — every in-league action one tap away, launching the existing leagueId-aware
-  // screens. This is what turns the hub from a read-only kiosk into a cockpit. Waivers is a tab-jump
-  // for now (it clears the overlay stack); a league-scoped waivers overlay is the Tier-1 follow-up.
+  // screens. This is what turns the hub from a read-only kiosk into a cockpit. Draft is hidden in-season
+  // (there's no draft to open — it would dead-end); it shows in the off/pre-season draft window. Waivers
+  // is a tab-jump for now (it clears the overlay stack); a league-scoped waivers overlay is the follow-up.
   const actions = [
     onOpenRoster && { key: 'roster', label: 'My Team', onPress: () => onOpenRoster(league) },
     onOpenLineup && { key: 'lineup', label: 'Set Lineup', onPress: () => onOpenLineup(league) },
-    onOpenTrades && { key: 'trades', label: 'Trades', onPress: () => onOpenTrades(league) },
-    onOpenWaivers && { key: 'waivers', label: 'Waivers', onPress: () => onOpenWaivers({ leagueId: league.leagueId }) },
-    onOpenDraft && { key: 'draft', label: 'Draft', onPress: () => onOpenDraft(league) },
+    onOpenTrades && { key: 'trades', label: 'Trades', badge: pendingTrades, onPress: () => onOpenTrades(league) },
+    onOpenWaivers && { key: 'waivers', label: 'Waivers', badge: pendingWaivers, onPress: () => onOpenWaivers({ leagueId: league.leagueId }) },
+    onOpenDraft && !inSeason && { key: 'draft', label: 'Draft', onPress: () => onOpenDraft(league) },
   ].filter(Boolean);
   // Lazy keep-alive: a sub-tab mounts the first time it's shown and then STAYS mounted (hidden via
   // display:none), so its filter/sort/scroll survive a tab switch (UX C7) — but the first open still
@@ -58,13 +72,19 @@ export default function LeagueScreen({ league, onBack, onOpenPlayer, onOpenPlayo
         )}
       </View>
 
-      <AttentionRibbon league={league} onOpenLineup={onOpenLineup} onOpenWaivers={onOpenWaivers} onOpenTrades={onOpenTrades} />
+      {/* This week's live matchup — the headline in-season. Fetched only in-season (a single-league read,
+          not a fan-out) and renders nothing off-Sunday/offseason, so the cockpit stays calm when there's
+          no game. Sits above the attention ribbon: the score is the most time-sensitive thing here. */}
+      {inSeason ? <MatchupCard leagueId={league.leagueId} onOpenLineup={onOpenLineup ? () => onOpenLineup(league) : null} /> : null}
+
+      <AttentionRibbon triage={triage} league={league} onOpenLineup={onOpenLineup} onOpenWaivers={onOpenWaivers} onOpenTrades={onOpenTrades} />
 
       {actions.length ? (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.actionRow}>
           {actions.map((a) => (
-            <Pressable key={a.key} onPress={a.onPress} style={({ pressed }) => [styles.actionChip, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel={a.label}>
+            <Pressable key={a.key} onPress={a.onPress} style={({ pressed }) => [styles.actionChip, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel={a.badge ? `${a.label}, ${a.badge} waiting` : a.label}>
               <Text style={styles.actionChipText}>{a.label}</Text>
+              {a.badge ? <View style={styles.actionBadge}><Text style={styles.actionBadgeText}>{a.badge}</Text></View> : null}
             </Pressable>
           ))}
         </ScrollView>
@@ -107,11 +127,12 @@ export default function LeagueScreen({ league, onBack, onOpenPlayer, onOpenPlayo
 // league. Each triage item already carries a human `title` and an `action` ('lineup'|'waiver'|'trade'),
 // so a chip deep-links straight into the matching scoped screen. Offseason shows the team's outlook
 // instead. Renders nothing (no row) when there's nothing to surface, so a clean league stays calm.
-function AttentionRibbon({ league, onOpenLineup, onOpenWaivers, onOpenTrades }) {
-  const { data } = useCachedResource(`league:triage:${league.leagueId}`, () => leagueTriagePreferDevice(league.leagueId), { revalidateOnMount: true });
-  const items = (data && data.items) || [];
-  const outlook = data && data.dynasty && data.dynasty.outlook;
-  if (!data || (!items.length && !outlook)) return null;
+function AttentionRibbon({ triage, league, onOpenLineup, onOpenWaivers, onOpenTrades }) {
+  const items = (triage && triage.items) || [];
+  const dynasty = triage && triage.dynasty;
+  const outlook = dynasty && dynasty.outlook;
+  const plan = dynasty && dynasty.plan; // { verb, directive, intent } — the actionable version of the label
+  if (!triage || (!items.length && !outlook)) return null;
   const go = (action) => {
     if (action === 'lineup' && onOpenLineup) onOpenLineup(league);
     else if (action === 'waiver' && onOpenWaivers) onOpenWaivers({ leagueId: league.leagueId });
@@ -121,7 +142,17 @@ function AttentionRibbon({ league, onOpenLineup, onOpenWaivers, onOpenTrades }) 
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.ribbon}>
       {outlook ? (
-        <View style={styles.outlookChip}><Text style={styles.outlookText}>{outlook}</Text></View>
+        // The dynasty window as a PLAN, not a dead-end label: the verb (Contend/Build/Sell/Flex) headlines
+        // and the directive says what to do. Taps into Trades — where you'd act on it. Falls back to the
+        // bare label for older cached payloads with no plan.
+        plan && onOpenTrades ? (
+          <Pressable onPress={() => onOpenTrades(league)} style={({ pressed }) => [styles.planChip, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel={`${plan.verb}: ${plan.directive}`}>
+            <Text style={styles.planVerb}>{plan.verb}</Text>
+            <Text style={styles.planDirective} numberOfLines={1}>{plan.directive}</Text>
+          </Pressable>
+        ) : (
+          <View style={styles.outlookChip}><Text style={styles.outlookText}>{outlook}</Text></View>
+        )
       ) : null}
       {items.map((it) => (
         <Pressable key={it.id} onPress={() => go(it.action)} style={({ pressed }) => [styles.attnChip, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel={it.title}>
@@ -130,6 +161,56 @@ function AttentionRibbon({ league, onOpenLineup, onOpenWaivers, onOpenTrades }) 
         </Pressable>
       ))}
     </ScrollView>
+  );
+}
+
+// This week's matchup, scoped to one league — the same card the cross-league Scores tab builds, shown
+// where the owner already is. Read-only: it never blocks the Standings paint (loads independently) and
+// renders NOTHING when there's no live game (offseason/bye/unstarted week), so a quiet week stays quiet.
+// The whole card taps through to Set Lineup — the natural next action when you're staring at a score.
+const MATCH_STATUS = {
+  won: { label: 'Won', color: colors.good },
+  favored: { label: 'Favored', color: colors.good },
+  tossup: { label: 'Toss-up', color: colors.warn },
+  trailing: { label: 'Trailing', color: colors.bad },
+  lost: { label: 'Lost', color: colors.bad },
+};
+function MatchupCard({ leagueId, onOpenLineup }) {
+  const { data } = useCachedResource(`league:matchup:${leagueId}`, () => api.leagueMatchup(leagueId), { staleMs: STALE.LIVE });
+  const game = data && data.game;
+  if (!game) return null; // no live matchup — render nothing (calm week)
+  const st = MATCH_STATUS[game.status] || { label: '', color: colors.textDim };
+  const pct = game.winProb != null ? Math.round(game.winProb * 100) : null;
+  const toPlay = (game.me && game.me.yetToPlay) || 0;
+  const oppToPlay = (game.opp && game.opp.yetToPlay) || 0;
+  const inner = (
+    <View style={styles.matchCard}>
+      <View style={styles.matchTop}>
+        <Text style={styles.matchWeek}>{data.week ? `Week ${data.week}` : 'This week'}{game.locked ? ' · Final' : ' · Live'}</Text>
+        {st.label ? (
+          <View style={[styles.matchPill, { borderColor: st.color }]}><Text style={[styles.matchPillText, { color: st.color }]}>{st.label}</Text></View>
+        ) : null}
+      </View>
+      <View style={styles.matchScoreRow}>
+        <Text style={styles.matchScoreMine} numberOfLines={1}>{Math.round((game.me && game.me.score) || 0)}</Text>
+        <Text style={styles.matchDash}>–</Text>
+        <Text style={styles.matchScoreOpp} numberOfLines={1}>{Math.round((game.opp && game.opp.score) || 0)}</Text>
+        <Text style={styles.matchVs} numberOfLines={1}>vs {game.opponent || 'Opponent'}</Text>
+      </View>
+      <View style={styles.matchMetaRow}>
+        {pct != null && !game.locked ? <Text style={[styles.matchMeta, { color: st.color }]}>{pct}% win</Text> : null}
+        {game.close && !game.locked ? <Text style={styles.matchClose}>⚡ close</Text> : null}
+        {!game.locked && (toPlay || oppToPlay) ? <Text style={styles.matchMeta}>{toPlay} of yours to play</Text> : null}
+      </View>
+    </View>
+  );
+  if (!onOpenLineup) return <View style={styles.matchWrap}>{inner}</View>;
+  return (
+    <View style={styles.matchWrap}>
+      <Pressable onPress={onOpenLineup} style={({ pressed }) => pressed && { opacity: 0.85 }} accessibilityRole="button" accessibilityLabel={`This week's matchup versus ${game.opponent || 'opponent'} — set your lineup`}>
+        {inner}
+      </Pressable>
+    </View>
   );
 }
 
@@ -334,10 +415,32 @@ const styles = StyleSheet.create({
   attnText: { color: colors.text, fontSize: 12, fontWeight: '700', maxWidth: 200 },
   outlookChip: { justifyContent: 'center', backgroundColor: colors.violet + '22', borderRadius: 999, borderWidth: 1, borderColor: colors.violetDim, paddingHorizontal: 12, minHeight: 34 },
   outlookText: { color: colors.violetText, fontSize: 12, fontWeight: '800' },
+  // Plan chip — the actionable outlook: a verb headline + a one-line directive, taps into Trades.
+  planChip: { justifyContent: 'center', backgroundColor: colors.violet + '22', borderRadius: 14, borderWidth: 1, borderColor: colors.violetDim, paddingHorizontal: 12, paddingVertical: 5, minHeight: 34, maxWidth: 260 },
+  planVerb: { color: colors.violetText, fontSize: 12, fontWeight: '900', letterSpacing: 0.3, textTransform: 'uppercase' },
+  planDirective: { color: colors.textDim, fontSize: 11, fontWeight: '600', marginTop: 1 },
+  // This week's matchup card — the in-season headline, taps through to Set Lineup.
+  matchWrap: { paddingHorizontal: 16, paddingTop: 8 },
+  matchCard: { backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 12 },
+  matchTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+  matchWeek: { color: colors.textDim, fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
+  matchPill: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 2 },
+  matchPillText: { fontSize: 11, fontWeight: '800' },
+  matchScoreRow: { flexDirection: 'row', alignItems: 'baseline' },
+  matchScoreMine: { color: colors.text, fontSize: 26, fontWeight: '900', fontVariant: ['tabular-nums'] },
+  matchDash: { color: colors.textDim, fontSize: 20, fontWeight: '800', marginHorizontal: 8 },
+  matchScoreOpp: { color: colors.textDim, fontSize: 26, fontWeight: '900', fontVariant: ['tabular-nums'] },
+  matchVs: { color: colors.textDim, fontSize: 13, fontWeight: '700', marginLeft: 'auto', flexShrink: 1, textAlign: 'right' },
+  matchMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 8 },
+  matchMeta: { color: colors.textDim, fontSize: 12, fontWeight: '700' },
+  matchClose: { color: colors.warn, fontSize: 12, fontWeight: '800' },
   // Scoped action row — accent-outlined chips (actions, not values), horizontally scrollable.
   actionRow: { paddingHorizontal: 16, gap: 8, paddingTop: 8, paddingBottom: 2 },
-  actionChip: { backgroundColor: colors.cardAlt, borderRadius: 999, borderWidth: 1, borderColor: colors.accent, paddingHorizontal: 16, minHeight: 40, justifyContent: 'center' },
+  actionChip: { flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: colors.cardAlt, borderRadius: 999, borderWidth: 1, borderColor: colors.accent, paddingHorizontal: 16, minHeight: 40, justifyContent: 'center' },
   actionChipText: { color: colors.accent, fontSize: 14, fontWeight: '800' },
+  // Count badge — an accent-filled pill (state/action = accent per the color law), min-circle sized.
+  actionBadge: { minWidth: 20, height: 20, borderRadius: 10, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 },
+  actionBadgeText: { color: colors.onAccent, fontSize: 11, fontWeight: '900', fontVariant: ['tabular-nums'] },
   segment: { flexDirection: 'row', marginHorizontal: 16, backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 3, marginTop: 6, marginBottom: 4 },
   seg: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
   segActive: { backgroundColor: colors.cardAlt },

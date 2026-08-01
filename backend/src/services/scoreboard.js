@@ -131,4 +131,20 @@ async function getScoreboard(cookie) {
   };
 }
 
-module.exports = { getScoreboard, winProbability };
+// One league's live matchup — the scoped slice the single-league cockpit shows, instead of fanning
+// the whole cross-league board out just to render one card. `game` is null when there's nothing live
+// (offseason, bye, or an unstarted week) — a clean, expected state, distinct from a read failure (which
+// throws). Reuses the exact card `getScoreboard` builds, so the cockpit and the cross-league Scores tab
+// render identical numbers.
+async function getLeagueMatchup(cookie, leagueId) {
+  const leagues = await leaguesService.listLeagues(cookie);
+  const league = leagues.find((l) => String(l.leagueId) === String(leagueId));
+  if (!league) return { week: null, game: null };
+  const game = await liveForLeague(cookie, league);
+  return {
+    week: config.demoMode ? demo.week() : await nflLib.currentWeek(cookie),
+    game: game || null,
+  };
+}
+
+module.exports = { getScoreboard, getLeagueMatchup, winProbability };

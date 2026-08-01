@@ -201,18 +201,18 @@ chat/message board is absent — acceptable to skip for beta (MFL owns social).
 7. **P0 UX:** fix the header wrap; keep-alive sub-tabs.
 
 ### Tier 1 — close the last parity gaps
-8. **"My matchup this week" in the cockpit** — a scoped slice of `ScoresScreen`. The one real feature
-   gap vs. MFL's league home.
+8. ✅ **"My matchup this week" in the cockpit** — DONE. Scoped `GET /api/leagues/:id/matchup` reuses the
+   scoreboard card; `MatchupCard` renders in-season above the ribbon, taps to Set Lineup.
 9. **League-scoped Waivers overlay** so FAAB/add-drop don't eject you to a tab; make plain add/drop read
-   as "add a free agent to this team."
-10. **In-cockpit trade inbox entry** — surface this league's pending offers inline (triage already counts
-    them), launching `TradesScreen` in manage mode.
+   as "add a free agent to this team." *(Deferred: write path — wants an on-device pass.)*
+10. ✅ **In-cockpit trade inbox entry** — DONE (chip-level). The action row's Trades/Waivers chips carry a
+    live pending-count badge from triage (`trade_offer`/`waiver_pending`), no new screen.
 11. **P1/P2 UX:** segmented control to spec, `EmptyView`, motion, token sweep, Bracket color-law.
 
 ### Tier 2 — the dynasty-intelligence differentiators (why you'd pick the app over MFL for one league)
 12. **Arbitrage-in-context on the roster** — per-player "worth more/less in your other leagues" tag.
-13. **Win-now lens made actionable per team** — turn the outlook label into a plan (contender: buy /
-    rebuilder: sell + market). Fixes the "dead-end insight" the prior PO pass flagged.
+13. ✅ **Win-now lens made actionable per team** — DONE. `roster.outlookPlan()` maps the outlook to a
+    verb + directive + intent (contender shops / rebuilder acquires); the cockpit's plan chip taps to Trades.
 14. **Opponent/matchup scouting for the week** (priced strengths/holes of who you play).
 15. **Proactive single-league trade finder** — "fairest deals available in this league now, ranked by
     your window" (scoped sibling of the cross-league finder; inputs already computed).

@@ -187,6 +187,48 @@ const Scoreboard = z.object({
   ),
 });
 
+// GET /api/leagues/:leagueId/matchup — one league's live matchup (the single-league cockpit card).
+// `game` reuses the scoreboard card shape and is null when nothing is live (offseason/bye/unstarted).
+const LeagueMatchup = z.object({
+  week: z.number().nullable().optional(),
+  game: z
+    .object({
+      leagueId: z.string(),
+      name: z.string(),
+      opponent: z.string().nullable().optional(),
+      me: z.object({ score: z.number() }).passthrough(),
+      opp: z.object({ score: z.number() }).passthrough().nullable().optional(),
+      winProb: z.number().nullable().optional(),
+      locked: z.boolean().nullable().optional(),
+      close: z.boolean().nullable().optional(),
+      status: z.string().nullable().optional(),
+    })
+    .passthrough()
+    .nullable(),
+});
+
+// GET /api/leagues/:leagueId/trades/find — the single-league trade finder (fairest deals, ranked).
+const TradeFinder = z.object({
+  leagueId: z.string(),
+  name: z.string().nullable().optional(),
+  myOutlook: z.string().nullable().optional(),
+  myNeeds: z.array(z.string()).optional(),
+  format: z.string().nullable().optional(),
+  deals: z.array(
+    z.object({
+      partnerFranchiseId: z.string(),
+      partnerName: z.string().nullable().optional(),
+      receive: z.array(z.object({ id: z.string(), name: z.string() }).passthrough()),
+      send: z.array(z.object({ id: z.string(), name: z.string() }).passthrough()),
+      receiveValue: z.number(),
+      sendValue: z.number(),
+      verdict: z.string(),
+      fairness: z.number().nullable().optional(),
+      rationale: z.string().nullable().optional(),
+    }).passthrough()
+  ),
+});
+
 // GET /api/lineups — cross-league lineup overview (points gap + matchup per league).
 const Lineups = z.object({
   week: z.number().nullable().optional(),
@@ -473,6 +515,8 @@ const schemas = {
   Standings,
   Portfolio,
   Scoreboard,
+  LeagueMatchup,
+  TradeFinder,
   Lineups,
   Me,
   Rankings,

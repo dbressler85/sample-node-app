@@ -65,7 +65,8 @@ async function seasonPhase(cookie) {
 
 function dynastyOf(roster) {
   if (!roster || !roster.summary) return null;
-  return { value: roster.summary.rosterValue, coreAge: roster.summary.coreAge, strengthPct: roster.summary.strengthPct, outlook: roster.summary.outlook };
+  // `plan` turns the outlook label into a concrete buy/sell directive the cockpit can act on.
+  return { value: roster.summary.rosterValue, coreAge: roster.summary.coreAge, strengthPct: roster.summary.strengthPct, outlook: roster.summary.outlook, plan: rosterService.outlookPlan(roster.summary.outlook) };
 }
 
 // Pending trade offers awaiting my response. Live: MFL pendingTrades (best-effort

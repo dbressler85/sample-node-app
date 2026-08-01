@@ -112,6 +112,13 @@ function assert(cond, msg) {
         `    ${g.name}: ${g.me.score}-${g.opp.score} vs ${g.opponent} · ${Math.round(g.winProb * 100)}% (${g.me.yetToPlay} to play)${g.close ? ' ⚡close' : ''}`
       );
 
+    // Scoped single-league matchup (the cockpit card) — same numbers as the cross-league board.
+    const sbLeagueId = sb.games[0].leagueId;
+    const one = (await j(await fetch(`${base}/api/leagues/${sbLeagueId}/matchup`, authed))).body;
+    assert(one.game && String(one.game.leagueId) === String(sbLeagueId), 'scoped matchup returns that league');
+    assert(one.game.me.score === sb.games[0].me.score && one.game.winProb === sb.games[0].winProb, 'scoped matchup matches the board card');
+    console.log(`✓ league matchup: ${one.game.name} ${one.game.me.score}-${one.game.opp.score} vs ${one.game.opponent}`);
+
     // Player exposure (the cross-league moat).
     const exp = (await j(await fetch(`${base}/api/players/exposure`, authed))).body;
     assert(exp.players.length > 0 && exp.summary.multiLeague >= 1, 'exposure finds multi-league players');
@@ -396,6 +403,14 @@ function assert(cond, msg) {
     assert(trLeague.myPlayers.length > 0 && trLeague.partners.length > 0, 'league trade view has my players + partners');
     assert(trLeague.partners[0].players.every((p) => 'value' in p), 'partner rosters carry value');
     console.log(`✓ trade builder: ${trLeague.myPlayers.length} of my players, ${trLeague.partners.length} partners (${trLeague.partners.map((p) => p.name).join(', ')})`);
+
+    // Single-league trade finder: fairest deals across all partners, ranked. Each row is a ready deal.
+    const finder = (await j(await fetch(`${base}/api/leagues/40750/trades/find`, authed))).body;
+    assert(Array.isArray(finder.deals) && finder.deals.length > 0, 'finder returns ranked deals');
+    assert(finder.deals.every((d) => d.receive.length && d.send.length && typeof d.fairness === 'number'), 'each deal has both sides + a fairness score');
+    // Ranked: the first deal's rank is >= the last's (non-increasing).
+    assert(finder.deals[0].rank >= finder.deals[finder.deals.length - 1].rank, 'deals are ranked best-first');
+    console.log(`✓ trade finder: ${finder.deals.length} deals (top: ${finder.deals[0].receive.map((r) => r.name.split(',')[0]).join('+')} from ${finder.deals[0].partnerName}, ${finder.deals[0].verdict})`);
 
     // Propose a trade.
     const proposal = (await j(
