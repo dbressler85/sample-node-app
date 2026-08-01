@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, FlatList, StyleSheet, Pressable, RefreshControl, ActivityIndicator } from 'react-native';
-import { api } from '../api';
+import { api, bg } from '../api';
 import { draftsPreferDevice, leagueTriagePreferDevice, portfolioPreferDevice, bestAvailablePreferDevice } from '../mflDevice';
 import { getValue, setValue, onCacheInvalidate } from '../cache';
 import { primeResource } from '../useCachedResource';
@@ -179,7 +179,10 @@ export async function warmHome() {
   const myGen = warmGen;
   patchHome({ busy: true, error: null });
   try {
-    const res = await api.leaguesList();
+    // Fix A: the whole Home warm runs at LOW MFL priority — when nothing competes it drains at full
+    // speed (LOW fully uses idle capacity), but the instant the user taps into a task, that screen's
+    // NORMAL reads preempt the queued warm instead of waiting behind this 15-league sweep.
+    const res = await bg(() => api.leaguesList());
     // Home reflects all of the account's leagues, already pinned-first from the server.
     const list = (res.leagues || []).map((l) => ({ leagueId: l.leagueId, name: l.name }));
     patchHome({ leagues: list });
@@ -191,9 +194,9 @@ export async function warmHome() {
     // they take the cold path and re-run the whole cross-league fan-out seconds after Home already did.
     // Capture drafts + On Deck so the warm queue below can pre-warm the SPECIFIC boards you're most
     // likely to tap next (the on-the-clock draft, an imminent waiver run), not just the generic tabs.
-    const draftsP = draftsPreferDevice().then((d) => { const f = sortHomeDrafts((d.drafts || []).filter(isDraftActionable)); patchHome({ drafts: f }); setValue('drafts', d); primeResource('drafts', d); return d; }).catch(() => null);
-    const onDeckP = api.onDeck().then((d) => { patchHome({ onDeck: d }); setValue('ondeck', d); primeResource('ondeck', d); return d; }).catch(() => null);
-    api.watchlistAlerts().then((r) => { patchHome({ watchAlerts: r.alerts || [] }); }).catch(() => {});
+    const draftsP = draftsPreferDevice(true).then((d) => { const f = sortHomeDrafts((d.drafts || []).filter(isDraftActionable)); patchHome({ drafts: f }); setValue('drafts', d); primeResource('drafts', d); return d; }).catch(() => null);
+    const onDeckP = bg(() => api.onDeck()).then((d) => { patchHome({ onDeck: d }); setValue('ondeck', d); primeResource('ondeck', d); return d; }).catch(() => null);
+    bg(() => api.watchlistAlerts()).then((r) => { patchHome({ watchAlerts: r.alerts || [] }); }).catch(() => {});
 
     // Seed from the last-known statuses so a RE-fan-out (returning to Home) revalidates IN PLACE —
     // each league's tile/outlook updates as its fresh read lands, and nothing ever drops back to a
@@ -202,7 +205,7 @@ export async function warmHome() {
     patchHome({ progress: { done: Object.keys(collected).length, total: list.length } });
     await runPool(list, CONCURRENCY, async (lg) => {
       try {
-        const t = await leagueTriagePreferDevice(lg.leagueId);
+        const t = await leagueTriagePreferDevice(lg.leagueId, true);
         collected[lg.leagueId] = { name: t.name, status: t.status, items: t.items, phase: t.phase, dynasty: t.dynasty, tradeDeadline: t.tradeDeadline };
       } catch (e) {
         collected[lg.leagueId] = { name: lg.name, status: 'error', items: [] };
@@ -227,18 +230,20 @@ export async function warmHome() {
     const actionable = draftsData ? (draftsData.drafts || []).filter(isDraftActionable) : [];
     const deckItems = (onDeckData && onDeckData.items) || [];
     const warms = [];
-    const pushDraft = (d) => warms.push({ key: `draft:${d.leagueId}`, run: () => api.leagueDraft(d.leagueId) });
+    // Every warm-queue read is speculative ("warm the next tap"), so all run at LOW priority too — a
+    // real tap on any of these boards preempts the queue and gets its NORMAL read served first.
+    const pushDraft = (d) => warms.push({ key: `draft:${d.leagueId}`, run: () => bg(() => api.leagueDraft(d.leagueId)) });
     actionable.filter((d) => d.myOnClock).forEach(pushDraft); // 1) on the clock → THE next tap
     for (const it of deckItems.filter((i) => i.type === 'waiver_run' && i.replacements)) { // 2) imminent waiver runs
       const r = it.replacements;
       const position = r.positions && r.positions.length === 1 ? r.positions[0] : null;
       const sort = r.sort || 'projection';
-      warms.push({ key: `waivers:board:${r.leagueId}:${position || 'all'}:${sort}`, run: () => api.waiverBoard(r.leagueId, { position, sort }) });
+      warms.push({ key: `waivers:board:${r.leagueId}:${position || 'all'}:${sort}`, run: () => bg(() => api.waiverBoard(r.leagueId, { position, sort })) });
     }
-    warms.push({ key: 'players:rankings:value:all:1qb:std', run: () => api.playerRankings('value', null, '1qb') }); // 3) most-browsed tab
+    warms.push({ key: 'players:rankings:value:all:1qb:std', run: () => bg(() => api.playerRankings('value', null, '1qb')) }); // 3) most-browsed tab
     actionable.filter((d) => !d.myOnClock && d.status === 'in_progress').forEach(pushDraft); // 4) other live drafts
-    warms.push({ key: 'portfolio', run: () => portfolioPreferDevice() }); // 5) steady dashboards, last
-    warms.push({ key: 'players:free', run: () => bestAvailablePreferDevice() });
+    warms.push({ key: 'portfolio', run: () => portfolioPreferDevice(true) }); // 5) steady dashboards, last
+    warms.push({ key: 'players:free', run: () => bestAvailablePreferDevice(undefined, undefined, true) });
     const seen = new Set();
     const queue = warms.filter((w) => (seen.has(w.key) ? false : seen.add(w.key))); // de-dupe by key
     // Fire-and-forget (not awaited) so warmHome finishes as soon as the cards are done; the queue keeps

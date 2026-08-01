@@ -19,6 +19,7 @@
 
 const config = require('../config');
 const metrics = require('./metrics');
+const reqPriority = require('./reqPriority');
 
 // --- request throttle -------------------------------------------------------
 // Run up to mflMaxConcurrent outbound MFL requests at once, with a small stagger
@@ -393,7 +394,11 @@ const LEAGUE_GLOBAL_TYPES = new Set([
 // intraday on game day, so freshness still matters; it's the redundancy that's removed, not the cadence.
 
 // Read data via the export command (cached, TTL depends on how volatile it is).
-async function exportRequest(type, { host = config.apiHost, cookie = null, maxAge = null, year = null, priority = 'normal', ...params } = {}) {
+async function exportRequest(type, { host = config.apiHost, cookie = null, maxAge = null, year = null, priority = null, ...params } = {}) {
+  // Priority resolution: an explicit priority (the always-background warm/prime workers pass
+  // 'low') wins; otherwise inherit the ambient request priority — 'low' for a request the client
+  // flagged as a background fan-out (Fix A), 'normal' for an ordinary foreground read.
+  const effPriority = priority || reqPriority.current();
   // Key on params with SORTED keys: the read cache coalesces identical reads, but
   // JSON.stringify is insertion-order-sensitive, so {L,FRANCHISE} and {FRANCHISE,L} would hash to
   // different keys and silently double-fetch the same data. (params holds flat primitives.)
@@ -423,7 +428,7 @@ async function exportRequest(type, { host = config.apiHost, cookie = null, maxAg
   }
   metrics.recordMiss();
 
-  const promise = rawRequest({ host, command: 'export', params: { TYPE: type, ...params }, cookie, year, priority });
+  const promise = rawRequest({ host, command: 'export', params: { TYPE: type, ...params }, cookie, year, priority: effPriority });
   const entry = { at: Date.now(), ttl, promise };
   readCache.set(key, entry);
   // A failed read must not be cached: drop it so the next call retries.

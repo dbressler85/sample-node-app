@@ -7,7 +7,7 @@
 import mflRead from './mflRead';
 import { DEVICE_READS } from './config';
 import { loadMflCreds, refreshMflCreds } from './auth';
-import { api } from './api';
+import { api, bg as apiBg } from './api';
 import deviceReadCache from './deviceReadCache';
 import deviceEnrichCache from './deviceEnrichCache';
 import { onCacheInvalidate } from './cache';
@@ -19,6 +19,16 @@ import createPreferDevice from './preferDevice';
 // screen keeps its last cached data (C4) promptly rather than spinning. A timeout aborts to a plain error
 // that classifies as `network`, which then opens the offline cooldown (deviceHealth) so the NEXT reads skip
 // the device entirely and go straight to the backend.
+// Fix A: when a caller (the Home warm / idle prefetch) marks a read as background, tag the BACKEND
+// leaf calls a device helper makes — the aggregator POST it hands device rosters to, its own
+// leaguesList, and the whole-backend fallback — as low-priority. The on-device MFL reads bypass the
+// backend queue entirely, so they need no tag; only these backend hops compete with a foreground tap.
+// Each wrapped call must be a direct api.* method (reaches request() synchronously) for apiBg to
+// capture the flag — see api.bg. bgRunner(false) is a pass-through, so foreground callers are unaffected.
+function bgRunner(bg) {
+  return bg ? (thunk) => apiBg(thunk) : (thunk) => thunk();
+}
+
 const DEVICE_FETCH_TIMEOUT_MS = 8000;
 function fetchWithTimeout(url, opts) {
   const ctrl = new AbortController();
@@ -231,28 +241,31 @@ export function exposurePreferDevice() {
 // all-franchise fan-out — the burst that trips the shared per-IP limiter — onto the device's own IP,
 // while the aggregation (which reads/writes backend stores) stays server-side. All-or-nothing: any
 // per-league read failure rejects → preferDevice falls back to the backend's own resilient fan-out.
-export async function devicePortfolio() {
-  const { leagues } = await api.leaguesList();
+export async function devicePortfolio(bg) {
+  const run = bgRunner(bg);
+  const { leagues } = await run(() => api.leaguesList());
   const list = (leagues || []).filter((l) => l && l.leagueId);
-  if (!list.length) return api.portfolio();
+  if (!list.length) return run(() => api.portfolio());
   // Partial-tolerant (A-2): send only the leagues that succeeded; the backend marks the rest as placeholders
   // and flags the total `partial` (surfaced by U-1). Only a TOTAL device failure falls back to the backend.
   const { fulfilled } = await settlePool(list, async (l) => [l.leagueId, await runDeviceRead(mflRead.reads.rosters, l.leagueId)]);
   if (!fulfilled.length) throw new Error('device portfolio: all leagues failed');
-  return api.portfolioDevice(Object.fromEntries(fulfilled));
+  return run(() => api.portfolioDevice(Object.fromEntries(fulfilled)));
 }
-export function portfolioPreferDevice() {
-  return preferDevice('portfolio', () => devicePortfolio(), () => api.portfolio());
+export function portfolioPreferDevice(bg) {
+  const run = bgRunner(bg);
+  return preferDevice('portfolio', () => devicePortfolio(bg), () => run(() => api.portfolio()));
 }
 
 // Cross-league draft overview, device-first: fetch every league's draftResults + calendar straight from
 // MFL on-device (the fan-out behind "which drafts are live / scheduled / my turn"), then hand them to the
 // backend to parse status/order/clock (that logic reads backend format/clock config, so it stays server-
 // side). All-or-nothing: any per-league read failure rejects → preferDevice falls back to the backend.
-export async function deviceDrafts() {
-  const { leagues } = await api.leaguesList();
+export async function deviceDrafts(bg) {
+  const run = bgRunner(bg);
+  const { leagues } = await run(() => api.leaguesList());
   const list = (leagues || []).filter((l) => l && l.leagueId);
-  if (!list.length) return api.drafts();
+  if (!list.length) return run(() => api.drafts());
   // Partial-tolerant (A-2): a league that fails on-device is simply not sent; the backend reads just that
   // league itself (per-league fallback), so the overview stays complete without discarding the successes.
   const { fulfilled } = await settlePool(list, async (l) => {
@@ -263,10 +276,11 @@ export async function deviceDrafts() {
     return [l.leagueId, { draftResults, calendar }];
   });
   if (!fulfilled.length) throw new Error('device drafts: all leagues failed');
-  return api.draftsDevice(Object.fromEntries(fulfilled));
+  return run(() => api.draftsDevice(Object.fromEntries(fulfilled)));
 }
-export function draftsPreferDevice() {
-  return preferDevice('drafts', () => deviceDrafts(), () => api.drafts());
+export function draftsPreferDevice(bg) {
+  const run = bgRunner(bg);
+  return preferDevice('drafts', () => deviceDrafts(bg), () => run(() => api.drafts()));
 }
 
 // Cross-league best-available free agents + the waivers overview: these are the only device reads that
@@ -279,11 +293,11 @@ export function draftsPreferDevice() {
 // lighter per-user device reads (rosters/assets/draft) stay device-origin; only the heavy pool reverts.
 // The wrappers keep their names + `format` passthrough so the screens/prefetch are unchanged; they simply
 // resolve to the backend GET, which the value lens (?format=) still flows through.
-export function bestAvailablePreferDevice(format, tep) {
-  return api.bestAvailable(format, tep);
+export function bestAvailablePreferDevice(format, tep, bg) {
+  return bgRunner(bg)(() => api.bestAvailable(format, tep));
 }
-export function waiversOverviewPreferDevice() {
-  return api.waiversOverview();
+export function waiversOverviewPreferDevice(bg) {
+  return bgRunner(bg)(() => api.waiversOverview());
 }
 
 // Cross-league pick inventory, device-first: fetch each league's assets + futureDraftPicks + draftResults
@@ -313,25 +327,28 @@ export function pickInventoryPreferDevice() {
 // is the heavy per-user read; fetch it on-device and hand it to the backend, which keeps the trade/waiver/
 // calendar items + the lineup engine. Per-league — matches the app's progressive Home load. The
 // all-franchise rosters read shares its device-cache entry with Portfolio + the Rosters tab.
-export async function deviceLeagueTriage(leagueId) {
+export async function deviceLeagueTriage(leagueId, bg) {
   const franchises = await runDeviceRead(mflRead.reads.rosters, leagueId);
-  return api.leagueTriageDevice(leagueId, franchises);
+  return bgRunner(bg)(() => api.leagueTriageDevice(leagueId, franchises));
 }
-export function leagueTriagePreferDevice(leagueId) {
-  return preferDevice('homeTriage', () => deviceLeagueTriage(leagueId), () => api.leagueTriage(leagueId));
+export function leagueTriagePreferDevice(leagueId, bg) {
+  const run = bgRunner(bg);
+  return preferDevice('homeTriage', () => deviceLeagueTriage(leagueId, bg), () => run(() => api.leagueTriage(leagueId)));
 }
 
 // Lineups overview, device-first: each league's rosters (my roster + strength) is the per-user read;
 // fetch on-device, the backend runs the optimizer (the projection + matchup reads stay backend).
-export async function deviceLineups(mode) {
-  const { leagues } = await api.leaguesList();
+export async function deviceLineups(mode, bg) {
+  const run = bgRunner(bg);
+  const { leagues } = await run(() => api.leaguesList());
   const list = (leagues || []).filter((l) => l && l.leagueId);
-  if (!list.length) return api.lineups(mode);
+  if (!list.length) return run(() => api.lineups(mode));
   // Partial-tolerant (A-2): failed leagues are omitted; the backend reads just those itself (per-league fallback).
   const { fulfilled } = await settlePool(list, async (l) => [l.leagueId, await runDeviceRead(mflRead.reads.rosters, l.leagueId)]);
   if (!fulfilled.length) throw new Error('device lineups: all leagues failed');
-  return api.lineupsDevice(mode, Object.fromEntries(fulfilled));
+  return run(() => api.lineupsDevice(mode, Object.fromEntries(fulfilled)));
 }
-export function lineupsPreferDevice(mode) {
-  return preferDevice('lineups', () => deviceLineups(mode), () => api.lineups(mode));
+export function lineupsPreferDevice(mode, bg) {
+  const run = bgRunner(bg);
+  return preferDevice('lineups', () => deviceLineups(mode, bg), () => run(() => api.lineups(mode)));
 }

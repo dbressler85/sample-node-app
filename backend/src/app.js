@@ -21,6 +21,7 @@ const trophyRoutes = require('./routes/trophies');
 const bugReportRoutes = require('./routes/bugReport');
 const pushRoutes = require('./routes/push');
 const metricsRoutes = require('./routes/metrics');
+const priorityFromHeader = require('./middleware/priority');
 
 const app = express();
 
@@ -59,6 +60,10 @@ const apiLimiter = rateLimit({
   message: { error: 'Too many requests — give it a moment and try again.' },
 });
 app.use('/api', apiLimiter);
+
+// Fix A: a request the client flags `X-DC-Priority: low` (Home pre-warm / idle prefetch) runs its
+// MFL reads in the LOW lane, so a foreground tap on the same account preempts the background fan-out.
+app.use('/api', priorityFromHeader);
 
 app.use('/api', metricsRoutes); // operational metrics (own token gate; no session middleware)
 app.use('/api/auth', authRoutes);

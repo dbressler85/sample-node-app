@@ -9,6 +9,27 @@ export function setToken(token) {
   authToken = token;
 }
 
+// Fix A (priority inversion for the Home warm). A speculative background fan-out — the Home pre-warm
+// and the idle other-tab prefetch — should never delay a read the user is actively waiting on. The
+// backend runs a request's MFL reads in the LOW lane (drained only after the NORMAL lane) when it
+// carries `X-DC-Priority: low`, so a foreground tap on the same account preempts the queued warm.
+//
+// `bg(thunk)` marks the reads a thunk STARTS as background. request() reads the flag SYNCHRONOUSLY at
+// its top (before its first await), so the flag is captured atomically per request — even a burst of
+// warm reads fired back-to-back each tag correctly, and a foreground tap that interleaves between them
+// (its own request() runs synchronously, sees the flag at 0) is never mis-tagged. So bg MUST wrap only
+// a call that reaches request() synchronously (a direct api.* method, or a backend leaf inside a device
+// helper); wrapping an async helper with an early await would tag only its first synchronous request.
+let bgDepth = 0;
+export function bg(thunk) {
+  bgDepth += 1;
+  try {
+    return thunk();
+  } finally {
+    bgDepth -= 1;
+  }
+}
+
 // Called when a request finds the session dead (401) or the backend unreachable,
 // so the app can bounce back to the login screen.
 let onAuthLost = null;
@@ -25,6 +46,8 @@ async function request(path, { method = 'GET', body } = {}) {
   const headers = { Accept: 'application/json' };
   if (body) headers['Content-Type'] = 'application/json';
   if (authToken) headers.Authorization = `Bearer ${authToken}`;
+  // Captured synchronously (see bg above): flags this request's MFL reads as background/low-priority.
+  if (bgDepth > 0) headers['X-DC-Priority'] = 'low';
 
   // A network blip on resume (phone unlock) or a backend cold-start should NOT
   // log you out — your token is still valid. Retry idempotent GETs a couple times
