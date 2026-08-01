@@ -11,7 +11,7 @@ import PopChip from '../components/PopChip';
 import useAndroidBack from '../useAndroidBack';
 import useCachedResource from '../useCachedResource';
 import { STALE } from '../staleTiers';
-import { leagueTeamsPreferDevice, standingsPreferDevice, transactionsPreferDevice } from '../mflDevice';
+import { leagueTeamsPreferDevice, leagueTriagePreferDevice, standingsPreferDevice, transactionsPreferDevice } from '../mflDevice';
 
 // The league hub: the ordinary league views the app was missing — Standings,
 // Rosters (browse every team = opponent scouting), and a Transactions feed. Reached
@@ -58,6 +58,8 @@ export default function LeagueScreen({ league, onBack, onOpenPlayer, onOpenPlayo
         )}
       </View>
 
+      <AttentionRibbon league={league} onOpenLineup={onOpenLineup} onOpenWaivers={onOpenWaivers} onOpenTrades={onOpenTrades} />
+
       {actions.length ? (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.actionRow}>
           {actions.map((a) => (
@@ -98,6 +100,36 @@ export default function LeagueScreen({ league, onBack, onOpenPlayer, onOpenPlayo
         </View>
       ) : null}
     </View>
+  );
+}
+
+// The "what needs me in THIS league" glance — the same per-league triage Home fans out, scoped to one
+// league. Each triage item already carries a human `title` and an `action` ('lineup'|'waiver'|'trade'),
+// so a chip deep-links straight into the matching scoped screen. Offseason shows the team's outlook
+// instead. Renders nothing (no row) when there's nothing to surface, so a clean league stays calm.
+function AttentionRibbon({ league, onOpenLineup, onOpenWaivers, onOpenTrades }) {
+  const { data } = useCachedResource(`league:triage:${league.leagueId}`, () => leagueTriagePreferDevice(league.leagueId), { revalidateOnMount: true });
+  const items = (data && data.items) || [];
+  const outlook = data && data.dynasty && data.dynasty.outlook;
+  if (!data || (!items.length && !outlook)) return null;
+  const go = (action) => {
+    if (action === 'lineup' && onOpenLineup) onOpenLineup(league);
+    else if (action === 'waiver' && onOpenWaivers) onOpenWaivers({ leagueId: league.leagueId });
+    else if (action === 'trade' && onOpenTrades) onOpenTrades(league);
+  };
+  const sevColor = { high: colors.bad, medium: colors.warn, low: colors.textDim };
+  return (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.ribbon}>
+      {outlook ? (
+        <View style={styles.outlookChip}><Text style={styles.outlookText}>{outlook}</Text></View>
+      ) : null}
+      {items.map((it) => (
+        <Pressable key={it.id} onPress={() => go(it.action)} style={({ pressed }) => [styles.attnChip, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel={it.title}>
+          <View style={[styles.attnDot, { backgroundColor: sevColor[it.severity] || colors.textDim }]} />
+          <Text style={styles.attnText} numberOfLines={1}>{it.title}</Text>
+        </Pressable>
+      ))}
+    </ScrollView>
   );
 }
 
@@ -295,6 +327,13 @@ const styles = StyleSheet.create({
   back: { color: colors.accent, fontSize: 16, fontWeight: '600' },
   bracketBtn: { width: 78, minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4 },
   bracketBtnText: { color: colors.accent, fontSize: 13, fontWeight: '800' },
+  // Attention ribbon — "what needs me here" chips, deep-linked by the triage item's action.
+  ribbon: { paddingHorizontal: 16, gap: 8, paddingTop: 8, paddingBottom: 2 },
+  attnChip: { flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: colors.card, borderRadius: 999, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, minHeight: 34 },
+  attnDot: { width: 7, height: 7, borderRadius: 4 },
+  attnText: { color: colors.text, fontSize: 12, fontWeight: '700', maxWidth: 200 },
+  outlookChip: { justifyContent: 'center', backgroundColor: colors.violet + '22', borderRadius: 999, borderWidth: 1, borderColor: colors.violetDim, paddingHorizontal: 12, minHeight: 34 },
+  outlookText: { color: colors.violetText, fontSize: 12, fontWeight: '800' },
   // Scoped action row — accent-outlined chips (actions, not values), horizontally scrollable.
   actionRow: { paddingHorizontal: 16, gap: 8, paddingTop: 8, paddingBottom: 2 },
   actionChip: { backgroundColor: colors.cardAlt, borderRadius: 999, borderWidth: 1, borderColor: colors.accent, paddingHorizontal: 16, minHeight: 40, justifyContent: 'center' },
