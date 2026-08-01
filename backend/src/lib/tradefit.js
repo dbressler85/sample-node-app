@@ -22,16 +22,25 @@ function positionSlots(requirements) {
 }
 
 // DEDICATED starting slots per position — only requirements that accept a SINGLE position. This is
-// the bar for HOLE detection: the minimum bodies you're actually forced to field at that exact spot.
+// the bar for HOLE detection: the minimum bodies you're actually FORCED to field at that exact spot.
 // A FLEX/SUPERFLEX slot (RB/WR/TE, QB/RB/WR/TE, …) does NOT force a TE — it's filled by whoever's best
 // across the eligible positions — so it must not count toward "how many TEs must they start". Without
 // this, a superflex+flex lineup rounded TE's fractional flex share up to 2 required TEs, so trading a
 // team's SECOND TE (while they kept a better one) read as "strips their TE starter". (tradefit)
+//
+// Use the slot's MINIMUM, not its `count`. MFL lets a slot carry a RANGE limit ("1-3 TE"): you're
+// forced to start `min` (1) but MAY start up to `max` (and `count` is the max, for the optimizer). A
+// league that literally allows more of a position (a "FLEXY" league — flexible position limits) was
+// mis-read as REQUIRING the max: a "1-3 TE" slot set dedicatedSlots.TE = 3, so trading one of three
+// rostered TEs left two < three and read as "no startable TE — don't do it". The forced minimum is
+// what a hole is measured against; a fixed "1 TE" slot has min == max == 1, so this is a no-op there.
 function dedicatedSlots(requirements) {
   const slots = {};
   for (const r of requirements || []) {
     const elig = (r.eligible && r.eligible.length ? r.eligible : [r.name]).filter(Boolean);
-    if (elig.length === 1) slots[elig[0]] = (slots[elig[0]] || 0) + (r.count || 1);
+    if (elig.length !== 1) continue;
+    const forced = r.min != null ? r.min : (r.count || 1); // min = what you MUST start; count is the max
+    slots[elig[0]] = (slots[elig[0]] || 0) + forced;
   }
   return slots;
 }
