@@ -1264,8 +1264,12 @@ async function effectiveDeadline(cookie, token, league) {
 // Greedily pack the highest-value assets from `assets` until their sum reaches `target` (the minimal
 // over-the-target set, or all of them if they can't reach it). Used to seed a fair pick/player package
 // for the Pick Capital shop/acquire flows — a starting point the owner tweaks on the desk.
-function packToValue(assets, target) {
-  const sorted = assets.slice().filter((a) => (a.value || 0) > 0).sort((a, b) => (b.value || 0) - (a.value || 0));
+// Greedily assemble assets up to a target value. `rank` (optional, higher = spend first) lets a caller
+// bias WHICH assets go — e.g. spend from a surplus position before a scarce one — while value stays the
+// tiebreaker within a rank tier, so the pack still reaches the target efficiently.
+function packToValue(assets, target, rank) {
+  const key = rank || (() => 0);
+  const sorted = assets.slice().filter((a) => (a.value || 0) > 0).sort((a, b) => (key(b) - key(a)) || (b.value || 0) - (a.value || 0));
   const out = [];
   let sum = 0;
   for (const a of sorted) {
@@ -1307,6 +1311,10 @@ async function pickPartners(cookie, token, leagueId, intent) {
     .map((p) => asset(p.id, byId, enr)).filter((a) => a.value != null);
   const myPicks = picksAssetsFor(myFid);
   const myNeeds = (ns[myFid] || {}).needs || [];
+  // My own needs/surplus, so paying for a pick never guts a position I'm already thin at. Same two-sided
+  // discipline suggestGive uses: spend from a SURPLUS spot first, avoid a spot I NEED (weights mirror it).
+  const mySurplusPos = new Set(((ns[myFid] || {}).surplus || []).map((s) => s.pos));
+  const myNeedPos = new Set(myNeeds.map((n) => n.pos));
   const OLD_AGE = 26; // "aging vet" floor — a productive player past his dynasty-value peak
 
   const rows = [];
@@ -1315,6 +1323,7 @@ async function pickPartners(cookie, token, leagueId, intent) {
     const ol = teamOutlook[fid] || {};
     const outlook = ol.outlook || null;
     const theirNeeds = (ns[fid] || {}).needs || [];
+    const theirNeedPos = new Set(theirNeeds.map((n) => n.pos));
     const theirPicks = picksAssetsFor(fid);
     let deal = null;
     let fit = 0;
@@ -1326,12 +1335,17 @@ async function pickPartners(cookie, token, leagueId, intent) {
       const bestPick = theirPicks.slice().sort((a, b) => (b.value || 0) - (a.value || 0))[0];
       if (!bestPick || outlook === 'Rebuilding') continue;
       const pickEquity = theirPicks.reduce((s, p) => s + (p.value || 0), 0);
-      const preferred = myPlayers.filter((p) => theirNeeds.includes(p.position));
-      const send = packToValue(preferred.length ? preferred : myPlayers, bestPick.value || 0);
+      // Rank my givers: a player at THEIR need +1, from MY surplus +2, at a spot I NEED -3 — so the pack
+      // leads with a surplus body that also fills their hole and only dips into my thin spots as a last
+      // resort. (The old `theirNeeds.includes(p.position)` compared {pos} objects to a string — always
+      // false — so this preference was silently dead and any player could be shipped.)
+      const sendRank = (p) => (theirNeedPos.has(p.position) ? 1 : 0) + (mySurplusPos.has(p.position) ? 2 : 0) - (myNeedPos.has(p.position) ? 3 : 0);
+      const preferred = myPlayers.filter((p) => theirNeedPos.has(p.position));
+      const send = packToValue(myPlayers, bestPick.value || 0, sendRank);
       if (!send.assets.length) continue;
       const winNow = outlook === 'Win-now window';
       fit = (winNow ? 100 : outlook === 'Balanced' ? 40 : 20) + Math.min(60, pickEquity / 3) + (preferred.length ? 15 : 0);
-      reason = `${winNow ? 'Win-now' : outlook || 'This'} team · ${theirPicks.length} pick${theirPicks.length === 1 ? '' : 's'} in hand${preferred.length ? ` · thin at ${theirNeeds[0]}` : ''}`;
+      reason = `${winNow ? 'Win-now' : outlook || 'This'} team · ${theirPicks.length} pick${theirPicks.length === 1 ? '' : 's'} in hand${preferred.length ? ` · thin at ${theirNeeds[0].pos}` : ''}`;
       deal = { send: send.assets, receive: [bestPick] };
     } else {
       // Rebuilding teams with an aging, still-valuable vet: target that vet, pay with my picks. Only a
