@@ -481,7 +481,14 @@ async function tradeData(cookie, token, leagueId) {
     (config.demoMode ? Promise.resolve(demo.standings(leagueId)) : mflRepo.standings(league, cookie)).catch(() => null),
   ]);
 
-  const myPlayersAll = [...(roster.starters || []), ...(roster.bench || [])];
+  // Include the WHOLE roster — starters, bench, IR, AND taxi — in the positional model. Partners'
+  // rosters (pt.roster, below) are MFL's full franchise id-list, so they already count taxi/IR bodies;
+  // building MY franchise from starters+bench only was an asymmetry that undercounted my own depth.
+  // In dynasty that mostly bites TE/QB: a manager stashes rookie or backup TEs on the TAXI squad, so
+  // if the active starter is the one in a deal, the model saw "1 TE" and cried "no startable TE — don't
+  // do it" even with two more TEs on taxi. Counting the full roster (like partners') fixes hole
+  // detection to match the roster the owner actually has.
+  const myPlayersAll = [...(roster.starters || []), ...(roster.bench || []), ...(roster.ir || []), ...(roster.taxi || [])];
   // Every franchise's players as { id, position, value, age } — value+age drive the
   // needs/surplus model AND the per-team dynasty outlook / average age below.
   const franchises = [
