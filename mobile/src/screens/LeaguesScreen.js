@@ -1,12 +1,14 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, FlatList, StyleSheet, Pressable, ActivityIndicator, RefreshControl } from 'react-native';
-import { api } from '../api';
+import { api, bg } from '../api';
 import { colors } from '../theme';
 import { TopbarTitle } from '../components/Brand';
 import Reveal from '../components/Reveal';
 import EmptyView from '../components/EmptyView';
 import useAndroidBack from '../useAndroidBack';
 import { peekResource, primeResource } from '../useCachedResource';
+import { setValue } from '../cache';
+import { standingsPreferDevice, leagueTeamsPreferDevice } from '../mflDevice';
 
 // Compact countdown for a trade deadline ({ at: ms }) → { label, urgent }, or null when none/past.
 function deadlineChip(dl) {
@@ -34,7 +36,10 @@ export default function LeaguesScreen({ onBack, onOpenLeague, onOpenDraftHub }) 
   // bare league list, so fetch it in the BACKGROUND and merge it in when it lands —
   // the switcher paints names + pin instantly and the badges fill in a beat later.
   const loadEnrich = useCallback(() => {
-    api.portfolio()
+    // Background/LOW priority: this per-league badge fan-out is ~15 leagues and must NOT head-of-line-
+    // block the foreground read the user is about to trigger by opening a league (both share the
+    // account's FIFO NORMAL lane). Badges merge in a beat later regardless.
+    bg(() => api.portfolio())
       .then((d) => {
         const map = {};
         for (const l of (d && d.byLeague) || []) {
@@ -53,6 +58,22 @@ export default function LeaguesScreen({ onBack, onOpenLeague, onOpenDraftHub }) 
     loadEnrich();
   }, [loadEnrich]);
   useEffect(() => { load(); }, [load]);
+
+  // Prefetch a league's hub the instant its row is pressed, priming the EXACT keys LeagueScreen's tabs
+  // read (`league:standings:<id>` = the default tab, `league:teams:<id>` = the likely-next Rosters tab).
+  // The ~250ms nav animation overlaps the fetch, so LeagueScreen usually mounts to a warm cache hit and
+  // paints instantly instead of a cold read behind a skeleton. These reads ARE the foreground reads the
+  // user wants now, so they run at NORMAL priority (not bg). Guarded so a re-tap doesn't refire.
+  const openLeague = useCallback((item) => {
+    const id = String(item.leagueId);
+    if (!peekResource(`league:standings:${id}`)) {
+      standingsPreferDevice(id).then((d) => { primeResource(`league:standings:${id}`, d); setValue(`league:standings:${id}`, d); }).catch(() => {});
+    }
+    if (!peekResource(`league:teams:${id}`)) {
+      leagueTeamsPreferDevice(id).then((d) => { primeResource(`league:teams:${id}`, d); setValue(`league:teams:${id}`, d); }).catch(() => {});
+    }
+    onOpenLeague({ leagueId: item.leagueId, name: item.name });
+  }, [onOpenLeague]);
 
   // Optimistically flip the pin, re-sort pinned-first, then reconcile with the server.
   const applyLocal = useCallback((leagueId, patch) => {
@@ -114,7 +135,7 @@ export default function LeaguesScreen({ onBack, onOpenLeague, onOpenDraftHub }) 
               >
                 <Text style={[styles.pin, item.pinned && styles.pinOn]}>{item.pinned ? '★' : '☆'}</Text>
               </Pressable>
-              <Pressable style={styles.nameWrap} onPress={() => onOpenLeague({ leagueId: item.leagueId, name: item.name })}>
+              <Pressable style={styles.nameWrap} onPress={() => openLeague(item)}>
                 <View style={styles.nameLine}>
                   <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
                   {dl ? <Text style={[styles.dlChip, dl.urgent && styles.dlChipUrgent]}>{dl.label}</Text> : null}
@@ -128,7 +149,7 @@ export default function LeaguesScreen({ onBack, onOpenLeague, onOpenDraftHub }) 
                   </Text>
                 ) : null}
               </Pressable>
-              <Pressable hitSlop={8} onPress={() => onOpenLeague({ leagueId: item.leagueId, name: item.name })}>
+              <Pressable hitSlop={8} onPress={() => openLeague(item)}>
                 <Text style={styles.chev}>›</Text>
               </Pressable>
             </View>
