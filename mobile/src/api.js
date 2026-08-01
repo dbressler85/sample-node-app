@@ -1,11 +1,33 @@
 // Thin client for the Dynasty Central backend.
 import { API_URL } from './config';
 import { invalidateCaches } from './cache';
+import { recordEvent } from './bugReport';
 
 let authToken = null;
 
 export function setToken(token) {
   authToken = token;
+}
+
+// Fix A (priority inversion for the Home warm). A speculative background fan-out — the Home pre-warm
+// and the idle other-tab prefetch — should never delay a read the user is actively waiting on. The
+// backend runs a request's MFL reads in the LOW lane (drained only after the NORMAL lane) when it
+// carries `X-DC-Priority: low`, so a foreground tap on the same account preempts the queued warm.
+//
+// `bg(thunk)` marks the reads a thunk STARTS as background. request() reads the flag SYNCHRONOUSLY at
+// its top (before its first await), so the flag is captured atomically per request — even a burst of
+// warm reads fired back-to-back each tag correctly, and a foreground tap that interleaves between them
+// (its own request() runs synchronously, sees the flag at 0) is never mis-tagged. So bg MUST wrap only
+// a call that reaches request() synchronously (a direct api.* method, or a backend leaf inside a device
+// helper); wrapping an async helper with an early await would tag only its first synchronous request.
+let bgDepth = 0;
+export function bg(thunk) {
+  bgDepth += 1;
+  try {
+    return thunk();
+  } finally {
+    bgDepth -= 1;
+  }
 }
 
 // Called when a request finds the session dead (401) or the backend unreachable,
@@ -24,6 +46,8 @@ async function request(path, { method = 'GET', body } = {}) {
   const headers = { Accept: 'application/json' };
   if (body) headers['Content-Type'] = 'application/json';
   if (authToken) headers.Authorization = `Bearer ${authToken}`;
+  // Captured synchronously (see bg above): flags this request's MFL reads as background/low-priority.
+  if (bgDepth > 0) headers['X-DC-Priority'] = 'low';
 
   // A network blip on resume (phone unlock) or a backend cold-start should NOT
   // log you out — your token is still valid. Retry idempotent GETs a couple times
@@ -51,6 +75,7 @@ async function request(path, { method = 'GET', body } = {}) {
       }
       // Unreachable/stalled ≠ logged out. Keep the session; the caller shows an error /
       // the user can pull-to-refresh once the backend/network is back.
+      recordEvent(`api ${method} ${path} → unreachable`); // bug-report breadcrumb
       throw new Error(`Can't reach the backend at ${API_URL}. Check your connection and try again.`);
     } finally {
       clearTimeout(timer);
@@ -69,7 +94,14 @@ async function request(path, { method = 'GET', body } = {}) {
     throw new Error((data && data.error) || 'Session expired. Please log in again.');
   }
   if (!res.ok) {
-    throw new Error((data && data.error) || `Request failed (${res.status})`);
+    recordEvent(`api ${method} ${path} → ${res.status}`); // bug-report breadcrumb (path + status only, no body/token)
+    // Prefer `detail` over `error`: the backend puts the HUMAN-READABLE MFL guidance there (e.g. a 429's
+    // "MyFantasyLeague rate limit hit. Give it a moment and refresh.") while `error` carries the raw,
+    // developer-facing string ("MFL request failed (429) for draftResults…"). Surfacing detail is the
+    // "always surface MFL's error detail, never just the status code" rule applied at the client boundary —
+    // so a rate-limited draft/waiver/board load tells the user to wait instead of inviting a retry-hammer
+    // that only deepens the cooldown.
+    throw new Error((data && (data.detail || data.error)) || `Request failed (${res.status})`);
   }
   // A successful write changes server state the cached screens reflect — mark their snapshots
   // stale so the next view refetches instead of showing pre-action data through the throttle.
@@ -82,6 +114,9 @@ export const api = {
     request('/api/auth/login', { method: 'POST', body: { username, password } }),
   logout: () => request('/api/auth/logout', { method: 'POST' }),
   health: () => request('/api/health'),
+  // Beta bug report: { message, diagnostics }. The backend emails it to the developer's private address
+  // (held in a server env var); the client never learns where it goes.
+  bugReport: (body) => request('/api/bug-report', { method: 'POST', body }),
   // Device-origin: fetch THIS session's MFL cookie (+ host/season) so the app can read straight from
   // MFL. Throws (404) when the backend hasn't enabled device reads — callers treat that as "off".
   mflCreds: () => request('/api/session/mfl-cookie'),

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
 import { api } from '../api';
+import { useRequirePro } from '../entitlement';
 import { colors } from '../theme';
 import { displayLg } from '../typography';
 import SlotEditor from '../components/SlotEditor';
@@ -17,6 +18,7 @@ const MODES = [
 // (optimal-for-mode) starters, letting the owner tweak, then submit and advance.
 // `leagues` is the pre-filtered queue of leagues to step through.
 export default function LineupWizardScreen({ leagues, initialMode = 'auto', onBack }) {
+  const requirePro = useRequirePro();
   const [mode, setMode] = useState(initialMode);
   const [index, setIndex] = useState(0);
   const [detail, setDetail] = useState(null);
@@ -83,6 +85,7 @@ export default function LineupWizardScreen({ leagues, initialMode = 'auto', onBa
   }
 
   async function submitAndNext() {
+    if (!requirePro('lineup.apply')) return; // Pro gate (inert until enforced)
     setSubmitting(true);
     try {
       const updated = await api.applyLineup(current.leagueId, assignments.filter(Boolean), mode);

@@ -1,11 +1,12 @@
 'use strict';
 // Data-integration hardening (audit #17-#20):
 //  #17 ownership/adds parse from alternate MFL field names (not just 'percent').
-//  #18 ESPN news skips ambiguous namesakes instead of mis-attributing.
+//  #18 RotoBaller news skips ambiguous namesakes instead of mis-attributing.
 //  #19 future-pick tokens use MFL's real `originalPickFor` (acquired picks got
 //      the wrong owner before); own picks fall back to the listing franchise.
 //  #20 starting slots are named superflex/flex precisely; range limits are read.
 process.env.MFL_DEMO_MODE = 'false';
+process.env.ROTOBALLER_FEED_URL = 'https://feed.rotoballer.com/nfl';
 
 const mfl = require('../../src/lib/mfl');
 
@@ -15,10 +16,12 @@ const PLAYERS = [
   { id: '11', name: 'Williams, Mike', position: 'WR', team: 'CCC' }, // namesake
   { id: '12', name: 'Jefferson, Justin', position: 'WR', team: 'DDD' },
 ];
-const ESPN_ARTICLES = [
-  { id: 'a1', headline: 'Mike Williams questionable', description: '', categories: [{ type: 'athlete', athlete: { displayName: 'Mike Williams' } }] },
-  { id: 'a2', headline: 'Justin Jefferson ruled out', description: '', categories: [{ type: 'athlete', athlete: { displayName: 'Justin Jefferson' } }] },
-];
+// RotoBaller partner feed (RSS): player name embedded in the item title, and tagged
+// explicitly via <player>. The namesake "Mike Williams" must be dropped, not guessed.
+const RB_RSS = `<?xml version="1.0"?><rss version="2.0"><channel>
+  <item><title>Mike Williams questionable</title><player>Mike Williams</player><link>https://www.rotoballer.com/a1</link></item>
+  <item><title>Justin Jefferson ruled out</title><player>Justin Jefferson</player><link>https://www.rotoballer.com/a2</link></item>
+</channel></rss>`;
 
 mfl.exportRequest = async (type, opts = {}) => {
   switch (type) {
@@ -45,9 +48,9 @@ mfl.exportRequest = async (type, opts = {}) => {
   }
 };
 global.fetch = async (url) => {
-  if (String(url).includes('fantasycalc')) return { ok: true, json: async () => [{ player: { mflId: '1', sleeperId: 's1', maybeAge: 25 }, value: 9000, overallRank: 1 }] };
-  if (String(url).includes('espn')) return { ok: true, json: async () => ({ articles: ESPN_ARTICLES }) };
-  return { ok: true, json: async () => [] };
+  if (String(url).includes('fantasycalc')) return { ok: true, headers: { get: () => 'application/json' }, json: async () => [{ player: { mflId: '1', sleeperId: 's1', maybeAge: 25 }, value: 9000, overallRank: 1 }] };
+  if (String(url).includes('rotoballer')) return { ok: true, headers: { get: () => 'application/rss+xml' }, text: async () => RB_RSS };
+  return { ok: true, headers: { get: () => 'application/json' }, json: async () => [] };
 };
 
 const enrichment = require('../../src/lib/enrichment');
@@ -71,7 +74,7 @@ const LG = { leagueId: 'L1', host: 'h', franchiseId: '0001' };
   console.log('news items:', JSON.stringify(items.map((i) => i.playerId)));
   assert(items.length === 1 && items[0].playerId === '12', 'only the unambiguous Jefferson news is kept');
   assert(!items.some((i) => i.playerId === '10' || i.playerId === '11'), 'ambiguous "Mike Williams" not mis-attributed');
-  console.log('✓ #18 ESPN news skips ambiguous namesakes');
+  console.log('✓ #18 RotoBaller news skips ambiguous namesakes');
 
   // #19 — acquired pick uses originalPickFor; own pick falls back to franchise.
   const fp = await picks.franchisePicks(CK, LG);

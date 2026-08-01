@@ -14,6 +14,7 @@ import {
   Platform,
 } from 'react-native';
 import { appAlert } from "../components/AppAlert";
+import { useRequirePro } from '../entitlement';
 import { api } from '../api';
 import { waiversOverviewPreferDevice } from '../mflDevice';
 import { colors, positionColors, size } from '../theme';
@@ -22,6 +23,7 @@ import AvailabilityBadge from '../components/AvailabilityBadge';
 import ValueDelta from '../components/ValueDelta';
 import { toast } from '../components/Toast';
 import ErrorView from '../components/ErrorView';
+import NavTools from '../components/NavTools';
 import Reveal from '../components/Reveal';
 import Pulse from '../components/Pulse';
 import NeonSign from '../components/NeonSign';
@@ -66,19 +68,22 @@ export default function WaiversScreen({ active = true, initialLeagueId, initialP
   // Landing overview via the shared hook: instant paint on remount (survives the tab-switch
   // unmount), throttled reloads, and it keeps the list on a failed refresh. `loadOverview`
   // (reload) is also called after a claim to reflect it immediately.
-  const { data: overview, error: overviewError, refreshing: ovRefreshing, reload: loadOverview } = useCachedResource('waivers:overview', () => waiversOverviewPreferDevice(), { active });
+  const { data: overview, error: overviewError, refreshing: ovRefreshing, reload: loadOverview, refetch: refetchOverview } = useCachedResource('waivers:overview', () => waiversOverviewPreferDevice(), { active });
   // Auto-heal a per-league "could not load waiver settings" (a transient throttle): if any card came
-  // back with an error, silently re-pull the overview a few times with backoff — the league that lost
-  // the throttle race usually wins it on a later attempt. Resets once the errors clear, so it never
-  // loops forever on a genuine outage.
+  // back with an error, SILENTLY re-pull the overview a few times with backoff — the league that lost
+  // the throttle race usually wins it on a later attempt (and now that the backend serves overview
+  // settings from cache, the re-pull resolves stragglers without re-bursting near-live reads). Uses the
+  // silent refetch, NOT loadOverview: a self-heal must not flip the pull-to-refresh spinner, or the
+  // background retry reads as a stuck "spinner over the top" load the user never started. Resets once
+  // the errors clear, so it never loops forever on a genuine outage.
   const ovRetry = useRef(0);
   useEffect(() => {
     const hasErr = !!(overview && overview.leagues && overview.leagues.some((l) => l.error));
     if (!hasErr) { ovRetry.current = 0; return undefined; }
     if (ovRetry.current >= 3) return undefined;
-    const t = setTimeout(() => { ovRetry.current += 1; loadOverview(); }, 1500 * (ovRetry.current + 1));
+    const t = setTimeout(() => { ovRetry.current += 1; refetchOverview(); }, 1500 * (ovRetry.current + 1));
     return () => clearTimeout(t);
-  }, [overview, loadOverview]);
+  }, [overview, refetchOverview]);
   // Pending claims go through the same cached hook so switching to the Pending tab paints the last
   // snapshot INSTANTLY (the screen unmounts on every tab switch, so a bare fetch showed a cold
   // full-screen spinner every single time). It revalidates in the background and after a claim.
@@ -213,6 +218,7 @@ export default function WaiversScreen({ active = true, initialLeagueId, initialP
   return (
     <View style={styles.container}>
       <View style={styles.header}>
+        <View pointerEvents="box-none" style={{ position: 'absolute', right: 20, top: 8, zIndex: 5 }}><NavTools active={active} /></View>
         <ScreenTitle focused={active}>Waivers</ScreenTitle>
         {summary && !openLeagueId ? (
           <Text style={styles.subtitle}>
@@ -648,6 +654,7 @@ function PendingView({ pending, onCancel, onOpenPlayer }) {
 }
 
 function ClaimSheet({ leagueId, addId, onClose, onOpenLineup, onDone }) {
+  const requirePro = useRequirePro();
   const [preview, setPreview] = useState(null);
   const [bench, setBench] = useState([]);
   const [dropId, setDropId] = useState(null);
@@ -694,6 +701,7 @@ function ClaimSheet({ leagueId, addId, onClose, onOpenLineup, onDone }) {
   }
 
   async function doSubmit() {
+    if (!requirePro('waivers.file')) return; // Pro gate (inert until enforced)
     setBusy(true);
     try {
       const body = { addId };

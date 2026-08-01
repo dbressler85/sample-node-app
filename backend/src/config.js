@@ -137,6 +137,27 @@ const config = {
   // feed the numbers. Set MFL_ADP_IS_KEEPER=NKR to restore MFL's mixed default.
   mflAdpIsKeeper: process.env.MFL_ADP_IS_KEEPER || 'KR',
 
+  // Player news feed (RotoBaller). RotoBaller licenses its fantasy player-news feed to partners
+  // (XML/RSS or JSON) for embedding in apps — commercial use is permitted under that partnership,
+  // with attribution + a link back to rotoballer.com (the app shows a tappable "News · RotoBaller"
+  // credit and each item deep-links to the source). The partner feed URL is account-specific and
+  // may embed a partner key, so it is NEVER committed — set ROTOBALLER_FEED_URL in the host env
+  // (Render dashboard). When unset, live news is simply empty (we do NOT silently fall back to an
+  // unlicensed source); DEMO mode always uses the local fixture regardless. Optional overrides let
+  // you point at a differently-shaped feed without a code change.
+  newsFeedUrl: process.env.ROTOBALLER_FEED_URL || null,
+  // How long to cache the fetched feed. News moves faster than dynasty values, so keep it short.
+  newsCacheTtlMs: int(process.env.NEWS_CACHE_TTL_MS, 20 * 60 * 1000),
+
+  // Accounts comped to full Pro access, by MFL username — so the owner (and any friends you want to
+  // grant) never have to subscribe to their own app. Comma-separated, case-insensitive; surfaced on
+  // /api/me as `pro:true` and honored by the app's entitlement layer. Dashboard-managed, so you can
+  // comp someone without an app rebuild. Example: PRO_WHITELIST="dbressler85,buddy".
+  proWhitelist: (process.env.PRO_WHITELIST || '')
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean),
+
   // A league's next waiver run counts as an imminent, act-now item within this window — it
   // surfaces as a Home action and a highlight on the Waivers screen. Default 3 days: tight enough
   // for the in-season cadence (where the window closes fast) and still fine in the offseason.
@@ -200,6 +221,18 @@ const config = {
   // is in ms. (Health checks and the default are exempt/looser — see app.js.)
   rateLimitWindowMs: int(process.env.RATE_LIMIT_WINDOW_MS, 60 * 1000),
   rateLimitMax: int(process.env.RATE_LIMIT_MAX, 600),
+
+  // Beta bug reports (routes/bugReport.js). The DESTINATION address lives ONLY here (a server env var) —
+  // it is never sent to the client, so the app can be inspected end-to-end without revealing a personal
+  // inbox. Two optional transports; whichever is set is used (webhook preferred), else the report is
+  // persisted server-side as a fallback so nothing is lost:
+  //   • BUG_REPORT_WEBHOOK — an HTTPS endpoint we POST the report JSON to (e.g. a webhook→email relay).
+  //   • BUG_SMTP_URL + BUG_REPORT_TO — an SMTP connection string + the inbox to email (via nodemailer).
+  // BUG_REPORT_FROM is the optional From address (defaults to BUG_REPORT_TO). NONE are ever committed.
+  bugReportTo: process.env.BUG_REPORT_TO || null,
+  bugReportFrom: process.env.BUG_REPORT_FROM || null,
+  bugSmtpUrl: process.env.BUG_SMTP_URL || null,
+  bugReportWebhook: process.env.BUG_REPORT_WEBHOOK || null,
 };
 
 module.exports = config;

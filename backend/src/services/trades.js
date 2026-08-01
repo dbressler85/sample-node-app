@@ -427,11 +427,18 @@ async function getOverview(cookie, token) {
         } catch (e) { /* value-only */ }
         return { offers, fit, leagueId: String(league.leagueId) };
       } catch (e) {
-        return { offers: [], fit: null, leagueId: String(league.leagueId) };
+        // A throttled read here is NOT "no offers here." Returning an empty, unmarked group conflated
+        // the two, silently hiding a REAL pending offer (and its expiry) from the inbox, On Deck, and
+        // the push — the exact "a 429 reads as no data" LESSON. Mark the league `failed` and log it so
+        // the count reflects only what loaded and the client can say "couldn't check N leagues" and
+        // retry, instead of understating the inbox to zero. (portfolio/exposure/drafts already do this.)
+        logDegrade(`trades.getOverview league=${league.leagueId}`, e);
+        return { offers: [], fit: null, leagueId: String(league.leagueId), failed: true };
       }
     })
   );
   const offers = groups.flatMap((g) => g.offers).filter((o) => o.direction === 'incoming');
+  const failedLeagues = groups.filter((g) => g.failed).length;
   const fitByLeague = new Map(groups.map((g) => [g.leagueId, g.fit]));
   return {
     offers,
@@ -440,6 +447,11 @@ async function getOverview(cookie, token) {
     leagues: leagues.map((l) => ({ leagueId: l.leagueId, name: l.name, fit: fitByLeague.get(String(l.leagueId)) || null })),
     // Advisory-only timing nudge (draft season vs in-season) — doesn't touch any value.
     seasonal: season.advisory(),
+    // Honesty on a throttled fan-out: `count` covers only the leagues whose inbox actually loaded, so
+    // expose partiality (mirrors dashboard/exposure) rather than implying a possibly-understated zero.
+    partial: failedLeagues > 0,
+    leaguesLoaded: leagues.length - failedLeagues,
+    leagueCount: leagues.length,
     summary: {
       count: offers.length,
       favorable: offers.filter((o) => o.analysis.verdict === 'favorable').length,
@@ -469,7 +481,14 @@ async function tradeData(cookie, token, leagueId) {
     (config.demoMode ? Promise.resolve(demo.standings(leagueId)) : mflRepo.standings(league, cookie)).catch(() => null),
   ]);
 
-  const myPlayersAll = [...(roster.starters || []), ...(roster.bench || [])];
+  // Include the WHOLE roster — starters, bench, IR, AND taxi — in the positional model. Partners'
+  // rosters (pt.roster, below) are MFL's full franchise id-list, so they already count taxi/IR bodies;
+  // building MY franchise from starters+bench only was an asymmetry that undercounted my own depth.
+  // In dynasty that mostly bites TE/QB: a manager stashes rookie or backup TEs on the TAXI squad, so
+  // if the active starter is the one in a deal, the model saw "1 TE" and cried "no startable TE — don't
+  // do it" even with two more TEs on taxi. Counting the full roster (like partners') fixes hole
+  // detection to match the roster the owner actually has.
+  const myPlayersAll = [...(roster.starters || []), ...(roster.bench || []), ...(roster.ir || []), ...(roster.taxi || [])];
   // Every franchise's players as { id, position, value, age } — value+age drive the
   // needs/surplus model AND the per-team dynasty outlook / average age below.
   const franchises = [
@@ -631,7 +650,10 @@ async function suggestFor(cookie, token, leagueId, targetId, partnerFranchiseId)
   const myBait = baitMap.get(String(league.franchiseId)) || new Set();
   const mine = [...roster.starters, ...roster.bench]
     .map((p) => ({ id: p.id, name: p.name, position: p.position, value: enr.value(p.id) || 0, tag: playerTags.get(token, p.id) }));
-  const give = tradefit.suggestGive(mine, targetValue, partnerNeeds, myBait);
+  // Pass MY franchise's needs/surplus/depth so the package is drawn from my depth, not my scarcity
+  // (e.g. offer a spare TE the partner needs, not my only-four-deep WR).
+  const myCtx = ns[String(league.franchiseId)] || null;
+  const give = tradefit.suggestGive(mine, targetValue, partnerNeeds, myBait, myCtx);
   return {
     leagueId: league.leagueId,
     targetId: tid,
@@ -781,7 +803,7 @@ async function fullDealFor(cookie, token, leagueId, partnerFranchiseId) {
 
   let best = null;
   for (const target of candidates) {
-    const give = tradefit.suggestGive(mine.filter((m) => String(m.id) !== String(target.id)), target.value || 0, partnerNeeds, myBait);
+    const give = tradefit.suggestGive(mine.filter((m) => String(m.id) !== String(target.id)), target.value || 0, partnerNeeds, myBait, ns[myFid] || null);
     if (!give.length) continue;
     const score = dealScore(target, give);
     if (!best || score > best.score) best = { target, give, score };

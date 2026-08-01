@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, FlatList, StyleSheet, Pressable, RefreshControl, ActivityIndicator } from 'react-native';
-import { api } from '../api';
+import { api, bg } from '../api';
 import { draftsPreferDevice, leagueTriagePreferDevice, portfolioPreferDevice, bestAvailablePreferDevice } from '../mflDevice';
 import { getValue, setValue, onCacheInvalidate } from '../cache';
 import { primeResource } from '../useCachedResource';
@@ -10,9 +10,9 @@ import { ScreenTitle } from '../components/Brand';
 import Pulse from '../components/Pulse';
 import PressableScale from '../components/PressableScale';
 import AnimatedNumber from '../components/AnimatedNumber';
-import GearIcon from '../components/GearIcon';
+import NavTools from '../components/NavTools';
 import NeonSign from '../components/NeonSign';
-import InfoDot from '../components/InfoDot';
+import OutlookDonut from '../components/OutlookDonut';
 
 const CONCURRENCY = 4;
 // Background-warm concurrency: deliberately LOW (2, vs the 4 the visible cards get) so the after-cards
@@ -121,7 +121,12 @@ let refreshInFlight = false; // guards the fan-out across remounts (a per-mount 
 // visible cards stall ("Updating 0/15" frozen for 30s+). Bumping this on each warmHome makes the old
 // queue's workers bail before their next read, handing budget back to the new visible fan-out.
 let warmGen = 0;
-const HOME_STALE_MS = 45 * 1000;
+// How long the cross-league Home triage stays "fresh" before a passive return (from an overlay/tab)
+// re-fans-out all your leagues. Kept generous — dynasty triage doesn't change second to second, and
+// any ACTION you take (set lineup, file claim, make a pick) resets this to 0 via onCacheInvalidate, so
+// post-action returns still refresh immediately. Only idle back-and-forth navigation is spared the
+// full fan-out (it just repaints the cached Home). Matches the backend roster cache TTL (5m).
+const HOME_STALE_MS = 5 * 60 * 1000;
 
 // After any write, mark Home's snapshot stale so returning to it refetches the triage rather
 // than showing pre-action state through the throttle (keep the values for an instant paint).
@@ -174,7 +179,10 @@ export async function warmHome() {
   const myGen = warmGen;
   patchHome({ busy: true, error: null });
   try {
-    const res = await api.leaguesList();
+    // Fix A: the whole Home warm runs at LOW MFL priority — when nothing competes it drains at full
+    // speed (LOW fully uses idle capacity), but the instant the user taps into a task, that screen's
+    // NORMAL reads preempt the queued warm instead of waiting behind this 15-league sweep.
+    const res = await bg(() => api.leaguesList());
     // Home reflects all of the account's leagues, already pinned-first from the server.
     const list = (res.leagues || []).map((l) => ({ leagueId: l.leagueId, name: l.name }));
     patchHome({ leagues: list });
@@ -186,15 +194,18 @@ export async function warmHome() {
     // they take the cold path and re-run the whole cross-league fan-out seconds after Home already did.
     // Capture drafts + On Deck so the warm queue below can pre-warm the SPECIFIC boards you're most
     // likely to tap next (the on-the-clock draft, an imminent waiver run), not just the generic tabs.
-    const draftsP = draftsPreferDevice().then((d) => { const f = sortHomeDrafts((d.drafts || []).filter(isDraftActionable)); patchHome({ drafts: f }); setValue('drafts', d); primeResource('drafts', d); return d; }).catch(() => null);
-    const onDeckP = api.onDeck().then((d) => { patchHome({ onDeck: d }); setValue('ondeck', d); primeResource('ondeck', d); return d; }).catch(() => null);
-    api.watchlistAlerts().then((r) => { patchHome({ watchAlerts: r.alerts || [] }); }).catch(() => {});
+    const draftsP = draftsPreferDevice(true).then((d) => { const f = sortHomeDrafts((d.drafts || []).filter(isDraftActionable)); patchHome({ drafts: f }); setValue('drafts', d); primeResource('drafts', d); return d; }).catch(() => null);
+    const onDeckP = bg(() => api.onDeck()).then((d) => { patchHome({ onDeck: d }); setValue('ondeck', d); primeResource('ondeck', d); return d; }).catch(() => null);
+    bg(() => api.watchlistAlerts()).then((r) => { patchHome({ watchAlerts: r.alerts || [] }); }).catch(() => {});
 
-    patchHome({ progress: { done: 0, total: list.length } });
-    const collected = {};
+    // Seed from the last-known statuses so a RE-fan-out (returning to Home) revalidates IN PLACE —
+    // each league's tile/outlook updates as its fresh read lands, and nothing ever drops back to a
+    // blank/zero state mid-refresh. Cold start (no prior statuses) seeds empty and fills 0→N as before.
+    const collected = { ...(homeCache.statuses || {}) };
+    patchHome({ progress: { done: Object.keys(collected).length, total: list.length } });
     await runPool(list, CONCURRENCY, async (lg) => {
       try {
-        const t = await leagueTriagePreferDevice(lg.leagueId);
+        const t = await leagueTriagePreferDevice(lg.leagueId, true);
         collected[lg.leagueId] = { name: t.name, status: t.status, items: t.items, phase: t.phase, dynasty: t.dynasty, tradeDeadline: t.tradeDeadline };
       } catch (e) {
         collected[lg.leagueId] = { name: lg.name, status: 'error', items: [] };
@@ -219,18 +230,20 @@ export async function warmHome() {
     const actionable = draftsData ? (draftsData.drafts || []).filter(isDraftActionable) : [];
     const deckItems = (onDeckData && onDeckData.items) || [];
     const warms = [];
-    const pushDraft = (d) => warms.push({ key: `draft:${d.leagueId}`, run: () => api.leagueDraft(d.leagueId) });
+    // Every warm-queue read is speculative ("warm the next tap"), so all run at LOW priority too — a
+    // real tap on any of these boards preempts the queue and gets its NORMAL read served first.
+    const pushDraft = (d) => warms.push({ key: `draft:${d.leagueId}`, run: () => bg(() => api.leagueDraft(d.leagueId)) });
     actionable.filter((d) => d.myOnClock).forEach(pushDraft); // 1) on the clock → THE next tap
     for (const it of deckItems.filter((i) => i.type === 'waiver_run' && i.replacements)) { // 2) imminent waiver runs
       const r = it.replacements;
       const position = r.positions && r.positions.length === 1 ? r.positions[0] : null;
       const sort = r.sort || 'projection';
-      warms.push({ key: `waivers:board:${r.leagueId}:${position || 'all'}:${sort}`, run: () => api.waiverBoard(r.leagueId, { position, sort }) });
+      warms.push({ key: `waivers:board:${r.leagueId}:${position || 'all'}:${sort}`, run: () => bg(() => api.waiverBoard(r.leagueId, { position, sort })) });
     }
-    warms.push({ key: 'players:rankings:value:all:1qb:std', run: () => api.playerRankings('value', null, '1qb') }); // 3) most-browsed tab
+    warms.push({ key: 'players:rankings:value:all:1qb:std', run: () => bg(() => api.playerRankings('value', null, '1qb')) }); // 3) most-browsed tab
     actionable.filter((d) => !d.myOnClock && d.status === 'in_progress').forEach(pushDraft); // 4) other live drafts
-    warms.push({ key: 'portfolio', run: () => portfolioPreferDevice() }); // 5) steady dashboards, last
-    warms.push({ key: 'players:free', run: () => bestAvailablePreferDevice() });
+    warms.push({ key: 'portfolio', run: () => portfolioPreferDevice(true) }); // 5) steady dashboards, last
+    warms.push({ key: 'players:free', run: () => bestAvailablePreferDevice(undefined, undefined, true) });
     const seen = new Set();
     const queue = warms.filter((w) => (seen.has(w.key) ? false : seen.add(w.key))); // de-dupe by key
     // Fire-and-forget (not awaited) so warmHome finishes as soon as the cards are done; the queue keeps
@@ -248,7 +261,7 @@ export async function warmHome() {
   }
 }
 
-export default function HomeScreen({ active = true, demoMode, onOpenLineup, onOpenLeague, onOpenLeagues, onOpenPortfolio, onOpenWaivers, onOpenTrades, onOpenTradeInbox, onOpenDraft, onOpenDraftHub, onOpenOnDeck, onOpenPlayer, onOpenSettings, onOpenProfile, onLogout }) {
+export default function HomeScreen({ active = true, demoMode, onOpenLineup, onOpenLeague, onOpenLeagues, onOpenPortfolio, onOpenWaivers, onOpenTrades, onOpenTradeInbox, onOpenDraft, onOpenDraftHub, onOpenOnDeck, onOpenPlayer }) {
   const [leagues, setLeagues] = useState(homeCache.leagues || []);
   const [statuses, setStatuses] = useState(homeCache.statuses || {}); // leagueId -> { name, status, items }
   const [drafts, setDrafts] = useState(homeCache.drafts || []); // only ACTIONABLE drafts (on the clock / live / imminent)
@@ -393,19 +406,7 @@ export default function HomeScreen({ active = true, demoMode, onOpenLineup, onOp
               : `${portfolio.leagues} leagues${phase === 'offseason' ? ' · Offseason' : ''}${demoMode ? ' · DEMO' : ''}`}
           </Text>
         </View>
-        <View style={styles.topActions}>
-          {onOpenSettings ? (
-            <Pressable onPress={onOpenSettings} hitSlop={10} accessibilityLabel="Settings" style={styles.gearBtn}>
-              <GearIcon size={22} />
-            </Pressable>
-          ) : null}
-          {onOpenProfile ? (
-            <Pressable onPress={onOpenProfile} hitSlop={10} accessibilityLabel="Profile" style={styles.avatarBtn}>
-              <View style={styles.avatarHead} />
-              <View style={styles.avatarBody} />
-            </Pressable>
-          ) : null}
-        </View>
+        <NavTools active={active} />
       </View>
 
       <FlatList
@@ -564,35 +565,66 @@ function Portfolio({ p, phase, loading, onLeagues, onPortfolio, onOpenOnDeck, on
           onPress={onOpenOnDeck}
         />
       </View>
-      <PressableScale style={styles.portfolioLink} onPress={onPortfolio}>
-        <Text style={styles.portfolioLinkText}>Portfolio · understand your holdings</Text>
-        <Text style={styles.teamChev}>›</Text>
-      </PressableScale>
-      <View style={styles.chips}>
-        {offseason ? (
-          <>
-            {/* Team-outlook breakdown, tap any to open the portfolio detail. Trades and
-                Waivers used to live here too — dropped as redundant with the trade
-                inbox row below and the bottom-nav tabs. */}
-            <Chip label="Win now" value={p.contenders} loading={loading} onPress={onPortfolio} />
-            <Chip label="Ascending" value={p.ascending} loading={loading} onPress={onPortfolio} />
-            <Chip label="Balanced" value={p.balanced} loading={loading} onPress={onPortfolio} />
-            <Chip label="Rebuilding" value={p.rebuilding} loading={loading} onPress={onPortfolio} />
-            {/* Leagues whose roster couldn't be read this pass — shown so the four buckets visibly
-                reconcile to the league count instead of summing short. Tap opens the portfolio, where the
-                unread leagues are listed by name. */}
-            {p.outlookUnknown > 0 ? <Chip label="Unread" value={p.outlookUnknown} loading={loading} onPress={onPortfolio} /> : null}
-            <View style={styles.chipInfo}><InfoDot id="outlook" size={16} /></View>
-          </>
+      {/* Portfolio glance: the team-outlook distribution as a donut, tapping anywhere into the
+          Portfolio. Replaces the old text banner + the row of per-mode count chips. */}
+      <PortfolioCard p={p} loading={loading} onPortfolio={onPortfolio} />
+      {/* In-season, keep the urgent action counts (these aren't outlook "modes"). */}
+      {!offseason ? (
+        <View style={styles.chips}>
+          <Chip label="Lineups to set" value={p.lineupsToSet} warn={p.lineupsToSet > 0} loading={loading} />
+          <Chip label="Holes" value={p.holes} bad={p.holes > 0} loading={loading} />
+          <Chip label="Injuries" value={p.injuries} bad={p.injuries > 0} loading={loading} />
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+// The team-outlook modes, in the CVD-validated categorical order (see OutlookDonut / PortfolioScreen).
+const HOME_MODES = [
+  { key: 'contenders', label: 'Win now', color: colors.warn },
+  { key: 'ascending', label: 'Ascending', color: colors.good },
+  { key: 'balanced', label: 'Balanced', color: colors.accent },
+  { key: 'rebuilding', label: 'Rebuilding', color: colors.bad },
+];
+
+// Portfolio glance card: outlook-distribution donut + legend + "understand your holdings" caption; the
+// whole tile taps into the Portfolio. Replaces the old banner + per-mode count chips.
+function PortfolioCard({ p, loading, onPortfolio }) {
+  const segments = HOME_MODES.map((m) => ({ key: m.key, color: m.color, value: p[m.key] || 0 }));
+  const resolved = segments.reduce((s, x) => s + x.value, 0);
+  const unread = p.outlookUnknown || 0;
+  // Show the distribution once EVERY league is in, and KEEP showing it during a background refresh —
+  // gating on data-completeness (not the `loading` flag) so returning to Home doesn't blank a donut
+  // that's already complete. A genuinely partial/first load stays on the placeholder.
+  const ready = unread === 0 && resolved > 0;
+  return (
+    <PressableScale style={styles.portCard} onPress={onPortfolio} accessibilityRole="button" accessibilityLabel="Open your portfolio">
+      {ready ? (
+        <OutlookDonut segments={segments} size={92} stroke={14} centerTop={resolved} centerBottom={resolved === 1 ? 'team' : 'teams'} />
+      ) : (
+        <View style={styles.portDonutLoading}><ActivityIndicator color={colors.accent} /></View>
+      )}
+      <View style={styles.portCardBody}>
+        <Text style={styles.portCardTitle}>Portfolio</Text>
+        <Text style={styles.portCardSub}>Understand your holdings ›</Text>
+        {ready ? (
+          <View style={styles.portLegend}>
+            {HOME_MODES.map((m) => (
+              <View key={m.key} style={styles.portLegendItem}>
+                <View style={[styles.portLegendDot, { backgroundColor: m.color }]} />
+                <Text style={styles.portLegendLabel} numberOfLines={1}>{m.label}</Text>
+                <Text style={styles.portLegendCount}>{p[m.key] || 0}</Text>
+              </View>
+            ))}
+          </View>
         ) : (
-          <>
-            <Chip label="Lineups to set" value={p.lineupsToSet} warn={p.lineupsToSet > 0} loading={loading} />
-            <Chip label="Holes" value={p.holes} bad={p.holes > 0} loading={loading} />
-            <Chip label="Injuries" value={p.injuries} bad={p.injuries > 0} loading={loading} />
-          </>
+          <Text style={styles.portUnread}>
+            {loading ? 'Building your outlook across your leagues…' : `${Math.max(0, p.leagues - unread)} of ${p.leagues} leagues loaded — pull to refresh`}
+          </Text>
         )}
       </View>
-    </View>
+    </PressableScale>
   );
 }
 
@@ -649,14 +681,6 @@ const styles = StyleSheet.create({
   topbar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8 },
   title: { color: colors.text, fontSize: 26, fontWeight: '900' },
   subtitle: { color: colors.textDim, fontSize: 13, marginTop: 2 },
-  topActions: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  gearBtn: { padding: 2 },
-  // A minimalist person silhouette (head + shoulders) clipped into a gold-ringed circle —
-  // the account entry point, drawn from plain views so it needs no asset or username.
-  avatarBtn: { width: 30, height: 30, borderRadius: 15, borderWidth: 1.5, borderColor: colors.accent, backgroundColor: colors.accent + '18', alignItems: 'center', justifyContent: 'flex-end', overflow: 'hidden' },
-  avatarHead: { width: 9, height: 9, borderRadius: 4.5, backgroundColor: colors.accent, marginBottom: 1.5 },
-  avatarBody: { width: 17, height: 10, borderTopLeftRadius: 9, borderTopRightRadius: 9, backgroundColor: colors.accent },
-  logout: { color: colors.accent, fontSize: 14, fontWeight: '600' },
   list: { paddingHorizontal: 16, paddingBottom: 32 },
   portfolio: { marginBottom: 4 },
   tileRow: { flexDirection: 'row', gap: 12 },
@@ -691,6 +715,17 @@ const styles = StyleSheet.create({
   allLeaguesText: { color: colors.accent, fontSize: 15, fontWeight: '800' },
   portfolioLink: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 16, paddingVertical: 13, marginTop: 10 },
   portfolioLinkText: { color: colors.accent, fontSize: 14, fontWeight: '800' },
+  portCard: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: colors.card, borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 14, marginTop: 10 },
+  portDonutLoading: { width: 92, height: 92, alignItems: 'center', justifyContent: 'center' },
+  portCardBody: { flex: 1 },
+  portCardTitle: { color: colors.text, fontSize: 16, fontWeight: '900' },
+  portCardSub: { color: colors.accent, fontSize: 13, fontWeight: '700', marginTop: 1, marginBottom: 8 },
+  portLegend: { flexDirection: 'row', flexWrap: 'wrap' },
+  portLegendItem: { flexDirection: 'row', alignItems: 'center', gap: 6, width: '50%', paddingVertical: 3 },
+  portLegendDot: { width: 9, height: 9, borderRadius: 4.5 },
+  portLegendLabel: { color: colors.textDim, fontSize: 12, fontWeight: '600', flex: 1 },
+  portLegendCount: { color: colors.text, fontSize: 13, fontWeight: '900', marginRight: 8 },
+  portUnread: { color: colors.textDim, fontSize: 11, fontWeight: '600', marginTop: 6 },
   teamName: { color: colors.text, fontSize: 15, fontWeight: '700', marginRight: 10 },
   teamSub: { color: colors.textDim, fontSize: 12, marginTop: 3 },
   onDeckRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 15, marginBottom: 14 },

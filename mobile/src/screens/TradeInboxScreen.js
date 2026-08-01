@@ -1,8 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, FlatList, RefreshControl, ActivityIndicator } from 'react-native';
 import { appAlert } from "../components/AppAlert";
+import { useRequirePro } from '../entitlement';
 import { api } from '../api';
 import { ScreenTitle } from '../components/Brand';
+import NavTools from '../components/NavTools';
 import useCachedResource from '../useCachedResource';
 import { getValue, setValue } from '../cache';
 import { colors, positionColors } from '../theme';
@@ -41,6 +43,7 @@ const teamCtx = (t) => {
 };
 
 export default function TradeInboxScreen({ active = true, onBack, onOpenLeague, onProposeInLeague, onOpenBlock, onCounter, onManualCounter, onOpenPlayer }) {
+  const requirePro = useRequirePro();
   // Offers via the shared hook: instant paint on remount (survives the tab-switch unmount),
   // throttled reloads, non-destructive on a failed refresh. Same 'trades:overview' key the
   // idle prefetch warms. `reload` refetches after responding to an offer / pull-to-refresh.
@@ -125,6 +128,8 @@ export default function TradeInboxScreen({ active = true, onBack, onOpenLeague, 
   }, [data, fitSeeded, fitByLeague, pumpFits]);
 
   async function doRespond(offer, action) {
+    // Accepting a trade is a Pro action; declining/withdrawing stays free. (Inert until enforced.)
+    if (action === 'accept' && !requirePro('trades.propose')) return;
     const k = `${offer.leagueId}:${offer.id}`;
     setBusy(k);
     try {
@@ -210,11 +215,14 @@ export default function TradeInboxScreen({ active = true, onBack, onOpenLeague, 
           other main-nav tabs (Command Center / Players / Waivers / Lineups / Scoreboard). */}
       <View style={styles.topbar}>
         <ScreenTitle focused={active}>Trades</ScreenTitle>
-        {onOpenBlock ? (
-          <Pressable onPress={onOpenBlock} hitSlop={10}>
-            <Text style={styles.blockLink}>⇄ Block</Text>
-          </Pressable>
-        ) : null}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+          {onOpenBlock ? (
+            <Pressable onPress={onOpenBlock} hitSlop={10}>
+              <Text style={styles.blockLink}>⇄ Block</Text>
+            </Pressable>
+          ) : null}
+          <NavTools active={active} />
+        </View>
       </View>
       {summary ? (
         <Text style={styles.subtitle}>

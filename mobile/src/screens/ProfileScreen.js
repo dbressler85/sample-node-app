@@ -1,45 +1,70 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, Pressable, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Pressable, RefreshControl, Linking } from 'react-native';
+import Constants from 'expo-constants';
 import { api } from '../api';
-import { colors } from '../theme';
+import { colors, rgb, glow } from '../theme';
 import { displayLabel } from '../typography';
+import { LEGAL } from '../config';
+import { useEntitlement } from '../entitlement';
+import { presentPaywall } from '../entitlement/paywallBus';
 import { TopbarTitle } from '../components/Brand';
+import { appAlert } from '../components/AppAlert';
 import useAndroidBack from '../useAndroidBack';
 import { peekResource, primeResource } from '../useCachedResource';
-import Sparkline from '../components/Sparkline';
 import NeonSign from '../components/NeonSign';
+import ValueCredit from '../components/ValueCredit';
+import NewsCredit from '../components/NewsCredit';
 
-// The signed-in manager's home base: who you are, your portfolio at a glance, the shape of
-// your leagues (outlook mix), your personal activity (tags / watchlist), and the account
-// actions. Identity loads instantly from /api/me; the value + outlook + activity fill in from
-// the (client-cached) portfolio and watchlist reads, so the card is never blank while loading.
-export default function ProfileScreen({ onBack, onOpenPortfolio, onOpenSettings, onOpenHelp, onOpenPlayer, onOpenTrophies, onLogout }) {
-  // Seed identity (+ the portfolio glance) from cache so re-opening Profile — an overlay that unmounts
-  // on back — paints the card instantly instead of a full-screen spinner. `me` gates the screen.
+const APP_VERSION = (Constants.expoConfig && Constants.expoConfig.version) || null;
+
+// The signed-in manager's home base — identity, not a second dashboard. A dynasty RÉSUMÉ (titles ·
+// leagues · value), a TROPHY showcase, your personal activity (tags/watchlist), Pro, and the account +
+// legal actions. The portfolio value TREND lives on the Portfolio screen; the outlook mix lives on Home
+// + Portfolio Teams — Profile shows neither, so it stays a "who I am + my account" page.
+export default function ProfileScreen({ onBack, onOpenPortfolio, onOpenSettings, onOpenHelp, onOpenTrophies, onLogout }) {
   const [me, setMe] = useState(() => { const h = peekResource('me'); return h ? h.value : null; });
   const [port, setPort] = useState(() => { const h = peekResource('portfolio'); return h ? h.value : null; });
+  const [trophies, setTrophies] = useState(null);
   const [watchCount, setWatchCount] = useState(null);
   const [error, setError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const ent = useEntitlement();
 
   useAndroidBack(useCallback(() => { onBack(); return true; }, [onBack]));
 
   const load = useCallback(() => {
     api.me().then((m) => { setMe(m); primeResource('me', m); }).catch((e) => setError(e.message));
-    api.portfolio().then(setPort).catch(() => {}); // read-only for the glance; the Portfolio tab owns its cache
+    api.portfolio().then(setPort).catch(() => {}); // read-only for the value stat; the Portfolio tab owns its cache
+    api.trophies().then(setTrophies).catch(() => {});
     api.watchlist().then((w) => setWatchCount((w.players || []).length)).catch(() => {});
     setRefreshing(false);
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  // NEVER gate the whole screen on the /api/me read — the account actions (esp. Log out) need no data
-  // and must be on-screen and tappable the instant Profile opens, even on a cold/slow backend. Identity
-  // and the portfolio glance fill in as they arrive; a failed /api/me shows an inline retry, not a wall.
   const name = (me && me.username) || 'Manager';
   const initials = name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 2).toUpperCase() || 'DC';
-  const mix = port && port.outlookMix;
   const tags = port && port.tags;
-  const change = port && port.change;
+  // "Championships" = titles only (place 1), NOT every podium finish — silver/bronze shouldn't inflate
+  // the title count. Fall back to total for a pre-podium cached summary that has no `titles` field.
+  const champs = trophies && trophies.summary ? (trophies.summary.titles != null ? trophies.summary.titles : trophies.summary.total) : trophies ? (trophies.trophies || []).length : null;
+  const recentTrophies = trophies ? (trophies.trophies || []).slice(0, 3) : [];
+  const totalValue = port && port.totals ? port.totals.rosterValue : null;
+  const fmt = (n) => (n == null ? '—' : n.toLocaleString());
+
+  const requestDeletion = () => {
+    appAlert(
+      'Delete your data?',
+      'This emails our support team to request deletion of the data tied to your account. (Logging out already clears your session on this device.)',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Email request',
+          onPress: () => Linking.openURL(`mailto:${LEGAL.supportEmail}?subject=${encodeURIComponent('Delete my Dynasty Central data')}&body=${encodeURIComponent('Please delete the data associated with my account.')}`).catch(() => {}),
+        },
+      ]
+    );
+  };
+  const openUrl = (url) => Linking.openURL(url).catch(() => {});
 
   return (
     <View style={styles.container}>
@@ -53,14 +78,13 @@ export default function ProfileScreen({ onBack, onOpenPortfolio, onOpenSettings,
         contentContainerStyle={styles.body}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.accent} />}
       >
-        {/* Inline, non-blocking: if identity failed to load, offer a retry without hiding the actions. */}
         {error && !me ? (
           <Pressable onPress={() => { setError(null); load(); }} style={styles.errBanner}>
             <Text style={styles.errBannerText}>Couldn’t load your profile — tap to retry.</Text>
           </Pressable>
         ) : null}
 
-        {/* Manager card — identity fills in from /api/me; a placeholder holds the layout until it lands. */}
+        {/* Manager identity */}
         <View style={styles.card}>
           <View style={styles.idRow}>
             <View style={styles.avatar}><Text style={styles.avatarText}>{me ? initials : '·'}</Text></View>
@@ -72,48 +96,38 @@ export default function ProfileScreen({ onBack, onOpenPortfolio, onOpenSettings,
           </View>
         </View>
 
-        {/* Portfolio snapshot — taps through to the full Portfolio. */}
-        <Pressable style={({ pressed }) => [styles.card, pressed && { opacity: 0.85 }]} onPress={onOpenPortfolio}>
+        {/* Dynasty résumé — the "who I am as a manager" line. Each stat taps through. */}
+        <View style={styles.statRow}>
+          <StatTile value={champs == null ? '—' : String(champs)} label={champs === 1 ? 'Championship' : 'Championships'} gold onPress={onOpenTrophies} />
+          <StatTile value={me ? String(me.leagues) : '—'} label="Leagues" onPress={onOpenPortfolio} />
+          <StatTile value={fmt(totalValue)} label="Total value" onPress={onOpenPortfolio} />
+        </View>
+
+        {/* Trophy showcase — achievements are identity, so featured here (not buried as a link). */}
+        <Pressable style={({ pressed }) => [styles.card, pressed && { opacity: 0.85 }]} onPress={onOpenTrophies} disabled={!onOpenTrophies}>
           <View style={styles.cardHeadRow}>
-            <Text style={[styles.cardTitle, displayLabel()]}>Portfolio</Text>
-            <Text style={styles.link}>View ›</Text>
+            <Text style={[styles.cardTitle, displayLabel()]}>Trophy case</Text>
+            {onOpenTrophies ? <Text style={styles.link}>{champs ? 'View all ›' : 'Open ›'}</Text> : null}
           </View>
-          {port ? (
-            <>
-              <Text style={styles.total}>{port.totals.rosterValue.toLocaleString()}</Text>
-              {change ? (
-                <Text style={[styles.change, { color: change.absolute === 0 ? colors.textDim : change.absolute > 0 ? colors.good : colors.bad }]}>
-                  {change.absolute >= 0 ? '▲' : '▼'} {change.absolute >= 0 ? '+' : '−'}{Math.abs(change.absolute).toLocaleString()} ({change.absolute >= 0 ? '+' : '−'}{Math.abs(change.pct)}%) · {change.days}d
-                </Text>
-              ) : <Text style={styles.changeFlat}>total dynasty value</Text>}
-              {port.history && port.history.length >= 2 ? (
-                <View style={styles.spark}>
-                  <Sparkline
-                    data={port.history.map((h) => h.value)}
-                    width={260}
-                    height={44}
-                    color={!change || change.absolute >= 0 ? colors.good : colors.bad}
-                  />
-                </View>
-              ) : null}
-            </>
+          {recentTrophies.length ? (
+            <View style={styles.troRow}>
+              {recentTrophies.map((t) => {
+                // Tint the chip by podium finish (gold / silver / bronze), defaulting to gold.
+                const neon = t.place === 2 ? 'silver' : t.place === 3 ? 'bronze' : 'gold';
+                const hex = t.place === 2 ? colors.silver : t.place === 3 ? colors.bronze : colors.gold;
+                return (
+                  <View key={t.id} style={styles.troChip}>
+                    <NeonSign grade="inline" glyph="trophy" color={neon} size={14} />
+                    <Text style={[styles.troYear, { color: hex }]}>{t.year}</Text>
+                    <Text style={styles.troLeague} numberOfLines={1}>{t.leagueName}</Text>
+                  </View>
+                );
+              })}
+            </View>
           ) : (
-            <ActivityIndicator color={colors.textDim} style={{ alignSelf: 'flex-start', marginTop: 6 }} />
+            <Text style={styles.troEmpty}>{trophies ? 'No titles yet — go win one.' : 'Loading your trophy case…'}</Text>
           )}
         </Pressable>
-
-        {/* League outlook mix */}
-        {mix ? (
-          <View style={styles.card}>
-            <Text style={[styles.cardTitle, displayLabel()]}>Your leagues</Text>
-            <View style={styles.mixRow}>
-              <Mix label="Win-now" value={mix.winNow} color={colors.warn} />
-              <Mix label="Ascending" value={mix.ascending} color={colors.good} />
-              <Mix label="Balanced" value={mix.balanced} color={colors.textDim} />
-              <Mix label="Rebuilding" value={mix.rebuilding} color={colors.textDim} />
-            </View>
-          </View>
-        ) : null}
 
         {/* Personal activity */}
         {tags || watchCount != null ? (
@@ -127,17 +141,76 @@ export default function ProfileScreen({ onBack, onOpenPortfolio, onOpenSettings,
           </View>
         ) : null}
 
-        {/* Account actions */}
+        {/* Pro status / upgrade */}
+        <ProStatus />
+
+        {/* Account */}
         <View style={styles.card}>
-          {onOpenTrophies ? <ActionRow label="Trophy Case" icon={{ glyph: 'trophy', color: 'gold' }} onPress={onOpenTrophies} /> : null}
           <ActionRow label="Settings" onPress={onOpenSettings} />
           <ActionRow label="Help & how it works" onPress={onOpenHelp} />
+          {ent.reason === 'subscribed' ? <ActionRow label="Manage subscription" onPress={() => openUrl('https://play.google.com/store/account/subscriptions')} /> : null}
           <ActionRow label="Log out" onPress={onLogout} destructive last />
         </View>
 
-        <View style={{ height: 30 }} />
+        {/* Legal & data (Play requires these reachable once you charge) */}
+        <View style={styles.card}>
+          <ActionRow label="Terms of Service" onPress={() => openUrl(LEGAL.terms)} />
+          <ActionRow label="Privacy Policy" onPress={() => openUrl(LEGAL.privacy)} />
+          <ActionRow label="Delete my data" onPress={requestDeletion} last />
+        </View>
+
+        {/* Data credits (attribution) + version */}
+        <View style={styles.creditsRow}>
+          <ValueCredit center />
+          <NewsCredit center />
+        </View>
+        <Text style={styles.version}>Dynasty Central{APP_VERSION ? ` · v${APP_VERSION}` : ''}</Text>
+
+        <View style={{ height: 24 }} />
       </ScrollView>
     </View>
+  );
+}
+
+function StatTile({ value, label, gold, onPress }) {
+  const inner = (
+    <>
+      <Text style={[styles.statValue, gold && { color: colors.gold }]} numberOfLines={1} adjustsFontSizeToFit>{value}</Text>
+      <Text style={styles.statLabel} numberOfLines={1}>{label}</Text>
+    </>
+  );
+  return onPress ? (
+    <Pressable style={({ pressed }) => [styles.statTile, pressed && { opacity: 0.8 }]} onPress={onPress}>{inner}</Pressable>
+  ) : (
+    <View style={styles.statTile}>{inner}</View>
+  );
+}
+
+function ProStatus() {
+  const { isPro, reason, trial } = useEntitlement();
+  const active = reason === 'subscribed' || reason === 'comped';
+  const status =
+    reason === 'comped'
+      ? 'Unlocked — full access'
+      : reason === 'subscribed'
+        ? 'Active — thanks for supporting the app'
+        : reason === 'trial'
+          ? `Free trial · ${trial.daysLeft} day${trial.daysLeft === 1 ? '' : 's'} left`
+          : 'Act across all your leagues from one place';
+  const cta = active ? 'Details ›' : isPro ? 'View ›' : 'Go Pro ›';
+  return (
+    <Pressable
+      onPress={() => presentPaywall({ source: 'profile' })}
+      style={({ pressed }) => [styles.card, styles.proCard, glow(rgb.gold, { edge: 0.5, wash: 0.1, halo: 0.3, radius: 14 }), pressed && { opacity: 0.85 }]}
+    >
+      <View style={styles.proRow}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.proTitle}>Dynasty Central <Text style={styles.proWord}>PRO</Text></Text>
+          <Text style={styles.proSub}>{status}</Text>
+        </View>
+        <Text style={styles.proCta}>{cta}</Text>
+      </View>
+    </Pressable>
   );
 }
 
@@ -164,10 +237,8 @@ function ActionRow({ label, onPress, destructive, last, icon }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'transparent' },
-  center: { alignItems: 'center', justifyContent: 'center', padding: 24 },
   topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 },
   back: { color: colors.accent, fontSize: 16, fontWeight: '600', width: 60 },
-  title: { color: colors.text, fontSize: 17, fontWeight: '900' },
   body: { padding: 16 },
   card: { backgroundColor: colors.card, borderRadius: 16, borderWidth: 1, borderColor: colors.border, padding: 16, marginBottom: 14 },
   idRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
@@ -175,15 +246,29 @@ const styles = StyleSheet.create({
   avatarText: { color: colors.accent, fontSize: 20, fontWeight: '900', letterSpacing: 0.5 },
   name: { color: colors.text, fontSize: 20, fontWeight: '900' },
   sub: { color: colors.textDim, fontSize: 13, fontWeight: '600', marginTop: 2 },
+  // Résumé stat row
+  statRow: { flexDirection: 'row', gap: 10, marginBottom: 14 },
+  statTile: { flex: 1, backgroundColor: colors.card, borderRadius: 14, borderWidth: 1, borderColor: colors.border, paddingVertical: 14, paddingHorizontal: 8, alignItems: 'center' },
+  statValue: { color: colors.text, fontSize: 22, fontWeight: '900', letterSpacing: -0.3 },
+  statLabel: { color: colors.textDim, fontSize: 11, fontWeight: '700', marginTop: 4, textAlign: 'center' },
+  // Trophy showcase
+  troRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  troChip: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: colors.bg, borderRadius: 10, borderWidth: 1, borderColor: `rgba(${rgb.gold},0.35)`, paddingHorizontal: 9, paddingVertical: 6, maxWidth: '100%' },
+  troYear: { color: colors.gold, fontSize: 12, fontWeight: '900' },
+  troLeague: { color: colors.text, fontSize: 12, fontWeight: '600', flexShrink: 1 },
+  troEmpty: { color: colors.textDim, fontSize: 13, fontWeight: '600' },
+  // Pro
+  proCard: { paddingVertical: 14 },
+  proRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  proTitle: { color: colors.text, fontSize: 15, fontWeight: '800' },
+  proWord: { color: colors.gold, fontWeight: '900', letterSpacing: 0.6 },
+  proSub: { color: colors.textDim, fontSize: 12, fontWeight: '600', marginTop: 3 },
+  proCta: { color: colors.gold, fontSize: 14, fontWeight: '800' },
   demoPill: { backgroundColor: colors.accent + '22', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
   demoPillText: { color: colors.accent, fontSize: 11, fontWeight: '900', letterSpacing: 0.5 },
   cardHeadRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   cardTitle: { color: colors.violetText, fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 },
   link: { color: colors.accent, fontSize: 13, fontWeight: '700', marginBottom: 10 },
-  total: { color: colors.gold, fontSize: 32, fontWeight: '900', letterSpacing: -0.5 },
-  change: { fontSize: 14, fontWeight: '900', marginTop: 3 },
-  changeFlat: { color: colors.textDim, fontSize: 13, fontWeight: '600', marginTop: 3 },
-  spark: { marginTop: 10, marginHorizontal: -2 },
   mixRow: { flexDirection: 'row', gap: 8 },
   mix: { flex: 1, backgroundColor: colors.bg, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
   mixValue: { fontSize: 22, fontWeight: '900' },
@@ -193,9 +278,8 @@ const styles = StyleSheet.create({
   actionRowBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   actionText: { color: colors.text, fontSize: 15, fontWeight: '700' },
   actionChev: { color: colors.textDim, fontSize: 18, fontWeight: '700' },
+  creditsRow: { flexDirection: 'row', justifyContent: 'center', gap: 14, marginTop: 2 },
+  version: { color: colors.textDim, fontSize: 11, fontWeight: '600', textAlign: 'center', marginTop: 8 },
   errBanner: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.bad, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 14 },
   errBannerText: { color: colors.bad, fontSize: 13, fontWeight: '700', textAlign: 'center' },
-  error: { color: colors.bad, textAlign: 'center', marginBottom: 14 },
-  retry: { backgroundColor: colors.card, borderRadius: 10, paddingHorizontal: 20, paddingVertical: 10, borderWidth: 1, borderColor: colors.border },
-  retryText: { color: colors.text, fontWeight: '700' },
 });

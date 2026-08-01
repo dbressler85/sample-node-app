@@ -18,8 +18,10 @@ const tradeRoutes = require('./routes/trades');
 const tradeBaitRoutes = require('./routes/tradebait');
 const draftRoutes = require('./routes/draft');
 const trophyRoutes = require('./routes/trophies');
+const bugReportRoutes = require('./routes/bugReport');
 const pushRoutes = require('./routes/push');
 const metricsRoutes = require('./routes/metrics');
+const priorityFromHeader = require('./middleware/priority');
 
 const app = express();
 
@@ -59,6 +61,10 @@ const apiLimiter = rateLimit({
 });
 app.use('/api', apiLimiter);
 
+// Fix A: a request the client flags `X-DC-Priority: low` (Home pre-warm / idle prefetch) runs its
+// MFL reads in the LOW lane, so a foreground tap on the same account preempts the background fan-out.
+app.use('/api', priorityFromHeader);
+
 app.use('/api', metricsRoutes); // operational metrics (own token gate; no session middleware)
 app.use('/api/auth', authRoutes);
 app.use('/api', commandRoutes);
@@ -69,6 +75,7 @@ app.use('/api', tradeRoutes);
 app.use('/api', tradeBaitRoutes);
 app.use('/api', draftRoutes);
 app.use('/api', trophyRoutes);
+app.use('/api', bugReportRoutes);
 app.use('/api', pushRoutes);
 app.use('/api', lineupRoutes);
 app.use('/api', apiRoutes);

@@ -536,7 +536,7 @@ async function profile(cookie, token, playerId) {
     // B) Upcoming schedule. Demo has difficulty ratings; live surfaces the real opponents
     // from the NFL schedule (difficulty null — no strength-of-schedule source live yet).
     config.demoMode ? Promise.resolve(demo.schedule(base.team)) : nflLib.upcomingOpponents(cookie, base.team, ctx.week),
-    // C) News about this player (demo fixture, or ESPN mapped to MFL players in live).
+    // C) News about this player (demo fixture, or RotoBaller mapped to MFL players in live).
     (async () => {
       const raw = config.demoMode ? demo.news() : await newsLib.mflNews(cookie);
       const seen = new Set();

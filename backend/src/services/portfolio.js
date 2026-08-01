@@ -28,6 +28,8 @@ const waiverStore = require('../store/waivers');
 const playerTags = require('../store/playerTags');
 const historyStore = require('../store/portfolioHistory');
 const pvHistory = require('../store/playerValueHistory');
+const leagueHistory = require('../store/leagueValueHistory');
+const leagueFormat = require('../lib/leagueformat');
 const tradebaitStore = require('../store/tradebait');
 const tradebaitService = require('./tradebait');
 
@@ -387,6 +389,12 @@ async function getDashboard(cookie, token, { deviceRosters = null } = {}) {
   const deadlineByLeague = {};
   valid.forEach(({ league }, i) => { if (deadlineList[i]) deadlineByLeague[String(league.leagueId)] = deadlineList[i]; });
 
+  // Per-league format (QB count / PPR / TE-premium / size) — cheap cached reads, best-effort, in
+  // parallel. Feeds each team's `format` badge and the portfolio-wide `formatMix` distribution.
+  const formatList = await Promise.all(valid.map(({ league }) => leagueFormat.format(cookie, league).catch(() => null)));
+  const formatByLeague = new Map();
+  valid.forEach(({ league }, i) => { if (formatList[i]) formatByLeague.set(String(league.leagueId), formatList[i]); });
+
   let totalValue = 0;
   let playerCount = 0;
   let ageValueSum = 0; // value-weighted age numerator
@@ -468,10 +476,23 @@ async function getDashboard(cookie, token, { deviceRosters = null } = {}) {
     else if (s.outlook === 'Ascending') outlookMix.ascending += 1;
     else if (s.outlook === 'Rebuilding') outlookMix.rebuilding += 1;
     else outlookMix.balanced += 1;
+    // Per-team value history → 7-day trend + a sparkline series (Teams view). Demo seeds a synthetic
+    // series the first time so the trend/sparkline aren't empty before real days accumulate.
+    const teamVal = s.rosterValue != null ? Math.round(s.rosterValue) : null;
+    let teamTrend7 = null;
+    let teamSeries = [];
+    if (teamVal != null && teamVal >= 0) {
+      if (config.demoMode && leagueHistory.series(token, league.leagueId).length === 0 && teamVal > 0) {
+        leagueHistory.seed(token, league.leagueId, syntheticHistory(teamVal, 21));
+      }
+      teamSeries = leagueHistory.record(token, league.leagueId, teamVal);
+      teamTrend7 = sevenDayTrend(teamSeries, teamVal);
+    }
+    const fmt = formatByLeague.get(String(league.leagueId)) || null;
     byLeague.push({
       leagueId: league.leagueId,
       name: league.name,
-      value: s.rosterValue != null ? Math.round(s.rosterValue) : null,
+      value: teamVal,
       coreAge: s.coreAge != null ? s.coreAge : null,
       strengthPct: s.strengthPct != null ? s.strengthPct : null,
       strengthLabel: s.strengthLabel || null,
@@ -479,6 +500,16 @@ async function getDashboard(cookie, token, { deviceRosters = null } = {}) {
       atRiskValue: Math.round(leagueRisk),
       atRiskPct: pct(leagueRisk, s.rosterValue || 0),
       tradeDeadline: deadlineByLeague[String(league.leagueId)] || null,
+      // Team-as-unit enrichments (Portfolio Teams tab). `share` is filled in post-loop, once the
+      // portfolio total is final.
+      trend7: teamTrend7,
+      history: teamSeries.slice(-30),
+      format: fmt
+        ? { numQbs: fmt.numQbs, ppr: fmt.ppr, tePremium: !!fmt.tep, numTeams: fmt.numTeams || null, label: leagueFormat.label(fmt) }
+        : null,
+      // Contender-window: your season record + the mismatch signal (null in preseason / on the device path).
+      record: s.record || null,
+      windowSignal: windowSignalFor(s.strengthPct, s.record),
     });
   }
 
@@ -516,6 +547,21 @@ async function getDashboard(cookie, token, { deviceRosters = null } = {}) {
     });
   }
   byLeague.sort((a, b) => (b.value || 0) - (a.value || 0));
+  // Each team's share of the whole portfolio's value (now that the total is final).
+  for (const t of byLeague) t.share = t.value != null ? pct(t.value, totalValue) : null;
+
+  // Format/settings distribution across your leagues — the "what kind of leagues do I play" mix that
+  // tells you which player types are scarce/valuable portfolio-wide (e.g. Superflex → QBs are gold).
+  const formatMix = { qb: { '1qb': 0, superflex: 0 }, ppr: { standard: 0, half: 0, full: 0 }, te: { standard: 0, premium: 0 }, size: {} };
+  for (const { league } of valid) {
+    const fmt = formatByLeague.get(String(league.leagueId));
+    if (!fmt) continue;
+    if (fmt.numQbs >= 2) formatMix.qb.superflex += 1; else formatMix.qb['1qb'] += 1;
+    if (fmt.ppr >= 1) formatMix.ppr.full += 1; else if (fmt.ppr >= 0.5) formatMix.ppr.half += 1; else formatMix.ppr.standard += 1;
+    if (fmt.tep) formatMix.te.premium += 1; else formatMix.te.standard += 1;
+    const sz = fmt.numTeams ? String(fmt.numTeams) : '?';
+    formatMix.size[sz] = (formatMix.size[sz] || 0) + 1;
+  }
 
   // Top holdings: your positions by aggregate value across all leagues, with exposure
   // (how many of your leagues roster them) and what share of the whole portfolio each is.
@@ -600,9 +646,18 @@ async function getDashboard(cookie, token, { deviceRosters = null } = {}) {
   // the top holdings so we don't write value history for the entire (now full) book each load.
   // Record value history for the holdings the app shows (a bit beyond the default 12) so both the
   // movers and each Top-holding's 7-day trend arrow have a series, without writing the entire book.
+  // PARTIAL cross-league load = some leagues' rosters failed to read, so every holding's value is summed
+  // over only the leagues that loaded (understated). The SAME poisoning that was fixed for the aggregate
+  // total applies per-player: recording an understated value overwrites today's good point and corrupts
+  // the series for ~a week, and computing a mover/trend against a full-load baseline fabricates a
+  // catastrophic drop (the "-74%" class). So when partial, record nothing, null the per-holding trend,
+  // and build no movers — the app hides both while partial. (`partial` is reused by the total-series
+  // block below.)
+  const partial = failedLeagues.length > 0;
   const RECORD_N = 30;
   const moverList = [];
   holdings.slice(0, RECORD_N).forEach((h, i) => {
+    if (partial) { h.trend7 = null; return; }
     if (config.demoMode && pvHistory.series(token, h.id).length === 0 && h.value > 0) {
       pvHistory.seed(token, h.id, syntheticPlayerHistory(h.value, i));
     }
@@ -621,14 +676,24 @@ async function getDashboard(cookie, token, { deviceRosters = null } = {}) {
   moverList.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
   const movers = moverList.slice(0, 6);
 
-  // Value-over-time: record today's point and read back the series. Demo mode seeds a
-  // synthetic ramp the first time so the sparkline isn't empty on a fresh account.
+  // Value-over-time. Only snapshot (and show a trend for) a COMPLETE portfolio: recording a partial
+  // total — a fraction of your leagues — poisons the series so a later day reads a fake catastrophic
+  // drop (e.g. "4 of 15 loaded" → −74%). When partial, read the existing (complete) series without
+  // appending and suppress the change delta; the app hides the trend + sparkline while partial so it's
+  // never comparing a partial aggregate against a full one. Demo seeds a ramp on a fresh account.
   const totalRounded = Math.round(totalValue);
-  if (config.demoMode && historyStore.history(token).length === 0 && totalRounded > 0) {
-    historyStore.seed(token, syntheticHistory(totalRounded));
+  let series;
+  let change;
+  if (partial) {
+    series = historyStore.history(token);
+    change = null;
+  } else {
+    if (config.demoMode && historyStore.history(token).length === 0 && totalRounded > 0) {
+      historyStore.seed(token, syntheticHistory(totalRounded));
+    }
+    series = historyStore.record(token, totalRounded);
+    change = seriesChange(series);
   }
-  const series = historyStore.record(token, totalRounded);
-  const change = seriesChange(series);
 
   // Your tagged rostered players, listed so the app can show them and untag inline. One row per
   // distinct player (aggregated across leagues), Targets and Avoids, biggest value first.
@@ -665,6 +730,7 @@ async function getDashboard(cookie, token, { deviceRosters = null } = {}) {
       top,
     },
     outlookMix,
+    formatMix,
     tags: { avoids: taggedRostered.avoid.size, targets: taggedRostered.target.size },
     taggedPlayers,
     holdings,
@@ -681,6 +747,21 @@ async function getDashboard(cookie, token, { deviceRosters = null } = {}) {
 // A player's 7-day value trend, as a direction + percentage, for the Top-holdings arrow. Uses the
 // newest recorded point that's at least ~7 days old as the baseline (or the earliest point we have
 // on a young account). Null until there are two points to compare. ±2% is the flat dead-band.
+// Contender-window MISMATCH: your roster strength vs your actual season record. Outlook already blends
+// the two (so a stacked-but-losing team reads "Balanced", masking it) — this surfaces the mismatch
+// loudly as an act signal. Only fires once the season is a few games in (record is null in preseason).
+//   'sell'  = strong roster, losing record  → window's now-or-retool; sell win-now pieces or buy to push.
+//   'push'  = thin roster, winning record    → punching up; reload / sell high on the overperformers.
+function windowSignalFor(strengthPct, record) {
+  if (strengthPct == null || !record) return null;
+  const games = (record.wins || 0) + (record.losses || 0) + (record.ties || 0);
+  if (games < 4) return null; // too early to judge the season
+  const winPct = (record.wins + 0.5 * (record.ties || 0)) / games;
+  if (strengthPct >= 0.55 && winPct <= 0.4) return 'sell';
+  if (strengthPct <= 0.45 && winPct >= 0.6) return 'push';
+  return null;
+}
+
 function sevenDayTrend(series, todayValue) {
   if (!series || series.length < 2) return null;
   const lastT = Date.parse(series[series.length - 1].date);
@@ -762,4 +843,4 @@ async function shopHolding(cookie, token, playerId, on, leagueIds) {
   return { id: String(playerId), baited: !!on, leagues: changed, requested: ids.length };
 }
 
-module.exports = { getHome, getLeagueTriage, getDashboard, shopHolding };
+module.exports = { getHome, getLeagueTriage, getDashboard, shopHolding, windowSignalFor };

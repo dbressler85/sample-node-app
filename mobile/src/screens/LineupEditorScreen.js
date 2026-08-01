@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
 import { appAlert } from "../components/AppAlert";
+import { useRequirePro } from '../entitlement';
 import { api } from '../api';
 import { colors } from '../theme';
 import { displayLg } from '../typography';
@@ -12,6 +13,7 @@ import { peekResource, primeResource } from '../useCachedResource';
 const slotsToAssignments = (d) => d.slots.map((s) => (s.current ? s.current.id : null));
 
 export default function LineupEditorScreen({ league, onBack, onOpenWaivers }) {
+  const requirePro = useRequirePro();
   // Seed the lineup read from the survive-remount cache (this editor is an overlay, so it unmounts
   // on back) — reopening paints the current lineup instantly, then revalidates. The editor always
   // starts from the current lineup on open, so seeding the assignments from it is correct.
@@ -74,6 +76,7 @@ export default function LineupEditorScreen({ league, onBack, onOpenWaivers }) {
   }
 
   async function save() {
+    if (!requirePro('lineup.apply')) return; // Pro gate (inert until enforced)
     setSaving(true);
     try {
       const updated = await api.applyLineup(league.leagueId, assignments.filter(Boolean));

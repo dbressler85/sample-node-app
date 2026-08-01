@@ -1,6 +1,6 @@
 import { getEntry, setValue } from './cache';
 import { primeResource } from './useCachedResource';
-import { api } from './api';
+import { api, bg } from './api';
 import { waiversOverviewPreferDevice, lineupsPreferDevice, deviceReadsReady } from './mflDevice';
 import { isCellular } from './net';
 
@@ -15,12 +15,15 @@ import { isCellular } from './net';
 // lightweight backend GETs (and the FA pool, now backend-only per A-10) stay — they're cheap and worth the
 // instant-paint. Nothing here is user-REQUESTED, so gating speculative warming on cellular is allowed
 // (unlike A-10, which never gates a feature on the network type).
+// Every fetch here is speculative (a tab the user hasn't opened), so it runs at LOW MFL priority (Fix
+// A) — "nothing they're clicking needs to be loaded." A tap into any of these tabs fires its own
+// NORMAL read that preempts whatever's still warming.
 const RESOURCES = [
-  { tab: 'trades', key: 'trades:overview', fetch: () => api.trades() },
-  { tab: 'players', key: 'players:rankings:value:all:1qb:std', fetch: () => api.playerRankings('value', null, '1qb') },
-  { tab: 'waivers', key: 'waivers:overview', fetch: () => waiversOverviewPreferDevice() },
-  { tab: 'lineups', key: 'lineups:auto', fetch: () => lineupsPreferDevice('auto'), device: true },
-  { tab: 'scores', key: 'scores:overview', fetch: () => api.scoreboard() },
+  { tab: 'trades', key: 'trades:overview', fetch: () => bg(() => api.trades()) },
+  { tab: 'players', key: 'players:rankings:value:all:1qb:std', fetch: () => bg(() => api.playerRankings('value', null, '1qb')) },
+  { tab: 'waivers', key: 'waivers:overview', fetch: () => waiversOverviewPreferDevice(true) },
+  { tab: 'lineups', key: 'lineups:auto', fetch: () => lineupsPreferDevice('auto', true), device: true },
+  { tab: 'scores', key: 'scores:overview', fetch: () => bg(() => api.scoreboard()) },
 ];
 
 // Don't re-warm a cache that a screen (or an earlier prefetch) already filled recently.

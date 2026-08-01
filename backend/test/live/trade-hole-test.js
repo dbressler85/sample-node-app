@@ -130,5 +130,35 @@ const anotherRB = { position: 'RB', value: 55 };
   assert(sfV.rating !== 'caution', `and it should not read as a caution/"tough sell", got ${sfV.rating}: ${sfV.reason}`);
   console.log('✓ superflex+flex no longer over-requires 2 TEs — trading a kept-a-better-one backup TE is roster-neutral');
 
+  // 9) The REPORTED bug (a "FLEXY" league with flexible position limits): MFL lets a slot carry a RANGE
+  // ("1-3 TE") — you're FORCED to start 1 but MAY start up to 3, and `count` is the max. Hole detection
+  // summed `count` (the max), so a 1-3 TE slot read as REQUIRING 3 TEs — trading one of three rostered
+  // TEs left two < three and fired "Leaves you with no startable TE — don't do it", even with all three
+  // on the active roster. Dedicated slots now use the forced MINIMUM, so only 1 TE is required.
+  const flexReqs = [
+    { name: 'QB', eligible: ['QB'], count: 2, min: 2, max: 2 },
+    { name: 'RB', eligible: ['RB'], count: 4, min: 1, max: 4 }, // flexible: forced 1, up to 4
+    { name: 'TE', eligible: ['TE'], count: 3, min: 1, max: 3 }, // "1-3 TE" — forced 1, up to 3
+  ];
+  const flexFranchises = [
+    // Me: three real TEs on the ACTIVE roster (an elite, a vet, a rookie) — none stashed.
+    { franchiseId: '1', players: [{ id: 'bowers', position: 'TE', value: 62 }, { id: 'andrews', position: 'TE', value: 15 }, { id: 'siddiq', position: 'TE', value: 8 }] },
+    { franchiseId: '2', players: [{ id: 't2a', position: 'TE', value: 40 }, { id: 't2b', position: 'TE', value: 12 }] },
+    { franchiseId: '3', players: [{ id: 't3a', position: 'TE', value: 30 }] },
+    { franchiseId: '4', players: [{ id: 't4a', position: 'TE', value: 20 }] },
+  ];
+  const flexNs = needsSurplus(flexFranchises, flexReqs);
+  assert(flexNs['1'].depth.TE.slots === 1, `a "1-3 TE" range forces only 1 TE, not 3 — got slots=${flexNs['1'].depth.TE.slots}`);
+  assert(flexNs['1'].depth.TE.bodies === 3, `all three active TEs count as bodies, got ${flexNs['1'].depth.TE.bodies}`);
+  const flexHole = constructionVerdict(
+    [{ position: 'TE', value: 15 }, { position: 'PICK', value: 8 }], // give Andrews + a pick
+    [{ position: 'PICK', value: 22 }], // for a 1st
+    flexNs['1'].needs, flexNs['1'].surplus, 'you', flexNs['1'].depth
+  );
+  console.log('flexy-league trade-one-of-three-TEs:', JSON.stringify(flexHole));
+  assert(!flexHole.holes.includes('TE'), 'trading one of three rostered TEs in a 1-3 TE league is NOT a hole');
+  assert(flexHole.rating !== 'caution' || !/no startable TE/i.test(flexHole.reason || ''), 'no false "no startable TE" caution');
+  console.log('✓ flexible position limits ("1-3 TE") no longer over-require the MAX — trading one of three TEs is safe');
+
   console.log('\nTRADE HOLE HARNESS PASSED');
 })().catch((e) => { console.error(e.message); process.exit(1); });

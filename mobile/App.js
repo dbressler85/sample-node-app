@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, StatusBar, ActivityIndicator, SafeAreaView, Platform, Dimensions, Animated, Easing } from 'react-native';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import useAndroidBack from './src/useAndroidBack';
@@ -50,6 +50,12 @@ import { NavHubIcon, NavPersonIcon, NavTradesIcon, NavWaiversIcon, NavLineupsIco
 import { CelebrationHost } from './src/components/Celebrate';
 import { ToastHost } from './src/components/Toast';
 import { AppAlertHost } from './src/components/AppAlert';
+import { PaywallHost } from './src/components/PaywallHost';
+import { NavToolsProvider } from './src/components/NavTools';
+import BugReportSheet from './src/components/BugReportSheet';
+import { installGlobalErrorCapture, recordEvent } from './src/bugReport';
+import { EntitlementProvider } from './src/entitlement';
+import { refreshEntitlementAccount, resetEntitlementAccount } from './src/entitlement/accountBus';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import { colors } from './src/theme';
 
@@ -85,6 +91,13 @@ export default function App() {
   const [showWelcome, setShowWelcome] = useState(false);
   const pushArmed = useRef(false); // register-for-push fires once per session, after the ceremony (never mid-animation)
   const [tab, setTab] = useState('home');
+  const [bugReportOpen, setBugReportOpen] = useState(false);
+  // Start capturing uncaught JS errors as bug-report breadcrumbs (chains the existing handler, so the
+  // app's own crash handling is untouched). One-shot; safe if ErrorUtils is absent.
+  useEffect(() => { installGlobalErrorCapture(); }, []);
+  // Breadcrumb the visited tab so a bug report carries the screen trail it promises. Tab keys only —
+  // no data. (Overlay opens go through pushOverlay, not tracked here; the tab trail is the useful part.)
+  useEffect(() => { recordEvent(`tab: ${tab}`); }, [tab]);
   // Overlays form a stack so back returns to the previous screen (e.g. Trades or
   // Draft opened from a roster returns to that roster, not Home).
   const [overlayStack, setOverlayStack] = useState([]);
@@ -144,6 +157,8 @@ export default function App() {
     // homeCache + any mounted screen), and warmHome self-guards so the screen's own mount refresh
     // won't double-run it. Fire-and-forget; it's fully fail-soft.
     warmHome();
+    // Read the comped (whitelist) flag for this account now that we're authenticated.
+    refreshEntitlementAccount();
     // Beat 1: login accelerates up and out — slower and further, so it clearly departs.
     Animated.timing(leave, { toValue: 1, duration: 760, easing: Easing.in(Easing.cubic), useNativeDriver: true }).start(() => {
       // Beat 2: reveal the app lifted above its resting spot, then let it fall in and settle.
@@ -174,6 +189,8 @@ export default function App() {
       hasSeenWelcome().then(setWelcomeSeen); // gates the first-run intro (and, on first run, defers the push prompt)
       setAuthed(!!token);
       if (token) api.health().then((h) => setDemoMode(!!h.demoMode)).catch(() => {});
+      if (token) refreshEntitlementAccount(); // restored session → read the comped flag
+
       // Don't hold the splash on the display font (~2.2s worst case). Give it a brief head start
       // so the common CACHED load applies before the first paint with no swap, then paint on
       // session resolve. If it's a slow first-ever download, keep loading in the background and
@@ -234,6 +251,7 @@ export default function App() {
       clearResourceCache();
       deviceReadCache.clear(); // device-origin reads hold parsed rosters/etc per account — wipe on auth loss (UX_GUARDRAILS C11)
       deviceEnrichCache.clear(); // cached enrichment carries personal tag/watched — wipe on auth loss (C11)
+      resetEntitlementAccount(); // drop the comped flag until the next sign-in
       pushArmed.current = false; // re-register for push on the next sign-in
       setAuthed(false);
       setTab('home');
@@ -267,6 +285,7 @@ export default function App() {
       setOverlayStack([]);
       setJustLoggedOut(true); // login mounts with the crest lit, then extinguishes it
       setAuthed(false);
+      resetEntitlementAccount(); // clear comped on logout; the next sign-in re-reads it
       pushArmed.current = false; // a fresh sign-in re-registers for push (we just unregistered below)
       drop.setValue(1); // reset so the next fall-in starts clean
       // Wipe session + all per-account caches (UX_GUARDRAILS C11). Fire-and-forget so the logout
@@ -310,6 +329,17 @@ export default function App() {
   const openPortfolio = () => pushOverlay({ type: 'portfolio' });
   const openProfile = () => pushOverlay({ type: 'profile' });
   const openSettings = () => pushOverlay({ type: 'settings' });
+  // Stable NavTools context value (calls the always-stable state setters directly, mirroring
+  // pushOverlay's setClosing(false) reset). Memoized once so an App re-render — tab switch, overlay
+  // push/pop, font bump — doesn't hand NavTools a new value and reconcile all six headers' neon trees.
+  const navTools = useMemo(() => {
+    const openOverlay = (type) => { setClosing(false); setOverlayStack((s) => [...s, { type }]); };
+    return {
+      openProfile: () => openOverlay('profile'),
+      openSettings: () => openOverlay('settings'),
+      openBugReport: () => setBugReportOpen(true),
+    };
+  }, []);
   const openHelp = () => pushOverlay({ type: 'help' });
   const openOnDeck = () => pushOverlay({ type: 'onDeck' });
   // A `seed` (name/pos/team/value the caller already has) lets the profile paint its header
@@ -378,9 +408,6 @@ export default function App() {
             onOpenDraftHub={openDraftHub}
             onOpenOnDeck={openOnDeck}
             onOpenPlayer={openPlayer}
-            onOpenSettings={openSettings}
-            onOpenProfile={openProfile}
-            onLogout={handleLogout}
           />
         );
     }
@@ -581,6 +608,8 @@ export default function App() {
   // containers so it shows through, with opaque cards floating on top. Login draws its
   // own hero-intensity backdrop over this one.
   return (
+    <EntitlementProvider>
+    <NavToolsProvider value={navTools}>
     <View style={styles.root}>
       {/* The backdrop is decorative — if it ever throws (e.g. an SVG quirk on a device),
           isolate it so the app still runs instead of white-screening. */}
@@ -621,7 +650,19 @@ export default function App() {
       <ErrorBoundary silent>
         <WelcomeModal visible={authed && showWelcome} onClose={closeWelcome} />
       </ErrorBoundary>
+      {/* Pro paywall — mounted last so it sits above every tab, overlay, and alert. Surfaced
+          imperatively (a gated action or a "Go Pro" tap); renders nothing until then. */}
+      <ErrorBoundary silent>
+        <PaywallHost />
+      </ErrorBoundary>
+      {/* Beta bug-report sheet — surfaced by the white bug sign in the nav-tool cluster. Mounted at the
+          root so it floats above every tab and overlay. `screen` = the tab in view when it opened. */}
+      <ErrorBoundary silent>
+        <BugReportSheet visible={authed && bugReportOpen} onClose={() => setBugReportOpen(false)} context={{ screen: tab, demoMode }} />
+      </ErrorBoundary>
     </View>
+    </NavToolsProvider>
+    </EntitlementProvider>
   );
 }
 

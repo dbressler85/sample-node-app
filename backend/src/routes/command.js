@@ -58,12 +58,16 @@ router.post('/metrics/device-read', (req, res) => {
 router.get('/me', async (req, res, next) => {
   try {
     const leagues = await leaguesService.orderedLeagues(req.mflCookie, req.account).catch(() => []);
+    const username = (req.session && req.session.username) || null;
+    // Comped accounts (PRO_WHITELIST) get full Pro without subscribing — the app trusts this flag.
+    const pro = !!(username && config.proWhitelist.includes(String(username).toLowerCase()));
     res.json(checkResponse(schemas.Me, {
-      username: (req.session && req.session.username) || null,
+      username,
       account: req.account,
       season: config.season,
       demoMode: config.demoMode,
       leagues: leagues.length,
+      pro,
     }, 'GET /me'));
   } catch (err) {
     next(err);

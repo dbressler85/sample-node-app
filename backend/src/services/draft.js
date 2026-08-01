@@ -13,7 +13,7 @@ const config = require('../config');
 const demo = require('../demo/fixtures');
 const mfl = require('../lib/mfl');
 const mflRepo = require('../lib/mflRepo');
-const { withWriteRetry } = require('../lib/retry');
+const { withRetry, withWriteRetry } = require('../lib/retry');
 const enrichmentLib = require('../lib/enrichment');
 const leagueFormat = require('../lib/leagueformat');
 const leagueContext = require('../lib/leagueContext');
@@ -33,6 +33,12 @@ const { createMemo } = require('../lib/memo');
 // asked once per league by several screens (Watch tab, Home alerts, player profile). Memoize
 // it so those don't each fire a fresh draftResults read — and concurrent callers coalesce.
 const draftOpenMemo = createMemo({ ttlMs: config.mflCacheTtlMs });
+// Pins the heavy ~2000-player free-agent pool during a LIVE draft so the 15s board poll stops re-issuing
+// it every ~5 min (the biggest recurring MFL read mid-draft, and the main 429 amplifier). The draftable
+// pool only shrinks as players come off the board, and assemblePool subtracts the locally-known drafted
+// set on every poll — so a 15-min-pinned pool stays accurate while draftResults remains the sole
+// recurring read. Coalesced + TTL'd per cookie+league.
+const draftPoolMemo = createMemo({ ttlMs: 15 * 60 * 1000 });
 
 // Once a league's free agency is confirmed OPEN (its draft is complete, or there's no draft on file at
 // all), it does NOT re-close for the season — so remember that verdict for hours and skip the per-league
@@ -256,13 +262,16 @@ function slotsFor(draft) {
 // The pool's network inputs (free-agent id list + ADP map) — the heavy part, and the part that does
 // NOT depend on the draft board or the enrichment context. Split out so a caller can fetch it
 // CONCURRENTLY with those (see getLeague) instead of serially after, roughly halving the cold-load wait.
-async function fetchPoolInputs(cookie, league) {
+async function fetchPoolInputs(cookie, league, { pin = false } = {}) {
   // ADP is fetched in BOTH modes (demo ADP drives the demo board order); only the id source is gated.
-  const [ids, adp] = await Promise.all([
-    config.demoMode ? Promise.resolve(demo.draftClass()) : waiversService.freeAgentIds(cookie, league, 2000),
-    adpLib.adpMap(cookie).catch(() => new Map()),
-  ]);
-  return { ids, adp };
+  const fetch = () =>
+    Promise.all([
+      config.demoMode ? Promise.resolve(demo.draftClass()) : waiversService.freeAgentIds(cookie, league, 2000),
+      adpLib.adpMap(cookie).catch(() => new Map()),
+    ]).then(([ids, adp]) => ({ ids, adp }));
+  // `pin` (set while a draft is in progress) serves the pool from the long draftPoolMemo so a live-draft
+  // poll doesn't re-issue this 2000-player read every few minutes; assemblePool keeps it current.
+  return pin ? draftPoolMemo.get(`${cookie}|${league.leagueId}`, fetch) : fetch();
 }
 
 // How many kickers / defenses to surface on the "All" board for a league that rosters them. They
@@ -461,7 +470,19 @@ async function getOverview(cookie, token, { deviceReads = null } = {}) {
         // cached league list one step behind) must NOT silently read as 'none' — that hid a scheduled/live
         // draft and could cause a missed clock (docs/ARCHITECTURE_REVIEW_2026-07-device-origin.md A-8). Fall
         // back to a one-off backend read for just that league; every other league still comes from the device.
-        const draft = await loadDraft(cookie, token, league, dr);
+        // Retry a TRANSIENT read failure (a 429 during the Home fan-out) before giving up. loadDraft
+        // re-throws a throttle rather than returning null, and a bare catch below used to collapse that
+        // to status:'none' — which isDraftActionable filters out, so a LIVE draft vanished from Home
+        // while the separate league-status counter still read "all loaded." withRetry re-issues through
+        // the backend queue (already slowed by the adaptive penalty) so a momentary throttle can't hide
+        // an on-the-clock draft. Only a device-supplied read (dr) skips the retry — it never hit MFL.
+        // 4 attempts / 600ms base (≈3.6s of backoff) so the retry OUTLASTS a typical ~2s rate-limit
+        // cooldown — a hidden live draft means a missed pick clock, so err toward patience here. Runs in
+        // parallel with every other league's read and only on the throttled ones, and getOverview feeds
+        // Home's non-blocking background warm, so the extra wait never blocks the UI.
+        const draft = dr
+          ? await loadDraft(cookie, token, league, dr)
+          : await withRetry(() => loadDraft(cookie, token, league), 4, 600);
         if (!draft) return { leagueId: league.leagueId, name: league.name, status: 'none' };
         const slots = slotsFor(draft);
         const status = statusOf(draft, slots);
@@ -492,7 +513,11 @@ async function getOverview(cookie, token, { deviceReads = null } = {}) {
           picksMade: slots.filter((s) => s.playerId && !s.keeper).length,
         };
       } catch (e) {
-        return { leagueId: league.leagueId, name: league.name, status: 'none' };
+        // Retries exhausted: report 'error', NOT 'none'. 'none' means "read fine, no draft here" and is
+        // safe to ignore; a throttled read is NOT that, and mislabeling it 'none' is what hid a live
+        // draft. 'error' keeps it out of the actionable list (we genuinely don't know its state) while
+        // staying honest for the summary / a future "couldn't check N drafts" hint.
+        return { leagueId: league.leagueId, name: league.name, status: 'error', error: mfl.errorDetail ? mfl.errorDetail(e) : e.message };
       }
     })
   );
@@ -537,22 +562,32 @@ function draftContextPayload(context, teamSummary) {
 // One league's full draft view: board, my picks, on the clock, available pool.
 async function getLeague(cookie, token, leagueId, { position } = {}) {
   const league = await findLeague(cookie, leagueId);
-  const draft = await loadDraft(cookie, token, league);
+  // Retry a transient throttle: loadDraft re-throws a 429 rather than faking a draftless league, so a
+  // single throttled read here used to blank the whole board ("Could not load the draft"). withRetry
+  // re-issues through the cooldown-slowed queue before giving up.
+  const draft = config.demoMode ? await loadDraft(cookie, token, league) : await withRetry(() => loadDraft(cookie, token, league), 3, 500);
   if (!draft) return { leagueId: league.leagueId, name: league.name, status: 'none' };
+  // While the draft is IN PROGRESS, pin the free-agent pool (see fetchPoolInputs) so the 15s poll stops
+  // re-fetching 2000 players every few minutes; assemblePool keeps it accurate against the live picks.
+  const inDraft = statusOf(draft, slotsFor(draft)) === 'in_progress';
 
   // Cold-load speed: the four heavy reads a draft board needs are mutually independent, so fetch them
   // CONCURRENTLY instead of context → names → pool → clock in series (which made the board feel like it
   // never loaded). (1) the scoring/lineup + my-team dynasty CONTEXT; (2) owner NAMES for the board tab;
   // (3) the POOL INPUTS (free-agent ids + ADP) — the assembly that needs `drafted`/`byId` runs after,
   // but the fetch doesn't; (4) the auto-detected CLOCK config.
-  const [{ byId, enr, context, teamSummary, reqs }, names, poolInputs, clockConfig] = await Promise.all([
+  // Retry the heavy read quartet as a unit. loadDraftContext + fetchPoolInputs aren't individually
+  // fail-soft (a board with no player context / pool is useless), so a transient 429 on either used to
+  // throw the whole board. Wrapping in withRetry re-issues on a throttle — the cached reads (players,
+  // format, enrichment snapshot) return instantly, so only the throttled straggler pays the retry.
+  const [{ byId, enr, context, teamSummary, reqs }, names, poolInputs, clockConfig] = await withRetry(() => Promise.all([
     loadDraftContext(cookie, league),
     config.demoMode
       ? Promise.resolve(demo.draftFranchiseNames(league.leagueId))
       : leaguesService.franchiseNames(cookie, league).catch(() => new Map()),
-    fetchPoolInputs(cookie, league),
+    fetchPoolInputs(cookie, league, { pin: inDraft }),
     config.demoMode ? Promise.resolve(null) : leagueFormat.draftClockConfig(cookie, league).catch(() => null),
-  ]);
+  ]), 3, 500);
   const ownerName = (fid) =>
     names.get(fid) || (fid === league.franchiseId ? league.franchiseName : null) || `Team ${fid}`;
   const slots = slotsFor(draft).map((s) => ({
@@ -652,7 +687,17 @@ async function makePick(cookie, token, leagueId, playerId, comments) {
     franchiseId: league.franchiseId,
     playerId: String(playerId),
   });
-  return getLeague(cookie, token, leagueId);
+  // The pick is DONE (submitted to MFL + recorded locally). Rebuilding the confirmation board is a heavy
+  // fan-out that can hit a transient throttle — but a failure THERE must never read as a failed pick. Try
+  // to return the fresh board (it already includes the pick via the draftStore overlay); if that rebuild
+  // throws, return a lightweight success sentinel and let the client refresh. loadDraft merges the stored
+  // pick, so the very next board load shows it regardless.
+  try {
+    return await getLeague(cookie, token, leagueId);
+  } catch (e) {
+    console.log(`[draft] pick recorded but board rebuild failed (will refresh): league=${leagueId} ${e.message}`);
+    return { picked: true, leagueId: String(leagueId), player: String(playerId), round: clock.round, pick: clock.pick };
+  }
 }
 
 function throwBad(msg) {

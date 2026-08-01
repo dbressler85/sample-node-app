@@ -8,12 +8,15 @@ import AvailabilityBadge from '../components/AvailabilityBadge';
 import AddAcrossSheet from '../components/AddAcrossSheet';
 import TradeAcrossSheet from '../components/TradeAcrossSheet';
 import TradeBaitSheet from '../components/TradeBaitSheet';
+import BottomSheet from '../components/BottomSheet';
+import Checkbox from '../components/Checkbox';
 import { TargetIcon, AvoidIcon, WatchIcon, NeonToggle } from '../components/PlayerActionIcons';
 import useAndroidBack from '../useAndroidBack';
 import useCachedResource from '../useCachedResource';
 import { STALE } from '../staleTiers';
 import PartialNote from '../components/PartialNote';
 import ValueCredit from '../components/ValueCredit';
+import NewsCredit from '../components/NewsCredit';
 
 const RELATION = {
   rostered: { label: 'Rostered', color: colors.good },
@@ -407,6 +410,7 @@ export default function PlayerProfileScreen({ playerId, seed, onBack, onOpenTrad
                 </Text>
               </Pressable>
             ))}
+            <NewsCredit style={{ marginTop: 6 }} />
           </Card>
         ) : null}
 
@@ -508,33 +512,38 @@ function DropSheet({ player, onClose, onDone }) {
   }
 
   return (
-    <Pressable style={styles.backdrop} onPress={onClose}>
-      <Pressable style={styles.sheet} onPress={() => {}}>
-        <Text style={styles.sheetTitle}>Drop {player.name}</Text>
-        <Text style={styles.sheetSub}>Choose leagues to drop him from.</Text>
+    <BottomSheet onClose={onClose}>
+      <Text style={styles.sheetTitle}>Drop {player.name}</Text>
+      <Text style={styles.sheetSub}>Choose leagues to drop him from.</Text>
+      {/* Scrollable within the bounded sheet: a widely-rostered player can span many leagues without
+          pushing the title off the top edge. */}
+      <ScrollView style={styles.dropScroll} contentContainerStyle={styles.dropScrollContent} showsVerticalScrollIndicator>
         {leagues.map((l) => {
           const on = selected.has(l.leagueId);
           return (
             <Pressable
               key={l.leagueId}
               style={styles.addRow}
-              onPress={() => setSelected((s) => { const n = new Set(s); n.has(l.leagueId) ? n.delete(l.leagueId) : n.add(l.leagueId); return n; })}
+              onPress={() => setSelected((s) => { const n = new Set(s); if (n.has(l.leagueId)) n.delete(l.leagueId); else n.add(l.leagueId); return n; })}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: on }}
+              accessibilityLabel={`${l.name} (${l.bucket})`}
             >
-              <View style={[styles.check, on && { backgroundColor: colors.bad, borderColor: colors.bad }]}>{on ? <Text style={styles.checkMark}>✓</Text> : null}</View>
+              <Checkbox checked={on} size={24} color={colors.bad} style={styles.check} />
               <Text style={styles.addLeague}>{l.name} <Text style={styles.addMeta}>({l.bucket})</Text></Text>
             </Pressable>
           );
         })}
-        <Pressable
-          style={({ pressed }) => [styles.confirm, { backgroundColor: colors.bad }, (!selected.size || busy) && styles.confirmOff, pressed && selected.size && { opacity: 0.85 }]}
-          onPress={submit}
-          disabled={!selected.size || busy}
-        >
-          {busy ? <ActivityIndicator color={colors.onAccent} /> : <Text style={styles.confirmText}>Drop from {selected.size} league{selected.size === 1 ? '' : 's'}</Text>}
-        </Pressable>
-        <Pressable style={styles.cancelBtn} onPress={onClose}><Text style={styles.cancelText}>Cancel</Text></Pressable>
+      </ScrollView>
+      <Pressable
+        style={({ pressed }) => [styles.confirm, { backgroundColor: colors.bad }, (!selected.size || busy) && styles.confirmOff, pressed && selected.size && { opacity: 0.85 }]}
+        onPress={submit}
+        disabled={!selected.size || busy}
+      >
+        {busy ? <ActivityIndicator color={colors.onAccent} /> : <Text style={styles.confirmText}>Drop from {selected.size} league{selected.size === 1 ? '' : 's'}</Text>}
       </Pressable>
-    </Pressable>
+      <Pressable style={styles.cancelBtn} onPress={onClose}><Text style={styles.cancelText}>Cancel</Text></Pressable>
+    </BottomSheet>
   );
 }
 
@@ -616,15 +625,13 @@ const styles = StyleSheet.create({
   error: { color: colors.bad, textAlign: 'center', marginBottom: 16 },
   backBtn: { backgroundColor: colors.card, borderRadius: 10, paddingHorizontal: 20, paddingVertical: 10 },
   backText: { color: colors.text, fontWeight: '600' },
-  // sheets
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: colors.scrim, justifyContent: 'flex-end' },
-  sheet: { backgroundColor: colors.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, borderTopWidth: 1, borderColor: colors.border },
+  // Drop sheet (shell + check come from the shared BottomSheet / Checkbox primitives)
   sheetTitle: { color: colors.text, fontSize: 18, fontWeight: '900' },
   sheetSub: { color: colors.textDim, fontSize: 13, marginTop: 2, marginBottom: 8 },
+  dropScroll: { flexShrink: 1 },
+  dropScrollContent: { paddingBottom: 4 },
   addRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
-  check: { width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: colors.border, marginRight: 12, alignItems: 'center', justifyContent: 'center' },
-  checkOn: { backgroundColor: colors.accent, borderColor: colors.accent },
-  checkMark: { color: colors.onAccent, fontWeight: '900', fontSize: 14 },
+  check: { marginRight: 12 },
   addLeague: { color: colors.text, fontSize: 15, fontWeight: '700' },
   addMeta: { color: colors.textDim, fontSize: 12, marginTop: 2, fontWeight: '500' },
   confirm: { backgroundColor: colors.accent, borderRadius: 12, paddingVertical: 15, alignItems: 'center', marginTop: 16 },

@@ -10,19 +10,32 @@ import useAndroidBack from '../useAndroidBack';
 import useCachedResource, { primeResource } from '../useCachedResource';
 import { STALE } from '../staleTiers';
 
-// The trophy case: every championship the owner has won, across leagues and past seasons. Each
-// trophy shows the team, league, and year. Add a title by hand (auto-detect from MFL's playoff
-// history is a planned follow-up); long-press to remove. Gold-forward — this is the brag shelf.
+// The trophy case: every podium finish the owner has earned, across leagues and past seasons — gold
+// (champion), silver (runner-up), and bronze (3rd). Each trophy shows the team, league, year, and its
+// medal. Add by hand or auto-detect from MFL's playoff history; long-press to remove.
+
+// Podium finish → its medal treatment. `neon` is the NeonSign color key (gold/silver/bronze), `hex`
+// tints the card's top border + year, `label` names the finish with an EXPLICIT ordinal (1st/2nd/3rd)
+// so the place reads at a glance, not just from the medal color. 1 defaults for any legacy trophy
+// without a place.
+const MEDAL = {
+  1: { neon: 'gold', hex: colors.gold, label: '1st · Champion', short: '1st' },
+  2: { neon: 'silver', hex: colors.silver, label: '2nd · Runner-up', short: '2nd' },
+  3: { neon: 'bronze', hex: colors.bronze, label: '3rd · Third place', short: '3rd' },
+};
+const medalFor = (place) => MEDAL[place] || MEDAL[1];
 
 function TrophyCard({ trophy, onRemove }) {
+  const m = medalFor(trophy.place);
   return (
     <Pressable
-      style={styles.card}
+      style={[styles.card, { borderTopColor: m.hex }]}
       onLongPress={() => onRemove(trophy)}
       delayLongPress={350}
     >
-      <NeonSign glyph="trophy" color="gold" grade="inline" size={40} style={styles.cup} />
-      <Text style={styles.year}>{trophy.year}</Text>
+      <NeonSign glyph="trophy" color={m.neon} grade="inline" size={40} style={styles.cup} />
+      <Text style={[styles.medalLabel, { color: m.hex }]}>{m.label}</Text>
+      <Text style={[styles.year, { color: m.hex }]}>{trophy.year}</Text>
       <Text style={styles.team} numberOfLines={2}>{trophy.team}</Text>
       <Text style={styles.league} numberOfLines={2}>{trophy.leagueName}</Text>
     </Pressable>
@@ -43,6 +56,7 @@ export default function TrophyCaseScreen({ onBack }) {
   const [team, setTeam] = useState('');
   const [leagueName, setLeagueName] = useState('');
   const [year, setYear] = useState('');
+  const [place, setPlace] = useState(1); // 1 champion · 2 runner-up · 3 third
   const [saving, setSaving] = useState(false);
   const [detecting, setDetecting] = useState(false);
 
@@ -52,11 +66,15 @@ export default function TrophyCaseScreen({ onBack }) {
       const res = await api.detectTrophies();
       apply(res);
       const n = (res.added || []).length;
+      const fixed = (res.corrected || []).length; // medals re-graded on a re-scan (e.g. gold → silver)
       if (n) {
-        const lines = res.added.map((t) => `${t.year} · ${t.leagueName}`).join('\n');
-        appAlert(`Found ${n} title${n === 1 ? '' : 's'}!`, lines);
+        const lines = res.added.map((t) => `${medalFor(t.place).label} · ${t.year} · ${t.leagueName}`).join('\n');
+        appAlert(`Found ${n} finish${n === 1 ? '' : 'es'}!`, fixed ? `${lines}\n\n(Also corrected ${fixed} medal${fixed === 1 ? '' : 's'} to the right place.)` : lines);
+      } else if (fixed) {
+        const lines = res.corrected.map((t) => `${medalFor(t.place).label} · ${t.year} · ${t.leagueName}`).join('\n');
+        appAlert(`Corrected ${fixed} medal${fixed === 1 ? '' : 's'}`, `Re-graded to the right podium finish:\n${lines}`);
       } else {
-        appAlert('All caught up', 'No new championships found in your MyFantasyLeague playoff history.');
+        appAlert('All caught up', 'No new podium finishes found in your MyFantasyLeague playoff history.');
       }
     } catch (e) {
       appAlert('Could not scan', e.message);
@@ -75,10 +93,10 @@ export default function TrophyCaseScreen({ onBack }) {
     }
     setSaving(true);
     try {
-      const res = await api.addTrophy({ team: team.trim(), leagueName: leagueName.trim(), year: Number(year.trim()) });
+      const res = await api.addTrophy({ team: team.trim(), leagueName: leagueName.trim(), year: Number(year.trim()), place });
       apply(res);
       setAdding(false);
-      setTeam(''); setLeagueName(''); setYear('');
+      setTeam(''); setLeagueName(''); setYear(''); setPlace(1);
     } catch (e) {
       appAlert('Could not add', e.message);
     } finally {
@@ -114,8 +132,15 @@ export default function TrophyCaseScreen({ onBack }) {
 
       {summary && summary.total ? (
         <Text style={styles.subtitle}>
-          {summary.total} title{summary.total === 1 ? '' : 's'} · {summary.leagues} league{summary.leagues === 1 ? '' : 's'}
-          {summary.latest ? ` · latest ${summary.latest}` : ''}
+          {[
+            // Titles first (fall back to total for a pre-podium cached summary), then silver/bronze only
+            // when present — so a champions-only case still reads "N titles", not "N titles · 0 · 0".
+            `${summary.titles != null ? summary.titles : summary.total} title${(summary.titles != null ? summary.titles : summary.total) === 1 ? '' : 's'}`,
+            summary.silver ? `${summary.silver} silver` : null,
+            summary.bronze ? `${summary.bronze} bronze` : null,
+            `${summary.leagues} league${summary.leagues === 1 ? '' : 's'}`,
+            summary.latest ? `latest ${summary.latest}` : null,
+          ].filter(Boolean).join(' · ')}
         </Text>
       ) : null}
 
@@ -170,17 +195,36 @@ export default function TrophyCaseScreen({ onBack }) {
         <Pressable style={styles.scrim} onPress={() => setAdding(false)}>
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ width: '100%' }}>
           <Pressable style={styles.sheet} onPress={() => {}}>
-            <Text style={styles.sheetTitle}>Add a championship</Text>
+            <Text style={styles.sheetTitle}>Add a trophy</Text>
+            <Text style={styles.label}>Finish</Text>
+            <View style={styles.placeRow}>
+              {[1, 2, 3].map((pl) => {
+                const m = medalFor(pl);
+                const on = place === pl;
+                return (
+                  <Pressable
+                    key={pl}
+                    onPress={() => setPlace(pl)}
+                    style={[styles.placeChip, on && { borderColor: m.hex, backgroundColor: m.hex + '22' }]}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: on }}
+                  >
+                    <NeonSign glyph="trophy" color={m.neon} grade="inline" size={16} />
+                    <Text style={[styles.placeChipText, on && { color: m.hex }]}>{m.short}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
             <Text style={styles.label}>Team name</Text>
             <TextInput style={styles.input} value={team} onChangeText={setTeam} placeholder="Your team's name" placeholderTextColor={colors.textDim} />
             <Text style={styles.label}>League</Text>
             <TextInput style={styles.input} value={leagueName} onChangeText={setLeagueName} placeholder="League name" placeholderTextColor={colors.textDim} />
-            <Text style={styles.label}>Year won</Text>
+            <Text style={styles.label}>Year</Text>
             <TextInput style={styles.input} value={year} onChangeText={setYear} placeholder="e.g. 2024" placeholderTextColor={colors.textDim} keyboardType="number-pad" maxLength={4} />
             <View style={styles.sheetActions}>
               <Pressable style={[styles.act, styles.cancel]} onPress={() => setAdding(false)}><Text style={styles.cancelText}>Cancel</Text></Pressable>
               <Pressable style={[styles.act, styles.save]} onPress={submit} disabled={saving}>
-                {saving ? <ActivityIndicator color={colors.onAccent} /> : <Text style={styles.saveText}>Add title</Text>}
+                {saving ? <ActivityIndicator color={colors.onAccent} /> : <Text style={styles.saveText}>Add trophy</Text>}
               </Pressable>
             </View>
           </Pressable>
@@ -208,7 +252,8 @@ const styles = StyleSheet.create({
   row: { gap: 12, marginBottom: 12 },
   card: { flex: 1, backgroundColor: colors.card, borderRadius: 16, borderWidth: 1, borderColor: colors.border, borderTopColor: colors.gold, borderTopWidth: 3, padding: 16, alignItems: 'center' },
   cup: { marginBottom: 4 },
-  year: { color: colors.gold, fontSize: 15, fontWeight: '900', marginTop: 6, fontVariant: ['tabular-nums'] },
+  medalLabel: { fontSize: 10, fontWeight: '900', letterSpacing: 0.6, textTransform: 'uppercase', marginTop: 4 },
+  year: { color: colors.gold, fontSize: 15, fontWeight: '900', marginTop: 2, fontVariant: ['tabular-nums'] },
   team: { color: colors.text, fontSize: 15, fontWeight: '800', textAlign: 'center', marginTop: 4 },
   league: { color: colors.textDim, fontSize: 12, fontWeight: '600', textAlign: 'center', marginTop: 2 },
   hint: { color: colors.textDim, fontSize: 12, textAlign: 'center', marginTop: 6, fontStyle: 'italic' },
@@ -225,6 +270,9 @@ const styles = StyleSheet.create({
   sheetTitle: { color: colors.text, fontSize: 17, fontWeight: '800', marginBottom: 12 },
   label: { color: colors.violetText, fontSize: 12, fontWeight: '700', marginTop: 10, marginBottom: 4 },
   input: { borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, color: colors.text, fontSize: 15, paddingHorizontal: 12, paddingVertical: 10 },
+  placeRow: { flexDirection: 'row', gap: 8 },
+  placeChip: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, paddingVertical: 9, paddingHorizontal: 4 },
+  placeChipText: { color: colors.textDim, fontSize: 12, fontWeight: '800' },
   sheetActions: { flexDirection: 'row', gap: 10, marginTop: 18 },
   act: { flex: 1, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
   cancel: { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.border },

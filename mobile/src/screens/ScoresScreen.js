@@ -3,6 +3,7 @@ import { View, Text, FlatList, StyleSheet, RefreshControl, ActivityIndicator, Pr
 import { api } from '../api';
 import { colors } from '../theme';
 import { ScreenTitle } from '../components/Brand';
+import NavTools from '../components/NavTools';
 import { celebrate } from '../components/Celebrate';
 import NeonSign from '../components/NeonSign';
 import ErrorView from '../components/ErrorView';
@@ -72,6 +73,7 @@ export default function ScoresScreen({ onOpenLineup, active = true }) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
+        <View pointerEvents="box-none" style={{ position: 'absolute', right: 20, top: 8, zIndex: 5 }}><NavTools active={active} /></View>
         <ScreenTitle focused={active}>Scoreboard</ScreenTitle>
         {s ? (
           <View style={styles.subtitleRow}>

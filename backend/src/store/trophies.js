@@ -34,6 +34,20 @@ function add(token, trophy) {
   return { ...row };
 }
 
+// Update mutable fields of a stored trophy (currently just `place`). Used by the auto-detect
+// self-heal: a re-scan that reconstructs a more accurate podium finish corrects a stale/missing place
+// on an AUTO trophy in place (the caller gates on source). Returns the updated row, or null if not found.
+function update(token, id, patch) {
+  const d = db();
+  const arr = d[token];
+  if (!arr) return null;
+  const t = arr.find((x) => x.id === id);
+  if (!t) return null;
+  if (patch.place != null) t.place = patch.place;
+  persist.touch();
+  return { ...t };
+}
+
 function remove(token, id) {
   const d = db();
   if (!d[token]) return false;
@@ -44,4 +58,4 @@ function remove(token, id) {
   return true;
 }
 
-module.exports = { list, add, remove };
+module.exports = { list, add, update, remove };

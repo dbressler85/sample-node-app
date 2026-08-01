@@ -140,8 +140,22 @@ const Portfolio = z.object({
       name: z.string(),
       value: z.number().nullable().optional(),
       tradeDeadline: z.object({ at: z.number(), date: z.string(), source: z.string() }).nullable().optional(),
+      // Team-as-unit enrichments (Portfolio Teams tab) — all advisory/optional.
+      share: z.number().nullable().optional(), // % of total portfolio value
+      trend7: z.object({ dir: z.string(), pct: z.number(), days: z.number() }).nullable().optional(),
+      history: z.array(z.object({ date: z.string(), value: z.number() })).optional(),
+      format: z.object({ numQbs: z.number(), ppr: z.number(), tePremium: z.boolean(), numTeams: z.number().nullable(), label: z.string() }).nullable().optional(),
+      record: z.object({ wins: z.number(), losses: z.number(), ties: z.number().nullable().optional() }).nullable().optional(),
+      windowSignal: z.string().nullable().optional(), // 'sell' | 'push' | null — contender-window mismatch
     })
   ),
+  // Format/settings distribution across the owner's leagues (Portfolio Allocation tab). Optional.
+  formatMix: z.object({
+    qb: z.record(z.number()),
+    ppr: z.record(z.number()),
+    te: z.record(z.number()),
+    size: z.record(z.number()),
+  }).optional(),
   ageCurve: z.array(z.object({ band: z.string(), value: z.number(), pct: z.number() })),
   atRisk: z.object({ pct: z.number() }),
   // Cross-league value arbitrage: a held player worth more in one league than another (optional —
@@ -206,6 +220,8 @@ const Me = z.object({
   account: z.string().nullable().optional(),
   season: z.union([z.number(), z.string()]).nullable().optional(),
   leagues: z.number(),
+  demoMode: z.boolean().optional(),
+  pro: z.boolean().optional(), // comped account (PRO_WHITELIST) → full Pro without a subscription
 });
 
 // GET /api/players/rankings — the paginated rankings board.

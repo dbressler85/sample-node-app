@@ -16,6 +16,7 @@ import AvailabilityBadge from '../components/AvailabilityBadge';
 import MatchupLine from '../components/MatchupLine';
 import { toast } from '../components/Toast';
 import ErrorView from '../components/ErrorView';
+import NavTools from '../components/NavTools';
 import useAndroidBack from '../useAndroidBack';
 import useCachedResource from '../useCachedResource';
 import { ScreenTitle } from '../components/Brand';
@@ -90,7 +91,14 @@ export default function LineupsScreen({ active = true, onOpenLineup, onStartWiza
       );
       setPlan(null);
       await reload();
-      toast(`Lineups set · ${res.summary.leaguesUpdated} updated · +${res.summary.pointsGained} projected pts`);
+      // Telegraph the cross-league LEVERAGE — the whole reason to act here instead of league-by-league
+      // in MFL: one tap set N lineups. That "time machine" feel is what converts (docs/PRE_BETA_REVIEW.md
+      // PO pass). Fall back to the plain confirmation for a single league.
+      const n = res.summary.leaguesUpdated;
+      const pts = res.summary.pointsGained;
+      toast(n > 1
+        ? `${n} lineups set in one tap · +${pts} projected pts`
+        : `Lineup set · +${pts} projected pts`);
     } catch (e) {
       appAlert('Could not set lineups', e.message);
     } finally {
@@ -111,6 +119,7 @@ export default function LineupsScreen({ active = true, onOpenLineup, onStartWiza
   return (
     <View style={styles.container}>
       <View style={styles.header}>
+        <View pointerEvents="box-none" style={{ position: 'absolute', right: 20, top: 8, zIndex: 5 }}><NavTools active={active} /></View>
         <ScreenTitle focused={active}>Lineups</ScreenTitle>
         {summary ? (
           <Text style={styles.subtitle}>

@@ -10,10 +10,12 @@ import { getValue, setValue } from '../cache';
 import { peekResource, primeResource } from '../useCachedResource';
 import InfoDot from '../components/InfoDot';
 import Pulse from '../components/Pulse';
+import NavTools from '../components/NavTools';
 import Reveal from '../components/Reveal';
 import PartialNote from '../components/PartialNote';
 import DeviceNote from '../components/DeviceNote';
 import ValueCredit from '../components/ValueCredit';
+import NewsCredit from '../components/NewsCredit';
 import PopChip from '../components/PopChip';
 import useActFlash from '../useActFlash';
 import useAutoReload from '../useAutoReload';
@@ -374,8 +376,9 @@ export default function PlayersScreen({ active = true, onOpenPlayer, onStartWaiv
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
+      <View style={[styles.header, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}>
         <ScreenTitle focused={active}>Players</ScreenTitle>
+        <NavTools active={active} />
       </View>
 
       <View style={styles.searchWrap}>
@@ -572,6 +575,7 @@ export default function PlayersScreen({ active = true, onOpenPlayer, onStartWaiv
                     <Text style={styles.note}>{newsQuery ? `No news matches “${newsQuery}”.` : 'No news affecting your rostered players right now.'}</Text>
                   )
                 }
+                ListFooterComponent={newsData.length ? <NewsCredit center style={styles.credit} /> : null}
               />
             </>
           )}

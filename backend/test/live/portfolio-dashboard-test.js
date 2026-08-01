@@ -85,6 +85,26 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   assert('strengthLabel' in d.byLeague[0], `byLeague row exposes strengthLabel, got ${JSON.stringify(d.byLeague[0])}`);
   console.log('✓ per-league breakdown present (with strengthLabel)');
 
+  // Team-as-unit enrichments (Portfolio Teams tab): share of the portfolio, a format badge, and a
+  // value-history point (trend7 is null on the first recorded day, like holdings).
+  assert(d.byLeague[0].share === 100, `single team is 100% of the portfolio, got ${d.byLeague[0].share}`);
+  assert(d.byLeague[0].format && d.byLeague[0].format.numQbs === 1 && d.byLeague[0].format.label === '1QB · PPR', `team format badge present, got ${JSON.stringify(d.byLeague[0].format)}`);
+  assert('trend7' in d.byLeague[0] && Array.isArray(d.byLeague[0].history) && d.byLeague[0].history.length >= 1, `team carries trend7 + a history series, got ${JSON.stringify({ t: d.byLeague[0].trend7, h: (d.byLeague[0].history || []).length })}`);
+  // Format/settings distribution across leagues (Allocation tab): this 1QB / full-PPR league counted once.
+  assert(d.formatMix && d.formatMix.qb['1qb'] === 1 && d.formatMix.qb.superflex === 0, `formatMix QB distribution, got ${JSON.stringify(d.formatMix && d.formatMix.qb)}`);
+  assert(d.formatMix.ppr.full === 1 && d.formatMix.te.standard === 1, `formatMix ppr/te distribution, got ${JSON.stringify({ ppr: d.formatMix.ppr, te: d.formatMix.te })}`);
+  console.log('✓ team-as-unit: share + format badge + history/trend7; portfolio formatMix distribution');
+
+  // Contender-window mismatch: the field is wired (null here — this stub has no standings/record), and
+  // the pure signal helper is exercised directly (a 1-franchise stub can't express win% percentiles).
+  assert('record' in d.byLeague[0] && 'windowSignal' in d.byLeague[0], `byLeague carries record + windowSignal, got ${JSON.stringify({ r: d.byLeague[0].record, w: d.byLeague[0].windowSignal })}`);
+  assert(portfolio.windowSignalFor(0.7, { wins: 2, losses: 8, ties: 0 }) === 'sell', 'strong roster + losing record → sell window');
+  assert(portfolio.windowSignalFor(0.3, { wins: 8, losses: 2, ties: 0 }) === 'push', 'thin roster + winning record → go-for-it window');
+  assert(portfolio.windowSignalFor(0.7, { wins: 7, losses: 3, ties: 0 }) === null, 'strong roster + winning record → no mismatch');
+  assert(portfolio.windowSignalFor(0.7, { wins: 1, losses: 1, ties: 0 }) === null, 'too few games → no signal yet');
+  assert(portfolio.windowSignalFor(0.7, null) === null && portfolio.windowSignalFor(null, { wins: 2, losses: 8 }) === null, 'preseason / no strength → no signal');
+  console.log('✓ contender-window mismatch: sell / push / none classified; wired onto byLeague');
+
   // Top holdings: each player aggregated across leagues, biggest first, with exposure + share.
   assert(d.holdings.length === 3, `3 holdings, got ${d.holdings.length}`);
   assert(d.holdings[0].id === '1' && d.holdings[0].value === 100 && d.holdings[0].leagues === 1, `top holding is the young WR at 100 in 1 league, got ${JSON.stringify(d.holdings[0])}`);

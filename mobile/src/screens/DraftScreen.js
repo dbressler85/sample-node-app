@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, FlatList, SectionList, ActivityIndicator, Modal, TextInput } from 'react-native';
 import { appAlert } from "../components/AppAlert";
-import { toast } from '../components/Toast';
+import { useRequirePro } from '../entitlement';
 import { api, friendlyError } from '../api';
 import { colors, positionColors } from '../theme';
 import { displayLg, displayLabel } from '../typography';
@@ -196,6 +196,7 @@ const PickClock = React.memo(function PickClock({ pickClock, mine }) {
 });
 
 export default function DraftScreen({ league, demoMode, covered = false, onBack, onOpenPlayer, onOpenTrades, onOpenDraftList }) {
+  const requirePro = useRequirePro();
   // Seed the board from the survive-remount cache so reopening the draft paints the last board
   // instantly instead of a cold spinner; the live poll (below) keeps it current.
   const boardKey = `draft:${league.leagueId}`;
@@ -220,10 +221,11 @@ export default function DraftScreen({ league, demoMode, covered = false, onBack,
       setData(d);
       primeResource(boardKey, d);
     } catch (e) {
-      // Non-destructive: if a live board is already up, a failed background refresh
-      // (poll) must NOT paint a red banner over it — keep the last board, toast once.
-      if (dataRef.current) toast('Couldn’t refresh — showing the last update');
-      else setError(e.message);
+      // Non-destructive AND silent: a failed BACKGROUND refresh (poll / focus) keeps the last board on
+      // screen and says nothing. A live draft polls repeatedly, so toasting on every throttled tick was
+      // the "message pops up every 15–30s" spam — the board is already showing the last-good state, so
+      // the failure needs no announcement. Only a COLD load (nothing to show) surfaces the error inline.
+      if (!dataRef.current) setError(e.message);
     } finally {
       setLoading(false);
     }
@@ -236,7 +238,32 @@ export default function DraftScreen({ league, demoMode, covered = false, onBack,
   // when scheduled/complete.
   // Pause the live poll while this board is covered by another overlay (not visible) — but keep polling
   // when it's the top/visible screen so a live draft never freezes (UX_GUARDRAILS: reflect-live).
-  usePoll(load, 15000, !!(data && data.status === 'in_progress') && !picking && !covered);
+  // Poll cadence scales to the draft's PACE. A slow/email draft (hours per pick, nightly pauses) doesn't
+  // need a 15s refresh — that's pointless MFL load that, under a throttle, produced a refresh-failure on
+  // every tick. Key off the current pick's clock: the less time on it, the hotter the draft, the faster
+  // we poll. A genuinely live fast clock still refreshes every 15s so picks reflect promptly.
+  // Poll cadence keyed to PROXIMITY, not just the current pick's nominal clock. Keying only off the
+  // current clock went stale in a real case: a slow-clock draft where picks actually come fast polled
+  // every few minutes, so the board fell behind — it read "2 picks away" while Home (fresher) already
+  // showed on-the-clock. So: my pick, or within a few picks of it → poll fast (never go stale right
+  // before my turn); paused overnight → slow; otherwise a steady moderate cadence. Cheap now that the
+  // free-agent pool is pinned during a live draft (only the small draftResults read refetches).
+  const pollMs = useMemo(() => {
+    if (!data || data.status !== 'in_progress') return 30000;
+    if (data.onClock && data.onClock.mine) return 15000; // it's my pick — keep it live
+    const cur = data.onClock ? data.onClock.overall : null;
+    const myNext =
+      cur != null
+        ? (data.myPicks || [])
+            .filter((s) => !s.player && typeof s.overall === 'number' && s.overall >= cur)
+            .map((s) => s.overall)
+            .sort((a, b) => a - b)[0]
+        : null;
+    if (myNext != null && myNext - cur <= 3) return 15000; // about to be up — don't fall behind
+    if (data.pickClock && data.pickClock.paused) return 300000; // paused overnight → every 5 min
+    return 45000; // live but not close to my turn → steady, honest cadence
+  }, [data]);
+  usePoll(load, pollMs, !!(data && data.status === 'in_progress') && !picking && !covered);
 
   const myTurn = !!(data && data.onClock && data.onClock.mine);
   // In-app drafting works in BOTH modes now: live picks go through MFL's `live_draft` command
@@ -294,13 +321,22 @@ export default function DraftScreen({ league, demoMode, covered = false, onBack,
 
   async function draftPlayer(p, comment) {
     if (!myTurn) return;
+    if (!requirePro('draft.pick')) return; // Pro gate (inert until enforced)
     setConfirming(null);
     setPicking(p.id);
     try {
       const res = await api.makeDraftPick(league.leagueId, p.id, comment && comment.trim() ? comment.trim() : undefined);
-      setData(res);
-      primeResource(boardKey, res);
-      applyPickToHome(league.leagueId, res); // drop this league off Home's "on the clock" immediately
+      if (res && res.board) {
+        // Full confirmation board came back (already includes the pick) — paint it.
+        setData(res);
+        primeResource(boardKey, res);
+        applyPickToHome(league.leagueId, res); // drop this league off Home's "on the clock" immediately
+      } else {
+        // Pick SUCCEEDED but the board rebuild lagged (a transient throttle) — the backend returned a
+        // success sentinel, not a board. Refresh to pull in the updated board rather than showing an
+        // error for a pick that actually went through.
+        load();
+      }
       haptics.success(); // making a pick has no toast/celebrate — give the moment its own beat
     } catch (e) {
       appAlert('Could not draft', friendlyError(e.message), undefined, { tone: 'error' });

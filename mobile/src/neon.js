@@ -3,17 +3,26 @@
 // `node --test` exactly like theme.js. The RN component (components/NeonSign.js) turns the flicker
 // PLAN this produces into an Animated.sequence and draws the tube; the tone/color/glyph decisions
 // and the "how a real sign turns on" keyframes live here where they can be asserted.
+const { colors, rgb } = require('./theme');
 
-// Color keys → { hex core-adjacent accent, triplet for the glow recipe }. `cold` is the desaturated
-// blue-grey used for the deadpan sad moments (withdraw / loss) — lit, but never celebratory.
+// Color keys → { hex core-adjacent accent, triplet for the glow recipe }. Derived from the theme
+// tokens (colors + rgb) so the palette has ONE source and can't fork — the medal hues (gold/silver/
+// bronze) used to be hard-coded in both files. theme.js is dependency-free (no RN import), so this
+// stays safe to unit-test under `node --test`. `cold` is theme's muted blue-grey (textDim), the
+// deadpan sad tube (withdraw / loss) — lit, never celebratory; `white` is a neon-only tube, brighter
+// than body text, for the beta bug-report sign.
+const tube = (hex, triplet) => ({ hex, rgb: triplet });
 const COLORS = {
-  accent: { hex: '#4F8CFF', rgb: '79,140,255' },
-  good: { hex: '#2FD196', rgb: '47,209,150' },
-  bad: { hex: '#FF6470', rgb: '255,100,112' },
-  gold: { hex: '#F3C14A', rgb: '243,193,74' },
-  warn: { hex: '#FFA23A', rgb: '255,162,58' },
-  watch: { hex: '#E4F24A', rgb: '228,242,74' },
-  cold: { hex: '#93A2BE', rgb: '147,162,190' },
+  accent: tube(colors.accent, rgb.accent),
+  good: tube(colors.good, rgb.good),
+  bad: tube(colors.bad, rgb.bad),
+  gold: tube(colors.gold, rgb.gold),
+  silver: tube(colors.silver, rgb.silver), // podium runner-up medal (trophy case)
+  bronze: tube(colors.bronze, rgb.bronze), // podium 3rd-place medal (trophy case)
+  warn: tube(colors.warn, rgb.warn),
+  watch: tube(colors.watch, rgb.watch),
+  cold: tube(colors.textDim, rgb.textDim),
+  white: tube('#EAF1FF', '234,241,255'), // a white tube — the beta bug-report sign (flickers)
 };
 // The near-white tube CORE every neon sign shares — the hot inner filament the color blooms around.
 const CORE = '#F6FBFF';

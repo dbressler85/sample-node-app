@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, Pressable, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
 import { appAlert } from './AppAlert';
+import BottomSheet from './BottomSheet';
+import Checkbox from './Checkbox';
 import { api } from '../api';
 import { colors } from '../theme';
 
@@ -59,28 +61,29 @@ export default function AddAcrossSheet({ player, onClose, onDone, onReview }) {
   const toggle = (id) =>
     setSelected((s) => {
       const n = new Set(s);
-      n.has(id) ? n.delete(id) : n.add(id);
+      if (n.has(id)) n.delete(id); else n.add(id);
       return n;
     });
 
   return (
-    <Pressable style={styles.backdrop} onPress={onClose}>
-      <Pressable style={styles.sheet} onPress={() => {}}>
-        <View style={styles.grabber} />
-        <Text style={styles.sheetTitle}>Add {player.name} across leagues</Text>
-        {error ? (
-          <View style={{ paddingVertical: 20, alignItems: 'center' }}>
-            <Text style={styles.empty}>{error}</Text>
-            <Pressable style={({ pressed }) => [styles.retry, pressed && { opacity: 0.85 }]} onPress={load}>
-              <Text style={styles.retryText}>Retry</Text>
-            </Pressable>
-          </View>
-        ) : !preview ? (
-          <ActivityIndicator color={colors.accent} style={{ paddingVertical: 24 }} />
-        ) : preview.leagues.length === 0 ? (
-          <Text style={styles.empty}>Not available in any of your leagues right now.</Text>
-        ) : (
-          <>
+    <BottomSheet onClose={onClose}>
+      <Text style={styles.sheetTitle}>Add {player.name} across leagues</Text>
+      {error ? (
+        <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+          <Text style={styles.empty}>{error}</Text>
+          <Pressable style={({ pressed }) => [styles.retry, pressed && { opacity: 0.85 }]} onPress={load}>
+            <Text style={styles.retryText}>Retry</Text>
+          </Pressable>
+        </View>
+      ) : !preview ? (
+        <ActivityIndicator color={colors.accent} style={{ paddingVertical: 24 }} />
+      ) : preview.leagues.length === 0 ? (
+        <Text style={styles.empty}>Not available in any of your leagues right now.</Text>
+      ) : (
+        <>
+          {/* Bounded + scrollable within the sheet, so a long availability list can't push the title
+              off the top edge (the shell caps the height; this list scrolls the overflow). */}
+          <ScrollView style={styles.leagueScroll} contentContainerStyle={styles.leagueScrollContent} showsVerticalScrollIndicator>
             {preview.leagues.map((l) => {
               const on = selected.has(l.leagueId);
               return (
@@ -92,7 +95,7 @@ export default function AddAcrossSheet({ player, onClose, onDone, onReview }) {
                   accessibilityState={{ checked: on }}
                   accessibilityLabel={l.name}
                 >
-                  <View style={[styles.check, on && styles.checkOn]}>{on ? <Text style={styles.checkMark}>✓</Text> : null}</View>
+                  <Checkbox checked={on} size={24} style={styles.check} />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.addLeague} numberOfLines={1}>{l.name}</Text>
                     <Text style={styles.addMeta} numberOfLines={1}>
@@ -103,37 +106,34 @@ export default function AddAcrossSheet({ player, onClose, onDone, onReview }) {
                 </Pressable>
               );
             })}
-            <Pressable
-              style={({ pressed }) => [styles.confirm, (!selected.size || busy) && styles.confirmOff, pressed && selected.size && { opacity: 0.85 }]}
-              onPress={onReview ? review : submit}
-              disabled={!selected.size || busy}
-            >
-              {busy ? <ActivityIndicator color={colors.onAccent} /> : (
-                <Text style={styles.confirmText}>
-                  {onReview ? `Review ${selected.size} claim${selected.size === 1 ? '' : 's'} →` : `Claim in ${selected.size} league${selected.size === 1 ? '' : 's'}`}
-                </Text>
-              )}
-            </Pressable>
-            <Text style={styles.tip}>{onReview ? 'Pick the drop and bid for each league before you file.' : 'Fine-tune each bid/drop in the Waivers tab.'}</Text>
-          </>
-        )}
-      </Pressable>
-    </Pressable>
+          </ScrollView>
+          <Pressable
+            style={({ pressed }) => [styles.confirm, (!selected.size || busy) && styles.confirmOff, pressed && selected.size && { opacity: 0.85 }]}
+            onPress={onReview ? review : submit}
+            disabled={!selected.size || busy}
+          >
+            {busy ? <ActivityIndicator color={colors.onAccent} /> : (
+              <Text style={styles.confirmText}>
+                {onReview ? `Review ${selected.size} claim${selected.size === 1 ? '' : 's'} →` : `Claim in ${selected.size} league${selected.size === 1 ? '' : 's'}`}
+              </Text>
+            )}
+          </Pressable>
+          <Text style={styles.tip}>{onReview ? 'Pick the drop and bid for each league before you file.' : 'Fine-tune each bid/drop in the Waivers tab.'}</Text>
+        </>
+      )}
+    </BottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: colors.scrim, justifyContent: 'flex-end' },
-  grabber: { alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: colors.border, marginBottom: 12 },
-  sheet: { backgroundColor: colors.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, borderTopWidth: 1, borderColor: colors.border },
   sheetTitle: { color: colors.text, fontSize: 18, fontWeight: '900', marginBottom: 6 },
   empty: { color: colors.textDim, fontSize: 14, paddingVertical: 20, textAlign: 'center' },
   retry: { marginTop: 12, backgroundColor: colors.accent, borderRadius: 10, paddingHorizontal: 24, paddingVertical: 11, minHeight: 44, justifyContent: 'center' },
   retryText: { color: colors.onAccent, fontSize: 15, fontWeight: '800' },
+  leagueScroll: { flexShrink: 1 },
+  leagueScrollContent: { paddingBottom: 4 },
   addRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
-  check: { width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: colors.border, marginRight: 12, alignItems: 'center', justifyContent: 'center' },
-  checkOn: { backgroundColor: colors.accent, borderColor: colors.accent },
-  checkMark: { color: colors.onAccent, fontWeight: '900', fontSize: 14 },
+  check: { marginRight: 12 },
   addLeague: { color: colors.text, fontSize: 15, fontWeight: '700' },
   addMeta: { color: colors.textDim, fontSize: 12, marginTop: 2 },
   confirm: { backgroundColor: colors.accent, borderRadius: 12, paddingVertical: 15, alignItems: 'center', marginTop: 16 },
