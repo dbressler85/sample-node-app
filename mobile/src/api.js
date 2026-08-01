@@ -164,6 +164,8 @@ export const api = {
   pushTest: () => request('/api/push/test', { method: 'POST' }),
   pushStatus: () => request('/api/push/status'),
   scoreboard: () => request('/api/scoreboard'),
+  // One league's live matchup — the scoped cockpit card (no cross-league fan-out). { week, game|null }.
+  leagueMatchup: (leagueId) => request(`/api/leagues/${leagueId}/matchup`),
   exposure: () => request('/api/players/exposure'),
   news: () => request('/api/news'),
 

@@ -11,6 +11,7 @@ import PopChip from '../components/PopChip';
 import useAndroidBack from '../useAndroidBack';
 import useCachedResource from '../useCachedResource';
 import { STALE } from '../staleTiers';
+import { api } from '../api';
 import { leagueTeamsPreferDevice, leagueTriagePreferDevice, standingsPreferDevice, transactionsPreferDevice } from '../mflDevice';
 
 // The league hub: the ordinary league views the app was missing — Standings,
@@ -63,6 +64,11 @@ export default function LeagueScreen({ league, onBack, onOpenPlayer, onOpenPlayo
           <View style={{ width: 78 }} />
         )}
       </View>
+
+      {/* This week's live matchup — the headline in-season. Fetched only in-season (a single-league read,
+          not a fan-out) and renders nothing off-Sunday/offseason, so the cockpit stays calm when there's
+          no game. Sits above the attention ribbon: the score is the most time-sensitive thing here. */}
+      {inSeason ? <MatchupCard leagueId={league.leagueId} onOpenLineup={onOpenLineup ? () => onOpenLineup(league) : null} /> : null}
 
       <AttentionRibbon triage={triage} league={league} onOpenLineup={onOpenLineup} onOpenWaivers={onOpenWaivers} onOpenTrades={onOpenTrades} />
 
@@ -135,6 +141,56 @@ function AttentionRibbon({ triage, league, onOpenLineup, onOpenWaivers, onOpenTr
         </Pressable>
       ))}
     </ScrollView>
+  );
+}
+
+// This week's matchup, scoped to one league — the same card the cross-league Scores tab builds, shown
+// where the owner already is. Read-only: it never blocks the Standings paint (loads independently) and
+// renders NOTHING when there's no live game (offseason/bye/unstarted week), so a quiet week stays quiet.
+// The whole card taps through to Set Lineup — the natural next action when you're staring at a score.
+const MATCH_STATUS = {
+  won: { label: 'Won', color: colors.good },
+  favored: { label: 'Favored', color: colors.good },
+  tossup: { label: 'Toss-up', color: colors.warn },
+  trailing: { label: 'Trailing', color: colors.bad },
+  lost: { label: 'Lost', color: colors.bad },
+};
+function MatchupCard({ leagueId, onOpenLineup }) {
+  const { data } = useCachedResource(`league:matchup:${leagueId}`, () => api.leagueMatchup(leagueId), { staleMs: STALE.LIVE });
+  const game = data && data.game;
+  if (!game) return null; // no live matchup — render nothing (calm week)
+  const st = MATCH_STATUS[game.status] || { label: '', color: colors.textDim };
+  const pct = game.winProb != null ? Math.round(game.winProb * 100) : null;
+  const toPlay = (game.me && game.me.yetToPlay) || 0;
+  const oppToPlay = (game.opp && game.opp.yetToPlay) || 0;
+  const inner = (
+    <View style={styles.matchCard}>
+      <View style={styles.matchTop}>
+        <Text style={styles.matchWeek}>{data.week ? `Week ${data.week}` : 'This week'}{game.locked ? ' · Final' : ' · Live'}</Text>
+        {st.label ? (
+          <View style={[styles.matchPill, { borderColor: st.color }]}><Text style={[styles.matchPillText, { color: st.color }]}>{st.label}</Text></View>
+        ) : null}
+      </View>
+      <View style={styles.matchScoreRow}>
+        <Text style={styles.matchScoreMine} numberOfLines={1}>{Math.round((game.me && game.me.score) || 0)}</Text>
+        <Text style={styles.matchDash}>–</Text>
+        <Text style={styles.matchScoreOpp} numberOfLines={1}>{Math.round((game.opp && game.opp.score) || 0)}</Text>
+        <Text style={styles.matchVs} numberOfLines={1}>vs {game.opponent || 'Opponent'}</Text>
+      </View>
+      <View style={styles.matchMetaRow}>
+        {pct != null && !game.locked ? <Text style={[styles.matchMeta, { color: st.color }]}>{pct}% win</Text> : null}
+        {game.close && !game.locked ? <Text style={styles.matchClose}>⚡ close</Text> : null}
+        {!game.locked && (toPlay || oppToPlay) ? <Text style={styles.matchMeta}>{toPlay} of yours to play</Text> : null}
+      </View>
+    </View>
+  );
+  if (!onOpenLineup) return <View style={styles.matchWrap}>{inner}</View>;
+  return (
+    <View style={styles.matchWrap}>
+      <Pressable onPress={onOpenLineup} style={({ pressed }) => pressed && { opacity: 0.85 }} accessibilityRole="button" accessibilityLabel={`This week's matchup versus ${game.opponent || 'opponent'} — set your lineup`}>
+        {inner}
+      </Pressable>
+    </View>
   );
 }
 
@@ -339,6 +395,21 @@ const styles = StyleSheet.create({
   attnText: { color: colors.text, fontSize: 12, fontWeight: '700', maxWidth: 200 },
   outlookChip: { justifyContent: 'center', backgroundColor: colors.violet + '22', borderRadius: 999, borderWidth: 1, borderColor: colors.violetDim, paddingHorizontal: 12, minHeight: 34 },
   outlookText: { color: colors.violetText, fontSize: 12, fontWeight: '800' },
+  // This week's matchup card — the in-season headline, taps through to Set Lineup.
+  matchWrap: { paddingHorizontal: 16, paddingTop: 8 },
+  matchCard: { backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 12 },
+  matchTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+  matchWeek: { color: colors.textDim, fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
+  matchPill: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 2 },
+  matchPillText: { fontSize: 11, fontWeight: '800' },
+  matchScoreRow: { flexDirection: 'row', alignItems: 'baseline' },
+  matchScoreMine: { color: colors.text, fontSize: 26, fontWeight: '900', fontVariant: ['tabular-nums'] },
+  matchDash: { color: colors.textDim, fontSize: 20, fontWeight: '800', marginHorizontal: 8 },
+  matchScoreOpp: { color: colors.textDim, fontSize: 26, fontWeight: '900', fontVariant: ['tabular-nums'] },
+  matchVs: { color: colors.textDim, fontSize: 13, fontWeight: '700', marginLeft: 'auto', flexShrink: 1, textAlign: 'right' },
+  matchMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 8 },
+  matchMeta: { color: colors.textDim, fontSize: 12, fontWeight: '700' },
+  matchClose: { color: colors.warn, fontSize: 12, fontWeight: '800' },
   // Scoped action row — accent-outlined chips (actions, not values), horizontally scrollable.
   actionRow: { paddingHorizontal: 16, gap: 8, paddingTop: 8, paddingBottom: 2 },
   actionChip: { backgroundColor: colors.cardAlt, borderRadius: 999, borderWidth: 1, borderColor: colors.accent, paddingHorizontal: 16, minHeight: 40, justifyContent: 'center' },

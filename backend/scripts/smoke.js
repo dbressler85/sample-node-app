@@ -112,6 +112,13 @@ function assert(cond, msg) {
         `    ${g.name}: ${g.me.score}-${g.opp.score} vs ${g.opponent} · ${Math.round(g.winProb * 100)}% (${g.me.yetToPlay} to play)${g.close ? ' ⚡close' : ''}`
       );
 
+    // Scoped single-league matchup (the cockpit card) — same numbers as the cross-league board.
+    const sbLeagueId = sb.games[0].leagueId;
+    const one = (await j(await fetch(`${base}/api/leagues/${sbLeagueId}/matchup`, authed))).body;
+    assert(one.game && String(one.game.leagueId) === String(sbLeagueId), 'scoped matchup returns that league');
+    assert(one.game.me.score === sb.games[0].me.score && one.game.winProb === sb.games[0].winProb, 'scoped matchup matches the board card');
+    console.log(`✓ league matchup: ${one.game.name} ${one.game.me.score}-${one.game.opp.score} vs ${one.game.opponent}`);
+
     // Player exposure (the cross-league moat).
     const exp = (await j(await fetch(`${base}/api/players/exposure`, authed))).body;
     assert(exp.players.length > 0 && exp.summary.multiLeague >= 1, 'exposure finds multi-league players');
