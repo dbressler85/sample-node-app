@@ -57,6 +57,20 @@ Respect these on every change.
 - Cache the static/slow MFL types; **parallelize independent per-league fan-outs**
   (`Promise.all`), never run them in sequence.
 
+### Write scoping (cross-league safety) — a wrong-league write can lose a subscriber
+- **Every write resolves its league from the *requested* `leagueId`** (`findLeague(cookie, leagueId)`)
+  and uses *that league's own* `host` / `L` / `franchiseId` — never a cached "current league", an
+  array-index lookup, or another league's row. MFL hands out a **different `franchiseId` per league**
+  for the same user, so `FRANCHISE` and `L` must always come from the same resolved row.
+- **Writes never touch the read cache.** `importRequest` / `miscRequest` call `rawRequest` directly, so
+  a write is never coalesced, deduped, or served from a cache keyed such that two leagues collide.
+- **A multi-league write only touches explicitly-selected leagues.** Add/drop-across and Set-All default
+  to *nothing* (`[]`), key each selection by `leagueId` (a `Map`, never a positional index/zip), and
+  verify per-league eligibility (ownership) before writing. No "apply to all leagues" default.
+- **Keep the guards green:** `draft-cross-league-test` and `playerhub-cross-league-test` pin these
+  invariants end-to-end (a pick/drop in league A never writes to league B). If a refactor makes one fail,
+  the refactor is wrong, not the test.
+
 ### Mobile
 - **Every hook and identifier must be imported.** An undefined variable (e.g. `useRef`)
   bundles fine and then crashes at runtime — a `ReferenceError` in the **root component**
