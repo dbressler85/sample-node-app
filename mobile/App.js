@@ -35,6 +35,7 @@ import DraftScreen from './src/screens/DraftScreen';
 import DraftHubScreen from './src/screens/DraftHubScreen';
 import PickInventoryScreen from './src/screens/PickInventoryScreen';
 import PickTradeFinderScreen from './src/screens/PickTradeFinderScreen';
+import TradeFinderScreen from './src/screens/TradeFinderScreen';
 import CompareScreen from './src/screens/CompareScreen';
 import PlayoffBracketScreen from './src/screens/PlayoffBracketScreen';
 import TrophyCaseScreen from './src/screens/TrophyCaseScreen';
@@ -320,6 +321,7 @@ export default function App() {
   // Pick Capital → shop/acquire flow: a ranked-partner shortlist for a pick-oriented deal, whose rows
   // open the trade desk pre-seeded on the suggested deal.
   const openPickTradeFinder = (leagueId, name, intent) => pushOverlay({ type: 'pickTradeFinder', leagueId, name, intent });
+  const openTradeFinder = (league) => pushOverlay({ type: 'tradeFinder', league });
   const openCompare = (seedPlayer) => pushOverlay({ type: 'compare', seedPlayer });
   const openDraftList = (league) => pushOverlay({ type: 'draftList', league });
   const openLeagues = () => pushOverlay({ type: 'leagues' });
@@ -465,6 +467,14 @@ export default function App() {
             onOpenDeal={(deal) => openTrades({ leagueId: o.leagueId, name: o.name }, 'propose', deal)}
           />
         );
+      case 'tradeFinder':
+        return (
+          <TradeFinderScreen
+            league={o.league}
+            onBack={popOverlay}
+            onOpenDeal={(deal) => openTrades({ leagueId: o.league.leagueId, name: o.league.name }, 'propose', deal)}
+          />
+        );
       case 'leagues':
         return <LeaguesScreen onBack={popOverlay} onOpenLeague={openLeagueHub} onOpenDraftHub={openDraftHub} />;
       case 'league':
@@ -479,6 +489,7 @@ export default function App() {
             onOpenTrades={openTrades}
             onOpenWaivers={openWaivers}
             onOpenDraft={openDraft}
+            onOpenTradeFinder={openTradeFinder}
           />
         );
       case 'playoffs':

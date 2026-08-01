@@ -23,7 +23,7 @@ const TABS = [
   ['txns', 'Transactions'],
 ];
 
-export default function LeagueScreen({ league, onBack, onOpenPlayer, onOpenPlayoffs, onOpenRoster, onOpenLineup, onOpenTrades, onOpenWaivers, onOpenDraft }) {
+export default function LeagueScreen({ league, onBack, onOpenPlayer, onOpenPlayoffs, onOpenRoster, onOpenLineup, onOpenTrades, onOpenWaivers, onOpenDraft, onOpenTradeFinder }) {
   const [tab, setTab] = useState('standings');
   // One per-league triage read, shared by the attention ribbon AND the action row (its `phase` gates
   // which actions make sense). Loads independently of the tabs, so it never delays the Standings paint.
@@ -45,6 +45,7 @@ export default function LeagueScreen({ league, onBack, onOpenPlayer, onOpenPlayo
     onOpenRoster && { key: 'roster', label: 'My Team', onPress: () => onOpenRoster(league) },
     onOpenLineup && { key: 'lineup', label: 'Set Lineup', onPress: () => onOpenLineup(league) },
     onOpenTrades && { key: 'trades', label: 'Trades', badge: pendingTrades, onPress: () => onOpenTrades(league) },
+    onOpenTradeFinder && { key: 'find', label: 'Find Deals', onPress: () => onOpenTradeFinder(league) },
     onOpenWaivers && { key: 'waivers', label: 'Waivers', badge: pendingWaivers, onPress: () => onOpenWaivers({ leagueId: league.leagueId }) },
     onOpenDraft && !inSeason && { key: 'draft', label: 'Draft', onPress: () => onOpenDraft(league) },
   ].filter(Boolean);
