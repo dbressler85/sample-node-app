@@ -2,12 +2,15 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { getValue, setValue, onCacheInvalidate } from './cache';
 import store from './resourceStore';
 
-// Stale-while-revalidate for a screen's data, hardened for this app's navigation model: every
-// top-level tab fully UNMOUNTS when you switch tabs or an overlay covers it, and remounts on
-// return. The survive-remount + throttle + invalidation logic now lives in the pure, unit-tested
-// `resourceStore` (see resourceStore.js and test/resourceStore.test.js for the C1–C3/C11
-// contracts); this hook is the React glue over it. Non-destructive errors (C4) — a failed
-// refetch keeps the last-known `data` and never nulls it — live here in the revalidate/effect.
+// Stale-while-revalidate for a screen's data, hardened for this app's navigation model. Top-level
+// tabs are KEEP-ALIVE: they stay mounted when you switch away (hidden via display:none), so the
+// mount effect doesn't re-run on return — the post-write refresh instead rides the FOCUS edge
+// (the `active` prop flipping false→true; see the second effect below). Overlays, cold start, and a
+// key change still mount/paint through the mount effect. The survive-remount + throttle +
+// invalidation logic lives in the pure, unit-tested `resourceStore` (see resourceStore.js and
+// test/resourceStore.test.js for the C1–C3/C11 contracts); this hook is the React glue over it.
+// Non-destructive errors (C4) — a failed refetch keeps the last-known `data` and never nulls it —
+// live here in the revalidate/effect.
 //
 // `key`     — cache key. Change it (per mode/tab) to switch datasets; the new key's value (memory
 //             first, then disk) paints as soon as it's available.

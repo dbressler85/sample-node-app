@@ -220,8 +220,9 @@ default.
 ### 4.4 Section label — one treatment everywhere
 **One** treatment: `displayLabel()` (Oswald), uppercase, `letterSpacing ~0.16em`, `size.caption` (12),
 in **`violetText`** — the structure hue (§1/§2.5b), so every section/card eyebrow reads as the same
-wayfinding signal. Shared `SectionLabel` component + the per-screen `cardTitle`/`sectionHeader`/
-`sectionLabel` styles all use it (converted 2026-07 from the old mix of `textDim`/`accent`/`gold`).
+wayfinding signal. Realized through the per-screen `cardTitle`/`sectionHeader`/`sectionLabel` styles,
+which all build on `displayLabel()` + `violetText` (converted 2026-07 from the old mix of
+`textDim`/`accent`/`gold`) — a shared component was tried and dropped as unnecessary indirection.
 Larger mixed-case *headings* (Home/Draft/Help ~15px `text`) are a separate type role and stay white;
 data-grid column headers stay `textDim` (§2.5b).
 
@@ -308,7 +309,8 @@ Shared primitives — build once, delete the per-screen copies.
 - **`Button`** — `variant: primary | ghost | destructive`. Primary = `accent` fill + `onAccent`
   label; radius `sm`; `minHeight:44`; `accessibilityRole:"button"`. Replaces the hand-rolled
   buttons in `ErrorView`/`InfoDot`/`HelpScreen` (which is why the contrast bug exists twice).
-- **`SectionLabel`** — §4.4.
+- **Section label** — §4.4 (the shared `displayLabel()` + `violetText` treatment, applied via each
+  screen's `cardTitle`/`sectionHeader`/`sectionLabel` styles — not a standalone component).
 - **`Card`** — `card` bg, radius `md`, padding `lg`, `shadow.card`.
 - **Segmented control** — one inset-track style (`cardAlt` track, `accent`-tinted active segment)
   for *all* toggles: Draft Pick|Board, DraftList, Portfolio holdings, lineup mode. The Pick|Board
