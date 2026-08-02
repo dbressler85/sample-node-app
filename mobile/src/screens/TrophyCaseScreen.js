@@ -67,12 +67,17 @@ export default function TrophyCaseScreen({ onBack }) {
       apply(res);
       const n = (res.added || []).length;
       const fixed = (res.corrected || []).length; // medals re-graded on a re-scan (e.g. gold → silver)
+      // The scan couldn't read every season (MFL throttled a few) — invite one more tap so the owner
+      // isn't left with a silently-incomplete case.
+      const partialNote = res.partial ? '\n\nSome seasons couldn’t be read just now — tap “Find my titles” again to finish.' : '';
       if (n) {
         const lines = res.added.map((t) => `${medalFor(t.place).label} · ${t.year} · ${t.leagueName}`).join('\n');
-        appAlert(`Found ${n} finish${n === 1 ? '' : 'es'}!`, fixed ? `${lines}\n\n(Also corrected ${fixed} medal${fixed === 1 ? '' : 's'} to the right place.)` : lines);
+        appAlert(`Found ${n} finish${n === 1 ? '' : 'es'}!`, (fixed ? `${lines}\n\n(Also corrected ${fixed} medal${fixed === 1 ? '' : 's'} to the right place.)` : lines) + partialNote);
       } else if (fixed) {
         const lines = res.corrected.map((t) => `${medalFor(t.place).label} · ${t.year} · ${t.leagueName}`).join('\n');
-        appAlert(`Corrected ${fixed} medal${fixed === 1 ? '' : 's'}`, `Re-graded to the right podium finish:\n${lines}`);
+        appAlert(`Corrected ${fixed} medal${fixed === 1 ? '' : 's'}`, `Re-graded to the right podium finish:\n${lines}${partialNote}`);
+      } else if (res.partial) {
+        appAlert('Some seasons couldn’t be read', 'A few seasons didn’t load just now (MyFantasyLeague was busy). Tap “Find my titles” again to finish the scan.');
       } else {
         appAlert('All caught up', 'No new podium finishes found in your MyFantasyLeague playoff history.');
       }
