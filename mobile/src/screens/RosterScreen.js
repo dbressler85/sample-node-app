@@ -35,7 +35,7 @@ function sortPlayers(arr, key) {
   return a;
 }
 
-export default function RosterScreen({ league, onBack, onOpenTrades, onOpenDraft, onOpenPlayer }) {
+export default function RosterScreen({ league, onBack, onOpenTrades, onOpenDraft, onOpenWaivers, onOpenPlayer }) {
   // Roster via the shared cache hook: instant repaint on return, throttled reloads, and it
   // keeps the roster on a failed refresh (C1/C2/C4). A trade/draft done in an overlay marks it
   // stale (invalidate-on-write), so returning here refetches (C3).
@@ -59,27 +59,49 @@ export default function RosterScreen({ league, onBack, onOpenTrades, onOpenDraft
 
   // Fire an IR/taxi move, then refetch so the roster reflects it. MFL enforces eligibility
   // (IR needs an injury designation; taxi needs a rookie/young player) — surface its error.
-  const move = async (player, call) => {
+  const move = async (player, call, errTitle = 'Move not allowed') => {
     setMovingId(String(player.id));
     try {
       await call();
       reload();
     } catch (e) {
-      appAlert('Move not allowed', e.message);
+      appAlert(errTitle, e.message);
     } finally {
       setMovingId(null);
     }
   };
+  // Drop to free agency — a confirmed, reversible-only-in-MFL write. Scoped to THIS league
+  // (playerDrop takes a league list; we pass just this one). submitDrop reports per-league failures in
+  // its results rather than throwing, so we inspect the row and throw MFL's reason (roster minimum,
+  // locked player, …) up to `move` for a non-destructive alert.
+  const dropPlayer = (player) => {
+    const id = String(player.id);
+    appAlert('Drop player?', `Drop ${player.name} to free agency in ${league.name}? You can re-add him from the waiver wire while he's available.`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Drop',
+        style: 'destructive',
+        onPress: () => move(player, async () => {
+          const res = await api.playerDrop(id, [league.leagueId]);
+          const r = (res.results || [])[0];
+          if (!r || !r.ok) throw new Error((r && r.error) || 'Couldn’t drop this player.');
+          return res;
+        }, 'Drop failed'),
+      },
+    ]);
+  };
   const moveActionsFor = (player) => {
     const bucket = bucketOf[String(player.id)];
     const id = String(player.id);
-    if (bucket === 'ir') return [{ key: 'act', label: 'Activate', onPress: () => move(player, () => api.moveIr(league.leagueId, { activate: [id] })) }];
-    if (bucket === 'taxi') return [{ key: 'promo', label: 'Promote', onPress: () => move(player, () => api.moveTaxi(league.leagueId, { promote: [id] })) }];
+    const drop = { key: 'drop', label: 'Drop', destructive: true, onPress: () => dropPlayer(player) };
+    if (bucket === 'ir') return [{ key: 'act', label: 'Activate', onPress: () => move(player, () => api.moveIr(league.leagueId, { activate: [id] })) }, drop];
+    if (bucket === 'taxi') return [{ key: 'promo', label: 'Promote', onPress: () => move(player, () => api.moveTaxi(league.leagueId, { promote: [id] })) }, drop];
     if (bucket === 'active') return [
       { key: 'ir', label: '→ IR', onPress: () => move(player, () => api.moveIr(league.leagueId, { deactivate: [id] })) },
       { key: 'taxi', label: '→ Taxi', onPress: () => move(player, () => api.moveTaxi(league.leagueId, { demote: [id] })) },
+      drop,
     ];
-    return [];
+    return [drop];
   };
 
   // Trade-bait board for this league, alongside — secondary, best-effort.
@@ -141,6 +163,11 @@ export default function RosterScreen({ league, onBack, onOpenTrades, onOpenDraft
           <Text style={styles.back}>‹ Leagues</Text>
         </Pressable>
         <View style={styles.topActions}>
+          {onOpenWaivers ? (
+            <Pressable onPress={() => onOpenWaivers({ leagueId: league.leagueId })} hitSlop={10}>
+              <Text style={styles.trades}>＋ Add</Text>
+            </Pressable>
+          ) : null}
           {onOpenDraft ? (
             <Pressable onPress={() => onOpenDraft(league)} hitSlop={10}>
               <Text style={styles.trades}>◆ Draft</Text>
@@ -211,8 +238,8 @@ export default function RosterScreen({ league, onBack, onOpenTrades, onOpenDraft
                       <ActivityIndicator color={colors.accent} size="small" />
                     ) : (
                       acts.map((a) => (
-                        <Pressable key={a.key} onPress={a.onPress} hitSlop={6} style={({ pressed }) => [styles.moveBtn, pressed && { opacity: 0.7 }]}>
-                          <Text style={styles.moveTxt}>{a.label}</Text>
+                        <Pressable key={a.key} onPress={a.onPress} hitSlop={6} style={({ pressed }) => [styles.moveBtn, a.destructive && styles.moveBtnDanger, pressed && { opacity: 0.7 }]}>
+                          <Text style={[styles.moveTxt, a.destructive && styles.moveTxtDanger]}>{a.label}</Text>
                         </Pressable>
                       ))
                     )}
@@ -316,4 +343,6 @@ const styles = StyleSheet.create({
   moveRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingBottom: 10, paddingLeft: 54, minHeight: 20 },
   moveBtn: { borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
   moveTxt: { color: colors.accent, fontSize: 11, fontWeight: '800' },
+  moveBtnDanger: { borderColor: colors.bad },
+  moveTxtDanger: { color: colors.bad },
 });
