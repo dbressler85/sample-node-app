@@ -11,6 +11,8 @@ const trophyStore = require('../store/trophies');
 const leaguesService = require('./leagues');
 const playoffsService = require('./playoffs');
 
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 function throwBad(message) {
   const err = new Error(message);
   err.status = 400;
@@ -120,6 +122,22 @@ async function detect(cookie, token, { yearsBack = 12 } = {}) {
     if (t.leagueName) existing.add(`${t.leagueName}|${t.year}`.toLowerCase());
   }
 
+  // A season whose read fails is retried a few times (spaced, so the MFL 429 penalty window clears)
+  // before we give up — because a failure must NEVER be mistaken for "no bracket that year" and stop
+  // the backward scan (that truncated the scan under load → the "tap several times to load all my
+  // trophies" bug). One read still failing after retries flips `partial` instead of hiding older years.
+  // Only an EXPLICIT ok:false is a read failure; a result without `ok` (older callers/stubs) is treated
+  // as a successful read, so this stays backward-compatible.
+  const readYear = async (league, year) => {
+    let res = await playoffs.championFor(cookie, league, String(year));
+    for (let a = 0; a < 3 && res.ok === false; a += 1) {
+      await delay(300 * (a + 1));
+      res = await playoffs.championFor(cookie, league, String(year));
+    }
+    return res;
+  };
+
+  let partial = false;
   const perLeague = await Promise.all(
     leagues.map(async (league) => {
       // Per-league isolation: one league's scan must never reject the whole Promise.all and blank the
@@ -130,8 +148,12 @@ async function detect(cookie, token, { yearsBack = 12 } = {}) {
         const mine = String(league.franchiseId);
         const record = (year, place) => titles.push({ leagueId: league.leagueId, leagueName: league.name, team: league.franchiseName || `Team ${mine}`, year, place });
         for (let year = thisSeason - 1; year >= thisSeason - back; year -= 1) {
-          const res = await playoffs.championFor(cookie, league, String(year));
-          if (!res.exists) break; // no bracket that year → league predates it; stop scanning back
+          const res = await readYear(league, year);
+          // Only a CONFIRMED read that shows no bracket stops the scan (the league predates it). A read
+          // FAILURE must not stop it — flag partial and keep scanning earlier years so one throttled
+          // season can't hide the rest.
+          if (res.ok === false) { partial = true; continue; }
+          if (!res.exists) break;
           // A franchise finishes in exactly ONE podium slot per season — check gold → silver → bronze and
           // stop at the first that's mine, so a season yields at most one trophy.
           if (res.champion && String(res.champion.franchiseId) === mine) record(year, 1);
@@ -141,6 +163,7 @@ async function detect(cookie, token, { yearsBack = 12 } = {}) {
         return titles;
       } catch (e) {
         console.log(`[trophies] detect league=${league.leagueId} error=${e.message}`);
+        partial = true;
         return [];
       }
     })
@@ -153,13 +176,13 @@ async function detect(cookie, token, { yearsBack = 12 } = {}) {
       ...c,
       alreadyInCase: existing.has(`${c.leagueId}|${c.year}`.toLowerCase()) || existing.has(`${c.leagueName}|${c.year}`.toLowerCase()),
     }));
-  return { candidates, summary: { found: candidates.length, new: candidates.filter((c) => !c.alreadyInCase).length } };
+  return { candidates, partial, summary: { found: candidates.length, new: candidates.filter((c) => !c.alreadyInCase).length } };
 }
 
 // Detect + add every NEW championship in one shot (source:'auto'), returning what was added plus the
 // refreshed case. The one-tap "find my titles" action; anything mis-detected is reversible (remove).
 async function detectAndAdd(cookie, token, opts) {
-  const { candidates } = await detect(cookie, token, opts);
+  const { candidates, partial } = await detect(cookie, token, opts);
   // Index the current case by the same (leagueId|year / leagueName|year) keys the store dedups on, so
   // we can tell a genuinely-new finish from one already stored (possibly with a stale/missing place).
   const byKey = new Map();
@@ -184,7 +207,9 @@ async function detectAndAdd(cookie, token, opts) {
       if (row) corrected.push(row);
     }
   }
-  return { added, corrected, scanned: candidates.length, ...list(token) };
+  // `partial` = at least one season couldn't be read even after retries, so more titles may exist —
+  // the client can invite one more tap instead of the owner discovering a gap themselves.
+  return { added, corrected, scanned: candidates.length, partial: !!partial, ...list(token) };
 }
 
 module.exports = { list, add, remove, detect, detectAndAdd };

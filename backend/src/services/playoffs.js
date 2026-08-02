@@ -238,14 +238,18 @@ async function championFor(cookie, league, year) {
       mflRepo.playoffBrackets(league, cookie, { year }),
       mflRepo.schedule(league, cookie, { year }),
     ]);
-    if (!defs.length) return { exists: false, champion: null, runnerUp: null, third: null };
+    if (!defs.length) return { ok: true, exists: false, champion: null, runnerUp: null, third: null };
     const built = reconstruct(defs, sched, new Map(), league.franchiseId);
-    if (!built.available) return { exists: true, champion: null, runnerUp: null, third: null };
+    if (!built.available) return { ok: true, exists: true, champion: null, runnerUp: null, third: null };
     // Names aren't fetched here (detection only needs the franchise id; the caller supplies its own
     // display name), so runnerUp/third carry `Team <id>` placeholders — matched by id, never shown.
-    return { exists: true, champion: built.champion, runnerUp: built.runnerUp, third: built.third };
+    return { ok: true, exists: true, champion: built.champion, runnerUp: built.runnerUp, third: built.third };
   } catch (e) {
-    return { exists: false, champion: null, runnerUp: null, third: null };
+    // `ok:false` marks a READ failure (throttle/network) — distinct from a genuine "no bracket that year"
+    // (`ok:true, exists:false`). A caller scanning backwards must NOT treat a failure as "league predates
+    // the bracket" and stop, or a transient throttle silently truncates the scan (the "tap several times
+    // to load all my trophies" bug). `exists:false` is kept for older callers that only read `champion`.
+    return { ok: false, exists: false, champion: null, runnerUp: null, third: null };
   }
 }
 
