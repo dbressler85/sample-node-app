@@ -12,8 +12,6 @@ import { appAlert } from '../components/AppAlert';
 import useAndroidBack from '../useAndroidBack';
 import { peekResource, primeResource } from '../useCachedResource';
 import NeonSign from '../components/NeonSign';
-import ValueCredit from '../components/ValueCredit';
-import NewsCredit from '../components/NewsCredit';
 
 const APP_VERSION = (Constants.expoConfig && Constants.expoConfig.version) || null;
 
@@ -159,10 +157,32 @@ export default function ProfileScreen({ onBack, onOpenPortfolio, onOpenSettings,
           <ActionRow label="Delete my data" onPress={requestDeletion} last />
         </View>
 
-        {/* Data credits (attribution) + version */}
-        <View style={styles.creditsRow}>
-          <ValueCredit center />
-          <NewsCredit center />
+        {/* Data & credits — moved here from Settings; the two licensed sources (FantasyCalc, RotoBaller)
+            stay tappable links, as their partner terms require a visible credit back to the site. */}
+        <View style={styles.card}>
+          <Text style={[styles.cardTitle, displayLabel()]}>Data & credits</Text>
+          <Pressable style={({ pressed }) => [styles.creditRow, pressed && { opacity: 0.7 }]} onPress={() => openUrl('https://fantasycalc.com')} accessibilityRole="link" accessibilityLabel="Player values from FantasyCalc.com — open FantasyCalc">
+            <View style={styles.creditText}>
+              <Text style={styles.creditLabel}>Values · <Text style={styles.creditLink}>FantasyCalc.com</Text></Text>
+              <Text style={styles.creditDesc}>Player and draft-pick dynasty values.</Text>
+            </View>
+            <Text style={styles.creditChev}>↗</Text>
+          </Pressable>
+          <View style={styles.creditDivider} />
+          <Pressable style={({ pressed }) => [styles.creditRow, pressed && { opacity: 0.7 }]} onPress={() => openUrl('https://www.rotoballer.com')} accessibilityRole="link" accessibilityLabel="Player news from RotoBaller.com — open RotoBaller">
+            <View style={styles.creditText}>
+              <Text style={styles.creditLabel}>News · <Text style={styles.creditLink}>RotoBaller.com</Text></Text>
+              <Text style={styles.creditDesc}>Player news and injury updates.</Text>
+            </View>
+            <Text style={styles.creditChev}>↗</Text>
+          </Pressable>
+          <View style={styles.creditDivider} />
+          <View style={styles.creditRow}>
+            <View style={styles.creditText}>
+              <Text style={styles.creditLabel}>MyFantasyLeague · Sleeper</Text>
+              <Text style={styles.creditDesc}>League, roster, and transaction data come live from MyFantasyLeague; waiver-heat trends from Sleeper.</Text>
+            </View>
+          </View>
         </View>
         <Text style={styles.version}>Dynasty Central{APP_VERSION ? ` · v${APP_VERSION}` : ''}</Text>
 
@@ -279,6 +299,14 @@ const styles = StyleSheet.create({
   actionText: { color: colors.text, fontSize: 15, fontWeight: '700' },
   actionChev: { color: colors.textDim, fontSize: 18, fontWeight: '700' },
   creditsRow: { flexDirection: 'row', justifyContent: 'center', gap: 14, marginTop: 2 },
+  // Data & credits card rows
+  creditRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, gap: 10 },
+  creditText: { flex: 1 },
+  creditLabel: { color: colors.text, fontSize: 14, fontWeight: '800' },
+  creditLink: { color: colors.accent, fontWeight: '800', textDecorationLine: 'underline' },
+  creditDesc: { color: colors.textDim, fontSize: 12, marginTop: 2, lineHeight: 16 },
+  creditChev: { color: colors.textDim, fontSize: 15, fontWeight: '700' },
+  creditDivider: { height: StyleSheet.hairlineWidth, backgroundColor: colors.border },
   version: { color: colors.textDim, fontSize: 11, fontWeight: '600', textAlign: 'center', marginTop: 8 },
   errBanner: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.bad, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 14 },
   errBannerText: { color: colors.bad, fontSize: 13, fontWeight: '700', textAlign: 'center' },

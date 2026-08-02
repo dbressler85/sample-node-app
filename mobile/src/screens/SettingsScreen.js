@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, Switch, ActivityIndicator, ScrollView, Linking } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Switch, ActivityIndicator, ScrollView } from 'react-native';
 import { appAlert } from "../components/AppAlert";
 import { api } from '../api';
 import { colors } from '../theme';
@@ -20,14 +20,8 @@ const CHANNELS = [
 
 // Preferences: explicitly choose which push notifications to receive. Each toggle saves
 // immediately (optimistic, reverts on failure). Channels default on.
-export default function SettingsScreen({ onBack, onOpenHelp, onLogout }) {
-  const confirmLogout = useCallback(() => {
-    appAlert('Log out?', 'You’ll need your MFL username and password to sign back in.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Log out', style: 'destructive', onPress: () => onLogout && onLogout() },
-    ]);
-  }, [onLogout]);
-
+export default function SettingsScreen({ onBack }) {
+  // Settings is now focused on notifications; Help, Log out, and Data & credits live on the Profile view.
   // Seed from cache so re-opening Settings (an overlay — unmounts on back) shows the switches instantly
   // instead of a spinner; the mount fetch revalidates. Push prefs rarely change.
   const [prefs, setPrefs] = useState(() => { const h = peekResource('settings:pushPrefs'); return h ? h.value : null; });
@@ -168,48 +162,6 @@ export default function SettingsScreen({ onBack, onOpenHelp, onLogout }) {
           {diagnosing ? <ActivityIndicator color={colors.textDim} /> : <Text style={styles.diagnoseBtnText}>Diagnose notifications</Text>}
         </Pressable>
 
-        {onOpenHelp ? (
-          <>
-            <Text style={[styles.sectionLabel, { marginTop: 26 }]}>Help</Text>
-            <Pressable style={({ pressed }) => [styles.card, styles.helpRow, pressed && { opacity: 0.7 }]} onPress={onOpenHelp}>
-              <View style={styles.rowText}>
-                <Text style={styles.rowLabel}>How it works</Text>
-                <Text style={styles.rowDesc}>Where values come from, how team outlook and trades are graded, league formats, waivers, and more.</Text>
-              </View>
-              <Text style={styles.chev}>›</Text>
-            </Pressable>
-          </>
-        ) : null}
-
-        <Text style={[styles.sectionLabel, { marginTop: 26 }]}>Data & credits</Text>
-        <View style={styles.card}>
-          <Pressable style={({ pressed }) => [styles.creditRow, pressed && { opacity: 0.7 }]} onPress={() => Linking.openURL('https://fantasycalc.com').catch(() => {})}>
-            <View style={styles.rowText}>
-              <Text style={styles.rowLabel}>FantasyCalc.com</Text>
-              <Text style={styles.rowDesc}>Player and draft-pick dynasty values are provided by FantasyCalc. Tap to visit.</Text>
-            </View>
-            <Text style={styles.chev}>↗</Text>
-          </Pressable>
-          <View style={styles.rowDivider} />
-          <View style={styles.creditRow}>
-            <View style={styles.rowText}>
-              <Text style={styles.rowLabel}>MyFantasyLeague · Sleeper</Text>
-              <Text style={styles.rowDesc}>League, roster, and transaction data come live from MyFantasyLeague; waiver-heat trends from Sleeper.</Text>
-            </View>
-          </View>
-        </View>
-
-        {onLogout ? (
-          <>
-            <Text style={[styles.sectionLabel, { marginTop: 26 }]}>Session</Text>
-            <Pressable style={({ pressed }) => [styles.card, styles.helpRow, pressed && { opacity: 0.7 }]} onPress={confirmLogout}>
-              <View style={styles.rowText}>
-                <Text style={[styles.rowLabel, { color: colors.bad }]}>Log out</Text>
-                <Text style={styles.rowDesc}>Sign out of MFL on this device.</Text>
-              </View>
-            </Pressable>
-          </>
-        ) : null}
       </ScrollView>
     </View>
   );
