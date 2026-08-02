@@ -135,6 +135,11 @@ function assert(cond, msg) {
     assert(harrison && harrison.affectedCount >= 1, 'news maps to affected teams');
     console.log(`✓ news→impact: "${harrison.headline}" affects ${harrison.affectedCount} of your teams (${harrison.startingCount} starting)`);
 
+    // News diagnostic: distinguishes an unconfigured/failing feed from "no news about your players".
+    const nstat = (await j(await fetch(`${base}/api/news/status`, authed))).body;
+    assert(typeof nstat.configured === 'boolean' && typeof nstat.fetched === 'number' && typeof nstat.matched === 'number', 'news status reports configured/fetched/matched');
+    console.log(`✓ news status: configured=${nstat.configured} fetched=${nstat.fetched} matched=${nstat.matched}`);
+
     // --- M3: waivers / FAAB / free agents ---
     // Board respects the per-league system.
     const faab = (await j(await fetch(`${base}/api/leagues/64097/waivers`, authed))).body; // faab
