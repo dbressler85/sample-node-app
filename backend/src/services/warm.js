@@ -22,6 +22,7 @@ const nflLib = require('../lib/nfl');
 const playersLib = require('../lib/players');
 const leaguesService = require('./leagues');
 const sessions = require('../store/sessions');
+const reqPriority = require('../lib/reqPriority');
 
 const LOW = { priority: 'low' };
 
@@ -123,7 +124,9 @@ async function primeValues() {
   const active = sessions.active();
   if (!active.length) return;
   const playerhub = require('./playerhub');
-  await playerhub.primeGlobals(active[0].cookie).catch(() => {});
+  // LOW: this is a background prime — its MFL reads (players DB) must never delay a foreground tap.
+  // runLow makes every MFL read primeGlobals fans out inherit 'low' without threading a param through it.
+  await reqPriority.runLow(() => playerhub.primeGlobals(active[0].cookie)).catch(() => {});
   valueLastRun = { at: Date.now(), trigger: 'timer' };
 }
 // Prime immediately against a specific cookie — called right after LOGIN (fire-and-forget), so the
@@ -133,7 +136,10 @@ async function primeValues() {
 function primeNow(cookie) {
   if (config.demoMode || !cookie) return;
   const playerhub = require('./playerhub');
-  playerhub.primeGlobals(cookie)
+  // LOW even though it fires at login: the user's FIRST foreground board/roster loads happen right now,
+  // so the prime's players-DB fetch must sit in the background lane and let those preempt it (the exact
+  // priority-inversion the LOW lane exists to prevent).
+  reqPriority.runLow(() => playerhub.primeGlobals(cookie))
     .then(() => { valueLastRun = { at: Date.now(), trigger: 'login' }; })
     .catch(() => {});
 }

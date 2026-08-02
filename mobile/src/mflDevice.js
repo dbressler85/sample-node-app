@@ -154,14 +154,15 @@ export async function withDeviceFallback(deviceFn, backendFn) {
 // from MFL on-device, enriched with the backend's global player dictionary + franchise directory. The
 // heavy per-user rosters fan-out leaves the server; only the small, cached name/value data stays backend.
 // assembleTeams throws if the result is incomplete, so a partial device read never renders.
-export async function deviceLeagueTeams(leagueId) {
+export async function deviceLeagueTeams(leagueId, bg) {
+  const run = bgRunner(bg);
   const franchises = await deviceRosters(leagueId); // [{ franchiseId, players:[{id,status}] }]
   const ids = [...new Set(franchises.flatMap((f) => f.players.map((p) => p.id)))];
   // The rosters came straight from MFL; the directory + player dict are the only backend calls — route them
   // through the resilience cache so a backend OUTAGE serves last-known enrichment instead of failing (U-4).
   const [dir, dict] = await Promise.all([
-    deviceEnrichCache.directory(leagueId, () => api.franchiseDirectory(leagueId)),
-    deviceEnrichCache.players(leagueId, () => api.playerLookup(ids, leagueId)),
+    deviceEnrichCache.directory(leagueId, () => run(() => api.franchiseDirectory(leagueId))),
+    deviceEnrichCache.players(leagueId, () => run(() => api.playerLookup(ids, leagueId))),
   ]);
   const out = mflRead.assembleTeams(franchises, (dict && dict.players) || {}, dir);
   if (dir._stale || dict._stale) out._offline = true; // enrichment served from cache — the backend was unreachable
@@ -169,23 +170,26 @@ export async function deviceLeagueTeams(leagueId) {
 }
 
 // League Rosters, device-first (with the backend leagueTeams as fallback).
-export function leagueTeamsPreferDevice(leagueId) {
-  return preferDevice('rosters', () => deviceLeagueTeams(leagueId), () => api.leagueTeams(leagueId));
+export function leagueTeamsPreferDevice(leagueId, bg) {
+  const run = bgRunner(bg);
+  return preferDevice('rosters', () => deviceLeagueTeams(leagueId, bg), () => run(() => api.leagueTeams(leagueId)));
 }
 
 // League Standings, device-first: the leagueStandings export straight from MFL on-device + the backend
 // franchise directory (names + playoff spots). assembleStandings throws if incomplete → backend fallback.
-export async function deviceStandings(leagueId) {
+export async function deviceStandings(leagueId, bg) {
+  const run = bgRunner(bg);
   const [rows, dir] = await Promise.all([
     runDeviceRead(mflRead.reads.standings, leagueId),
-    deviceEnrichCache.directory(leagueId, () => api.franchiseDirectory(leagueId)), // last-known on a backend outage (U-4)
+    deviceEnrichCache.directory(leagueId, () => run(() => api.franchiseDirectory(leagueId))), // last-known on a backend outage (U-4)
   ]);
   const out = mflRead.assembleStandings(rows, dir);
   if (dir._stale) out._offline = true;
   return out;
 }
-export function standingsPreferDevice(leagueId) {
-  return preferDevice('standings', () => deviceStandings(leagueId), () => api.leagueStandings(leagueId));
+export function standingsPreferDevice(leagueId, bg) {
+  const run = bgRunner(bg);
+  return preferDevice('standings', () => deviceStandings(leagueId, bg), () => run(() => api.leagueStandings(leagueId)));
 }
 
 // League Transactions, device-first: the transactions export straight from MFL on-device, enriched
@@ -193,20 +197,22 @@ export function standingsPreferDevice(leagueId) {
 // draft-pick labels, resolved by /api/players/lookup for every id the feed references). The heavy
 // per-user transactions fan-out leaves the server; only the small, cached name data stays backend.
 // assembleTransactions throws on an empty directory (a failed fetch), so a nameless feed never renders.
-export async function deviceTransactions(leagueId) {
+export async function deviceTransactions(leagueId, bg) {
+  const run = bgRunner(bg);
   const rows = await runDeviceRead(mflRead.reads.transactions, leagueId);
   const parsed = mflRead.parseTransactions(rows);
   const ids = [...new Set(parsed.flatMap((t) => [...(t.addedIds || []), ...(t.droppedIds || [])]))];
   const [dir, dict] = await Promise.all([
-    deviceEnrichCache.directory(leagueId, () => api.franchiseDirectory(leagueId)),
-    deviceEnrichCache.players(leagueId, () => api.playerLookup(ids, leagueId)),
+    deviceEnrichCache.directory(leagueId, () => run(() => api.franchiseDirectory(leagueId))),
+    deviceEnrichCache.players(leagueId, () => run(() => api.playerLookup(ids, leagueId))),
   ]);
   const out = mflRead.assembleTransactions(rows, (dict && dict.players) || {}, dir);
   if (dir._stale || dict._stale) out._offline = true; // last-known enrichment during a backend outage (U-4)
   return out;
 }
-export function transactionsPreferDevice(leagueId) {
-  return preferDevice('transactions', () => deviceTransactions(leagueId), () => api.leagueTransactions(leagueId));
+export function transactionsPreferDevice(leagueId, bg) {
+  const run = bgRunner(bg);
+  return preferDevice('transactions', () => deviceTransactions(leagueId, bg), () => run(() => api.leagueTransactions(leagueId)));
 }
 
 // Cross-league exposure ("My Players"), device-first: fetch MY roster in EVERY league straight from MFL
@@ -214,8 +220,9 @@ export function transactionsPreferDevice(leagueId) {
 // own IP — then enrich (name/value/age/availability/points/tag/watched) + group with the backend. Each
 // league uses reads.rosters with FRANCHISE=me, the same LIGHT single-franchise read the backend uses; the
 // shared assembleExposure does the cross-league grouping and throws on an empty enrichment dict → fallback.
-export async function deviceExposure() {
-  const { leagues } = await api.leaguesList();
+export async function deviceExposure(bg) {
+  const run = bgRunner(bg);
+  const { leagues } = await run(() => api.leaguesList());
   const list = (leagues || []).filter((l) => l && l.leagueId);
   if (!list.length) return { totalLeagues: 0, players: [], summary: { uniquePlayers: 0, multiLeague: 0 } };
   // FRANCHISE=me needs each league's franchise id; if any is missing we can't do the light read → fall back.
@@ -226,13 +233,14 @@ export async function deviceExposure() {
     return { leagueId: l.leagueId, name: l.name, players: mine.players };
   });
   const ids = [...new Set(perLeagueRosters.flatMap((r) => r.players.map((p) => p.id)))];
-  const dict = await deviceEnrichCache.exposureEnrich(list[0].leagueId, () => api.exposureEnrich(ids, list[0].leagueId)); // last-known during a backend outage (U-4)
+  const dict = await deviceEnrichCache.exposureEnrich(list[0].leagueId, () => run(() => api.exposureEnrich(ids, list[0].leagueId))); // last-known during a backend outage (U-4)
   const out = mflRead.assembleExposure(perLeagueRosters, (dict && dict.players) || {}, list.length);
   if (dict._stale) out._offline = true;
   return out;
 }
-export function exposurePreferDevice() {
-  return preferDevice('exposure', () => deviceExposure(), () => api.exposure());
+export function exposurePreferDevice(bg) {
+  const run = bgRunner(bg);
+  return preferDevice('exposure', () => deviceExposure(bg), () => run(() => api.exposure()));
 }
 
 // Cross-league portfolio dashboard, device-first: fetch every league's FULL rosters (all franchises —
@@ -303,10 +311,11 @@ export function waiversOverviewPreferDevice(bg) {
 // Cross-league pick inventory, device-first: fetch each league's assets + futureDraftPicks + draftResults
 // (the pick fan-out) on-device, then hand them to the backend to value/label/group (the pick-value model
 // and franchise names stay backend). All-or-nothing: any per-league read failure falls back to the backend.
-export async function devicePickInventory() {
-  const { leagues } = await api.leaguesList();
+export async function devicePickInventory(bg) {
+  const run = bgRunner(bg);
+  const { leagues } = await run(() => api.leaguesList());
   const list = (leagues || []).filter((l) => l && l.leagueId);
-  if (!list.length) return api.pickInventory();
+  if (!list.length) return run(() => api.pickInventory());
   // Partial-tolerant (A-2): failed leagues are omitted; the backend reads just those itself (per-league fallback).
   const { fulfilled } = await settlePool(list, async (l) => {
     const [assets, futureDraftPicks, draftResults] = await Promise.all([
@@ -317,10 +326,11 @@ export async function devicePickInventory() {
     return [l.leagueId, { assets, futureDraftPicks, draftResults }];
   });
   if (!fulfilled.length) throw new Error('device pick inventory: all leagues failed');
-  return api.pickInventoryDevice(Object.fromEntries(fulfilled));
+  return run(() => api.pickInventoryDevice(Object.fromEntries(fulfilled)));
 }
-export function pickInventoryPreferDevice() {
-  return preferDevice('pickInventory', () => devicePickInventory(), () => api.pickInventory());
+export function pickInventoryPreferDevice(bg) {
+  const run = bgRunner(bg);
+  return preferDevice('pickInventory', () => devicePickInventory(bg), () => run(() => api.pickInventory()));
 }
 
 // Home per-league triage, device-first: the roster (in-season lineup status / offseason dynasty summary)
