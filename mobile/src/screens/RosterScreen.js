@@ -4,6 +4,7 @@ import { appAlert } from "../components/AppAlert";
 import { api } from '../api';
 import PlayerRow from '../components/PlayerRow';
 import Reveal from '../components/Reveal';
+import NeonSign from '../components/NeonSign';
 import ErrorView from '../components/ErrorView';
 import { colors } from '../theme';
 import { TopbarTitle } from '../components/Brand';
@@ -245,8 +246,8 @@ export default function RosterScreen({ league, onBack, onOpenTrades, onOpenDraft
                       <ActivityIndicator color={colors.accent} size="small" />
                     ) : (
                       acts.map((a) => (
-                        <Pressable key={a.key} onPress={a.onPress} hitSlop={6} style={({ pressed }) => [styles.moveBtn, a.destructive && styles.moveBtnDanger, pressed && { opacity: 0.7 }]}>
-                          <Text style={[styles.moveTxt, a.destructive && styles.moveTxtDanger]}>{a.label}</Text>
+                        <Pressable key={a.key} onPress={a.onPress} hitSlop={6} style={({ pressed }) => [styles.moveBtn, a.destructive && styles.moveBtnDanger, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel={a.label}>
+                          <NeonSign word={a.label.toUpperCase()} grade="inline" color={a.destructive ? 'bad' : 'accent'} size={12} accessibilityLabel={a.label} />
                         </Pressable>
                       ))
                     )}
