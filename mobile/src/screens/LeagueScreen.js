@@ -81,7 +81,7 @@ export default function LeagueScreen({ league, onBack, onOpenPlayer, onOpenPlayo
       <AttentionRibbon triage={triage} league={league} onOpenLineup={onOpenLineup} onOpenWaivers={onOpenWaivers} onOpenTrades={onOpenTrades} />
 
       {actions.length ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.actionRow}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.hRow} contentContainerStyle={styles.actionRow}>
           {actions.map((a) => (
             <Pressable key={a.key} onPress={a.onPress} style={({ pressed }) => [styles.actionChip, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel={a.badge ? `${a.label}, ${a.badge} waiting` : a.label}>
               <Text style={styles.actionChipText}>{a.label}</Text>
@@ -141,7 +141,7 @@ function AttentionRibbon({ triage, league, onOpenLineup, onOpenWaivers, onOpenTr
   };
   const sevColor = { high: colors.bad, medium: colors.warn, low: colors.textDim };
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.ribbon}>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.hRow} contentContainerStyle={styles.ribbon}>
       {outlook ? (
         // The dynasty window as a PLAN, not a dead-end label: the verb (Contend/Build/Sell/Flex) headlines
         // and the directive says what to do. Taps into Trades — where you'd act on it. Falls back to the
@@ -306,7 +306,7 @@ function RostersTab({ leagueId, onOpenPlayer }) {
       {data._source === 'device' ? (
         <DeviceNote center text={`Rosters live from MFL on-device · ${teams.length} teams`} />
       ) : null}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.hRow} contentContainerStyle={styles.chipRow}>
         {teams.map((t) => {
           const on = active && t.franchiseId === active.franchiseId;
           return (
@@ -409,8 +409,12 @@ const styles = StyleSheet.create({
   back: { color: colors.accent, fontSize: 16, fontWeight: '600' },
   bracketBtn: { width: 78, minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4 },
   bracketBtnText: { color: colors.accent, fontSize: 13, fontWeight: '800' },
+  // A horizontal chip row must HUG its content height. Without flexGrow:0 a horizontal ScrollView in a
+  // flex column expands to fill the leftover vertical space and stretches its chips into giant pills.
+  hRow: { flexGrow: 0, flexShrink: 0 },
   // Attention ribbon — "what needs me here" chips, deep-linked by the triage item's action.
-  ribbon: { paddingHorizontal: 16, gap: 8, paddingTop: 8, paddingBottom: 2 },
+  // alignItems:center so a chip takes its natural height (never stretched to the row's height).
+  ribbon: { paddingHorizontal: 16, gap: 8, paddingTop: 8, paddingBottom: 2, alignItems: 'center' },
   attnChip: { flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: colors.card, borderRadius: 999, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, minHeight: 34 },
   attnDot: { width: 7, height: 7, borderRadius: 4 },
   attnText: { color: colors.text, fontSize: 12, fontWeight: '700', maxWidth: 200 },
@@ -436,7 +440,7 @@ const styles = StyleSheet.create({
   matchMeta: { color: colors.textDim, fontSize: 12, fontWeight: '700' },
   matchClose: { color: colors.warn, fontSize: 12, fontWeight: '800' },
   // Scoped action row — accent-outlined chips (actions, not values), horizontally scrollable.
-  actionRow: { paddingHorizontal: 16, gap: 8, paddingTop: 8, paddingBottom: 2 },
+  actionRow: { paddingHorizontal: 16, gap: 8, paddingTop: 8, paddingBottom: 2, alignItems: 'center' },
   actionChip: { flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: colors.cardAlt, borderRadius: 999, borderWidth: 1, borderColor: colors.accent, paddingHorizontal: 16, minHeight: 40, justifyContent: 'center' },
   actionChipText: { color: colors.accent, fontSize: 14, fontWeight: '800' },
   // Count badge — an accent-filled pill (state/action = accent per the color law), min-circle sized.
@@ -468,7 +472,7 @@ const styles = StyleSheet.create({
   playoffText: { color: colors.violetText, fontSize: 10, fontWeight: '800', letterSpacing: 1, marginTop: 3 },
 
   // rosters
-  chipRow: { paddingHorizontal: 16, gap: 8, paddingVertical: 6 },
+  chipRow: { paddingHorizontal: 16, gap: 8, paddingVertical: 6, alignItems: 'center' },
   teamChip: { backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 7, maxWidth: 170 },
   teamChipOn: { backgroundColor: colors.cardAlt, borderColor: colors.accent },
   teamChipName: { color: colors.textDim, fontSize: 13, fontWeight: '700' },
