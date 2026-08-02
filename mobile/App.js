@@ -427,7 +427,7 @@ export default function App() {
   function renderOverlay(o, covered) {
     switch (o.type) {
       case 'roster':
-        return <RosterScreen league={o.league} onBack={popOverlay} onOpenTrades={openTrades} onOpenDraft={openDraft} onOpenPlayer={openPlayer} />;
+        return <RosterScreen league={o.league} onBack={popOverlay} onOpenTrades={openTrades} onOpenDraft={openDraft} onOpenWaivers={openWaivers} onOpenPlayer={openPlayer} />;
       case 'lineupEditor':
         return <LineupEditorScreen league={o.league} onBack={popOverlay} onOpenWaivers={openWaivers} />;
       case 'lineupWizard':
