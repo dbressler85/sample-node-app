@@ -38,7 +38,16 @@ function assetRank(a) {
   return POS_RANK[a.position] != null ? POS_RANK[a.position] : 50;
 }
 function sortAssets(list) {
-  return list.slice().sort((a, b) => assetRank(a) - assetRank(b) || (b.value || 0) - (a.value || 0));
+  return list.slice().sort((a, b) => {
+    const r = assetRank(a) - assetRank(b);
+    if (r !== 0) return r;
+    // Draft picks read chronologically — soonest first by year, then round, then pick number — NOT by
+    // value (a "2026 1.05" must sort ahead of a "2027 1st"). Players keep their value order.
+    if (a.kind === 'pick' && b.kind === 'pick') {
+      return (a.year || 9999) - (b.year || 9999) || (a.round || 99) - (b.round || 99) || (a.pick || 99) - (b.pick || 99);
+    }
+    return (b.value || 0) - (a.value || 0);
+  });
 }
 
 // Turn a league roster (players + picks) into a flat, sorted asset list for the checklist.
@@ -51,7 +60,10 @@ function rosterAssets(roster) {
     const token = typeof pk === 'string' ? pk : pk.token;
     const label = typeof pk === 'string' ? pk : pk.label;
     const value = typeof pk === 'string' ? null : pk.value;
-    return { token: String(token), kind: 'pick', name: label, position: 'PICK', team: null, age: null, value };
+    const year = typeof pk === 'string' ? null : pk.year;
+    const round = typeof pk === 'string' ? null : pk.round;
+    const pick = typeof pk === 'string' ? null : pk.pick;
+    return { token: String(token), kind: 'pick', name: label, position: 'PICK', team: null, age: null, value, year, round, pick };
   });
   return sortAssets([...players, ...picks]);
 }

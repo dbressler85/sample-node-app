@@ -361,12 +361,21 @@ async function buildRoster(cookie, leagueId) {
     players.load(cookie),
     config.demoMode ? Promise.resolve(demo.playerStatus()) : nflLib.injuryMap(cookie, week),
     config.demoMode ? Promise.resolve(demo.byes()) : nflLib.byeMap(cookie, week),
-    // Picks as first-class assets: token (so they can be shopped/traded), label, year/round,
-    // and dynasty value — sorted soonest-first (year, then round).
-    picksLib.franchisePicks(cookie, league).then((list) => list
+    // Picks as first-class assets: token (so they can be shopped/traded), label, year/round/pick, and
+    // dynasty value — sorted soonest-first (year, then round, then pick). Source from the `assets` export
+    // FIRST: it's the authoritative post-trade view and, crucially, INCLUDES this season's CURRENT-year
+    // draft picks (the ones you still hold in a live/upcoming draft) which `futureDraftPicks` omits — so a
+    // current-year pick shows as a shoppable asset on the trade block during the draft. Fall back to
+    // futureDraftPicks (and demo) when assets is unavailable.
+    (async () => {
+      const assets = await picksLib.assetsByFranchise(cookie, league).catch(() => null);
+      const mine = assets && (assets[String(league.franchiseId)] || assets[mfl.fid(league.franchiseId)]);
+      const list = mine && mine.length
+        ? mine.map((p) => ({ token: p.token, label: p.label, year: p.year, round: p.round, pick: p.pick }))
+        : (await picksLib.franchisePicks(cookie, league)).map((p) => ({ token: p.token, label: p.label, year: p.year, round: p.round, pick: null }));
       // value is filled in assembleRoster (needs the enrichment snapshot for format-aware pick values).
-      .map((p) => ({ token: p.token, label: p.label, year: p.year, round: p.round }))
-      .sort((a, b) => (a.year || 9999) - (b.year || 9999) || (a.round || 99) - (b.round || 99))),
+      return list.sort((a, b) => (a.year || 9999) - (b.year || 9999) || (a.round || 99) - (b.round || 99) || (a.pick || 99) - (b.pick || 99));
+    })(),
     leagueFormat.format(cookie, league).then((fmt) => enrichmentLib.snapshot(fmt, cookie)),
     // Actual season record → outlook's "is this season live?" axis. Best-effort: a standings miss
     // just means outlook falls back to the roster-only read (never blocks the roster).
