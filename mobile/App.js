@@ -514,7 +514,7 @@ export default function App() {
           />
         );
       case 'settings':
-        return <SettingsScreen onBack={popOverlay} onOpenHelp={openHelp} onLogout={handleLogout} />;
+        return <SettingsScreen onBack={popOverlay} />;
       case 'help':
         return <HelpScreen onBack={popOverlay} />;
       case 'onDeck':
