@@ -31,9 +31,16 @@ let active = 0;
 let lastStartAt = 0;
 let penaltyUntil = 0; // while > now, the pipe runs in gentle mode after a rate-limit
 let wakePending = false; // at most one pending timer to re-pump when a penalty lifts
-// Two priority lanes. NORMAL = user-facing reads; LOW = background/bulk work (the Sunday pre-warm
-// loop, the daily player-DB refresh). The pump always drains NORMAL before LOW, so background work
-// can never delay a request a user is waiting on — it only fills idle gaps.
+// Three priority lanes. HIGH = user-initiated WRITES (a draft pick on the clock, add/drop, a waiver
+// claim, a lineup submit, a trade action); NORMAL = user-facing reads; LOW = background/bulk work (the
+// Sunday pre-warm loop, the daily player-DB refresh / value prime). The pump drains HIGH before NORMAL
+// before LOW, so a mutation the user is actively waiting on jumps ahead of any queued reads — a pick
+// with a running clock can't sit behind a cold 15-league portfolio sweep. Writes are rare and bursty
+// (a handful of mutations, not a fan-out), so a HIGH lane can't realistically starve NORMAL reads; it
+// just removes the one place a user action queued FIFO behind bulk reads.
+//
+// HIGH is a flat FIFO (no per-account fairness): writes are infrequent enough that cross-account write
+// contention isn't a real concern, and each write clears fast under the same global concurrency/stagger.
 //
 // NORMAL is FAIR ACROSS ACCOUNTS. Each account (keyed by its MFL cookie) has its own FIFO sub-queue,
 // and the pump ROUND-ROBINS across accounts. So one account's big cold fan-out (a 15-league
@@ -42,11 +49,12 @@ let wakePending = false; // at most one pending timer to re-pump when a penalty 
 // burst. The GLOBAL concurrency + stagger + 429 penalty (below) are unchanged: MFL rate-limits per
 // IP and the server is one IP, so total outbound stays bounded regardless of account count. This is
 // latency ISOLATION between accounts, not extra quota.
+const highWaiters = []; // user-initiated writes — drained before any read (flat FIFO)
 const normalQueues = new Map(); // accountKey -> [resolve, …] (FIFO within one account)
 const normalOrder = []; // round-robin ring of accountKeys that currently have pending NORMAL work
 let normalPending = 0; // total queued across all normal sub-queues (keeps pendingCount O(1))
 const lowWaiters = [];
-const pendingCount = () => normalPending + lowWaiters.length;
+const pendingCount = () => highWaiters.length + normalPending + lowWaiters.length;
 
 function pushNormal(key, resolve) {
   let q = normalQueues.get(key);
@@ -55,9 +63,11 @@ function pushNormal(key, resolve) {
   normalPending += 1;
 }
 
-// One resolver, round-robin: take the next account in the ring, hand out its oldest waiter, and if it
-// still has work send that account to the BACK of the ring (fair rotation). NORMAL fully before LOW.
+// One resolver, in strict lane order: HIGH (writes) fully, then NORMAL round-robin, then LOW. Within
+// NORMAL: take the next account in the ring, hand out its oldest waiter, and if it still has work send
+// that account to the BACK of the ring (fair rotation).
 function nextWaiter() {
+  if (highWaiters.length) return highWaiters.shift();
   while (normalOrder.length) {
     const key = normalOrder.shift();
     const q = normalQueues.get(key);
@@ -92,7 +102,7 @@ function effInterval() {
 
 function pumpThrottle() {
   while (active < effConcurrent() && pendingCount()) {
-    const grant = nextWaiter(); // normal lane first, then low-priority background work
+    const grant = nextWaiter(); // HIGH (writes) first, then NORMAL reads, then LOW background work
     active += 1;
     // Stagger each granted start by the min interval (accumulating), so even a
     // burst of grants spreads out rather than firing simultaneously.
@@ -114,7 +124,8 @@ function pumpThrottle() {
 
 async function throttle(task, priority = 'normal', key = 'shared') {
   await new Promise((resolve) => {
-    if (priority === 'low') lowWaiters.push(resolve);
+    if (priority === 'high') highWaiters.push(resolve); // user-initiated write — ahead of all reads
+    else if (priority === 'low') lowWaiters.push(resolve);
     else pushNormal(key || 'shared', resolve);
     pumpThrottle();
   });
@@ -475,7 +486,10 @@ async function importRequest(type, { host = config.apiHost, cookie = null, ...pa
   }
   const body = DATA != null ? new URLSearchParams({ DATA: String(DATA) }).toString() : undefined;
   try {
-    return await rawRequest({ host, command: 'import', params: query, cookie, method: 'POST', body });
+    // HIGH priority: a write is a user-initiated mutation they're waiting on (add/drop, waiver claim,
+    // lineup submit, trade action). It jumps ahead of any queued reads so a background/bulk read burst
+    // can never delay it. Writes bypass the read cache (rawRequest direct), so this is never coalesced.
+    return await rawRequest({ host, command: 'import', params: query, cookie, method: 'POST', body, priority: 'high' });
   } catch (e) {
     // MFL's import/transaction endpoints report their RESULT in the same field whether it
     // succeeded or failed: a *successful* write comes back as the literal message "OK" (e.g.
@@ -498,7 +512,10 @@ async function miscRequest(command, { host = config.apiHost, cookie = null, ...p
     if (v !== undefined && v !== null) query[k] = v;
   }
   try {
-    return await rawRequest({ host, command, params: query, cookie, method: 'POST' });
+    // HIGH priority: misc commands are stateful user actions — most importantly `live_draft` (make a
+    // pick / control the clock), the one write with a literal ticking deadline. It must not queue
+    // behind reads. Like imports, it goes direct to rawRequest (no read-cache coalescing).
+    return await rawRequest({ host, command, params: query, cookie, method: 'POST', priority: 'high' });
   } catch (e) {
     if (isImportOk(e)) return { status: 'OK' };
     throw e;
@@ -610,6 +627,7 @@ module.exports = {
   // in each priority lane, whether we're in a rate-limit cooldown, and the read-cache size.
   throttleStats: () => ({
     active,
+    queuedHigh: highWaiters.length, // user-initiated writes waiting (drained ahead of all reads)
     queuedNormal: normalPending,
     queuedLow: lowWaiters.length,
     queuedAccounts: normalQueues.size, // distinct accounts with pending normal reads (fair-queue depth)
@@ -628,6 +646,7 @@ module.exports = {
     effInterval,
     _pushNormal: pushNormal,
     _next: nextWaiter,
+    _pushHigh: (r) => highWaiters.push(r),
     _pushLow: (r) => lowWaiters.push(r),
     _pending: () => pendingCount(),
     _accounts: () => normalQueues.size,

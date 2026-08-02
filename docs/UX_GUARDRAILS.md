@@ -110,6 +110,35 @@ Logout / session-loss clears the keychain token **and** every cache layer (disk 
 in-memory `mem` + `homeCache`), so the next account never sees the previous one's data.
 - **Do not** add a new cache/store without wiring it into the logout + auth-lost paths.
 
+### C12 — A foreground tap always preempts a background sweep (priority lanes)
+The MFL request pipeline has three lanes: **HIGH** (user-initiated writes), NORMAL
+(user-facing reads, drained before LOW), and LOW (fills idle gaps). The promise is that a
+user action never queues **behind** a bulk background load — and a write the user is waiting
+on never queues behind a *read*. These deliberate placements enforce it — none is a bug to
+"fix" by moving to a lower lane:
+- **User-initiated writes run HIGH and preempt every read.** Add/drop, waiver claim, lineup
+  submit, trade action, and — the deadline-critical one — a `live_draft` pick all go through
+  the HIGH lane (`importRequest`/`miscRequest` pass `priority: 'high'`), so a pick with a
+  running clock jumps ahead of any queued reads (even a cold 15-league portfolio sweep).
+  Writes are rare and bursty, so HIGH can't starve NORMAL reads; the guard
+  `throttle-write-priority-test` pins the HIGH→NORMAL→LOW drain order. Do **not** demote a
+  write to NORMAL, and do **not** route a read through HIGH to "make it feel faster."
+- **Home's visible league-card reads run LOW on purpose.** The Home sweep fans out over all
+  ~15 leagues (`HomeScreen`'s leagues list + each league's per-league triage); it is stamped
+  `X-DC-Priority: low` via `bg()` so that the instant a user **taps into** one league — a
+  NORMAL read — it jumps ahead of the other 14 still warming. Raising these to NORMAL would
+  make a task-tap wait behind the whole sweep. Keep them LOW.
+- **The always-on backend global prime runs LOW** (`warm.js` `primeValues`/`primeNow` wrap
+  `playerhub.primeGlobals` in `reqPriority.runLow`). Its slow player-DB/value fetches must
+  never contend with a foreground read — especially at the login-triggered prime after a
+  cold deploy. Do not drop the `runLow` wrapper.
+- *Verify:* on Home, tap a league mid-load → its detail reads land before the remaining
+  card sweep finishes (watch the request log's priority tags). A write mid-sweep fires ahead
+  of the queued reads (`queuedHigh` in `throttleStats` drains first). The background prime
+  shows `X-DC-Priority: low` in `/_metrics`.
+- **Do not** thread a background read through NORMAL "to make it feel faster" — that is the
+  exact priority inversion the LOW lane exists to prevent.
+
 ---
 
 ## 2. Per-change do / don't — the risky items
