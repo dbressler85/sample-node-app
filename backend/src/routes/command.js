@@ -7,6 +7,7 @@ const requireSession = require('../middleware/auth');
 const portfolio = require('../services/portfolio');
 const scoreboard = require('../services/scoreboard');
 const exposure = require('../services/exposure');
+const newsLib = require('../lib/news');
 const ondeck = require('../services/ondeck');
 const leaguesService = require('../services/leagues');
 const mflRead = require('../lib/mflRead');
@@ -192,6 +193,17 @@ router.get('/players/exposure', async (req, res, next) => {
 router.get('/news', async (req, res, next) => {
   try {
     res.json(checkResponse(schemas.News, await exposure.getNews(req.mflCookie, req.account), 'GET /news'));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/news/status — diagnose an empty News tab: is the partner feed configured, reachable, and
+// matching players? (configured=false → set ROTOBALLER_FEED_URL; fetched=0 → feed unreachable/expired;
+// matched=0 → name-matching issue; matched>0 with an empty tab → no news about YOUR rostered players.)
+router.get('/news/status', async (req, res, next) => {
+  try {
+    res.json(await newsLib.newsStatus(req.mflCookie));
   } catch (err) {
     next(err);
   }

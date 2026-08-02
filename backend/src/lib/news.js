@@ -258,4 +258,22 @@ async function mflNews(cookie) {
   return items;
 }
 
-module.exports = { mflNews, fetchFeed, normName, severityOf };
+// One-call diagnosis of "why is news empty?". Distinguishes the failure modes that all otherwise
+// collapse to an empty list: feed not configured, feed configured but unreachable/unparseable, or feed
+// fine but nothing matched a player. `matched` is articles tied to ANY MFL player (before the per-user
+// roster filter getNews applies) — so `configured:true, fetched>0, matched>0` but an empty News tab just
+// means none of the current stories touch a player YOU roster (common in the offseason), not a bug.
+async function newsStatus(cookie) {
+  const articles = await fetchFeed().catch(() => []);
+  let matched = 0;
+  try { matched = (await mflNews(cookie)).length; } catch { matched = 0; }
+  return {
+    configured: !!config.newsFeedUrl,
+    fetched: articles.length,
+    matched,
+    cacheAgeMs: cache.at ? Date.now() - cache.at : null,
+    sampleHeadlines: articles.slice(0, 3).map((a) => a.headline),
+  };
+}
+
+module.exports = { mflNews, fetchFeed, newsStatus, normName, severityOf };
