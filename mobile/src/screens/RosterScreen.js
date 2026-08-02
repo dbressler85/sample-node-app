@@ -195,6 +195,13 @@ export default function RosterScreen({ league, onBack, onOpenTrades, onOpenDraft
         </View>
       ) : null}
 
+      {/* Make roster management discoverable: the moves live as chips under each player, easy to miss. */}
+      {roster ? (
+        <View style={styles.manageBar}>
+          <Text style={styles.manageHint}>Manage any player below — move to IR or taxi, drop, or shop the block.</Text>
+        </View>
+      ) : null}
+
       {roster ? (
         <View style={styles.sortRow}>
           <Text style={styles.sortLabel}>Sort</Text>
@@ -341,8 +348,12 @@ const styles = StyleSheet.create({
   },
   error: { color: colors.bad, textAlign: 'center' },
   moveRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingBottom: 10, paddingLeft: 54, minHeight: 20 },
-  moveBtn: { borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
-  moveTxt: { color: colors.accent, fontSize: 11, fontWeight: '800' },
-  moveBtnDanger: { borderColor: colors.bad },
+  // Filled, accent-outlined chips so the per-player moves read as tappable actions, not faint text.
+  moveBtn: { borderWidth: 1, borderColor: colors.accent, backgroundColor: colors.cardAlt, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, minHeight: 32, justifyContent: 'center' },
+  moveTxt: { color: colors.accent, fontSize: 12, fontWeight: '800' },
+  moveBtnDanger: { borderColor: colors.bad, backgroundColor: 'transparent' },
   moveTxtDanger: { color: colors.bad },
+  // "Manage any player…" intro banner — makes the inline roster moves discoverable.
+  manageBar: { marginHorizontal: 16, marginTop: 6, marginBottom: 2, backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 9 },
+  manageHint: { color: colors.textDim, fontSize: 12, lineHeight: 16, fontWeight: '600' },
 });
