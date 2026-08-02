@@ -14,7 +14,7 @@ export default function TradeAcrossSheet({ player, onClose, onCraft, onStartWiza
   const [selected, setSelected] = useState(new Set());
   const [error, setError] = useState(null);
 
-  const ctxFor = (l) => ({ leagueId: l.leagueId, name: l.name, targetPlayerId: player.id, partnerFranchiseId: l.partnerFranchiseId });
+  const ctxFor = (l) => ({ leagueId: l.leagueId, name: l.name, targetPlayerId: player.id, partnerFranchiseId: l.partnerFranchiseId, partnerName: l.partnerName });
   function start() {
     const chosen = (preview.leagues || []).filter((l) => selected.has(l.leagueId)).map(ctxFor);
     if (!chosen.length) return;
@@ -38,7 +38,7 @@ export default function TradeAcrossSheet({ player, onClose, onCraft, onStartWiza
         // Only a trade target in one league? Skip the picker and go straight to crafting.
         if (pv.leagues && pv.leagues.length === 1) {
           const l = pv.leagues[0];
-          onCraft({ leagueId: l.leagueId, name: l.name, targetPlayerId: player.id, partnerFranchiseId: l.partnerFranchiseId });
+          onCraft({ leagueId: l.leagueId, name: l.name, targetPlayerId: player.id, partnerFranchiseId: l.partnerFranchiseId, partnerName: l.partnerName });
           return;
         }
         setPreview(pv);
