@@ -20,6 +20,7 @@ const waiversService = require('./waivers');
 const leaguesService = require('./leagues');
 const tradesService = require('./trades');
 const rosterService = require('./roster');
+const leagueFormat = require('../lib/leagueformat');
 
 // Waiver runs this soon count as "on deck" even with no claim in yet — the window to get one in.
 const WAIVER_IMMINENT_MS = 3 * 24 * 60 * 60 * 1000;
@@ -30,6 +31,28 @@ const LINEUP_DETAIL = {
   unset: 'not set yet',
   suboptimal: 'points available',
 };
+
+// The two roster specialists a lone bye can wipe (positions are normalized to 'PK'/'DEF' everywhere).
+const LONE_LABEL = { PK: 'K', DEF: 'DEF' }; // short, for the row label
+const LONE_WORD = { PK: 'kicker', DEF: 'defense' }; // long, for the detail sentence
+
+// Present a lineup-lock item from its wiped positions: when a starting slot has no healthy body, name
+// it and deep-link to that position's waiver board; otherwise fall back to the generic status detail.
+// Factored out so it can be RE-applied after a bye-gap steals the K/DEF callout (see the de-dupe pass):
+// `slotNames` (optional) are the prettier slot labels for the first paint; the re-derive passes none and
+// uses the positions themselves. Idempotent given the same inputs.
+function decorateLock(item, positions, slotNames) {
+  if (!positions.length) {
+    item.label = 'Lineups lock';
+    item.detail = LINEUP_DETAIL[item.status] || item.status;
+    delete item.replacements;
+    return;
+  }
+  const slotLabel = [...new Set(slotNames && slotNames.length ? slotNames : positions)].join(' + ');
+  item.label = `${slotLabel} slot needs a body`;
+  item.detail = `No healthy player for your ${slotLabel} slot — everyone eligible is out or on bye. Pick up a ${positions.join('/')}.`;
+  item.replacements = { leagueId: item.leagueId, positions, sort: 'projection' };
+}
 
 // A synthetic "next kickoff" for demo mode (no real nflSchedule kickoffs), ~20h
 // out so the view shows a realistic upcoming lock.
@@ -86,13 +109,8 @@ async function getOnDeck(cookie, token) {
         // `status` + `wiped` are carried through so the push layer can re-fire when the lineup PROBLEM
         // changes mid-week (e.g. a starter newly ruled OUT flips optimal→suboptimal or opens a new hole)
         // — not just once per kickoff. See notifications.buildFor's lineup key.
-        const item = { type: 'lineup_lock', kind: 'action', leagueId: l.leagueId, leagueName: l.name, at: locks.kickoff, status: l.status, wiped, action: 'lineup', label: 'Lineups lock', detail: LINEUP_DETAIL[l.status] || l.status };
-        if (wiped.length) {
-          const slotLabel = [...new Set(wipedSlots)].join(' + ') || wiped.join('/');
-          item.label = `${slotLabel} slot needs a body`;
-          item.detail = `No healthy player for your ${slotLabel} slot — everyone eligible is out or on bye. Pick up a ${wiped.join('/')}.`;
-          item.replacements = { leagueId: l.leagueId, positions: wiped, sort: 'projection' };
-        }
+        const item = { type: 'lineup_lock', kind: 'action', leagueId: l.leagueId, leagueName: l.name, at: locks.kickoff, status: l.status, wiped, action: 'lineup' };
+        decorateLock(item, wiped, wipedSlots);
         items.push(item);
       }
     }
@@ -183,30 +201,87 @@ async function getOnDeck(cookie, token) {
     });
   }
 
-  // IR violations: a player parked on Injured Reserve who is no longer IR-eligible — healthy
-  // (ACTIVE) in MFL's injury data. MFL's injury feed carries the IR/OUT designation, so a
-  // genuinely injured IR player reads IR/OUT and is skipped; only a recovered one reads ACTIVE and
-  // gets flagged. Most leagues require you to activate or drop him, and an illegal IR can lock your
-  // lineup — so it's an action. Live: in-season only (offseason has no injury data). Demo: always.
+  // Roster-legality scan — two quiet, week-costing problems, both from the SAME per-league roster read
+  // (fanned out once). In-season only live (offseason has no injury/bye data); always in demo.
+  //   • IR VIOLATION — a player parked on Injured Reserve who is no longer IR-eligible: healthy (ACTIVE)
+  //     in MFL's injury data. The feed carries the IR/OUT designation, so a genuinely injured IR player
+  //     reads IR/OUT and is skipped; only a recovered one reads ACTIVE. An illegal IR can lock your
+  //     lineup — activate or drop.
+  //   • BYE GAP — your ONLY kicker or ONLY defense is on bye this week, so that starting slot has no one
+  //     to field. We count across the ACTIVE roster only (starters+bench); an IR/taxi body can't play, so
+  //     it doesn't save the slot. Gated on the league actually STARTING that position (from its lineup
+  //     requirements) so we never cry "gap" at a slot the league doesn't use. Fix = stream a body, so it
+  //     deep-links to the waiver board pre-filtered to the position — the same one-tap fix as a wiped slot.
   if (config.demoMode || inSeason) {
-    const rosters = await Promise.all((leagueList || []).map((l) => rosterService.myRosterEnriched(cookie, l.leagueId).catch(() => null)));
-    for (const r of rosters) {
+    const scan = await Promise.all((leagueList || []).map(async (l) => {
+      const [roster, reqs] = await Promise.all([
+        rosterService.myRosterEnriched(cookie, l.leagueId).catch(() => null),
+        leagueFormat.requirements(cookie, l).catch(() => []),
+      ]);
+      return { league: l, roster, reqs };
+    }));
+    for (const { roster: r, reqs } of scan) {
       if (!r) continue;
+      // — IR violation —
       const bad = (r.ir || []).filter((p) => p.availability && p.availability.status === 'ACTIVE');
-      if (!bad.length) continue;
-      const names = bad.map((p) => String(p.name).split(',')[0]);
-      items.push({
-        type: 'ir_violation', kind: 'action', leagueId: r.leagueId, leagueName: r.name, at: null,
-        action: 'roster',
-        label: bad.length === 1 ? 'Illegal IR' : `${bad.length} illegal IR`,
-        players: bad.map((p) => ({ id: p.id, name: p.name, position: p.position })),
-        detail: `${names.join(', ')} ${bad.length === 1 ? 'is' : 'are'} healthy but on IR — activate or drop to keep your roster legal`,
-      });
+      if (bad.length) {
+        const names = bad.map((p) => String(p.name).split(',')[0]);
+        items.push({
+          type: 'ir_violation', kind: 'action', leagueId: r.leagueId, leagueName: r.name, at: null,
+          action: 'roster',
+          label: bad.length === 1 ? 'Illegal IR' : `${bad.length} illegal IR`,
+          players: bad.map((p) => ({ id: p.id, name: p.name, position: p.position })),
+          detail: `${names.join(', ')} ${bad.length === 1 ? 'is' : 'are'} healthy but on IR — activate or drop to keep your roster legal`,
+        });
+      }
+      // — Bye gap: a lone K / lone DEF on bye —
+      const elig = new Set((reqs || []).flatMap((s) => s.eligible || []));
+      const active = [...(r.starters || []), ...(r.bench || [])]; // IR/taxi can't play this week
+      const onBye = (p) => p.availability && p.availability.status === 'BYE';
+      const gaps = [];
+      for (const pos of ['PK', 'DEF']) {
+        if (!elig.has(pos)) continue; // league doesn't start this position → not a gap
+        const held = active.filter((p) => p.position === pos);
+        if (held.length === 1 && onBye(held[0])) gaps.push({ pos, player: held[0] });
+      }
+      if (gaps.length) {
+        const positions = gaps.map((g) => g.pos);
+        const which = gaps.map((g) => LONE_LABEL[g.pos]).join(' & ');
+        const detail = gaps.length === 1
+          ? `Your only ${LONE_WORD[gaps[0].pos]} (${String(gaps[0].player.name).split(',')[0]}) is on bye — no one to fill the slot. Stream a ${LONE_LABEL[gaps[0].pos]}.`
+          : `Your only ${gaps.map((g) => LONE_WORD[g.pos]).join(' and only ')} are on bye — no one to fill those slots. Stream replacements.`;
+        items.push({
+          type: 'bye_gap', kind: 'action', leagueId: r.leagueId, leagueName: r.name, at: null,
+          action: 'waiver',
+          label: `Only ${which} on bye`,
+          players: gaps.map((g) => ({ id: g.player.id, name: g.player.name, position: g.player.position })),
+          positions,
+          replacements: { leagueId: r.leagueId, positions, sort: 'projection' },
+          detail,
+        });
+      }
     }
   }
 
-  // (On Deck is time-sorted, so pinning doesn't reorder deadlines.)
-  const visible = items;
+  // De-dupe a bye gap against a lineup lock: both can point at the same wiped K/DEF slot. The bye_gap is
+  // the specific, better-worded owner of that callout, so strip those positions from the same league's
+  // lineup lock. If that leaves the lock with no wiped slots AND it was ONLY an 'incomplete' (a pure hole,
+  // nothing else wrong), drop the now-redundant lock. A lock that also covers an unavailable starter
+  // ('risk'), points on the bench ('suboptimal'), or an unset lineup keeps its row — re-decorated to the
+  // generic framing so it no longer double-names the K/DEF the bye_gap already owns.
+  const byePositions = new Map(); // leagueId -> Set(positions owned by a bye_gap)
+  for (const it of items) if (it.type === 'bye_gap') byePositions.set(it.leagueId, new Set(it.positions));
+  const visible = items.filter((it) => {
+    if (it.type !== 'lineup_lock') return true;
+    const owned = byePositions.get(it.leagueId);
+    if (!owned || !owned.size) return true;
+    const remaining = (it.wiped || []).filter((p) => !owned.has(p));
+    if (remaining.length === (it.wiped || []).length) return true; // nothing overlapped → untouched
+    if (!remaining.length && it.status === 'incomplete') return false; // the only hole WAS the bye gap
+    it.wiped = remaining;
+    decorateLock(it, remaining); // re-derive label/detail/replacements without the bye_gap's positions
+    return true;
+  });
 
   // Order: on the clock now → soonest timestamp → label-only/untimed.
   const rank = (i) => (i.now ? 0 : i.at ? 1 : 2);

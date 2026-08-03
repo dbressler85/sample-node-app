@@ -25,6 +25,7 @@ const TYPE = {
   trade_offer: { glyph: 'tray', color: 'accent', tint: colors.accent },
   trade_deadline: { glyph: 'hourglass', color: 'warn', tint: colors.warn },
   ir_violation: { glyph: 'cross', color: 'bad', tint: colors.bad },
+  bye_gap: { glyph: 'calendar', color: 'warn', tint: colors.warn }, // your only K/DEF is on bye — stream one
 };
 
 // Human "time until" for an ISO timestamp. Near times count down; far ones show
