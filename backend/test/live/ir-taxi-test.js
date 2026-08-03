@@ -32,6 +32,20 @@ const ids = (arr) => (arr || []).map((p) => String(p.id));
     assert(Array.isArray(irv.players) && irv.players.length >= 1 && /IR/i.test(irv.detail), 'the violation names the healthy-on-IR player(s)');
     console.log('✓ On Deck flags a healthy player sitting on IR (illegal IR)');
 
+    // On Deck also flags a BYE GAP: your only kicker/defense is on bye, so that starting slot has no one
+    // to field. The demo's Keeper Kings (19622) starts a DEF and rosters exactly one — the Falcons, on
+    // bye — so it must surface with a one-tap DEF waiver-replacement deep-link.
+    const bg = (od.items || []).find((i) => i.type === 'bye_gap');
+    assert(bg && bg.kind === 'action' && bg.action === 'waiver', `On Deck surfaces a bye_gap action, got ${JSON.stringify(bg)}`);
+    assert((bg.positions || []).includes('DEF') && /DEF/.test(bg.label) && /bye/i.test(bg.label), `bye_gap names the on-bye DEF slot, got ${JSON.stringify({ label: bg.label, positions: bg.positions })}`);
+    assert(bg.replacements && bg.replacements.leagueId === '19622' && bg.replacements.positions.join(',') === 'DEF' && bg.replacements.sort === 'projection', `bye_gap deep-links to the DEF waiver board by projection, got ${JSON.stringify(bg.replacements)}`);
+    assert(Array.isArray(bg.players) && bg.players.length === 1 && /bye/i.test(bg.detail), 'bye_gap names the lone on-bye specialist');
+    // De-dupe: the bye_gap OWNS the DEF callout, so no lineup_lock for that league may also carry a DEF
+    // replacements deep-link (that would be a redundant second "pick up a DEF" row).
+    const dupDef = (od.items || []).some((i) => i.type === 'lineup_lock' && i.leagueId === bg.leagueId && i.replacements && (i.replacements.positions || []).includes('DEF'));
+    assert(!dupDef, 'no lineup_lock double-names the DEF that the bye_gap already owns');
+    console.log('✓ On Deck flags a lone kicker/defense on bye (bye gap), de-duped against the lineup lock');
+
     // Pick a league that has a bench, an IR slot, and a taxi slot in the fixture.
     const { leagues } = await j('/api/leagues', { headers: H });
     let lg = null, r0 = null;

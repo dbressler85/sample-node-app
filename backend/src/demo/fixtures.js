@@ -238,7 +238,9 @@ const ROSTERS = {
     taxi: [], // (previously duplicated a starter; taxi is demonstrated on 64097)
   },
   '19622': {
-    starters: ['13116', '15267', '13649', '14802', '13138', '12171', '17003', '18003'],
+    // Falcons D/ST (18004, ATL) is my ONLY defense and ATL is on bye this week → a "bye gap": the DEF
+    // starting slot has no one to field. Under Center flags it with a one-tap DEF waiver deep-link.
+    starters: ['13116', '15267', '13649', '14802', '13138', '12171', '17003', '18004'],
     bench: ['14106', '11686'],
     ir: [],
     taxi: [],
