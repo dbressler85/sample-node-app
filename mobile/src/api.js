@@ -306,6 +306,7 @@ export const api = {
   previewMultiClaim: (leagueId, claims) => request(`/api/leagues/${leagueId}/waivers/multi/preview`, { method: 'POST', body: { claims } }),
   submitMultiClaim: (leagueId, claims) => request(`/api/leagues/${leagueId}/waivers/multi`, { method: 'POST', body: { claims } }),
   cancelClaim: (leagueId, claimId) => request(`/api/leagues/${leagueId}/waivers/${claimId}`, { method: 'DELETE' }),
+  editClaim: (leagueId, claimId, body) => request(`/api/leagues/${leagueId}/waivers/${claimId}`, { method: 'PATCH', body }),
   reorderClaims: (leagueId, order) => request(`/api/leagues/${leagueId}/waivers/reorder`, { method: 'POST', body: { order } }),
 
   // Lineups (M2 / M2.5). mode: 'auto' | 'safe' | 'balanced' | 'aggressive'

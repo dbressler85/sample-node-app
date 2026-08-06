@@ -134,6 +134,16 @@ router.delete('/leagues/:leagueId/waivers/:claimId', async (req, res, next) => {
   }
 });
 
+// PATCH /api/leagues/:leagueId/waivers/:claimId — edit a pending claim's FAAB bid (and/or drop) in
+// place, implemented as a REPLACE-resubmit of its round. Body: { bid?, dropId? }.
+router.patch('/leagues/:leagueId/waivers/:claimId', async (req, res, next) => {
+  try {
+    res.json(await waivers.edit(req.mflCookie, req.account, req.params.leagueId, req.params.claimId, req.body || {}));
+  } catch (err) {
+    next(err);
+  }
+});
+
 // POST /api/leagues/:leagueId/waivers/reorder — reorder pending claims (priority order for contingent
 // bids). Body: { order: [claimId, ...] } — the desired top-to-bottom sequence.
 router.post('/leagues/:leagueId/waivers/reorder', async (req, res, next) => {

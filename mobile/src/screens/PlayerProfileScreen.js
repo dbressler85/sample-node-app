@@ -100,7 +100,7 @@ function PriorStatLines({ stats }) {
   );
 }
 
-export default function PlayerProfileScreen({ playerId, seed, onBack, onOpenTradeDesk, onOpenTradeWizard, onCompare }) {
+export default function PlayerProfileScreen({ playerId, seed, onBack, onOpenTradeDesk, onOpenTradeWizard, onCompare, onStartWaiverWizard }) {
   // The cross-league profile is a heavy read (per-league value snapshots), so it runs through the
   // shared cache hook: a warm remount (reopening the same player) paints instantly from memory,
   // reloads are throttled, and a failed refresh keeps the last profile (C1/C2/C4). The key is
@@ -446,7 +446,17 @@ export default function PlayerProfileScreen({ playerId, seed, onBack, onOpenTrad
         </View>
       ) : null}
 
-      {sheet === 'add' ? <AddAcrossSheet player={p} onClose={() => setSheet(null)} onDone={() => { setSheet(null); reload(); }} /> : null}
+      {/* Add ALWAYS routes through the waiver wizard's review step (never a silent one-tap file): a
+          FAAB bid and the drop are decisions the owner must see and adjust before anything is filed —
+          the same editable flow the Players/Best-Available path uses (onReview handoff). */}
+      {sheet === 'add' ? (
+        <AddAcrossSheet
+          player={p}
+          onClose={() => setSheet(null)}
+          onDone={() => { setSheet(null); reload(); }}
+          onReview={onStartWaiverWizard ? (player, stubs) => { setSheet(null); onStartWaiverWizard(stubs, player.id); } : undefined}
+        />
+      ) : null}
       {sheet === 'trade' ? (
         <TradeAcrossSheet
           player={p}

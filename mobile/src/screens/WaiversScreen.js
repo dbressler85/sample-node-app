@@ -21,6 +21,7 @@ import { colors, positionColors, size } from '../theme';
 import { celebrate } from '../components/Celebrate';
 import AvailabilityBadge from '../components/AvailabilityBadge';
 import ValueDelta from '../components/ValueDelta';
+import BidPlanRow from '../components/BidPlanRow';
 import { toast } from '../components/Toast';
 import ErrorView from '../components/ErrorView';
 import NavTools from '../components/NavTools';
@@ -48,6 +49,12 @@ function removeClaim(p, cid, lid) {
   const kept = p.pending.filter((c) => !(c.id === cid && c.leagueId === lid));
   if (kept.length === p.pending.length) return p;
   return { ...p, pending: kept, summary: { ...p.summary, pending: Math.max(0, ((p.summary && p.summary.pending) || 0) - 1) } };
+}
+
+// Patch one pending claim's bid in place (optimistic reflection of an edit before the reconcile lands).
+function patchClaimBid(p, cid, lid, bid) {
+  if (!p || !Array.isArray(p.pending)) return p;
+  return { ...p, pending: p.pending.map((c) => (c.id === cid && c.leagueId === lid ? { ...c, bid } : c)) };
 }
 
 // Filter just-canceled claims out of a freshly-fetched pending payload. MFL's queue can still echo a
@@ -114,6 +121,7 @@ export default function WaiversScreen({ active = true, initialLeagueId, initialP
   const [loading, setLoading] = useState(false); // board (drill-in) loading
   const [error, setError] = useState(null);
   const [claim, setClaim] = useState(null); // {leagueId, addId}
+  const [editing, setEditing] = useState(null); // a pending claim being edited (bid)
 
   function closeBoard() {
     setOpenLeagueId(null);
@@ -123,6 +131,10 @@ export default function WaiversScreen({ active = true, initialLeagueId, initialP
 
   // Back: claim / batch sheet first, then the board drill-in (returns to overview).
   useAndroidBack(useCallback(() => {
+    if (editing) {
+      setEditing(null);
+      return true;
+    }
     if (claim) {
       setClaim(null);
       return true;
@@ -132,7 +144,7 @@ export default function WaiversScreen({ active = true, initialLeagueId, initialP
       return true;
     }
     return false;
-  }, [claim, openLeagueId]));
+  }, [claim, editing, openLeagueId]));
 
   // Board for the drilled-in league. Stale-while-revalidate: seed instantly from the cache for this
   // exact league+position+sort if we've seen it, otherwise KEEP whatever board is already on screen
@@ -213,6 +225,27 @@ export default function WaiversScreen({ active = true, initialLeagueId, initialP
     }
   }
 
+  // Edit a pending FAAB claim's bid in place (backend does the REPLACE-resubmit). Reflect the new bid
+  // immediately (C3), then reconcile; revert non-destructively if MFL rejects it.
+  async function saveBid(c, newBid) {
+    const prev = pending;
+    const next = patchClaimBid(pending, c.id, c.leagueId, newBid);
+    setPending(next);
+    primeResource('waivers:pending', next);
+    setEditing(null);
+    toast(`Bid updated · $${newBid}`);
+    try {
+      await api.editClaim(c.leagueId, c.id, { bid: newBid });
+      loadPending();
+      loadOverview();
+      if (openLeagueId) loadBoard();
+    } catch (e) {
+      setPending(prev);
+      primeResource('waivers:pending', prev);
+      appAlert('Could not update bid', e.message);
+    }
+  }
+
   const summary = overview && overview.summary;
 
   return (
@@ -278,7 +311,7 @@ export default function WaiversScreen({ active = true, initialLeagueId, initialP
               />
             </>
           ) : (
-            <PendingView pending={pending} onCancel={cancelClaim} onOpenPlayer={onOpenPlayer} />
+            <PendingView pending={pending} onCancel={cancelClaim} onEdit={setEditing} onOpenPlayer={onOpenPlayer} />
           )}
         </>
       )}
@@ -294,6 +327,10 @@ export default function WaiversScreen({ active = true, initialLeagueId, initialP
             refreshAll();
           }}
         />
+      ) : null}
+
+      {editing ? (
+        <EditBidSheet claim={editing} onClose={() => setEditing(null)} onSave={(n) => saveBid(editing, n)} />
       ) : null}
 
     </View>
@@ -602,28 +639,38 @@ function waiverWhen(c) {
   return (c && (c.atLabel || c.processTime)) || 'pending';
 }
 
-function PendingView({ pending, onCancel, onOpenPlayer }) {
+function PendingView({ pending, onCancel, onEdit, onOpenPlayer }) {
   if (!pending) return <Center><ActivityIndicator color={colors.accent} size="large" /></Center>;
   return (
     <ScrollView contentContainerStyle={styles.list}>
       <Text style={styles.subsection}>Pending claims · {pending.summary.pending}</Text>
       {pending.pending.length === 0 ? <Text style={styles.empty}>No pending claims.</Text> : null}
-      {pending.pending.map((c) => (
-        <View key={`${c.leagueId}-${c.id}`} style={styles.pendRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.pendAdd}>
-              + {c.add ? c.add.name : '—'}
-              {c.bid != null ? <Text style={styles.pendBid}>  ${c.bid}</Text> : null}
-              {c.priority != null ? <Text style={styles.pendBid}>  #{c.priority}</Text> : null}
-            </Text>
-            {c.drop ? <Text style={styles.pendDrop}>− {c.drop.name}</Text> : null}
-            <Text style={styles.pendLeague}>{c.leagueName} · {waiverWhen(c)}</Text>
+      {pending.pending.map((c) => {
+        // A queued FAAB bid can be re-bid before it processes (backend re-files the round with the new
+        // bid). Only FAAB claims carry an editable $ — fcfs/priority claims have nothing to change.
+        const canEdit = onEdit && c.system === 'faab' && c.bid != null;
+        return (
+          <View key={`${c.leagueId}-${c.id}`} style={styles.pendRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.pendAdd}>
+                + {c.add ? c.add.name : '—'}
+                {c.bid != null ? <Text style={styles.pendBid}>  ${c.bid}</Text> : null}
+                {c.priority != null ? <Text style={styles.pendBid}>  #{c.priority}</Text> : null}
+              </Text>
+              {c.drop ? <Text style={styles.pendDrop}>− {c.drop.name}</Text> : null}
+              <Text style={styles.pendLeague}>{c.leagueName} · {waiverWhen(c)}</Text>
+            </View>
+            {canEdit ? (
+              <Pressable onPress={() => onEdit(c)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Edit bid for ${c.add ? c.add.name : 'claim'}`}>
+                <Text style={styles.editClaim}>Edit</Text>
+              </Pressable>
+            ) : null}
+            <Pressable onPress={() => onCancel(c.id, c.leagueId)} hitSlop={8}>
+              <Text style={styles.cancel}>Cancel</Text>
+            </Pressable>
           </View>
-          <Pressable onPress={() => onCancel(c.id, c.leagueId)} hitSlop={8}>
-            <Text style={styles.cancel}>Cancel</Text>
-          </Pressable>
-        </View>
-      ))}
+        );
+      })}
 
       {pending.results.length ? <Text style={styles.subsection}>Recent results</Text> : null}
       {pending.results.map((r, i) => (
@@ -791,6 +838,7 @@ function ClaimSheet({ leagueId, addId, onClose, onOpenLineup, onDone }) {
                   <Stepper onPress={() => { const n = Number(bid || 0) + 1; setBid(String(n)); refresh({ bid: n }); }} label="+" />
                   {preview.budgetAfter != null ? <Text style={styles.budgetAfter}>${preview.budgetAfter} left after</Text> : null}
                 </View>
+                <BidPlanRow plan={preview.bidPlan} current={bid} onPick={(n) => { setBid(String(n)); refresh({ bid: n }); }} />
               </>
             ) : null}
 
@@ -811,6 +859,53 @@ function ClaimSheet({ leagueId, addId, onClose, onOpenLineup, onDone }) {
           </>
         )}
       </Pressable>
+      </KeyboardAvoidingView>
+    </Pressable>
+  );
+}
+
+// Edit a queued FAAB bid. Deliberately minimal — the add and drop are fixed; only the $ changes (to
+// change who/what, cancel and re-file). The backend re-files the whole round with the new bid.
+function EditBidSheet({ claim, onClose, onSave }) {
+  const [bid, setBid] = useState(claim.bid != null ? String(claim.bid) : '0');
+  const [busy, setBusy] = useState(false);
+  const n = Math.max(0, Number(bid || 0));
+  const unchanged = n === (claim.bid != null ? claim.bid : 0);
+  async function save() {
+    if (busy || unchanged) return;
+    setBusy(true);
+    await onSave(n); // onSave (saveBid) closes the sheet optimistically + reconciles; it never throws
+  }
+  return (
+    <Pressable style={styles.backdrop} onPress={onClose}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.kav}>
+        <Pressable style={styles.sheet} onPress={() => {}}>
+          <View style={styles.grabber} />
+          <Text style={styles.sheetTitle}>Edit bid · {claim.add ? claim.add.name : ''}</Text>
+          <Text style={styles.sheetSub}>{claim.leagueName}{claim.drop ? ` · drops ${claim.drop.name}` : ''}</Text>
+          <Text style={styles.fieldLabel}>FAAB bid</Text>
+          <View style={styles.bidRow}>
+            <Stepper onPress={() => setBid(String(Math.max(0, n - 1)))} label="−" />
+            <TextInput
+              style={styles.bidInput}
+              keyboardType="number-pad"
+              value={bid}
+              onChangeText={(t) => setBid(t.replace(/[^0-9]/g, ''))}
+              autoFocus
+            />
+            <Stepper onPress={() => setBid(String(n + 1))} label="+" />
+          </View>
+          <Pressable
+            style={({ pressed }) => [styles.confirm, (busy || unchanged) && styles.confirmOff, pressed && !busy && !unchanged && { opacity: 0.85 }]}
+            onPress={save}
+            disabled={busy || unchanged}
+          >
+            {busy ? <ActivityIndicator color={colors.onAccent} /> : <Text style={styles.confirmText}>{unchanged ? 'No change' : `Update bid to $${n}`}</Text>}
+          </Pressable>
+          <Pressable style={styles.cancelBtn} onPress={onClose}>
+            <Text style={styles.cancelText}>Cancel</Text>
+          </Pressable>
+        </Pressable>
       </KeyboardAvoidingView>
     </Pressable>
   );
@@ -941,6 +1036,7 @@ const styles = StyleSheet.create({
   pendDrop: { color: colors.textDim, fontSize: 13, marginTop: 2 },
   pendLeague: { color: colors.accent, fontSize: 12, marginTop: 4, fontWeight: '600' },
   cancel: { color: colors.bad, fontSize: 13, fontWeight: '700' },
+  editClaim: { color: colors.accent, fontSize: 13, fontWeight: '700', marginRight: 16 },
   resultRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   resultTag: { fontSize: 11, fontWeight: '900', width: 46 },
   resultText: { color: colors.text, fontSize: 14, fontWeight: '600' },
