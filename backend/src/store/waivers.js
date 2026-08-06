@@ -38,6 +38,17 @@ function add(token, leagueId, seed, claim) {
   return withId;
 }
 
+// Patch an existing claim in place (merge `patch` into it) — used to edit a queued claim's bid/drop
+// without changing its id or queue position. Returns the updated claim, or null if not found.
+function update(token, leagueId, seed, claimId, patch) {
+  const arr = ensure(token, leagueId, seed);
+  const c = arr.find((x) => String(x.id) === String(claimId));
+  if (!c) return null;
+  Object.assign(c, patch);
+  persist.touch();
+  return c;
+}
+
 function remove(token, leagueId, seed, claimId) {
   const arr = ensure(token, leagueId, seed);
   const i = arr.findIndex((c) => String(c.id) === String(claimId));
@@ -59,4 +70,4 @@ function reorder(token, leagueId, seed, orderedIds) {
   return arr;
 }
 
-module.exports = { list, add, remove, reorder };
+module.exports = { list, add, update, remove, reorder };

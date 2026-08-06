@@ -991,6 +991,110 @@ async function cancel(cookie, token, leagueId, claimId) {
   return { canceled: claimId, board: await getBoard(cookie, token, leagueId, {}) };
 }
 
+// Edit ONE queued pick IN PLACE by RESUBMITTING its whole round with REPLACE — the target pick at
+// `idx` swapped for its new bid/drop, every OTHER pick preserved (the same mechanism as cancel/reorder;
+// MFL has no "edit one claim" call). Re-reads MFL's authoritative queue so picks placed outside the app
+// survive. `bid`/`dropId` are applied only when provided (undefined = keep as-is; dropId '' or null =
+// clear the drop). Returns the edited pick; throws 404 if it's no longer queued. Surfaces MFL's detail.
+async function editMflPick({ cookie, league, system, round, idx, bid, dropId }) {
+  const reqs = await mflRepo.pendingWaivers(league, cookie);
+  const req = reqs.find((r) => r.system === system && r.round === round);
+  const target = req && req.picks[idx];
+  if (!target) {
+    const err = new Error('That claim is no longer in your queue — it may have already processed.');
+    err.status = 404;
+    throw err;
+  }
+  const picks = req.picks.map((p, i) =>
+    i === idx
+      ? { ...p, bid: bid != null ? bid : p.bid, drop: dropId !== undefined ? dropId || null : p.drop }
+      : p
+  );
+  const asToken = (p) =>
+    system === 'faab'
+      ? `${p.add}_${Math.round(Number(p.bid) || 0)}_${p.drop || '0000'}`
+      : `${p.add}_${p.drop || '0000'}`;
+  const PICKS = picks.map(asToken).join(',');
+  const command = system === 'faab' ? 'blindBidWaiverRequest' : 'waiverRequest';
+  const params = { host: league.host, cookie, L: league.leagueId, ROUND: round, PICKS, REPLACE: 1 };
+  try {
+    await withWriteRetry(() => mfl.importRequest(command, params)); // REPLACE=1 full-round set → idempotent
+  } catch (e) {
+    const detail = mfl.errorDetail(e);
+    console.warn(`[waivers] MFL rejected edit — L=${league.leagueId} system=${system} round=${round} idx=${idx} — ${detail}`);
+    const err = new Error(`MyFantasyLeague rejected the edit: ${detail}`);
+    err.status = e.status || 502;
+    err.detail = detail;
+    throw err;
+  }
+  return picks[idx];
+}
+
+// Edit a PENDING claim's FAAB bid (and optionally its drop) in place. To change the ADD player or the
+// round you still cancel and re-file — only the bid/drop of an existing pick are editable. Live edits an
+// MFL-sourced pending claim (id "mfl-<system>-<round>-<idx>") via editMflPick; demo patches the store.
+async function edit(cookie, token, leagueId, claimId, { bid, dropId } = {}) {
+  // Demo: the local store IS the source of truth — patch the claim in place.
+  if (config.demoMode) {
+    const patch = {};
+    if (bid != null) patch.bid = Math.max(0, Math.round(Number(bid) || 0));
+    if (dropId !== undefined) {
+      const byId = await playersLib.load(cookie);
+      const d = dropId ? playersLib.resolve(byId, dropId) : null;
+      patch.drop = d ? { id: d.id, name: d.name, position: d.position } : null;
+    }
+    const updated = store.update(token, leagueId, demo.pendingClaims(leagueId), claimId, patch);
+    if (!updated) {
+      const err = new Error('Claim not found');
+      err.status = 404;
+      throw err;
+    }
+    return { edited: claimId, board: await getBoard(cookie, token, leagueId, {}) };
+  }
+
+  // Live: only an MFL-sourced pending claim can be edited in place.
+  const m = /^mfl-(faab|fcfs)-(\d+)-(\d+)$/.exec(String(claimId));
+  if (!m) {
+    const err = new Error('This claim can’t be edited here — cancel it and file a new one.');
+    err.status = 400;
+    throw err;
+  }
+  const system = m[1];
+  const round = Number(m[2]);
+  const idx = Number(m[3]);
+  const league = await findLeague(cookie, leagueId);
+
+  // Validate a FAAB bid against the league's remaining budget (an fcfs claim carries no bid).
+  let cleanBid;
+  if (bid != null) {
+    if (system !== 'faab') {
+      const err = new Error('This isn’t a FAAB claim — there’s no bid to change.');
+      err.status = 400;
+      throw err;
+    }
+    const settings = await loadSettings(league, cookie);
+    cleanBid = Math.max(0, Math.round(Number(bid) || 0));
+    const remaining = settings.faabRemaining;
+    if (Number.isFinite(remaining) && cleanBid > remaining) {
+      const err = new Error(`That bid ($${cleanBid}) is more than your $${remaining} remaining FAAB budget.`);
+      err.status = 400;
+      throw err;
+    }
+  }
+  if (cleanBid == null && dropId === undefined) {
+    const err = new Error('Nothing to change.');
+    err.status = 400;
+    throw err;
+  }
+
+  const editedPick = await editMflPick({ cookie, league, system, round, idx, bid: cleanBid, dropId });
+  // Refresh reads so the returned board — and the next screen — reflect the new bid/drop. The outbid
+  // snapshot re-syncs from MFL's live queue on the next reconcile (the pick is still present), so unlike
+  // cancel there's nothing to forget here.
+  invalidate(cookie, leagueId);
+  return { edited: claimId, editedPick, board: await getBoard(cookie, token, leagueId, {}) };
+}
+
 // Reorder the PICKS within one MFL waiver round to a new priority order by resubmitting the whole
 // round with REPLACE (MFL has no "move one pick" call — same mechanism as cancel). Pick order in a
 // round is the processing priority for conditional/contingent bids, so this is how you say "try this
@@ -1630,4 +1734,4 @@ async function recentResults(cookie, _token) {
   return { results: per.flat() };
 }
 
-module.exports = { getBoard, getOverview, getSuggestions, getLeagueSuggestion, preview, submit, previewMulti, submitMulti, cancel, reorder, getBestAvailable, getPending, freeAgentIds, invalidate, nextWaiverRun, reconciledPending, recentResults };
+module.exports = { getBoard, getOverview, getSuggestions, getLeagueSuggestion, preview, submit, previewMulti, submitMulti, cancel, edit, reorder, getBestAvailable, getPending, freeAgentIds, invalidate, nextWaiverRun, reconciledPending, recentResults };

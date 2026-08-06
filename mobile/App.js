@@ -538,6 +538,7 @@ export default function App() {
             onOpenTradeDesk={(ctx) => openTrades({ leagueId: ctx.leagueId, name: ctx.name }, 'propose', { targetPlayerId: ctx.targetPlayerId, partnerFranchiseId: ctx.partnerFranchiseId })}
             onOpenTradeWizard={openTradeWizard}
             onCompare={openCompare}
+            onStartWaiverWizard={openWaiverWizard}
           />
         );
       case 'compare':
