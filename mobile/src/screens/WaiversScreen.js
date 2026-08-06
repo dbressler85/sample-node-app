@@ -21,6 +21,7 @@ import { colors, positionColors, size } from '../theme';
 import { celebrate } from '../components/Celebrate';
 import AvailabilityBadge from '../components/AvailabilityBadge';
 import ValueDelta from '../components/ValueDelta';
+import BidPlanRow from '../components/BidPlanRow';
 import { toast } from '../components/Toast';
 import ErrorView from '../components/ErrorView';
 import NavTools from '../components/NavTools';
@@ -837,6 +838,7 @@ function ClaimSheet({ leagueId, addId, onClose, onOpenLineup, onDone }) {
                   <Stepper onPress={() => { const n = Number(bid || 0) + 1; setBid(String(n)); refresh({ bid: n }); }} label="+" />
                   {preview.budgetAfter != null ? <Text style={styles.budgetAfter}>${preview.budgetAfter} left after</Text> : null}
                 </View>
+                <BidPlanRow plan={preview.bidPlan} current={bid} onPick={(n) => { setBid(String(n)); refresh({ bid: n }); }} />
               </>
             ) : null}
 

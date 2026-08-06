@@ -315,20 +315,100 @@ function suggestDrop(roster, addPosition) {
   return safe[0] || bench[0] || null;
 }
 
-// Smart FAAB bid: scale remaining budget by the player's dynasty value and a bit
-// of waiver-wire heat. Advisory; the user can override.
-function suggestBid(settings, add) {
+// ── Smarter FAAB bid model (docs: PO review) ──────────────────────────────────────────────────────
+// A FAAB bid is two independent questions multiplied: how much your BUDGET is worth to you right now
+// (contention × season phase) × how much THIS player helps YOUR roster right now (fit). The old model
+// scaled remaining budget by raw dynasty value, which saturated to "bid ~everything" for anyone worth
+// rostering and ignored contention, the calendar, and roster fit. This one commits a bounded fraction
+// of remaining budget instead, so it can never runaway-clamp to your whole budget by accident.
+
+// Season phase from the NFL week — how freely to spend. Early: hoard (a long season of injuries ahead).
+// Late: a contender empties the tank (unspent FAAB is worth $0 at season's end); a rebuilder spends even
+// less. Unknown week → 'mid'.
+function seasonPhase(week) {
+  if (!week || week < 1) return 'mid';
+  if (week <= 4) return 'early';
+  if (week <= 11) return 'mid';
+  if (week <= 14) return 'late';
+  return 'endgame';
+}
+
+// Contention posture from the roster's dynasty outlook (roster.summary.outlook).
+function biddingPosture(outlook) {
+  if (outlook === 'Win-now window') return 'contender';
+  if (outlook === 'Rebuilding') return 'rebuilder';
+  return 'neutral'; // Ascending / Balanced / unknown
+}
+
+// How this free agent fits YOUR roster now — the real question, not his abstract value. Compares him
+// to your WORST STARTER at his position (no starter there = a hole he plugs). null when we have no
+// roster to compare against (the suggestion then treats fit as neutral).
+function rosterFit(roster, add) {
+  if (!roster || !add || !add.position) return null;
+  const val = add.value || 0;
+  const starters = (roster.starters || []).filter((p) => p.position === add.position);
+  if (!starters.length) return 'hole'; // you start nobody at his position → he fills it
+  const worst = Math.min(...starters.map((p) => p.value || 0));
+  if (val > worst * 1.05) return 'upgrade'; // clears your worst starter there
+  if (val >= worst * 0.85) return 'depthPlus'; // pushing for snaps — real depth
+  return 'depth'; // clearly behind what you start → a flyer
+}
+
+// Fraction of REMAINING budget to commit for a lineup-caliber pickup, by posture × season phase. A
+// contender mid-season spends ~half their remaining on a real upgrade and empties the tank late; a
+// rebuilder never commits more than ~15%.
+const BUDGET_FRACTION = {
+  contender: { early: 0.35, mid: 0.55, late: 0.75, endgame: 1.0 },
+  neutral: { early: 0.2, mid: 0.35, late: 0.45, endgame: 0.5 },
+  rebuilder: { early: 0.1, mid: 0.15, late: 0.12, endgame: 0.08 },
+};
+// How much a fit is "worth you" (scales the committed fraction): a hole/upgrade earns the full posture
+// budget; bench depth earns a token. null (no roster) is treated as a neutral pickup.
+const FIT_WORTH = { hole: 1.0, upgrade: 0.85, depthPlus: 0.45, depth: 0.2, unknown: 0.5 };
+const FIT_LABEL = { hole: 'Starting hole', upgrade: 'Starting upgrade', depthPlus: 'Depth', depth: 'Bench flyer', unknown: 'Pickup' };
+const POSTURE_LABEL = { contender: 'win-now', neutral: 'balanced', rebuilder: 'rebuild — hold budget' };
+
+// Suggest a FAAB bid as a RANGE + a one-line rationale. `opts.roster` / `opts.week` / `opts.outlook`
+// sharpen it; absent, it degrades to a sane neutral/mid read. Returns
+// { target, save, max, rationale, fit, posture } — or null for a non-FAAB league.
+function suggestBidPlan(settings, add, opts = {}) {
   if (settings.system !== 'faab') return null;
   const remaining = settings.faabRemaining || 0;
-  const value = (add.value || 0) / 100;
-  const heat = 1 + Math.min(add.trend || 0, 6000) / 20000; // up to ~1.3x
-  let bid = Math.round(remaining * value * 0.45 * heat);
   const floor = Number.isFinite(settings.minBid) ? settings.minBid : 1;
-  bid = Math.max(floor, Math.min(bid, remaining));
-  // Snap the suggestion up to a legal `bbidIncrement` step so a one-tap accept isn't rejected.
   const inc = settings.bidIncrement || 1;
-  if (inc > 1) bid = Math.min(remaining, floor + Math.ceil((bid - floor) / inc) * inc);
-  return bid;
+  // Snap to a legal bid: clamp to [floor, remaining], then to a bbidIncrement step (dir picks rounding).
+  const snap = (x, dir) => {
+    let v = Math.max(floor, Math.min(x, remaining));
+    if (inc > 1) {
+      const steps = (v - floor) / inc;
+      const k = dir === 'up' ? Math.ceil(steps) : dir === 'down' ? Math.floor(steps) : Math.round(steps);
+      v = floor + k * inc;
+    } else {
+      v = Math.round(v);
+    }
+    return Math.max(floor, Math.min(v, remaining));
+  };
+
+  const posture = biddingPosture(opts.outlook);
+  const phase = seasonPhase(opts.week);
+  const fit = rosterFit(opts.roster, add) || 'unknown';
+  // A hot waiver add (value momentum) earns a small bump on top of its fit.
+  const worth = Math.min(1, (FIT_WORTH[fit] != null ? FIT_WORTH[fit] : 0.5) + Math.min(0.15, (add.trend || 0) / 60000));
+  const frac = (BUDGET_FRACTION[posture] || BUDGET_FRACTION.neutral)[phase];
+  const targetRaw = remaining * frac * worth;
+
+  const target = snap(targetRaw, 'up');
+  const save = Math.min(snap(targetRaw * 0.55, 'down'), target); // disciplined: grab him cheap if uncontested
+  const max = Math.max(snap(targetRaw * 1.4, 'up'), target); // must-win: outbid expected competition
+  const wk = opts.week ? `, Week ${opts.week}` : '';
+  return { target, save, max, rationale: `${FIT_LABEL[fit]} · ${POSTURE_LABEL[posture]}${wk}`, fit, posture };
+}
+
+// Back-compat single-number suggestion (= the plan's target), for callers that only want a default to
+// pre-fill. The full range + rationale is on suggestBidPlan.
+function suggestBid(settings, add, opts) {
+  const plan = suggestBidPlan(settings, add || {}, opts || {});
+  return plan ? plan.target : null;
 }
 
 function claimView(claim, byId) {
@@ -434,11 +514,12 @@ async function getBoard(cookie, token, leagueId, { position, sort } = {}) {
 async function loadClaimCtx(cookie, token, leagueId) {
   const league = await findLeague(cookie, leagueId);
   const settings = await loadSettings(league, cookie);
-  const [byId, roster, enr, faIds0] = await Promise.all([
+  const [byId, roster, enr, faIds0, week] = await Promise.all([
     playersLib.load(cookie),
     rosterService.getRoster(cookie, leagueId),
     enrichmentLib.snapshot(await leagueFormat.format(cookie, league), cookie),
     freeAgentIds(cookie, league),
+    (config.demoMode ? Promise.resolve(demo.week()) : nflLib.currentWeek(cookie)).catch(() => null),
   ]);
   // Free-agent set is validated in live too (from MFL freeAgents), not only in demo — so
   // you can't submit a claim for a player who's on another roster.
@@ -469,14 +550,14 @@ async function loadClaimCtx(cookie, token, leagueId) {
     ]);
     locked = !!calLock || !faOpen;
   }
-  return { league, settings, byId, roster, enr, available, rosterIds, locked };
+  return { league, settings, byId, roster, enr, available, rosterIds, locked, week };
 }
 
 // Validate ONE claim {addId, dropId?, bid?, priority?} against the shared context. Returns
 // the resolved add/drop/bid + per-claim validity. Budget is checked against the FULL
 // remaining here; a multi-claim queue also checks the SUM of bids separately.
 function validateClaim(payload, ctx) {
-  const { settings, byId, roster, enr, available, rosterIds } = ctx;
+  const { settings, byId, roster, enr, available, rosterIds, week } = ctx;
   const errors = [];
   const addId = String(payload.addId || '');
   const add = addId ? { ...playersLib.resolve(byId, addId), value: enr.value(addId), age: enr.age(addId), trend: enr.trend(addId) } : null;
@@ -497,7 +578,9 @@ function validateClaim(payload, ctx) {
   let bid = null;
   let priority = null;
   let budgetAfter = null;
-  const suggestedBid = suggestBid(settings, add || {});
+  // Smarter suggestion: a range + rationale from budget × contention × season phase × roster fit.
+  const bidPlan = suggestBidPlan(settings, add || {}, { roster, week, outlook: roster && roster.summary ? roster.summary.outlook : null });
+  const suggestedBid = bidPlan ? bidPlan.target : null;
   if (settings.system === 'faab') {
     bid = payload.bid != null ? Math.round(Number(payload.bid)) : suggestedBid;
     const remaining = settings.faabRemaining || 0;
@@ -530,6 +613,7 @@ function validateClaim(payload, ctx) {
     suggestedDrop: suggestedDrop ? { id: suggestedDrop.id, name: suggestedDrop.name, position: suggestedDrop.position, value: suggestedDrop.value } : null,
     bid,
     suggestedBid,
+    bidPlan, // { target, save, max, rationale, fit, posture } — the smarter suggestion (null for non-FAAB)
     priority,
     budgetAfter,
     valid: errors.length === 0,
@@ -1586,11 +1670,15 @@ async function leagueSuggestionOne(cookie, token, league, { seedAddId = null } =
           // or the top FA out-values the bench player you'd drop.
           const upgrade = !full || (drop ? (top.value || 0) > (drop.value || 0) : true);
           const useDrop = full ? drop : null; // a drop is only required when full
-          const bid = settings.system === 'faab' ? suggestBid(settings, top) : null;
+          const bidPlan = settings.system === 'faab'
+            ? suggestBidPlan(settings, top, { roster, week: ctx.week, outlook: roster && roster.summary ? roster.summary.outlook : null })
+            : null;
+          const bid = bidPlan ? bidPlan.target : null;
           recommended = {
             add: top,
             drop: useDrop ? { id: useDrop.id, name: useDrop.name, position: useDrop.position, value: useDrop.value } : null,
             bid,
+            bidPlan,
             budgetAfter: bid != null && settings.faabRemaining != null ? settings.faabRemaining - bid : null,
             upgrade,
             reason: !full
@@ -1734,4 +1822,4 @@ async function recentResults(cookie, _token) {
   return { results: per.flat() };
 }
 
-module.exports = { getBoard, getOverview, getSuggestions, getLeagueSuggestion, preview, submit, previewMulti, submitMulti, cancel, edit, reorder, getBestAvailable, getPending, freeAgentIds, invalidate, nextWaiverRun, reconciledPending, recentResults };
+module.exports = { getBoard, getOverview, getSuggestions, getLeagueSuggestion, preview, submit, previewMulti, submitMulti, cancel, edit, reorder, getBestAvailable, getPending, freeAgentIds, invalidate, nextWaiverRun, reconciledPending, recentResults, suggestBidPlan };

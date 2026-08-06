@@ -6,6 +6,7 @@ import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import { TopbarTitle } from '../components/Brand';
 import AvailabilityBadge from '../components/AvailabilityBadge';
+import BidPlanRow from '../components/BidPlanRow';
 import ValueDelta from '../components/ValueDelta';
 import NeonSign from '../components/NeonSign';
 import { toast } from '../components/Toast';
@@ -520,6 +521,7 @@ export default function WaiverWizardScreen({ leagues, seedAddId = null, onBack, 
               <Stepper label="+" onPress={() => setBid(String((bidNum || 0) + 1))} />
               {budgetAfter != null ? <Text style={styles.budgetAfter}>${budgetAfter} left after</Text> : null}
             </View>
+            <BidPlanRow plan={rec && rec.bidPlan} current={bid} onPick={(n) => setBid(String(n))} />
           </>
         ) : null}
 
