@@ -142,6 +142,7 @@ async function loadSettings(league, cookie, { fresh = true } = {}) {
   const settings = {
     system,
     rosterSize: parseInt(lg.rosterSize, 10) || 99,
+    teams: franchises.length || null, // league size → waiver competition (more teams = bid higher to win)
     faabRemaining,
     // The season FAAB *budget* (starting amount) isn't in this export — only the per-franchise
     // remaining balance (bbidAvailableBalance, read above). The old `bbidTotalBalance/bbidBudget/
@@ -342,16 +343,42 @@ function biddingPosture(outlook) {
 
 // How this free agent fits YOUR roster now — the real question, not his abstract value. Compares him
 // to your WORST STARTER at his position (no starter there = a hole he plugs). null when we have no
-// roster to compare against (the suggestion then treats fit as neutral).
-function rosterFit(roster, add) {
+// roster to compare against (the suggestion then treats fit as neutral). `nowValueOf` (Tier 2 #6),
+// when provided, scores the comparison in the WIN-NOW (redraft) lens rather than dynasty value — the
+// right lens for a FAAB pickup (a rookie stash who's a dynasty stud but a redraft zero shouldn't read
+// as a "starting upgrade" you'd spend budget on THIS season). Both lenses are ~0-100, so a per-player
+// fallback to dynasty value (when redraft is missing) stays on-scale.
+function rosterFit(roster, add, nowValueOf) {
   if (!roster || !add || !add.position) return null;
-  const val = add.value || 0;
+  const nv = (id, fallback) => {
+    if (!nowValueOf) return fallback;
+    const v = nowValueOf(id);
+    return v != null ? v : fallback;
+  };
+  const val = nv(add.id, add.value || 0);
   const starters = (roster.starters || []).filter((p) => p.position === add.position);
   if (!starters.length) return 'hole'; // you start nobody at his position → he fills it
-  const worst = Math.min(...starters.map((p) => p.value || 0));
+  const worst = Math.min(...starters.map((p) => nv(p.id, p.value || 0)));
   if (val > worst * 1.05) return 'upgrade'; // clears your worst starter there
   if (val >= worst * 0.85) return 'depthPlus'; // pushing for snaps — real depth
   return 'depth'; // clearly behind what you start → a flyer
+}
+
+// Positional scarcity (Tier 2 #5): the best win-now value among the OTHER free agents at `position` —
+// how replaceable this pickup is. A big gap over the next-best on the wire = scarce (bid up); a
+// comparable body waiting = plentiful (don't overpay). Computed from the ids we already have (no board
+// read). Returns null when there's no comparable FA (unknown → neutral, never a false "scarce" bump).
+function bestNowAtPosition(ids, byId, enr, position, excludeId) {
+  if (!position || !ids) return null;
+  let best = null;
+  for (const id of ids) {
+    if (String(id) === String(excludeId)) continue;
+    const p = playersLib.resolve(byId, id);
+    if (!p || p.position !== position) continue;
+    const v = enr.winNow(id);
+    if (v != null && (best == null || v > best)) best = v;
+  }
+  return best;
 }
 
 // Fraction of REMAINING budget to commit for a lineup-caliber pickup, by posture × season phase. A
@@ -389,17 +416,32 @@ function suggestBidPlan(settings, add, opts = {}) {
     return Math.max(floor, Math.min(v, remaining));
   };
 
+  const clamp = (x, lo, hi) => Math.max(lo, Math.min(x, hi));
   const posture = biddingPosture(opts.outlook);
   const phase = seasonPhase(opts.week);
-  const fit = rosterFit(opts.roster, add) || 'unknown';
-  // A hot waiver add (value momentum) earns a small bump on top of its fit.
-  const worth = Math.min(1, (FIT_WORTH[fit] != null ? FIT_WORTH[fit] : 0.5) + Math.min(0.15, (add.trend || 0) / 60000));
-  const frac = (BUDGET_FRACTION[posture] || BUDGET_FRACTION.neutral)[phase];
-  const targetRaw = remaining * frac * worth;
+  const fit = rosterFit(opts.roster, add, opts.nowValueOf) || 'unknown'; // #6: fit scored in the win-now lens
 
-  const target = snap(targetRaw, 'up');
-  const save = Math.min(snap(targetRaw * 0.55, 'down'), target); // disciplined: grab him cheap if uncontested
-  const max = Math.max(snap(targetRaw * 1.4, 'up'), target); // must-win: outbid expected competition
+  // #5 scarcity: how much this pickup out-values the next-best FA at his position (win-now lens).
+  // A clear gap → bid up (hard to replace); a comparable body waiting → don't overpay. Neutral (1.0)
+  // when we can't compare (no peer on the wire, or no win-now value for him).
+  let scarcity = 1;
+  const addNow = opts.nowValueOf ? opts.nowValueOf(add.id) : null;
+  if (addNow != null && opts.nextBestNow != null) scarcity = clamp(1 + (addNow - opts.nextBestNow) / 40, 0.85, 1.2);
+
+  // A hot waiver add (value momentum) earns a small bump on top of its fit; scarcity scales it.
+  const worth = clamp((FIT_WORTH[fit] != null ? FIT_WORTH[fit] : 0.5) + Math.min(0.15, (add.trend || 0) / 60000), 0.1, 1.15) * scarcity;
+
+  // #7 competition: bigger leagues have more rivals who can outbid, so the price to WIN rises. Applied
+  // to target/max (the "win it" numbers), not save (the uncontested price competition doesn't change).
+  const teams = opts.teams || 12;
+  const comp = clamp(1 + (teams - 12) * 0.025, 0.85, 1.2);
+
+  const frac = (BUDGET_FRACTION[posture] || BUDGET_FRACTION.neutral)[phase];
+  const baseRaw = remaining * frac * worth;
+
+  const target = snap(baseRaw * comp, 'up');
+  const save = Math.min(snap(baseRaw * 0.55, 'down'), target); // disciplined: grab him cheap if uncontested
+  const max = Math.max(snap(baseRaw * comp * 1.4, 'up'), target); // must-win: outbid expected competition
   const wk = opts.week ? `, Week ${opts.week}` : '';
   return { target, save, max, rationale: `${FIT_LABEL[fit]} · ${POSTURE_LABEL[posture]}${wk}`, fit, posture };
 }
@@ -578,8 +620,19 @@ function validateClaim(payload, ctx) {
   let bid = null;
   let priority = null;
   let budgetAfter = null;
-  // Smarter suggestion: a range + rationale from budget × contention × season phase × roster fit.
-  const bidPlan = suggestBidPlan(settings, add || {}, { roster, week, outlook: roster && roster.summary ? roster.summary.outlook : null });
+  // Smarter suggestion: a range + rationale from budget × contention × season phase × roster fit,
+  // scored in the win-now lens (nowValueOf), with positional scarcity (nextBestNow, from the FA ids we
+  // already hold) and league-size competition (teams) folded in.
+  const nowValueOf = (id) => enr.winNow(id);
+  const nextBestNow = add ? bestNowAtPosition(available, byId, enr, add.position, add.id) : null;
+  const bidPlan = suggestBidPlan(settings, add || {}, {
+    roster,
+    week,
+    outlook: roster && roster.summary ? roster.summary.outlook : null,
+    nowValueOf,
+    nextBestNow,
+    teams: settings.teams,
+  });
   const suggestedBid = bidPlan ? bidPlan.target : null;
   if (settings.system === 'faab') {
     bid = payload.bid != null ? Math.round(Number(payload.bid)) : suggestedBid;
@@ -1671,7 +1724,14 @@ async function leagueSuggestionOne(cookie, token, league, { seedAddId = null } =
           const upgrade = !full || (drop ? (top.value || 0) > (drop.value || 0) : true);
           const useDrop = full ? drop : null; // a drop is only required when full
           const bidPlan = settings.system === 'faab'
-            ? suggestBidPlan(settings, top, { roster, week: ctx.week, outlook: roster && roster.summary ? roster.summary.outlook : null })
+            ? suggestBidPlan(settings, top, {
+                roster,
+                week: ctx.week,
+                outlook: roster && roster.summary ? roster.summary.outlook : null,
+                nowValueOf: (id) => enr.winNow(id),
+                nextBestNow: bestNowAtPosition(fas.map((f) => f.id), byId, enr, top.position, top.id),
+                teams: settings.teams,
+              })
             : null;
           const bid = bidPlan ? bidPlan.target : null;
           recommended = {

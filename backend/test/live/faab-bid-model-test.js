@@ -57,5 +57,30 @@ const wr = (value) => ({ position: 'WR', value, trend: 0 });
   assert(/hole/i.test(holePlan.rationale), `a positional hole is called out, got "${holePlan.rationale}"`);
   console.log(`✓ positional hole rationale: "${holePlan.rationale}"`);
 
+  // ── Tier 2 ────────────────────────────────────────────────────────────────────────────────────
+  const base2 = { roster: ROSTER, week: 8, outlook: 'Win-now window' };
+  const wrId = { id: 'fa1', position: 'WR', value: 4000, trend: 0 }; // dynasty upgrade over the 3000 starter
+
+  // #7 league size: a deeper league (more rivals who can outbid) raises the price to WIN.
+  const t10 = plan(S, wrId, { ...base2, teams: 10 }).target;
+  const t16 = plan(S, wrId, { ...base2, teams: 16 }).target;
+  assert(t16 > t10, `bigger league bids higher to win (16-team ${t16} > 10-team ${t10})`);
+  console.log(`✓ league size: 16-team $${t16} > 10-team $${t10}`);
+
+  // #6 win-now lens: a dynasty-valued but redraft-weak stash (a rookie) is NOT a win-now FAAB
+  // priority. Scoring fit in the win-now lens (nowValueOf) drops it from "upgrade" to a flyer.
+  const nowLens = (id) => (id === 'fa1' ? 10 : id === 's1' ? 60 : id === 's2' ? 55 : null); // add is redraft-weak
+  const dynastyView = plan(S, wrId, base2).target; // no lens → dynasty says "upgrade"
+  const winNowView = plan(S, wrId, { ...base2, nowValueOf: nowLens }).target; // lens says "flyer"
+  assert(winNowView < dynastyView, `redraft-weak stash bids less in the win-now lens (${winNowView} < ${dynastyView})`);
+  console.log(`✓ win-now lens: redraft-weak stash $${winNowView} < dynasty view $${dynastyView}`);
+
+  // #5 scarcity: the same pickup costs more when the wire has no comparable body behind him.
+  const strongNow = (id) => (id === 'fa1' ? 70 : 60); // he's a real win-now piece
+  const scarce = plan(S, wrId, { ...base2, nowValueOf: strongNow, nextBestNow: 20 }).target; // nothing close behind
+  const plentiful = plan(S, wrId, { ...base2, nowValueOf: strongNow, nextBestNow: 68 }).target; // a near-equal waits
+  assert(scarce > plentiful, `scarce pickup bids more than a replaceable one (${scarce} > ${plentiful})`);
+  console.log(`✓ scarcity: scarce $${scarce} > replaceable $${plentiful}`);
+
   console.log('\nFAAB BID MODEL HARNESS PASSED');
 })().catch((e) => { console.error(e.message); process.exit(1); });
