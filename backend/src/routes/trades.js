@@ -146,7 +146,7 @@ router.post('/leagues/:leagueId/trades', async (req, res, next) => {
 router.post('/leagues/:leagueId/trades/:tradeId/respond', async (req, res, next) => {
   try {
     const body = req.body || {};
-    res.json(await trades.respond(req.mflCookie, req.account, req.params.leagueId, req.params.tradeId, body.action, body.comments));
+    res.json(await trades.respond(req.mflCookie, req.account, req.params.leagueId, req.params.tradeId, body.action, body.comments, body.drops));
   } catch (err) {
     next(err);
   }

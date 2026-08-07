@@ -121,6 +121,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
   const [dismissed, setDismissed] = useState(() => new Set()); // offer ids responded to — hidden immediately (MFL's pending read lags)
   const [rejectTarget, setRejectTarget] = useState(null); // offer being rejected (optional note modal)
   const [rejectNote, setRejectNote] = useState('');
+  const [dropTarget, setDropTarget] = useState(null); // { offer, need } — accepting would overflow; pick drops to fit
   const [showCompleted, setShowCompleted] = useState(false); // Sent tab: reveal completed-trade history
 
   // Propose builder state. Select the partner from any desk data we ALREADY have (survive-remount
@@ -215,17 +216,23 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
     }
   }, [data, seed]);
 
-  async function respond(offer, action, comments) {
+  async function respond(offer, action, comments, drops) {
     // Accepting is a Pro action; rejecting/withdrawing stays free. (Inert until enforced.)
     if (action === 'accept' && !requirePro('trades.propose')) return;
     setBusy(offer.id);
     try {
-      await api.respondTrade(league.leagueId, offer.id, action, comments);
+      const res = await api.respondTrade(league.leagueId, offer.id, action, comments, drops);
       celebrate(action === 'accept' ? 'tradeAccepted' : action === 'revoke' ? 'offerWithdrawn' : 'offerRejected');
       // Reflect immediately: drop the card NOW (MFL's pendingTrades read lags a few seconds and is
       // cached ~12s, so a reload can still return the offer). Revalidate in the BACKGROUND — never
       // await it, so a slow/stalled reload can't strand the spinner or leave the responded card up.
       setDismissed((s) => new Set(s).add(offer.id));
+      // The trade committed, but the follow-up DROP to fit the roster failed (MFL's accept can't carry
+      // drops — it's a second write). Nothing is lost; the roster is just over-limit until the user drops
+      // one, so say so plainly rather than silently leaving it illegal. (Non-destructive: C4.)
+      if (res && res.dropError) {
+        appAlert('Trade accepted — roster over limit', `The deal went through, but the drop to make room didn’t: ${res.dropError}\n\nDrop a player before your next lineup lock so your roster is legal.`);
+      }
       load();
     } catch (e) {
       // A reject/accept can fail because the offer went STALE on MFL (a player/pick in it was already
@@ -282,6 +289,15 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
   function accept(offer) {
     const net = offer.analysis && typeof offer.analysis.net === 'number' ? offer.analysis.net : null;
     const netStr = net != null ? ` · market net ${net > 0 ? '+' : ''}${net}` : '';
+    // Would accepting overflow the active roster? Only PLAYERS take a roster spot (picks/FAAB don't), so
+    // the net change is (players in − players out). If the projected count tops the league's roster
+    // limit, MFL's accept can't carry the drops — collect them first, then DROP right after the accept.
+    const acquired = (offer.acquire || []).filter((a) => a.kind === 'player').length;
+    const sent = (offer.send || []).filter((a) => a.kind === 'player').length;
+    const size = data && typeof data.rosterSize === 'number' ? data.rosterSize : null;
+    const count = data && typeof data.rosterCount === 'number' ? data.rosterCount : null;
+    const need = size != null && count != null ? Math.max(0, count + acquired - sent - size) : 0;
+    if (need > 0) { setDropTarget({ offer, need }); return; }
     appAlert(
       'Accept this trade?',
       `Complete the deal with ${offer.withName || 'this team'}${netStr}. This is final on MyFantasyLeague — it can’t be undone from the app.`,
@@ -847,7 +863,76 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
           </KeyboardAvoidingView>
         </Pressable>
       </Modal>
+
+      {/* Accept-with-drops: an incoming offer that would push your active roster over its limit. Pick the
+          players to drop so it fits; we accept, then DROP them right after (MFL's accept can't carry them). */}
+      <DropSheet
+        target={dropTarget}
+        myPlayers={data.myPlayers}
+        busy={!!dropTarget && busy === dropTarget.offer.id}
+        onCancel={() => setDropTarget(null)}
+        onConfirm={(ids) => { const t = dropTarget; setDropTarget(null); if (t) respond(t.offer, 'accept', undefined, ids); }}
+      />
     </View>
+  );
+}
+
+// Pick the players to drop so an incoming trade fits under the roster limit. Candidates are your active
+// players minus any you're already sending in the deal; you must choose at least `need`. On confirm the
+// caller accepts the trade with these as the follow-up drops. Value-sorted ascending is NOT applied —
+// myPlayers arrives value-DESC from the desk, so your keepers sit up top and the cuttable depth at the
+// bottom; the whole list is scrollable either way.
+function DropSheet({ target, myPlayers, busy, onCancel, onConfirm }) {
+  const [sel, setSel] = useState({});
+  const offer = target && target.offer;
+  const offerId = offer && offer.id;
+  const need = target ? target.need : 0;
+  // Reset the selection whenever the sheet opens on a different offer.
+  useEffect(() => { setSel({}); }, [offerId]);
+  useAndroidBack(useCallback(() => { if (target) { onCancel(); return true; } return false; }, [target, onCancel]));
+  if (!target) return null;
+  const sendIds = new Set((offer.send || []).map((a) => String(a.id)));
+  const candidates = (myPlayers || []).filter((p) => !sendIds.has(String(p.id)));
+  const chosen = Object.keys(sel).filter((k) => sel[k]);
+  const enough = chosen.length >= need;
+  const incoming = (offer.acquire || []).filter((a) => a.kind === 'player').length;
+  const outgoing = (offer.send || []).filter((a) => a.kind === 'player').length;
+  return (
+    <Modal visible transparent animationType="slide" onRequestClose={onCancel}>
+      <View style={styles.modalScrim}>
+        <View style={styles.dropSheet}>
+          <Text style={styles.dropTitle}>Make room to accept</Text>
+          <Text style={styles.dropHint}>
+            This deal brings in {incoming} player{incoming === 1 ? '' : 's'} for {outgoing} — your roster would be over the limit. Pick {need === 1 ? 'a player' : `${need} players`} to drop so it fits; they’re dropped right after the trade completes.
+          </Text>
+          <Text style={styles.dropCount}>
+            <Text style={{ color: enough ? colors.good : colors.warn }}>{chosen.length}</Text> / {need} selected
+          </Text>
+          <ScrollView style={styles.dropList} contentContainerStyle={{ paddingBottom: 8 }}>
+            {candidates.map((p) => {
+              const on = !!sel[p.id];
+              return (
+                <Pressable key={p.id} style={({ pressed }) => [styles.dropRow, on && styles.dropRowOn, pressed && { opacity: 0.8 }]} onPress={() => setSel((c) => ({ ...c, [p.id]: !c[p.id] }))}>
+                  <View style={[styles.check, on && { backgroundColor: colors.bad, borderColor: colors.bad }]}>{on ? <Text style={styles.checkMark}>✓</Text> : null}</View>
+                  <View style={[styles.dot, { backgroundColor: positionColors[p.position] || colors.textDim }]} />
+                  <Text style={styles.dropName} numberOfLines={1}>{p.name}</Text>
+                  {p.bait ? <Text style={styles.baitTag}>⇄</Text> : null}
+                  <Text style={styles.dropMeta} numberOfLines={1}>{[p.position, p.team].filter(Boolean).join(' · ')}{p.value != null ? ` · ${p.value}` : ''}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+          <View style={styles.dropActions}>
+            <Pressable style={[styles.act, styles.rejectCancel]} onPress={onCancel} disabled={busy}>
+              <Text style={styles.rejectCancelText}>Cancel</Text>
+            </Pressable>
+            <Pressable style={[styles.act, styles.accept, !enough && styles.sendOff]} onPress={() => enough && !busy && onConfirm(chosen)} disabled={!enough || busy}>
+              {busy ? <ActivityIndicator color={colors.onAccent} /> : <Text style={styles.acceptText}>{chosen.length ? `Drop ${chosen.length} & accept` : 'Accept'}</Text>}
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -1260,6 +1345,18 @@ const styles = StyleSheet.create({
   rejectActions: { flexDirection: 'row', gap: 10, marginTop: 14 },
   rejectCancel: { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.border },
   rejectCancelText: { color: colors.text, fontWeight: '800', fontSize: 14 },
+  // Accept-with-drops sheet: bottom-anchored so the (long) player list has room; the scroll region is
+  // capped so title + running count + actions stay visible above it.
+  dropSheet: { position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: colors.bg, borderTopLeftRadius: 18, borderTopRightRadius: 18, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 18, paddingTop: 16, paddingBottom: 24, maxHeight: '82%' },
+  dropTitle: { color: colors.text, fontSize: 17, fontWeight: '800', marginBottom: 6 },
+  dropHint: { color: colors.textDim, fontSize: 13, lineHeight: 18, marginBottom: 10 },
+  dropCount: { color: colors.textDim, fontSize: 13, fontWeight: '800', marginBottom: 8 },
+  dropList: { flexGrow: 0 },
+  dropRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 8 },
+  dropRowOn: { borderColor: colors.bad, backgroundColor: colors.cardAlt },
+  dropName: { color: colors.text, fontSize: 14, fontWeight: '700', flex: 1 },
+  dropMeta: { color: colors.textDim, fontSize: 12, marginLeft: 8 },
+  dropActions: { flexDirection: 'row', gap: 10, marginTop: 12 },
   partnerRow: { gap: 8, paddingBottom: 4 },
   partnerChip: { backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 8, maxWidth: 190 },
   partnerChipActive: { backgroundColor: colors.cardAlt, borderColor: colors.accent },

@@ -265,8 +265,10 @@ export const api = {
   proposeTrade: (leagueId, body) => request(`/api/leagues/${leagueId}/trades`, { method: 'POST', body }),
   // action: 'accept' | 'reject' | 'revoke' (withdraw your own outgoing offer). `comments` is an
   // optional note MFL delivers to the originator on a reject.
-  respondTrade: (leagueId, tradeId, action, comments) =>
-    request(`/api/leagues/${leagueId}/trades/${tradeId}/respond`, { method: 'POST', body: { action, comments: comments || undefined } }),
+  // `drops` (accept only) — player ids to drop immediately after accepting, to fit the roster when the
+  // trade nets more players than you have open spots (MFL's accept can't carry drops, so it's a follow-up).
+  respondTrade: (leagueId, tradeId, action, comments, drops) =>
+    request(`/api/leagues/${leagueId}/trades/${tradeId}/respond`, { method: 'POST', body: { action, comments: comments || undefined, drops: drops && drops.length ? drops : undefined } }),
   // Locally dismiss a dead incoming offer MFL won't let you reject — hides it from your inbox.
   dismissTrade: (leagueId, tradeId) =>
     request(`/api/leagues/${leagueId}/trades/${tradeId}/dismiss`, { method: 'POST' }),

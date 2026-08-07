@@ -589,9 +589,22 @@ function summarizeFranchises(franchises, recordPctMap) {
 
 // One league's offers + everything needed to build a proposal, now with each team's
 // positional needs & surplus so you can craft a fair, roster-fitting offer.
+// The league's ACTIVE-roster limit (`rosterSize` on the league export — a cache hit; the desk's format/
+// starters reads already fetched it). Drives the accept-with-drops overflow check. Null if unknown.
+async function leagueRosterSize(cookie, league) {
+  if (config.demoMode) { const s = demo.waiverSettings && demo.waiverSettings(league.leagueId); return (s && s.rosterSize) || null; }
+  try {
+    const res = await mfl.exportRequest('league', { host: league.host, cookie, L: league.leagueId });
+    return parseInt(res && res.league && res.league.rosterSize, 10) || null;
+  } catch (e) {
+    return null;
+  }
+}
+
 async function getLeague(cookie, token, leagueId) {
   const data = await tradeData(cookie, token, leagueId);
   const { league, byId, enr, roster, rawPartners, ns, teamOutlook, fmt } = data;
+  const rosterSize = await leagueRosterSize(cookie, league).catch(() => null);
 
   // These four reads depend only on tradeData's output, not on one another: the pending
   // offers, every franchise's trade-bait board, every franchise's future picks, and the
@@ -685,6 +698,11 @@ async function getLeague(cookie, token, leagueId) {
     completedTrades,
     myPlayers,
     myPicks,
+    // Active-roster count + limit → the app checks whether accepting an incoming offer would overflow the
+    // roster and, if so, requires drops to fit (MFL's accept can't carry drops; the app does it as a
+    // follow-up drop). `rosterCount` is the ACTIVE roster (starters+bench) — IR/taxi have separate slots.
+    rosterSize,
+    rosterCount: [...(roster.starters || []), ...(roster.bench || [])].length,
     partners,
     me: { name: roster.franchiseName || 'My Team', outlook: myOutlook.outlook || null, avgAge: myOutlook.avgAge || null, needs: mine.needs, surplus: mine.surplus, depth: mine.depth },
     // Trade deadline. `tradeDeadlineAuto` is MFL's own (from the league calendar); `tradeDeadline`
@@ -1083,13 +1101,17 @@ async function counterFor(cookie, token, leagueId, offerId) {
 //   revoke          — allowed only for the ORIGINATOR of an outgoing offer (withdraw it).
 // `comments` is an optional note MFL delivers to the originator when the offer is REJECTED.
 const RESPONSE_STATUS = { accept: 'accepted', reject: 'rejected', revoke: 'revoked' };
-async function respond(cookie, token, leagueId, tradeId, action, comments) {
+async function respond(cookie, token, leagueId, tradeId, action, comments, drops) {
   const act = action === 'accept' ? 'accept' : action === 'revoke' ? 'revoke' : 'reject';
   // Never send MFL a blank/placeholder trade id — that could hit the wrong pending trade.
   if (tradeId == null || tradeId === '' || tradeId === 'null' || tradeId === 'undefined') {
     throwBad('This offer is missing its trade id, so it can’t be responded to here — open it in MyFantasyLeague.');
   }
+  // Drops to make room when accepting a trade that would overflow the roster. MFL's tradeResponse can't
+  // carry drops, so they're a SECOND write (an immediate fcfsWaiver DROP) done AFTER the accept lands.
+  const dropIds = act === 'accept' && Array.isArray(drops) ? drops.map(String).filter(Boolean) : [];
   const league = await findLeague(cookie, leagueId);
+  let dropError = null;
   if (!config.demoMode) {
     try {
       const params = { host: league.host, cookie, L: league.leagueId, FRANCHISE: league.franchiseId, TRADE_ID: tradeId, RESPONSE: act };
@@ -1110,6 +1132,18 @@ async function respond(cookie, token, leagueId, tradeId, action, comments) {
       err.detail = detail;
       throw err;
     }
+    // Accept succeeded — NOW fit the roster by dropping the players the user chose. Doing the drop LAST
+    // means a failed accept drops nobody (no harm). A failed drop leaves the trade done but the roster
+    // over-limit (recoverable — MFL flags it and the owner can drop before lock), so we DON'T throw:
+    // report `dropError` so the app can tell the user to make room manually rather than pretend it fit.
+    if (dropIds.length) {
+      try {
+        await withWriteRetry(() => mfl.importRequest('fcfsWaiver', { host: league.host, cookie, L: league.leagueId, DROP: dropIds.join(',') }));
+      } catch (e) {
+        dropError = mfl.errorDetail(e);
+        console.warn(`[trades] post-accept drop failed — L=${league.leagueId} drops=${dropIds.join(',')} — ${dropError}`);
+      }
+    }
     // Accepted, rejected, OR revoked, the trade is no longer PENDING on MFL. The inbox is built from
     // MFL's pendingTrades, which we cache (~12s), so without this the app's immediate refetch would
     // re-serve the pre-response snapshot and the resolved offer would linger on the Trades screen.
@@ -1118,14 +1152,14 @@ async function respond(cookie, token, leagueId, tradeId, action, comments) {
   }
   const seed = config.demoMode ? demo.tradeOffers(leagueId) : [];
   tradeStore.resolve(token, leagueId, seed, tradeId, RESPONSE_STATUS[act]);
-  // Accepting a trade also changes my roster on MFL — drop the cached roster so the next read
+  // Accepting a trade (± drops) changes my roster on MFL — drop the cached roster so the next read
   // reflects it, and the Players tab's cross-league map with it. (Reject/revoke don't touch rosters.)
   // Lazy require avoids a playerhub↔trades cycle.
   if (act === 'accept') {
     rosterService.invalidate(cookie, leagueId);
     require('./playerhub').invalidateGather(cookie);
   }
-  return { ok: true, tradeId: String(tradeId), action: act };
+  return { ok: true, tradeId: String(tradeId), action: act, dropped: dropIds.length ? dropIds : undefined, dropError: dropError || undefined };
 }
 
 // Locally dismiss an incoming offer — the escape hatch for a DEAD offer MFL won't let you reject (its
