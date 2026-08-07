@@ -57,6 +57,25 @@ function patchClaimBid(p, cid, lid, bid) {
   return { ...p, pending: p.pending.map((c) => (c.id === cid && c.leagueId === lid ? { ...c, bid } : c)) };
 }
 
+// The per-league board carries its OWN "claims submitted here" list (board.pending) — separate from the
+// cross-league pending payload above. These mirror removeClaim/pruneCanceled for it, so a delete on the
+// board reflects immediately (optimistic) and the reconcile refetch can't echo the removed claim back.
+function removeBoardClaim(b, cid) {
+  if (!b || !Array.isArray(b.pending)) return b;
+  const kept = b.pending.filter((c) => c.id !== cid);
+  if (kept.length === b.pending.length) return b;
+  return { ...b, pending: kept };
+}
+function pruneBoardClaims(b, cancels) {
+  if (!b || !Array.isArray(b.pending) || !cancels || cancels.size === 0) return b;
+  const now = Date.now();
+  for (const [k, exp] of cancels) if (exp <= now) cancels.delete(k);
+  if (cancels.size === 0) return b;
+  const kept = b.pending.filter((c) => !cancels.has(`${b.leagueId}-${c.id}`));
+  if (kept.length === b.pending.length) return b;
+  return { ...b, pending: kept };
+}
+
 // Filter just-canceled claims out of a freshly-fetched pending payload. MFL's queue can still echo a
 // canceled bid for a beat after the REPLACE resubmit; without this, the reconcile refetch would make
 // the row we just removed flicker back in. `cancels` is a Map(key → expiry) — expired keys are pruned.
@@ -122,6 +141,7 @@ export default function WaiversScreen({ active = true, initialLeagueId, initialP
   const [error, setError] = useState(null);
   const [claim, setClaim] = useState(null); // {leagueId, addId}
   const [editing, setEditing] = useState(null); // a pending claim being edited (bid)
+  const [picking, setPicking] = useState(false); // "New claim" search sheet open
 
   function closeBoard() {
     setOpenLeagueId(null);
@@ -131,6 +151,10 @@ export default function WaiversScreen({ active = true, initialLeagueId, initialP
 
   // Back: claim / batch sheet first, then the board drill-in (returns to overview).
   useAndroidBack(useCallback(() => {
+    if (picking) {
+      setPicking(false);
+      return true;
+    }
     if (editing) {
       setEditing(null);
       return true;
@@ -144,7 +168,7 @@ export default function WaiversScreen({ active = true, initialLeagueId, initialP
       return true;
     }
     return false;
-  }, [claim, editing, openLeagueId]));
+  }, [claim, editing, picking, openLeagueId]));
 
   // Board for the drilled-in league. Stale-while-revalidate: seed instantly from the cache for this
   // exact league+position+sort if we've seen it, otherwise KEEP whatever board is already on screen
@@ -159,8 +183,11 @@ export default function WaiversScreen({ active = true, initialLeagueId, initialP
     setError(null);
     try {
       const b = await api.waiverBoard(openLeagueId, { position, sort });
-      setBoard(b);
-      primeResource(key, b);
+      // Prune a just-deleted claim MFL's queue may still echo (same grace window the pending list uses),
+      // so the board's "claims submitted here" strip can't flicker the removed row back in.
+      const pruned = pruneBoardClaims(b, recentCancels.current);
+      setBoard(pruned);
+      primeResource(key, pruned);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -204,9 +231,13 @@ export default function WaiversScreen({ active = true, initialLeagueId, initialP
     // happened" report). Keep it dropped through the grace window so the reconcile can't flicker it back.
     recentCancels.current.set(key, Date.now() + 12000);
     const prevPending = pending;
+    const prevBoard = board;
     const next = removeClaim(pending, cid, lid);
     setPending(next);
     primeResource('waivers:pending', next); // keep the survive-remount snapshot in step with the view
+    // Reflect on the per-league board's claims strip too — it reads board.pending, not the list above,
+    // so without this a delete on the board did nothing until (and unless) the reconnect refetch landed.
+    if (openLeagueId === lid) setBoard((b) => removeBoardClaim(b, cid));
     toast('Claim canceled');
     try {
       await api.cancelClaim(lid, cid);
@@ -218,6 +249,7 @@ export default function WaiversScreen({ active = true, initialLeagueId, initialP
       // it was and let the user try again, rather than leaving a phantom "canceled" that's still live.
       recentCancels.current.delete(key);
       setPending(prevPending);
+      setBoard(prevBoard);
       primeResource('waivers:pending', prevPending);
       appAlert('Could not cancel', e.message);
     } finally {
@@ -274,6 +306,7 @@ export default function WaiversScreen({ active = true, initialLeagueId, initialP
           sort={sort}
           setSort={setSort}
           onPick={(addId) => setClaim({ leagueId: openLeagueId, addId })}
+          onNewClaim={() => setPicking(true)}
           onOpenPlayer={onOpenPlayer}
           onRetry={loadBoard}
           onCancel={cancelClaim}
@@ -331,6 +364,14 @@ export default function WaiversScreen({ active = true, initialLeagueId, initialP
 
       {editing ? (
         <EditBidSheet claim={editing} onClose={() => setEditing(null)} onSave={(n) => saveBid(editing, n)} />
+      ) : null}
+
+      {picking ? (
+        <NewClaimSheet
+          leagueName={board ? board.name : ''}
+          onClose={() => setPicking(false)}
+          onPick={(addId) => { setPicking(false); setClaim({ leagueId: openLeagueId, addId }); }}
+        />
       ) : null}
 
     </View>
@@ -466,7 +507,7 @@ function LeagueCard({ item, onPress }) {
   );
 }
 
-function BoardView({ board, loading, error, position, setPosition, sort, setSort, onPick, onBack, leagueName, onOpenPlayer, onRetry, onCancel }) {
+function BoardView({ board, loading, error, position, setPosition, sort, setSort, onPick, onNewClaim, onBack, leagueName, onOpenPlayer, onRetry, onCancel }) {
   const header = onBack ? (
     <Pressable style={styles.backRow} onPress={onBack} hitSlop={8}>
       <Text style={styles.backChev}>‹</Text>
@@ -520,6 +561,15 @@ function BoardView({ board, loading, error, position, setPosition, sort, setSort
         ))}
       </View>
 
+      {/* Always-present way to file a claim — a search over the pool, so you can claim a SPECIFIC player
+          even when the ranked list below is sparse (or a read blipped it empty). The claim it opens
+          validates availability for THIS league and re-reads the free-agent set fresh. */}
+      {onNewClaim ? (
+        <Pressable onPress={onNewClaim} style={({ pressed }) => [styles.newClaimBtn, pressed && { opacity: 0.85 }]} accessibilityRole="button" accessibilityLabel="File a new waiver claim">
+          <Text style={styles.newClaimText}>＋ New claim</Text>
+        </Pressable>
+      ) : null}
+
       {/* Claims already in for THIS league — so you can see the two you've submitted while
           building a third, and remove one without leaving the board. */}
       {board.pending && board.pending.length ? (
@@ -554,7 +604,20 @@ function BoardView({ board, loading, error, position, setPosition, sort, setSort
           <FaRow p={item} claimed={claimedIds.has(item.id)} onPress={() => onPick(item.id)} onOpenPlayer={onOpenPlayer} />
         </Reveal>
       )}
-        ListEmptyComponent={<Text style={styles.empty}>No free agents match.</Text>}
+        ListEmptyComponent={
+          position ? (
+            <Text style={styles.empty}>No {position} free agents right now.</Text>
+          ) : (
+            // An empty pool with NO filter almost always means the free-agent read blipped (a live league
+            // always has free agents) — offer a retry + point at New claim, not a dead "none".
+            <View style={styles.faEmptyWrap}>
+              <Text style={styles.empty}>The free-agent list didn’t load. Retry, or use “＋ New claim” above to search for a player.</Text>
+              <Pressable style={({ pressed }) => [styles.retry, pressed && { opacity: 0.85 }]} onPress={onRetry}>
+                <Text style={styles.retryText}>Retry</Text>
+              </Pressable>
+            </View>
+          )
+        }
       />
     </View>
   );
@@ -911,6 +974,77 @@ function EditBidSheet({ claim, onClose, onSave }) {
   );
 }
 
+// File a claim by SEARCHING the player pool — the reliable add path that doesn't depend on the board's
+// ranked free-agent list (which can be sparse, or blipped empty by a throttled read). Pick a player →
+// the ClaimSheet opens and validates availability for this league (re-reading the FA set fresh), so a
+// legitimate claim goes through even when the board looked empty.
+function NewClaimSheet({ leagueName, onClose, onPick }) {
+  const [q, setQ] = useState('');
+  const [rows, setRows] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+
+  useEffect(() => {
+    const term = q.trim();
+    if (term.length < 2) { setRows([]); setErr(null); setBusy(false); return undefined; }
+    let alive = true;
+    setBusy(true);
+    const t = setTimeout(() => {
+      api.playerSearch(term, { status: 'available' })
+        .then((r) => { if (alive) { setRows((r && r.players) || []); setErr(null); } })
+        .catch((e) => { if (alive) setErr(e.message); })
+        .finally(() => { if (alive) setBusy(false); });
+    }, 300);
+    return () => { alive = false; clearTimeout(t); };
+  }, [q]);
+
+  return (
+    <Pressable style={styles.backdrop} onPress={onClose}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.kav}>
+        <Pressable style={styles.sheet} onPress={() => {}}>
+          <View style={styles.grabber} />
+          <Text style={styles.sheetTitle}>New waiver claim</Text>
+          <Text style={styles.sheetSub}>Search a player to claim{leagueName ? ` in ${leagueName}` : ''}.</Text>
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Player name"
+            placeholderTextColor={colors.textDim}
+            value={q}
+            onChangeText={setQ}
+            autoFocus
+            autoCorrect={false}
+            autoCapitalize="words"
+          />
+          {err ? <Text style={styles.sheetError}>{err}</Text> : null}
+          <FlatList
+            data={rows}
+            keyExtractor={(p) => String(p.id)}
+            keyboardShouldPersistTaps="handled"
+            style={{ maxHeight: 340 }}
+            renderItem={({ item }) => (
+              <Pressable style={styles.pickRow} onPress={() => onPick(item.id)}>
+                <View style={[styles.posBadge, { borderColor: positionColors[item.position] || colors.textDim, backgroundColor: (positionColors[item.position] || colors.textDim) + '22' }]}>
+                  <Text style={[styles.pos, { color: positionColors[item.position] || colors.textDim }]}>{item.position}</Text>
+                </View>
+                <Text style={styles.pickName} numberOfLines={1}>
+                  {item.name}
+                  {item.team ? <Text style={styles.pickMeta}>  {item.team}</Text> : null}
+                </Text>
+                {item.value != null ? <Text style={styles.faValue}>{item.value}</Text> : null}
+              </Pressable>
+            )}
+            ListEmptyComponent={
+              busy ? <ActivityIndicator color={colors.accent} style={{ paddingVertical: 18 }} />
+                : q.trim().length >= 2 ? <Text style={styles.empty}>No available players match “{q.trim()}”.</Text>
+                : <Text style={styles.empty}>Type at least 2 letters to search.</Text>
+            }
+          />
+        </Pressable>
+      </KeyboardAvoidingView>
+    </Pressable>
+  );
+}
+
 function Center({ children }) {
   return <View style={styles.center}>{children}</View>;
 }
@@ -1037,6 +1171,15 @@ const styles = StyleSheet.create({
   pendLeague: { color: colors.accent, fontSize: 12, marginTop: 4, fontWeight: '600' },
   cancel: { color: colors.bad, fontSize: 13, fontWeight: '700' },
   editClaim: { color: colors.accent, fontSize: 13, fontWeight: '700', marginRight: 16 },
+  newClaimBtn: { marginHorizontal: 16, marginBottom: 10, backgroundColor: colors.accent, borderRadius: 10, paddingVertical: 11, alignItems: 'center' },
+  newClaimText: { color: colors.onAccent, fontSize: 14, fontWeight: '800' },
+  faEmptyWrap: { alignItems: 'center', paddingVertical: 24, paddingHorizontal: 24 },
+  retry: { marginTop: 14, backgroundColor: colors.accent, borderRadius: 10, paddingHorizontal: 24, paddingVertical: 11, minHeight: 44, justifyContent: 'center' },
+  retryText: { color: colors.onAccent, fontSize: 15, fontWeight: '800' },
+  searchInput: { marginTop: 10, backgroundColor: colors.cardAlt, borderRadius: 10, borderWidth: 1, borderColor: colors.border, color: colors.text, fontSize: 16, paddingHorizontal: 14, paddingVertical: 11 },
+  pickRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+  pickName: { flex: 1, color: colors.text, fontSize: 15, fontWeight: '700', marginLeft: 10 },
+  pickMeta: { color: colors.textDim, fontSize: 12, fontWeight: '600' },
   resultRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   resultTag: { fontSize: 11, fontWeight: '900', width: 46 },
   resultText: { color: colors.text, fontSize: 14, fontWeight: '600' },

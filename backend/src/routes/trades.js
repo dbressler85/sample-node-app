@@ -146,7 +146,17 @@ router.post('/leagues/:leagueId/trades', async (req, res, next) => {
 router.post('/leagues/:leagueId/trades/:tradeId/respond', async (req, res, next) => {
   try {
     const body = req.body || {};
-    res.json(await trades.respond(req.mflCookie, req.account, req.params.leagueId, req.params.tradeId, body.action, body.comments));
+    res.json(await trades.respond(req.mflCookie, req.account, req.params.leagueId, req.params.tradeId, body.action, body.comments, body.drops));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/leagues/:leagueId/trades/:tradeId/dismiss — locally hide a dead incoming offer MFL won't let
+// you reject (its assets were traded/used). No MFL write; it stays until MFL times it out.
+router.post('/leagues/:leagueId/trades/:tradeId/dismiss', async (req, res, next) => {
+  try {
+    res.json(await trades.dismiss(req.mflCookie, req.account, req.params.leagueId, req.params.tradeId));
   } catch (err) {
     next(err);
   }

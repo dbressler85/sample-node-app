@@ -214,7 +214,14 @@ function freeAgentIdsFromUnits(units) {
 
 async function loadFreeAgents(cookie, league, settings) {
   if (config.demoMode) return buildFreeAgents(cookie, league, settings);
-  return faMemo.get(`${cookie}|${league.leagueId}`, () => buildFreeAgents(cookie, league, settings));
+  const key = `${cookie}|${league.leagueId}`;
+  const fa = await faMemo.get(key, () => buildFreeAgents(cookie, league, settings));
+  // Never let an EMPTY pool STICK for the whole TTL. A live league always has free agents, so an empty
+  // result means the `freeAgents` read blipped (throttle/parse) — memoizing it would show "No free
+  // agents match" on the board (and block the only add path) until the TTL expires. Drop the poisoned
+  // entry so the next board open re-reads fresh — the same sticky-empty guard freeAgentIds/loadClaimCtx use.
+  if (!Array.isArray(fa) || fa.length === 0) faMemo.invalidate(key);
+  return fa;
 }
 async function buildFreeAgents(cookie, league, settings) {
   const [byId, enr, ctx] = await Promise.all([
