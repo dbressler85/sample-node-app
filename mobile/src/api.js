@@ -267,6 +267,9 @@ export const api = {
   // optional note MFL delivers to the originator on a reject.
   respondTrade: (leagueId, tradeId, action, comments) =>
     request(`/api/leagues/${leagueId}/trades/${tradeId}/respond`, { method: 'POST', body: { action, comments: comments || undefined } }),
+  // Locally dismiss a dead incoming offer MFL won't let you reject — hides it from your inbox.
+  dismissTrade: (leagueId, tradeId) =>
+    request(`/api/leagues/${leagueId}/trades/${tradeId}/dismiss`, { method: 'POST' }),
 
   // Trade bait ("on the block") — centralized across leagues.
   tradeBait: () => request('/api/tradebait'),

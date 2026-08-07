@@ -228,7 +228,32 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
       setDismissed((s) => new Set(s).add(offer.id));
       load();
     } catch (e) {
-      appAlert('Could not respond', e.message);
+      // A reject/accept can fail because the offer went STALE on MFL (a player/pick in it was already
+      // traded or used) — MFL won't action it, so it'd otherwise sit in the inbox until it times out.
+      // Offer to dismiss it locally instead of leaving the user stuck. (Revoke failures just report.)
+      if (action !== 'revoke') {
+        appAlert('Couldn’t action this trade', `${e.message}\n\nIt may no longer be valid on MyFantasyLeague. Remove it from your inbox?`, [
+          { text: 'Keep', style: 'cancel' },
+          { text: 'Dismiss', onPress: () => dismiss(offer) },
+        ]);
+      } else {
+        appAlert('Could not respond', e.message);
+      }
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  // Locally dismiss a dead incoming offer (MFL keeps it until timeout; this hides it from the inbox now).
+  async function dismiss(offer) {
+    setBusy(offer.id);
+    setDismissed((s) => new Set(s).add(offer.id)); // reflect immediately
+    try {
+      await api.dismissTrade(league.leagueId, offer.id);
+      load();
+    } catch (e) {
+      setDismissed((s) => { const n = new Set(s); n.delete(offer.id); return n; });
+      appAlert('Could not dismiss', e.message);
     } finally {
       setBusy(null);
     }
@@ -605,7 +630,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
           ) : (
             activeOffers.map((o, i) => (
               <Reveal key={o.id} delay={Math.min(i, 6) * 55}>
-                <OfferCard offer={o} busy={busy === o.id} onAccept={accept} onReject={openReject} onWithdraw={withdraw} onCounter={startCounter} onSendAnother={startAnother} onOpenPlayer={onOpenPlayer} onReviewRoster={onOpenRoster ? () => onOpenRoster(league) : null} />
+                <OfferCard offer={o} busy={busy === o.id} onAccept={accept} onReject={openReject} onDismiss={dismiss} onWithdraw={withdraw} onCounter={startCounter} onSendAnother={startAnother} onOpenPlayer={onOpenPlayer} onReviewRoster={onOpenRoster ? () => onOpenRoster(league) : null} />
               </Reveal>
             ))
           )}
@@ -837,7 +862,7 @@ function NetChip({ label, net, color }) {
   );
 }
 
-function OfferCard({ offer, busy, onAccept, onReject, onWithdraw, onCounter, onSendAnother, onOpenPlayer, onReviewRoster }) {
+function OfferCard({ offer, busy, onAccept, onReject, onDismiss, onWithdraw, onCounter, onSendAnother, onOpenPlayer, onReviewRoster }) {
   const v = VERDICT[offer.analysis.verdict] || VERDICT.fair;
   const outgoing = offer.direction === 'outgoing';
   // A colored left stripe + a direction pill so received-vs-sent reads instantly, even at a glance.
@@ -905,7 +930,18 @@ function OfferCard({ offer, busy, onAccept, onReject, onWithdraw, onCounter, onS
           <Text style={[styles.bottomLineText, { color: TONE[offer.bottomLine.tone] || colors.text }]}>{offer.bottomLine.text}</Text>
         </View>
       ) : null}
-      {offer.canRespond ? (
+      {offer.invalid && offer.id && onDismiss ? (
+        // DEAD offer — a player/pick in it was already traded or used, so MFL won't let you accept OR
+        // reject it (it just lingers until timeout). Say so plainly and offer a local Dismiss.
+        <>
+          <View style={styles.invalidBanner}>
+            <Text style={styles.invalidText}>⚠ No longer valid{offer.invalidReason ? ` — ${offer.invalidReason}` : ''}. MyFantasyLeague won’t let this be accepted or rejected.</Text>
+          </View>
+          <Pressable style={({ pressed }) => [styles.dismissBtn, pressed && { opacity: 0.8 }]} onPress={() => onDismiss(offer)} disabled={busy}>
+            {busy ? <ActivityIndicator color={colors.text} /> : <Text style={styles.dismissText}>Dismiss</Text>}
+          </Pressable>
+        </>
+      ) : offer.canRespond ? (
         // Incoming offer we're the target of → accept / reject (reject can carry a note), plus a
         // "Review roster" jump so you can see the rest of your team in context before deciding.
         <>
@@ -943,11 +979,20 @@ function OfferCard({ offer, busy, onAccept, onReject, onWithdraw, onCounter, onS
           ) : null}
         </>
       ) : (
-        <Text style={styles.noRespond}>This offer can’t be actioned here — open it in MyFantasyLeague.</Text>
+        // Can't be actioned via MFL AND not flagged invalid — still let an INCOMING offer be dismissed
+        // so nothing is ever permanently stuck in the inbox.
+        <>
+          <Text style={styles.noRespond}>This offer can’t be actioned here — open it in MyFantasyLeague.</Text>
+          {!outgoing && offer.id && onDismiss ? (
+            <Pressable style={({ pressed }) => [styles.dismissBtn, pressed && { opacity: 0.8 }]} onPress={() => onDismiss(offer)} disabled={busy}>
+              <Text style={styles.dismissText}>Dismiss from inbox</Text>
+            </Pressable>
+          ) : null}
+        </>
       )}
       {/* Counter is only for offers made TO you — you can't "counter" your own outgoing offer (that's
-          just sending another). So the balanced-counter action shows on incoming offers only. */}
-      {onCounter && !outgoing ? (
+          just sending another), and a dead offer isn't worth countering. */}
+      {onCounter && !outgoing && !offer.invalid ? (
         <Pressable style={({ pressed }) => [styles.counterBtn, pressed && { opacity: 0.7 }]} onPress={() => onCounter(offer)} disabled={busy}>
           <View style={styles.counterBtnRow}>
             <NeonSign glyph="undo" color="accent" grade="inline" size={13} />
@@ -1194,6 +1239,10 @@ const styles = StyleSheet.create({
   buildFitLine: { fontSize: 12, fontWeight: '700' },
   cardActions: { flexDirection: 'row', gap: 10, marginTop: 12 },
   noRespond: { color: colors.textDim, fontSize: 12, textAlign: 'center', marginTop: 10, fontStyle: 'italic' },
+  invalidBanner: { marginTop: 12, backgroundColor: colors.bad + '18', borderRadius: 10, borderWidth: 1, borderColor: colors.bad + '55', padding: 10 },
+  invalidText: { color: colors.bad, fontSize: 12.5, fontWeight: '700', lineHeight: 17 },
+  dismissBtn: { marginTop: 10, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.cardAlt, paddingVertical: 12, alignItems: 'center' },
+  dismissText: { color: colors.text, fontSize: 14, fontWeight: '800' },
   faabRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6, paddingVertical: 2, paddingHorizontal: 8, borderRadius: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, backgroundColor: colors.card },
   faabDollar: { color: colors.textDim, fontSize: 13, fontWeight: '800', marginRight: 2 },
   faabInput: { flex: 1, color: colors.text, fontSize: 13, fontWeight: '700', paddingVertical: 6, paddingHorizontal: 0 },

@@ -24,6 +24,7 @@ const tradeStore = require('../store/trades');
 const playerTags = require('../store/playerTags');
 const baitStore = require('../store/tradebait');
 const tradeDeadlines = require('../store/tradeDeadlines');
+const tradeDismissals = require('../store/tradeDismissals');
 const tradefit = require('../lib/tradefit');
 const tradeMath = require('../lib/tradeMath');
 const season = require('../lib/season');
@@ -147,6 +148,57 @@ function buildOffer(raw, league, byId, enr) {
     send,
     analysis: analyze(acquire, send),
   };
+}
+
+// token -> current-owner franchiseId, from MFL's authoritative `assets` export (players + picks). The
+// post-trade view: an acquired player/pick shows under its CURRENT holder, so this is the truth about
+// who owns what right now.
+function ownerIndexFromAssets(franchises) {
+  const idx = new Map();
+  for (const fr of franchises || []) {
+    const fid = String(fr.id);
+    for (const pid of fr.playerIds || []) idx.set(String(pid), fid);
+    for (const pk of fr.picks || []) if (pk.token) idx.set(String(pk.token), fid);
+  }
+  return idx;
+}
+
+// Flag an incoming offer whose assets no longer sit where the deal assumes — the sender must still own
+// everything I'd ACQUIRE, and I must still own everything I'd SEND. A traded player or a used pick leaves
+// the index (or moves owners), so the offer is DEAD: MFL won't let it be accepted OR rejected, it just
+// lingers until it times out. We mark it so the UI can show "no longer valid" + a local Dismiss instead
+// of Accept/Reject calls that would fail. FAAB (BB_) isn't a token holding in `assets`, so it's not
+// checked. No authoritative index (read failed) → we don't guess and leave the offer unflagged.
+function markOfferValidity(offer, ownerIndex, meFid) {
+  if (!ownerIndex || !ownerIndex.size || offer.direction !== 'incoming') return offer;
+  const me = String(meFid);
+  const sender = offer.withFranchiseId ? String(offer.withFranchiseId) : null;
+  const holdings = (list) => (list || []).filter((a) => a.kind === 'player' || a.kind === 'pick');
+  const reasons = [];
+  if (sender) {
+    for (const a of holdings(offer.acquire)) {
+      if (ownerIndex.get(String(a.id)) !== sender) reasons.push(`${offer.withName || 'They'} no longer own ${a.name}`);
+    }
+  }
+  for (const a of holdings(offer.send)) {
+    if (ownerIndex.get(String(a.id)) !== me) reasons.push(`You no longer own ${a.name}`);
+  }
+  if (reasons.length) {
+    offer.invalid = true;
+    offer.invalidReason = reasons[0]; // lead with the first concrete reason
+  }
+  return offer;
+}
+
+// Best-effort: read the league's authoritative asset ownership once and mark any dead incoming offers.
+// Live only, and only when there are offers to check. A read failure leaves offers unflagged (never a
+// false "invalid").
+async function markValidity(cookie, league, offers) {
+  if (config.demoMode || !offers || !offers.length || !offers.some((o) => o.direction === 'incoming')) return;
+  try {
+    const idx = ownerIndexFromAssets(await mflRepo.assets(league, cookie));
+    for (const o of offers) markOfferValidity(o, idx, league.franchiseId);
+  } catch (e) { /* no authoritative read → leave unflagged */ }
 }
 
 // Reconcile the two verdicts into one bottom line, so a deal that's good on VALUE but bad for
@@ -356,12 +408,20 @@ async function rawOffers(cookie, token, league) {
   const raw = config.demoMode
     ? tradeStore.list(token, league.leagueId, demo.tradeOffers(league.leagueId))
     : await livePendingOffers(cookie, league);
-  return raw.filter((o) => (o.status || 'pending') === 'pending');
+  const pending = raw.filter((o) => (o.status || 'pending') === 'pending');
+  // Hide offers the user locally DISMISSED (a dead offer MFL won't let us reject, kept out of their
+  // inbox). Prune the dismiss set against what MFL still lists so it stays bounded.
+  const dismissed = tradeDismissals.list(token, league.leagueId);
+  if (!dismissed.length) return pending;
+  tradeDismissals.prune(token, league.leagueId, pending.map((o) => o.id).filter(Boolean));
+  const drop = new Set(dismissed.map(String));
+  return pending.filter((o) => !(o.id && drop.has(String(o.id))));
 }
 
 // Pending offers for one league, value-analyzed (seeded store in demo; MFL in live).
 async function offersForLeague(cookie, token, league, byId, enr) {
   const offers = (await rawOffers(cookie, token, league)).map((o) => buildOffer(o, league, byId, enr));
+  await markValidity(cookie, league, offers);
   return annotateTags(offers, token);
 }
 
@@ -411,6 +471,7 @@ async function getOverview(cookie, token) {
         const fmt = await leagueFormat.format(cookie, league);
         const enr = await enrichmentLib.snapshot(fmt, cookie);
         const offers = annotateTags(raw.map((o) => buildOffer(o, league, byId, enr)), token);
+        await markValidity(cookie, league, offers); // flag dead offers (traded/used assets) — best-effort
         // League format (SF/1QB · PPR) is cheap and always useful on the card.
         const fmtLabel = leagueFormat.label(fmt);
         offers.forEach((o) => { o.format = fmtLabel; });
@@ -1067,6 +1128,16 @@ async function respond(cookie, token, leagueId, tradeId, action, comments) {
   return { ok: true, tradeId: String(tradeId), action: act };
 }
 
+// Locally dismiss an incoming offer — the escape hatch for a DEAD offer MFL won't let you reject (its
+// assets were traded/used). It stays on MFL until it times out, but rawOffers filters it out of THIS
+// user's inbox from now on. No MFL write; pure app-side hide.
+async function dismiss(cookie, token, leagueId, tradeId) {
+  const league = await findLeague(cookie, leagueId);
+  tradeDismissals.add(token, league.leagueId, tradeId);
+  mfl.invalidateLeague(cookie, league.leagueId); // so the immediate refetch drops it
+  return { ok: true, dismissed: String(tradeId) };
+}
+
 // Propose a trade to another franchise. give/receive are asset tokens.
 async function propose(cookie, token, leagueId, payload) {
   const league = await findLeague(cookie, leagueId);
@@ -1442,4 +1513,4 @@ async function pickPartners(cookie, token, leagueId, intent) {
   };
 }
 
-module.exports = { getOverview, getLeague, getLeagueFit, respond, propose, analyze, crossLeaguePreview, crossLeaguePropose, suggestFor, askFor, fullDealFor, findDeals, counterFor, pickPartners, nextTradeDeadline, effectiveDeadline, tradeFitSummary, tradeBaitByFranchise, personalAnalyze, tagNotes };
+module.exports = { getOverview, getLeague, getLeagueFit, respond, dismiss, propose, analyze, crossLeaguePreview, crossLeaguePropose, suggestFor, askFor, fullDealFor, findDeals, counterFor, pickPartners, nextTradeDeadline, effectiveDeadline, tradeFitSummary, tradeBaitByFranchise, personalAnalyze, tagNotes, ownerIndexFromAssets, markOfferValidity };
