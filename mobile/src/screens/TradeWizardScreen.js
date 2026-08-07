@@ -1,6 +1,5 @@
 import React, { useCallback, useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { appAlert } from '../components/AppAlert';
 import { colors } from '../theme';
 import useAndroidBack from '../useAndroidBack';
 import TradesScreen from './TradesScreen';
@@ -8,15 +7,18 @@ import TradesScreen from './TradesScreen';
 // Shop one player across several leagues in a row. Given a queue of trade contexts
 // (one per league you checked), it steps through them: each step is the full trade desk
 // for that league, seeded with the target + a needs-fitting suggestion. After an offer is
-// sent, you choose to send ANOTHER option to the same owner (common — multiple packages for
-// one player) or move to the next league; finishing the last one closes the wizard.
+// sent, a single non-blocking bar (NOT stacked OS alerts) offers "Send another" to the same
+// owner — common, multiple packages for one player — or "Next league"; the last one closes.
 export default function TradeWizardScreen({ queue, onExit, onOpenPlayer }) {
   const [index, setIndex] = useState(0);
   const [reseed, setReseed] = useState(0); // bump → remount the desk for another offer in the SAME league
+  const [sent, setSent] = useState(false); // an offer was just sent → show the "what next" bar
   const total = queue.length;
   const cur = queue[index];
+  const last = index + 1 >= total;
 
   const advance = useCallback(() => {
+    setSent(false);
     setReseed(0);
     setIndex((i) => {
       if (i + 1 < total) return i + 1;
@@ -25,18 +27,22 @@ export default function TradeWizardScreen({ queue, onExit, onOpenPlayer }) {
     });
   }, [total, onExit]);
 
-  // A sent offer no longer auto-advances: sending several options to one owner is common, so ask.
-  // "Send another" re-seeds a fresh propose desk for the SAME league/partner; "Next league" moves on.
-  const onSent = useCallback(() => {
-    const last = index + 1 >= total;
-    appAlert('Offer sent', `Send another option to ${(cur && cur.partnerName) || 'this owner'} in ${cur ? cur.name : 'this league'}, or move on?`, [
-      { text: 'Send another', onPress: () => setReseed((n) => n + 1) },
-      { text: last ? 'Done' : 'Next league', style: 'cancel', onPress: advance },
-    ]);
-  }, [index, total, cur, advance]);
+  // Send another package to the SAME owner: re-seed a fresh propose desk in this league.
+  const sendAnother = useCallback(() => {
+    setSent(false);
+    setReseed((n) => n + 1);
+  }, []);
 
-  // Hardware back exits the whole wizard (the desk below consumes its own sheets first).
-  useAndroidBack(useCallback(() => { onExit(); return true; }, [onExit]));
+  // The desk calls this after a successful send. No alert — just raise the inline bar so the
+  // "send another vs. next league" choice lives in one calm, always-visible place.
+  const onSent = useCallback(() => { setSent(true); }, []);
+
+  // Hardware back: dismiss the bar first (back to the desk), else exit the whole wizard.
+  useAndroidBack(useCallback(() => {
+    if (sent) { setSent(false); return true; }
+    onExit();
+    return true;
+  }, [sent, onExit]));
 
   if (!cur) return null;
 
@@ -53,7 +59,7 @@ export default function TradeWizardScreen({ queue, onExit, onOpenPlayer }) {
           </View>
         </View>
         <Pressable onPress={advance} hitSlop={10}>
-          <Text style={styles.skip}>{index + 1 < total ? 'Skip ›' : 'Done'}</Text>
+          <Text style={styles.skip}>{last ? 'Done' : 'Skip ›'}</Text>
         </Pressable>
       </View>
 
@@ -68,6 +74,23 @@ export default function TradeWizardScreen({ queue, onExit, onOpenPlayer }) {
           onOpenPlayer={onOpenPlayer}
         />
       </View>
+
+      {/* Post-send: one non-blocking bar. Replaces the two chained OS alerts (desk's "Next league" +
+          wizard's "send another") that made an 8-league sweep a gauntlet of stacked dialogs. */}
+      {sent ? (
+        <View style={styles.sentBar}>
+          <View style={styles.sentInfo}>
+            <Text style={styles.sentTitle} numberOfLines={1}>✓ Offer sent{cur.partnerName ? ` to ${cur.partnerName}` : ''}</Text>
+            <Text style={styles.sentSub} numberOfLines={1}>{cur.name}{last ? '' : ` · League ${index + 1} of ${total}`}</Text>
+          </View>
+          <Pressable onPress={sendAnother} style={({ pressed }) => [styles.sentBtn, styles.sentGhost, pressed && { opacity: 0.75 }]} accessibilityRole="button" accessibilityLabel={`Send another offer to ${cur.partnerName || 'this owner'}`}>
+            <Text style={styles.sentGhostText}>Send another</Text>
+          </Pressable>
+          <Pressable onPress={advance} style={({ pressed }) => [styles.sentBtn, styles.sentPrimary, pressed && { opacity: 0.85 }]} accessibilityRole="button" accessibilityLabel={last ? 'Done' : 'Next league'}>
+            <Text style={styles.sentPrimaryText}>{last ? 'Done' : 'Next league →'}</Text>
+          </Pressable>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -83,4 +106,13 @@ const styles = StyleSheet.create({
   pip: { width: 16, height: 3, borderRadius: 2, backgroundColor: colors.border },
   pipOn: { backgroundColor: colors.accent },
   deck: { flex: 1 },
+  sentBar: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingTop: 12, paddingBottom: 26, backgroundColor: colors.card, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+  sentInfo: { flex: 1, minWidth: 0 },
+  sentTitle: { color: colors.good, fontSize: 14, fontWeight: '800' },
+  sentSub: { color: colors.textDim, fontSize: 12, marginTop: 2 },
+  sentBtn: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, minHeight: 44, justifyContent: 'center' },
+  sentGhost: { borderWidth: 1, borderColor: colors.border, backgroundColor: 'transparent' },
+  sentGhostText: { color: colors.text, fontSize: 14, fontWeight: '800' },
+  sentPrimary: { backgroundColor: colors.accent },
+  sentPrimaryText: { color: colors.onAccent, fontSize: 14, fontWeight: '800' },
 });

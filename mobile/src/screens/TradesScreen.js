@@ -476,10 +476,15 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
       if (counterInfo) {
         try { await api.respondTrade(league.leagueId, counterInfo.offerId, 'reject'); } catch (e) { /* leave it */ }
       }
-      // In the multi-league wizard, advance to the next league on OK instead of
-      // resetting this desk (it unmounts as the wizard steps forward).
+      // In the multi-league wizard: give quiet feedback and hand the "what next" choice to the
+      // wizard's own inline bar. Do NOT show an alert here — the desk's alert + the wizard's alert
+      // used to stack into two chained dialogs. Clear the builder so a dismissed bar leaves it clean.
       if (onSent) {
-        appAlert('Trade proposed', `Sent to ${res.offer.withName}.`, [{ text: 'Next league ›', onPress: onSent }]);
+        toast(`Offer sent to ${res.offer.withName}`);
+        setSend({});
+        setReceive({});
+        setCounterInfo(null);
+        onSent();
         return;
       }
       toast(`${counterInfo ? 'Counter sent' : 'Trade proposed'} · sent to ${res.offer.withName}${counterInfo ? ' (their offer declined)' : ''}`);
