@@ -51,6 +51,15 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "20"
+      # Cap V8's heap BELOW the 512MB Starter ceiling. Node isn't told the container's cgroup
+      # memory limit, so by default V8 lets its old-space heap grow to a ~physical-memory heuristic
+      # (often ~2GB) and the container OOM-kills the process (SIGKILL → restart → a few seconds of
+      # 502s for everyone). 400MB of heap leaves ~110MB headroom for young-gen + native + buffers
+      # (the in-memory MFL player universe, RSS feed) so V8 GCs hard instead of getting killed. If
+      # /api/_metrics still shows rssMb climbing into the high-400s with restarts, the box genuinely
+      # needs more RAM — bump the plan to `standard` (2GB) rather than shrinking this further.
+      - key: NODE_OPTIONS
+        value: "--max-old-space-size=400"
       # Production runs LIVE (real MyFantasyLeague), pinned here so it can never
       # silently fall back to demo. This matters because the app's own default is
       # demo (zero-config for local/clone use), and the startup guard REFUSES TO
