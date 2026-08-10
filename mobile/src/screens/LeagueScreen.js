@@ -73,10 +73,13 @@ export default function LeagueScreen({ league, onBack, onOpenPlayer, onOpenPlayo
         )}
       </View>
 
-      {/* This week's live matchup — the headline in-season. Fetched only in-season (a single-league read,
-          not a fan-out) and renders nothing off-Sunday/offseason, so the cockpit stays calm when there's
-          no game. Sits above the attention ribbon: the score is the most time-sensitive thing here. */}
-      {inSeason ? <MatchupCard leagueId={league.leagueId} onOpenLineup={onOpenLineup ? () => onOpenLineup(league) : null} /> : null}
+      {/* This week's live matchup — the headline in-season, so it must not WATERFALL behind triage. Mount it
+          optimistically before the phase is known (triage still loading) so its single-league read fires in
+          PARALLEL with triage instead of a second wave after it; MatchupCard self-gates (renders nothing when
+          there's no live game), so the only cost is one cheap read on an open that turns out to be offseason —
+          at which point we unmount it. Sits above the attention ribbon: the score is the most time-sensitive
+          thing here. */}
+      {(!triage || inSeason) ? <MatchupCard leagueId={league.leagueId} onOpenLineup={onOpenLineup ? () => onOpenLineup(league) : null} /> : null}
 
       <AttentionRibbon triage={triage} league={league} onOpenLineup={onOpenLineup} onOpenWaivers={onOpenWaivers} onOpenTrades={onOpenTrades} />
 

@@ -333,17 +333,16 @@ export function pickInventoryPreferDevice(bg) {
   return preferDevice('pickInventory', () => devicePickInventory(bg), () => run(() => api.pickInventory()));
 }
 
-// Home per-league triage, device-first: the roster (in-season lineup status / offseason dynasty summary)
-// is the heavy per-user read; fetch it on-device and hand it to the backend, which keeps the trade/waiver/
-// calendar items + the lineup engine. Per-league — matches the app's progressive Home load. The
-// all-franchise rosters read shares its device-cache entry with Portfolio + the Rosters tab.
-export async function deviceLeagueTriage(leagueId, bg) {
-  const franchises = await runDeviceRead(mflRead.reads.rosters, leagueId);
-  return bgRunner(bg)(() => api.leagueTriageDevice(leagueId, franchises));
-}
+// Home per-league triage: BACKEND-only on purpose. Unlike the cross-league wrappers above, this is a
+// SINGLE league, so device-origin's benefit (moving a per-IP fan-out burst off the shared backend) does
+// not apply — and routing it through the phone prepended a heavy ALL-franchise rosters round trip in
+// front of the backend's own reads, then serialized the backend behind it. The backend GET is both lighter
+// and more parallel: in-season it reads only MY franchise (myRosterEnriched, skipping the all-franchise
+// strength compute the device path forced); offseason it reads the full league for the dynasty-strength
+// summary — one league, no burst, so the shared IP is fine. Device-origin stays for the genuine
+// cross-league fan-outs (portfolio / exposure / drafts / pick inventory).
 export function leagueTriagePreferDevice(leagueId, bg) {
-  const run = bgRunner(bg);
-  return preferDevice('homeTriage', () => deviceLeagueTriage(leagueId, bg), () => run(() => api.leagueTriage(leagueId)));
+  return bgRunner(bg)(() => api.leagueTriage(leagueId));
 }
 
 // Lineups overview, device-first: each league's rosters (my roster + strength) is the per-user read;
