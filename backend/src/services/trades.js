@@ -1156,8 +1156,15 @@ async function respond(cookie, token, leagueId, tradeId, action, comments, drops
   // reflects it, and the Players tab's cross-league map with it. (Reject/revoke don't touch rosters.)
   // Lazy require avoids a playerhub↔trades cycle.
   if (act === 'accept') {
-    rosterService.invalidate(cookie, leagueId);
-    require('./playerhub').invalidateGather(cookie);
+    if (dropIds.length) {
+      // The accept also DROPPED players to fit the roster — they're now free agents, so the league's
+      // waiver FA pool (faMemo/faIdsMemo) is stale too, which rosterService.invalidate alone doesn't
+      // clear. waivers.invalidate is the superset (roster + FA pool + cross-league gather).
+      require('./waivers').invalidate(cookie, leagueId);
+    } else {
+      rosterService.invalidate(cookie, leagueId);
+      require('./playerhub').invalidateGather(cookie);
+    }
   }
   return { ok: true, tradeId: String(tradeId), action: act, dropped: dropIds.length ? dropIds : undefined, dropError: dropError || undefined };
 }
