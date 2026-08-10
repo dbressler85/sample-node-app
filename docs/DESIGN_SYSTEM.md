@@ -386,6 +386,12 @@ typography helpers; then spacing/radius sweeps) — no need for one giant PR.
 - **Watch-yellow hue** — **settled: Acid Yellow `#E4F24A`.** Neon Lime `#D6F84E` was the first
   candidate but read too chartreuse against gold in-row on device; dropped. (`theme.js`/`neon.js`
   `watch` token is `#E4F24A`.)
+- **Paywall gold is an intentional brand exception.** `PaywallScreen.js` and its associated
+  Pro/premium components use `gold` for the CTA, plan selection, radio, and "PRO" branding —
+  a deliberate "premium = gold" treatment on the conversion surface, ratified by the owner.
+  This is the ONE sanctioned exception to "gold = value only"; do NOT re-flag it in color-law
+  audits or "fix" it to accent. The exception is scoped to the paywall/Pro surface — gold must
+  still never mark an action anywhere else.
 - **Icon migration (emoji → vector)** — §11; sized as its own batch, not blocking the token work.
 - **`hot` tag variants** — if the neon accents want extra punch beyond the glow recipe, add
   brighter `*Hot` stroke variants for the tag tier only (base status hues stay put). Defer until

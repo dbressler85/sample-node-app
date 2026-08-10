@@ -5,7 +5,7 @@ import { useRequirePro } from '../entitlement';
 import { api } from '../api';
 import tradeMath from '../tradeMath';
 import { colors, positionColors, size } from '../theme';
-import { displayLg } from '../typography';
+import { TopbarTitle } from '../components/Brand';
 import { celebrate } from '../components/Celebrate';
 import { toast } from '../components/Toast';
 import TradeColumns from '../components/TradeColumns';
@@ -556,7 +556,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
           <Pressable onPress={onBack} hitSlop={10}>
             <Text style={styles.back}>‹ Back</Text>
           </Pressable>
-          <Text style={[styles.title, displayLg()]} numberOfLines={1}>{league.name}</Text>
+          <TopbarTitle numberOfLines={1}>{league.name}</TopbarTitle>
           <View style={{ width: 44 }} />
         </View>
         <View style={styles.center}>
@@ -573,7 +573,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
         <Pressable onPress={onBack} hitSlop={10}>
           <Text style={styles.back}>‹ Back</Text>
         </Pressable>
-        <Text style={[styles.title, displayLg()]} numberOfLines={1}>{league.name}</Text>
+        <TopbarTitle numberOfLines={1}>{league.name}</TopbarTitle>
         <View style={{ width: 44 }} />
       </View>
       {data && data.format ? (
