@@ -4,6 +4,7 @@ import { appAlert } from "../components/AppAlert";
 import { useRequirePro } from '../entitlement';
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
+import Button from '../components/Button';
 import { TopbarTitle } from '../components/Brand';
 import AvailabilityBadge from '../components/AvailabilityBadge';
 import BidPlanRow from '../components/BidPlanRow';
@@ -588,21 +589,14 @@ export default function WaiverWizardScreen({ leagues, seedAddId = null, onBack, 
             <Pressable style={styles.navBtn} onPress={nextLeague} disabled={submitting}>
               <Text style={styles.navBtnText}>{index + 1 === total ? 'Finish' : 'Next league ›'}</Text>
             </Pressable>
-            <Pressable
-              style={({ pressed }) => [styles.submit, (!canSubmit || submitting) && styles.submitOff, pressed && canSubmit && { opacity: 0.85 }]}
+            <Button
+              title={current.system === 'free'
+                ? (pendingCount > 1 ? `Add ${pendingCount}` : 'Add')
+                : (pendingCount > 1 ? `Submit ${pendingCount}` : 'Submit claim')}
               onPress={submitClaims}
-              disabled={!canSubmit || submitting}
-            >
-              {submitting ? (
-                <ActivityIndicator color={colors.onAccent} />
-              ) : (
-                <Text style={[styles.submitText, !canSubmit && { color: colors.textDim }]}>
-                  {current.system === 'free'
-                    ? pendingCount > 1 ? `Add ${pendingCount}` : 'Add'
-                    : pendingCount > 1 ? `Submit ${pendingCount}` : 'Submit claim'}
-                </Text>
-              )}
-            </Pressable>
+              busy={submitting}
+              disabled={!canSubmit}
+            />
           </>
         ) : null}
       </View>

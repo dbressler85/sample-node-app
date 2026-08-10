@@ -4,7 +4,8 @@ import { appAlert } from "../components/AppAlert";
 import { useRequirePro } from '../entitlement';
 import { api } from '../api';
 import tradeMath from '../tradeMath';
-import { colors, positionColors, size } from '../theme';
+import { colors, positionColors, size, space } from '../theme';
+import Button from '../components/Button';
 import { TopbarTitle } from '../components/Brand';
 import { celebrate } from '../components/Celebrate';
 import { toast } from '../components/Toast';
@@ -825,13 +826,12 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
               For you · net {personalPreview.net > 0 ? '+' : ''}{personalPreview.net} · {VERDICT[personalPreview.verdict].label}
             </Text>
           ) : null}
-          <Pressable
-            style={({ pressed }) => [styles.send, (!sendList.length || !receiveList.length || sending) && styles.sendOff, pressed && { opacity: 0.85 }]}
+          <Button
+            title={counterInfo ? 'Send Counter' : 'Propose Trade'}
             onPress={submitProposal}
-            disabled={!sendList.length || !receiveList.length || sending}
-          >
-            {sending ? <ActivityIndicator color={colors.onAccent} /> : <Text style={styles.sendText}>{counterInfo ? 'Send Counter' : 'Propose Trade'}</Text>}
-          </Pressable>
+            busy={sending}
+            disabled={!sendList.length || !receiveList.length}
+          />
         </View>
       ) : null}
 
@@ -852,12 +852,8 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
               maxLength={200}
             />
             <View style={styles.rejectActions}>
-              <Pressable style={[styles.act, styles.rejectCancel]} onPress={() => setRejectTarget(null)}>
-                <Text style={styles.rejectCancelText}>Cancel</Text>
-              </Pressable>
-              <Pressable style={[styles.act, styles.reject]} onPress={confirmReject}>
-                <Text style={styles.rejectText}>{rejectNote.trim() ? 'Reject + send note' : 'Reject'}</Text>
-              </Pressable>
+              <Button title="Cancel" variant="ghost" onPress={() => setRejectTarget(null)} style={{ flex: 1 }} />
+              <Button title={rejectNote.trim() ? 'Reject + send note' : 'Reject'} variant="ghost" onPress={confirmReject} style={{ flex: 1 }} />
             </View>
           </Pressable>
           </KeyboardAvoidingView>
@@ -923,12 +919,8 @@ function DropSheet({ target, myPlayers, busy, onCancel, onConfirm }) {
             })}
           </ScrollView>
           <View style={styles.dropActions}>
-            <Pressable style={[styles.act, styles.rejectCancel]} onPress={onCancel} disabled={busy}>
-              <Text style={styles.rejectCancelText}>Cancel</Text>
-            </Pressable>
-            <Pressable style={[styles.act, styles.accept, !enough && styles.sendOff]} onPress={() => enough && !busy && onConfirm(chosen)} disabled={!enough || busy}>
-              {busy ? <ActivityIndicator color={colors.onAccent} /> : <Text style={styles.acceptText}>{chosen.length ? `Drop ${chosen.length} & accept` : 'Accept'}</Text>}
-            </Pressable>
+            <Button title="Cancel" variant="ghost" onPress={onCancel} disabled={busy} style={{ flex: 1 }} />
+            <Button title={chosen.length ? `Drop ${chosen.length} & accept` : 'Accept'} onPress={() => onConfirm(chosen)} busy={busy} disabled={!enough} style={{ flex: 1 }} />
           </View>
         </View>
       </View>
@@ -1022,9 +1014,7 @@ function OfferCard({ offer, busy, onAccept, onReject, onDismiss, onWithdraw, onC
           <View style={styles.invalidBanner}>
             <Text style={styles.invalidText}>⚠ No longer valid{offer.invalidReason ? ` — ${offer.invalidReason}` : ''}. MyFantasyLeague won’t let this be accepted or rejected.</Text>
           </View>
-          <Pressable style={({ pressed }) => [styles.dismissBtn, pressed && { opacity: 0.8 }]} onPress={() => onDismiss(offer)} disabled={busy}>
-            {busy ? <ActivityIndicator color={colors.text} /> : <Text style={styles.dismissText}>Dismiss</Text>}
-          </Pressable>
+          <Button title="Dismiss" variant="ghost" onPress={() => onDismiss(offer)} busy={busy} style={{ marginTop: space.sm }} />
         </>
       ) : offer.canRespond ? (
         // Incoming offer we're the target of → accept / reject (reject can carry a note), plus a
@@ -1036,12 +1026,8 @@ function OfferCard({ offer, busy, onAccept, onReject, onDismiss, onWithdraw, onC
             </Pressable>
           ) : null}
           <View style={styles.cardActions}>
-            <Pressable style={[styles.act, styles.reject]} onPress={() => onReject(offer)} disabled={busy}>
-              <Text style={styles.rejectText}>Reject</Text>
-            </Pressable>
-            <Pressable style={[styles.act, styles.accept]} onPress={() => onAccept(offer)} disabled={busy}>
-              {busy ? <ActivityIndicator color={colors.onAccent} /> : <Text style={styles.acceptText}>Accept</Text>}
-            </Pressable>
+            <Button title="Reject" variant="ghost" onPress={() => onReject(offer)} disabled={busy} style={{ flex: 1 }} />
+            <Button title="Accept" onPress={() => onAccept(offer)} busy={busy} style={{ flex: 1 }} />
           </View>
         </>
       ) : offer.canRevoke ? (
@@ -1050,9 +1036,7 @@ function OfferCard({ offer, busy, onAccept, onReject, onDismiss, onWithdraw, onC
         // one tap from a sent offer instead of hunting back to the Propose tab and re-picking the team.
         <>
           <View style={styles.cardActions}>
-            <Pressable style={[styles.act, styles.reject]} onPress={() => onWithdraw(offer)} disabled={busy}>
-              {busy ? <ActivityIndicator color={colors.bad} /> : <Text style={styles.rejectText}>Withdraw offer</Text>}
-            </Pressable>
+            <Button title="Withdraw offer" variant="ghost" onPress={() => onWithdraw(offer)} busy={busy} style={{ flex: 1 }} />
           </View>
           {onSendAnother ? (
             <Pressable style={({ pressed }) => [styles.counterBtn, pressed && { opacity: 0.7 }]} onPress={() => onSendAnother(offer)} disabled={busy}>
@@ -1069,9 +1053,7 @@ function OfferCard({ offer, busy, onAccept, onReject, onDismiss, onWithdraw, onC
         <>
           <Text style={styles.noRespond}>This offer can’t be actioned here — open it in MyFantasyLeague.</Text>
           {!outgoing && offer.id && onDismiss ? (
-            <Pressable style={({ pressed }) => [styles.dismissBtn, pressed && { opacity: 0.8 }]} onPress={() => onDismiss(offer)} disabled={busy}>
-              <Text style={styles.dismissText}>Dismiss from inbox</Text>
-            </Pressable>
+            <Button title="Dismiss from inbox" variant="ghost" onPress={() => onDismiss(offer)} disabled={busy} style={{ marginTop: space.sm }} />
           ) : null}
         </>
       )}

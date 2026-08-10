@@ -4,6 +4,7 @@ import { appAlert } from "../components/AppAlert";
 import { useRequirePro } from '../entitlement';
 import { api } from '../api';
 import { ScreenTitle } from '../components/Brand';
+import Button from '../components/Button';
 import NavTools from '../components/NavTools';
 import useCachedResource from '../useCachedResource';
 import { getValue, setValue } from '../cache';
@@ -380,12 +381,8 @@ function OfferCard({ offer, busy, onRespond, onOpenLeague, onCounter, onManualCo
       ) : null}
 
       <View style={styles.actions}>
-        <Pressable style={[styles.act, styles.reject]} onPress={() => onRespond(offer, 'reject')} disabled={busy}>
-          <Text style={styles.rejectText}>Reject</Text>
-        </Pressable>
-        <Pressable style={[styles.act, styles.accept]} onPress={() => onRespond(offer, 'accept')} disabled={busy}>
-          {busy ? <ActivityIndicator color={colors.onAccent} /> : <Text style={styles.acceptText}>Accept</Text>}
-        </Pressable>
+        <Button title="Reject" variant="ghost" onPress={() => onRespond(offer, 'reject')} disabled={busy} style={{ flex: 1 }} />
+        <Button title="Accept" onPress={() => onRespond(offer, 'accept')} busy={busy} style={{ flex: 1 }} />
       </View>
       {onCounter ? (
         <Pressable style={({ pressed }) => [styles.counterBtn, pressed && { opacity: 0.7 }]} onPress={onCounter} disabled={busy}>

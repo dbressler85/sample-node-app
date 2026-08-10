@@ -15,10 +15,10 @@ import {
 import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
 import { api, friendlyError } from '../api';
 import { saveSession } from '../auth';
-import { colors } from '../theme';
+import { colors, space } from '../theme';
 import NeonCrest, { CREST_IGNITE_MS } from '../components/NeonCrest';
 import FieldBackdrop from '../components/FieldBackdrop';
-import PressableScale from '../components/PressableScale';
+import Button from '../components/Button';
 import useReducedMotion from '../useReducedMotion';
 import { flickerPlan } from '../neon';
 import { displayXL, displayLabel } from '../typography';
@@ -190,9 +190,7 @@ export default function LoginScreen({ onLoggedIn, justLoggedOut = false }) {
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
 
-          <PressableScale style={[styles.button, busy && { opacity: 0.6 }]} onPress={submit} disabled={busy}>
-            {busy ? <ActivityIndicator color={colors.onAccent} /> : <Text style={styles.buttonText}>Log in</Text>}
-          </PressableScale>
+          <Button title="Log in" onPress={submit} busy={busy} style={{ marginTop: space.sm }} />
 
           <Text style={styles.hint}>
             {demoMode

@@ -11,7 +11,8 @@ import {
 import { appAlert } from "../components/AppAlert";
 import { api } from '../api';
 import { lineupsPreferDevice } from '../mflDevice';
-import { colors } from '../theme';
+import { colors, space } from '../theme';
+import Button from '../components/Button';
 import AvailabilityBadge from '../components/AvailabilityBadge';
 import MatchupLine from '../components/MatchupLine';
 import { toast } from '../components/Toast';
@@ -304,19 +305,13 @@ function ReviewSheet({ plan, applying, onToggle, onCancel, onConfirm }) {
             );
           }}
         />
-        <Pressable
-          style={({ pressed }) => [styles.confirm, (!selectedCount || applying) && styles.confirmOff, pressed && { opacity: 0.85 }]}
+        <Button
+          title={`Set ${selectedCount} Lineup${selectedCount === 1 ? '' : 's'} · +${gained}`}
           onPress={onConfirm}
-          disabled={!selectedCount || applying}
-        >
-          {applying ? (
-            <ActivityIndicator color={colors.onAccent} />
-          ) : (
-            <Text style={styles.confirmText}>
-              Set {selectedCount} Lineup{selectedCount === 1 ? '' : 's'} · +{gained}
-            </Text>
-          )}
-        </Pressable>
+          busy={applying}
+          disabled={!selectedCount}
+          style={{ marginTop: space.md }}
+        />
         <Pressable style={styles.cancel} onPress={onCancel}>
           <Text style={styles.cancelText}>Cancel</Text>
         </Pressable>
