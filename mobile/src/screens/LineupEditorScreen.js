@@ -1,10 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
 import { appAlert } from "../components/AppAlert";
 import { useRequirePro } from '../entitlement';
 import { api } from '../api';
 import { colors } from '../theme';
 import { displayLg } from '../typography';
+import ErrorView from '../components/ErrorView';
 import SlotEditor from '../components/SlotEditor';
 import MatchupLine from '../components/MatchupLine';
 import { toast } from '../components/Toast';
@@ -25,26 +26,24 @@ export default function LineupEditorScreen({ league, onBack, onOpenWaivers }) {
   const [saving, setSaving] = useState(false);
   const [assignments, setAssignments] = useState(seeded ? slotsToAssignments(seeded) : []); // slot index -> player id | null
 
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        const d = await api.lineupDetail(league.leagueId);
-        if (!alive) return;
-        setDetail(d);
-        primeResource(editKey, d);
-        setAssignments(slotsToAssignments(d));
-      } catch (e) {
-        if (alive) setError(e.message);
-      } finally {
-        if (alive) setLoading(false);
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [league.leagueId]);
+  // Load (and re-load, from the error state's Retry) the lineup detail. Extracted so a failed load
+  // offers a real retry instead of a dead-end "Go back".
+  const load = useCallback(async () => {
+    setError(null);
+    setLoading(true);
+    try {
+      const d = await api.lineupDetail(league.leagueId);
+      setDetail(d);
+      primeResource(editKey, d);
+      setAssignments(slotsToAssignments(d));
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [league.leagueId, editKey]);
+
+  useEffect(() => { load(); }, [load]);
 
   const byId = useMemo(() => {
     const m = new Map();
@@ -102,10 +101,7 @@ export default function LineupEditorScreen({ league, onBack, onOpenWaivers }) {
   if (error && !detail) {
     return (
       <View style={[styles.container, styles.center]}>
-        <Text style={styles.error}>{error}</Text>
-        <Pressable onPress={onBack} style={styles.backBtn}>
-          <Text style={styles.backText}>Go back</Text>
-        </Pressable>
+        <ErrorView message={error} onRetry={load} />
       </View>
     );
   }
