@@ -18,6 +18,7 @@ import { useRequirePro } from '../entitlement';
 import { api } from '../api';
 import { waiversOverviewPreferDevice } from '../mflDevice';
 import { colors, positionColors, size } from '../theme';
+import Button from '../components/Button';
 import { celebrate } from '../components/Celebrate';
 import AvailabilityBadge from '../components/AvailabilityBadge';
 import ValueDelta from '../components/ValueDelta';
@@ -909,13 +910,12 @@ function ClaimSheet({ leagueId, addId, onClose, onOpenLineup, onDone }) {
               <Text style={styles.sheetError}>{preview.errors.join(' ')}</Text>
             ) : null}
 
-            <Pressable
-              style={({ pressed }) => [styles.confirm, !preview.valid && styles.confirmOff, pressed && preview.valid && { opacity: 0.85 }]}
+            <Button
+              title={preview.immediate ? 'Add Player' : 'Submit Claim'}
               onPress={submit}
-              disabled={!preview.valid || busy}
-            >
-              {busy ? <ActivityIndicator color={colors.onAccent} /> : <Text style={styles.confirmText}>{preview.immediate ? 'Add Player' : 'Submit Claim'}</Text>}
-            </Pressable>
+              busy={busy}
+              disabled={!preview.valid}
+            />
             <Pressable style={styles.cancelBtn} onPress={onClose}>
               <Text style={styles.cancelText}>Cancel</Text>
             </Pressable>
@@ -958,13 +958,12 @@ function EditBidSheet({ claim, onClose, onSave }) {
             />
             <Stepper onPress={() => setBid(String(n + 1))} label="+" />
           </View>
-          <Pressable
-            style={({ pressed }) => [styles.confirm, (busy || unchanged) && styles.confirmOff, pressed && !busy && !unchanged && { opacity: 0.85 }]}
+          <Button
+            title={unchanged ? 'No change' : `Update bid to $${n}`}
             onPress={save}
-            disabled={busy || unchanged}
-          >
-            {busy ? <ActivityIndicator color={colors.onAccent} /> : <Text style={styles.confirmText}>{unchanged ? 'No change' : `Update bid to $${n}`}</Text>}
-          </Pressable>
+            busy={busy}
+            disabled={unchanged}
+          />
           <Pressable style={styles.cancelBtn} onPress={onClose}>
             <Text style={styles.cancelText}>Cancel</Text>
           </Pressable>

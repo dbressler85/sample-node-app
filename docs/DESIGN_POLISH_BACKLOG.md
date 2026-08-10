@@ -27,12 +27,21 @@ build before merge.
    remembered them. **Biggest single win; deletes the most-duplicated code in the app.** Do in
    slices of ~4 screens, eyeballing each.
    - **Slice 1 — DONE:** LineupEditor (save), DraftList (save), TrophyCase (empty CTA + sheet
-     Cancel `ghost` / Add-trophy `primary`). 5 CTAs, 3 screens.
-   - **Remaining (~13 CTAs):** Lineups:313/373, Trades:833/930/1043/1026/1054, Waivers:917/966,
-     WaiverWizard:597 (submit sits in a flex row w/ a nav button — take care), PlayerProfile:553
-     (drop → `destructive`), TradeInbox:387, Paywall:131 (keep the `gold` variant — brand
-     exception), Login:194, Settings:150/162. Dead per-screen button styles from converted sites
-     are left inert; prune in a later pass.
+     Cancel `ghost` / Add-trophy `primary`).
+   - **Slice 2 — DONE:** Login (Log in), Lineups (Set-All), WaiverWizard (submit), Waivers (Add +
+     Update-bid), Trades (Propose + OfferCard accept `primary` / reject·withdraw·dismiss `ghost` +
+     reject-modal + DropSheet), TradeInbox (accept `primary` / reject `ghost`). Policy applied:
+     accent-filled → `primary`; neutral secondaries (reject/withdraw/dismiss) → `ghost` (they're
+     intentionally NOT alarming, so not `destructive`); tertiary text-link cancels left as-is.
+   - **Intentional exceptions (NOT converted):**
+     - **Paywall** CTA — gold + glow + pill hero; `Button.gold` is a flat fill with no glow/pill, so
+       converting would strip the ratified brand look. Left bespoke.
+     - **PlayerProfile** drop — a FILLED-red prominent destructive; `Button.destructive` is only an
+       *outline*. **Action item: add a `filled-destructive` variant to `Button`**, then convert
+       drop + cancel.
+     - **Settings** test/diagnose — accent-bordered *utility* buttons; `Button.ghost` (neutral) would
+       drop the accent affordance. Left, or add a `utility`/outline-accent variant.
+   - Dead per-screen button styles from converted sites are left inert; prune in a later pass.
 
 2. **Swap the ~18 bare first-load spinners for `ListSkeleton`** (§10 — "never a lone spinner for a
    list"). Start with RosterScreen:220 (named in the doc). Also PlayerProfile:183, Playoff:81,
