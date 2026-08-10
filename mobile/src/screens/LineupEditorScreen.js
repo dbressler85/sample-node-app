@@ -3,8 +3,9 @@ import { View, Text, StyleSheet, Pressable, ActivityIndicator } from 'react-nati
 import { appAlert } from "../components/AppAlert";
 import { useRequirePro } from '../entitlement';
 import { api } from '../api';
-import { colors } from '../theme';
+import { colors, space } from '../theme';
 import { displayLg } from '../typography';
+import Button from '../components/Button';
 import ErrorView from '../components/ErrorView';
 import SlotEditor from '../components/SlotEditor';
 import MatchupLine from '../components/MatchupLine';
@@ -154,13 +155,13 @@ export default function LineupEditorScreen({ league, onBack, onOpenWaivers }) {
 
       <SlotEditor slots={detail.slots} players={detail.players} assignments={assignments} onChange={setAssignments} />
 
-      <Pressable
-        style={({ pressed }) => [styles.save, !dirty && styles.saveDisabled, pressed && dirty && { opacity: 0.85 }]}
+      <Button
+        title={dirty ? 'Save Lineup' : 'Lineup Saved'}
         onPress={save}
-        disabled={!dirty || saving}
-      >
-        {saving ? <ActivityIndicator color={colors.onAccent} /> : <Text style={styles.saveText}>{dirty ? 'Save Lineup' : 'Lineup Saved'}</Text>}
-      </Pressable>
+        busy={saving}
+        disabled={!dirty}
+        style={{ margin: space.lg }}
+      />
     </View>
   );
 }

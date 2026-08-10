@@ -4,6 +4,7 @@ import { appAlert } from "../components/AppAlert";
 import { api } from '../api';
 import { colors } from '../theme';
 import { TopbarTitle } from '../components/Brand';
+import Button from '../components/Button';
 import ErrorView from '../components/ErrorView';
 import NeonSign from '../components/NeonSign';
 import useAndroidBack from '../useAndroidBack';
@@ -177,7 +178,7 @@ export default function TrophyCaseScreen({ onBack }) {
               <NeonSign glyph="trophy" color="gold" grade="inline" size={64} style={styles.emptyCup} />
               <Text style={styles.emptyTitle}>No trophies yet</Text>
               <Text style={styles.emptyText}>Add a championship you’ve won — team, league, and year. Every title, all in one case.</Text>
-              <Pressable onPress={() => setAdding(true)} style={styles.emptyAdd}><Text style={styles.emptyAddText}>＋ Add your first title</Text></Pressable>
+              <Button title="Add your first title" onPress={() => setAdding(true)} />
             </View>
           }
         />
@@ -227,10 +228,8 @@ export default function TrophyCaseScreen({ onBack }) {
             <Text style={styles.label}>Year</Text>
             <TextInput style={styles.input} value={year} onChangeText={setYear} placeholder="e.g. 2024" placeholderTextColor={colors.textDim} keyboardType="number-pad" maxLength={4} />
             <View style={styles.sheetActions}>
-              <Pressable style={[styles.act, styles.cancel]} onPress={() => setAdding(false)}><Text style={styles.cancelText}>Cancel</Text></Pressable>
-              <Pressable style={[styles.act, styles.save]} onPress={submit} disabled={saving}>
-                {saving ? <ActivityIndicator color={colors.onAccent} /> : <Text style={styles.saveText}>Add trophy</Text>}
-              </Pressable>
+              <Button title="Cancel" variant="ghost" onPress={() => setAdding(false)} style={{ flex: 1 }} />
+              <Button title="Add trophy" onPress={submit} busy={saving} style={{ flex: 1 }} />
             </View>
           </Pressable>
           </KeyboardAvoidingView>
