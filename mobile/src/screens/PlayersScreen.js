@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, FlatList, StyleSheet, Pressable, TextInput, ActivityIndicator, Linking, Animated } from 'react-native';
 import { api, friendlyError } from '../api';
 import { exposurePreferDevice, bestAvailablePreferDevice } from '../mflDevice';
@@ -6,7 +6,7 @@ import { colors, positionColors, rgb } from '../theme';
 import AvailabilityBadge from '../components/AvailabilityBadge';
 import AddAcrossSheet from '../components/AddAcrossSheet';
 import { TargetIcon, AvoidIcon, WatchIcon, NeonToggle } from '../components/PlayerActionIcons';
-import { getValue, setValue } from '../cache';
+import { getValue, setValue, onCacheInvalidate } from '../cache';
 import { peekResource, primeResource } from '../useCachedResource';
 import InfoDot from '../components/InfoDot';
 import Pulse from '../components/Pulse';
@@ -310,6 +310,27 @@ export default function PlayersScreen({ active = true, onOpenPlayer, onStartWaiv
     });
     return () => { alive = false; };
   }, [tab, freeKey, loadFree]);
+
+  // Focus-edge revalidation after an off-screen write. The rankings/free/mine/watch loaders above key on
+  // `tab`/filters — NOT on `active` — so a write done in an overlay opened from this tab (add/drop/claim/
+  // trade → global invalidateCaches while we're inactive) wouldn't reflect until you switch sub-tabs. The
+  // shared-hook screens catch this on their own focus edge; this bespoke screen must do the same. Record
+  // that a cache invalidation fired while away, then on the active false→true edge revalidate the CURRENT
+  // sub-tab exactly once (no needless refetch when nothing changed).
+  const dirtyRef = useRef(false);
+  const wasActiveRef = useRef(active);
+  useEffect(() => onCacheInvalidate(() => { dirtyRef.current = true; }), []);
+  useEffect(() => {
+    const became = active && !wasActiveRef.current;
+    wasActiveRef.current = active;
+    if (!became || !dirtyRef.current) return;
+    dirtyRef.current = false;
+    if (tab === 'rankings') loadRankings();
+    else if (tab === 'free') loadFree();
+    else if (tab === 'mine') reloadMine();
+    else if (tab === 'watch') api.watchlist().then(setWatch).catch((e) => setError(friendlyError(e.message)));
+    else if (tab === 'news') api.news().then(setNews).catch((e) => setError(friendlyError(e.message)));
+  }, [active, tab, loadRankings, loadFree, reloadMine]);
 
   // Auto-heal a partial My Players / Rankings load: if a throttle dropped some leagues, quietly re-fetch
   // (a few times, backing off) so the missing leagues fill in on their own — no "Retry" tap needed.
