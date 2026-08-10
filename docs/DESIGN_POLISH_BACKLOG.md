@@ -24,10 +24,15 @@ build before merge.
 1. **Adopt the `Button` primitive across the ~18 hand-rolled CTAs.** `Button.js` is imported by
    zero screens; every primary/confirm button re-implements height, radius, busy-spinner, and
    ink color independently, so the 44pt floor + `onAccent` contrast are only where each author
-   remembered them. Sites: LineupEditor:163, Lineups:313/373, DraftList:290, Trades:833/930/1043,
-   Waivers:917/966, WaiverWizard:597, PlayerProfile:553, TrophyCase:232, TradeInbox:387,
-   Paywall:131 (keep gold variant here), Login:194, Settings:150/162. **Biggest single win;
-   deletes the most-duplicated code in the app.** Do in slices of ~4 screens, eyeballing each.
+   remembered them. **Biggest single win; deletes the most-duplicated code in the app.** Do in
+   slices of ~4 screens, eyeballing each.
+   - **Slice 1 — DONE:** LineupEditor (save), DraftList (save), TrophyCase (empty CTA + sheet
+     Cancel `ghost` / Add-trophy `primary`). 5 CTAs, 3 screens.
+   - **Remaining (~13 CTAs):** Lineups:313/373, Trades:833/930/1043/1026/1054, Waivers:917/966,
+     WaiverWizard:597 (submit sits in a flex row w/ a nav button — take care), PlayerProfile:553
+     (drop → `destructive`), TradeInbox:387, Paywall:131 (keep the `gold` variant — brand
+     exception), Login:194, Settings:150/162. Dead per-screen button styles from converted sites
+     are left inert; prune in a later pass.
 
 2. **Swap the ~18 bare first-load spinners for `ListSkeleton`** (§10 — "never a lone spinner for a
    list"). Start with RosterScreen:220 (named in the doc). Also PlayerProfile:183, Playoff:81,
