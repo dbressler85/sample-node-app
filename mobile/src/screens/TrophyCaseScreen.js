@@ -267,7 +267,7 @@ const styles = StyleSheet.create({
   emptyCup: { marginBottom: 12 },
   emptyTitle: { color: colors.text, fontSize: 18, fontWeight: '800', marginBottom: 6 },
   emptyText: { color: colors.textDim, fontSize: 14, textAlign: 'center', lineHeight: 20, marginBottom: 16 },
-  emptyAdd: { backgroundColor: colors.gold, borderRadius: 12, paddingHorizontal: 18, paddingVertical: 11 },
+  emptyAdd: { backgroundColor: colors.accent, borderRadius: 12, paddingHorizontal: 18, paddingVertical: 11 },
   emptyAddText: { color: colors.onAccent, fontWeight: '800', fontSize: 14 },
 
   scrim: { flex: 1, backgroundColor: colors.scrim, justifyContent: 'center', paddingHorizontal: 24 },
@@ -282,6 +282,6 @@ const styles = StyleSheet.create({
   act: { flex: 1, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
   cancel: { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.border },
   cancelText: { color: colors.text, fontWeight: '800', fontSize: 14 },
-  save: { backgroundColor: colors.gold },
+  save: { backgroundColor: colors.accent },
   saveText: { color: colors.onAccent, fontWeight: '800', fontSize: 14 },
 });

@@ -423,9 +423,11 @@ const styles = StyleSheet.create({
   attnText: { color: colors.text, fontSize: 12, fontWeight: '700', maxWidth: 200 },
   outlookChip: { justifyContent: 'center', backgroundColor: colors.violet + '22', borderRadius: 999, borderWidth: 1, borderColor: colors.violetDim, paddingHorizontal: 12, minHeight: 34 },
   outlookText: { color: colors.violetText, fontSize: 12, fontWeight: '800' },
-  // Plan chip — the actionable outlook: a verb headline + a one-line directive, taps into Trades.
-  planChip: { justifyContent: 'center', backgroundColor: colors.violet + '22', borderRadius: 14, borderWidth: 1, borderColor: colors.violetDim, paddingHorizontal: 12, paddingVertical: 5, minHeight: 34, maxWidth: 260 },
-  planVerb: { color: colors.violetText, fontSize: 12, fontWeight: '900', letterSpacing: 0.3, textTransform: 'uppercase' },
+  // Plan chip — the actionable outlook: a verb headline + a one-line directive, taps into Trades. It's a
+  // BUTTON (taps into Trades), so it wears the action hue (accent), not violet — violet names structure,
+  // never an action. The non-actionable outlookChip above stays violet (a structural state label).
+  planChip: { justifyContent: 'center', backgroundColor: colors.accent + '22', borderRadius: 14, borderWidth: 1, borderColor: colors.accent + '66', paddingHorizontal: 12, paddingVertical: 5, minHeight: 34, maxWidth: 260 },
+  planVerb: { color: colors.accent, fontSize: 12, fontWeight: '900', letterSpacing: 0.3, textTransform: 'uppercase' },
   planDirective: { color: colors.textDim, fontSize: 11, fontWeight: '600', marginTop: 1 },
   // This week's matchup card — the in-season headline, taps through to Set Lineup.
   matchWrap: { paddingHorizontal: 16, paddingTop: 8 },

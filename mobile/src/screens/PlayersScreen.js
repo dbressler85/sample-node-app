@@ -473,7 +473,7 @@ export default function PlayersScreen({ active = true, onOpenPlayer, onStartWaiv
                 onEndReachedThreshold={0.5}
                 ListFooterComponent={
                   loadingMore ? (
-                    <ActivityIndicator style={styles.loadMore} color={colors.gold} />
+                    <ActivityIndicator style={styles.loadMore} color={colors.accent} />
                   ) : rankingsData && rankingsData.length ? (
                     <ValueCredit center style={styles.credit} />
                   ) : null
