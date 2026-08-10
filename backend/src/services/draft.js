@@ -678,6 +678,9 @@ async function makePick(cookie, token, leagueId, playerId, comments) {
     // and roster reflect it immediately (a fresh draftResults may lag a beat).
     rosterService.invalidate(cookie, leagueId);
     mfl.invalidateLeague(cookie, leagueId);
+    // A pick adds a player to my roster (and takes him off the board), so the Players tab's cross-league
+    // mine/free map is stale too — the same gather bust every other roster-changing write does.
+    require('./playerhub').invalidateGather(cookie);
   }
   // Record the pick locally (both modes): demo has no backing draft engine; live overlays it onto
   // the grid (loadDraft merges draftStore picks) until a fresh draftResults read catches up.

@@ -463,7 +463,11 @@ async function moveIr(cookie, token, leagueId, { activate = [], deactivate = [],
   const csv = (a) => (a && a.length ? a.map(String).join(',') : undefined);
   if (!config.demoMode) {
     await withWriteRetry(() => mfl.importRequest('ir', { host: league.host, cookie, L: league.leagueId, ACTIVATE: csv(activate), DEACTIVATE: csv(deactivate), DROP: csv(drop) }));
-    invalidate(cookie, leagueId);
+    // A DROP frees a player: he's now a free agent AND the cross-league mine/free map changed, so bust
+    // the FA pool + gather (waivers.invalidate is the superset), not just this roster. A pure IR shuffle
+    // (activate/deactivate, no drop) changes no ownership, so the roster bust alone is enough.
+    if (drop && drop.length) require('./waivers').invalidate(cookie, leagueId);
+    else invalidate(cookie, leagueId);
   } else {
     for (const id of activate) rosterMoves.set(leagueId, id, 'active');
     for (const id of deactivate) rosterMoves.set(leagueId, id, 'ir');
@@ -482,7 +486,10 @@ async function moveTaxi(cookie, token, leagueId, { promote = [], demote = [], dr
   const csv = (a) => (a && a.length ? a.map(String).join(',') : undefined);
   if (!config.demoMode) {
     await withWriteRetry(() => mfl.importRequest('taxi_squad', { host: league.host, cookie, L: league.leagueId, PROMOTE: csv(promote), DEMOTE: csv(demote), DROP: csv(drop) }));
-    invalidate(cookie, leagueId);
+    // A DROP frees a player (now a free agent + a changed cross-league mine/free map), so bust the FA
+    // pool + gather via the waivers superset; a pure taxi shuffle (promote/demote) changes no ownership.
+    if (drop && drop.length) require('./waivers').invalidate(cookie, leagueId);
+    else invalidate(cookie, leagueId);
   } else {
     for (const id of promote) rosterMoves.set(leagueId, id, 'active');
     for (const id of demote) rosterMoves.set(leagueId, id, 'taxi');
