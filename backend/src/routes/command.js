@@ -105,18 +105,8 @@ router.post('/home', async (req, res, next) => {
   }
 });
 
-// POST /api/home/league/:leagueId — one league's triage, roster supplied by the DEVICE.
-// Body: { deviceRosters: <rosters> }.
-router.post('/home/league/:leagueId', async (req, res, next) => {
-  try {
-    const { deviceRosters } = req.body || {};
-    res.json(checkResponse(schemas.HomeLeague, await portfolio.getLeagueTriage(req.mflCookie, req.account, req.params.leagueId, { deviceRosters: deviceRosters || null }), 'POST /home/league/:leagueId'));
-  } catch (err) {
-    next(err);
-  }
-});
-
-// GET /api/home/league/:leagueId — one league's triage, for progressive loading.
+// GET /api/home/league/:leagueId — one league's triage, for progressive loading. (Single-league triage is
+// backend-only — device-origin is reserved for the cross-league fan-outs; see leagueTriagePreferDevice.)
 router.get('/home/league/:leagueId', async (req, res, next) => {
   try {
     res.json(checkResponse(schemas.HomeLeague, await portfolio.getLeagueTriage(req.mflCookie, req.account, req.params.leagueId), 'GET /home/league/:leagueId'));
