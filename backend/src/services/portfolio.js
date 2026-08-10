@@ -192,32 +192,45 @@ async function extraItems(cookie, token, league) {
 // per-league roster read (the heavy one behind both the in-season lineup status and the offseason dynasty
 // summary) is served from it (docs/DEVICE_ORIGIN_MFL.md). The trade/waiver/calendar items stay backend.
 async function getLeagueTriage(cookie, token, leagueId, { deviceRosters = null } = {}) {
-  const league = (await leaguesService.listLeagues(cookie)).find((l) => l.leagueId === String(leagueId));
+  // `listLeagues` yields the `league` object every phase needs; `seasonPhase` needs nothing from it, so
+  // start both together instead of chaining them (this is on the very front of the load — free once the
+  // wave below exists).
+  const [leagues, phase] = await Promise.all([leaguesService.listLeagues(cookie), seasonPhase(cookie)]);
+  const league = leagues.find((l) => l.leagueId === String(leagueId));
   if (!league) {
     const err = new Error(`League ${leagueId} not found for this account`);
     err.status = 404;
     throw err;
   }
-  const phase = await seasonPhase(cookie);
+
+  // Given (league, phase), the three remaining reads are mutually independent — the lineup status /
+  // dynasty roster read, the trade/waiver "extra" items, and the effective trade deadline. Run them as a
+  // SINGLE parallel wave rather than three serial awaits; any duplicate MFL export they share (e.g.
+  // calendar) collapses to one call via the read cache's in-flight coalescing. This is the single-league
+  // home's biggest, lowest-risk latency win.
+  const inSeason = phase === 'in_season';
+  const [primary, extra, tradeDeadline] = await Promise.all([
+    inSeason
+      ? lineupsService.getStatus(cookie, token, leagueId, { light: true, deviceFranchises: deviceRosters })
+      : deviceRosters
+        ? rosterService.rosterFromDeviceFranchises(cookie, league, deviceRosters).catch(() => null)
+        : rosterService.getRoster(cookie, leagueId).catch(() => null),
+    extraItems(cookie, token, league),
+    // Effective trade deadline (manual override → demo/calendar) so the card can show a countdown.
+    tradesService.effectiveDeadline(cookie, token, league).catch(() => null),
+  ]);
+
   const items = [];
   let status = 'offseason';
   let dynasty = null;
-
-  if (phase === 'in_season') {
-    const l = await lineupsService.getStatus(cookie, token, leagueId, { light: true, deviceFranchises: deviceRosters });
-    status = l.status;
-    const li = lineupItem(l);
+  if (inSeason) {
+    status = primary.status;
+    const li = lineupItem(primary); // lineup item leads the list, then the trade/waiver extras
     if (li) items.push(li);
   } else {
-    const roster = deviceRosters
-      ? await rosterService.rosterFromDeviceFranchises(cookie, league, deviceRosters).catch(() => null)
-      : await rosterService.getRoster(cookie, leagueId).catch(() => null);
-    dynasty = dynastyOf(roster);
+    dynasty = dynastyOf(primary);
   }
-
-  items.push(...(await extraItems(cookie, token, league)));
-  // Effective trade deadline (manual override → demo/calendar) so the card can show a countdown.
-  const tradeDeadline = await tradesService.effectiveDeadline(cookie, token, league).catch(() => null);
+  items.push(...extra);
   return { leagueId: league.leagueId, name: league.name, status, phase, dynasty, tradeDeadline, items };
 }
 
