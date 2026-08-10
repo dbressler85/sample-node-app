@@ -191,7 +191,7 @@ async function extraItems(cookie, token, league) {
 // `deviceRosters` (optional) is the raw `rosters` the DEVICE fetched for this league — when present, the
 // per-league roster read (the heavy one behind both the in-season lineup status and the offseason dynasty
 // summary) is served from it (docs/DEVICE_ORIGIN_MFL.md). The trade/waiver/calendar items stay backend.
-async function getLeagueTriage(cookie, token, leagueId, { deviceRosters = null } = {}) {
+async function getLeagueTriage(cookie, token, leagueId) {
   // `listLeagues` yields the `league` object every phase needs; `seasonPhase` needs nothing from it, so
   // start both together instead of chaining them (this is on the very front of the load — free once the
   // wave below exists).
@@ -210,11 +210,11 @@ async function getLeagueTriage(cookie, token, leagueId, { deviceRosters = null }
   // home's biggest, lowest-risk latency win.
   const inSeason = phase === 'in_season';
   const [primary, extra, tradeDeadline] = await Promise.all([
+    // In-season the light path reads only MY franchise (myRosterEnriched); offseason needs the full league
+    // for the dynasty-strength summary. Single-league triage is backend-only (no device rosters).
     inSeason
-      ? lineupsService.getStatus(cookie, token, leagueId, { light: true, deviceFranchises: deviceRosters })
-      : deviceRosters
-        ? rosterService.rosterFromDeviceFranchises(cookie, league, deviceRosters).catch(() => null)
-        : rosterService.getRoster(cookie, leagueId).catch(() => null),
+      ? lineupsService.getStatus(cookie, token, leagueId, { light: true })
+      : rosterService.getRoster(cookie, leagueId).catch(() => null),
     extraItems(cookie, token, league),
     // Effective trade deadline (manual override → demo/calendar) so the card can show a countdown.
     tradesService.effectiveDeadline(cookie, token, league).catch(() => null),
