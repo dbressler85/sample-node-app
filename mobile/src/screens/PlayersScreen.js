@@ -141,6 +141,7 @@ export default function PlayersScreen({ active = true, onOpenPlayer, onStartWaiv
   const [free, setFree] = useState(null);
   const [error, setError] = useState(null);
   const [pos, setPos] = useState(null); // position filter (null = All), applies to rankings/search/mine
+  const [filtersOpen, setFiltersOpen] = useState(false); // collapse the control stack so the list starts high (#15)
   const [format, setFormat] = useState('1qb'); // value lens: '1qb' | 'sf' — re-prices & resorts the board
   const [tep, setTep] = useState(false); // TE-premium lens: independent on/off, orthogonal to the QB lens
   const [newsQuery, setNewsQuery] = useState(''); // in-tab News filter
@@ -427,9 +428,15 @@ export default function PlayersScreen({ active = true, onOpenPlayer, onStartWaiv
 
       {searching ? (
         <>
-          <ChipSelect label="Pos" options={POSITIONS} value={pos} onChange={setPos} />
-          <ValueLens format={format} setFormat={setFormat} tep={tep} setTep={setTep} />
-          {searchRes && searchRes.players.length ? <ChipSelect label="Sort" options={LIST_SORTS} value={listSort} onChange={setListSort} /> : null}
+          <FilterPanel
+            open={filtersOpen}
+            onToggle={() => setFiltersOpen((o) => !o)}
+            summary={buildFilterSummary({ showRank: false, rankType, pos, showLens: true, format, tep, sortOptions: LIST_SORTS, listSort, sortDefault: 'default' })}
+          >
+            <ChipSelect label="Pos" options={POSITIONS} value={pos} onChange={setPos} />
+            <ValueLens format={format} setFormat={setFormat} tep={tep} setTep={setTep} />
+            {searchRes && searchRes.players.length ? <ChipSelect label="Sort" options={LIST_SORTS} value={listSort} onChange={setListSort} /> : null}
+          </FilterPanel>
           {!searchRes ? (
             <PlayerListSkeleton />
           ) : (
@@ -455,10 +462,16 @@ export default function PlayersScreen({ active = true, onOpenPlayer, onStartWaiv
 
           {tab === 'rankings' ? (
             <>
-              <ChipSelect label="Rank" info="ranking" options={RANK_TYPES} value={rankType} onChange={setRankType} />
-              <ChipSelect label="Pos" options={POSITIONS} value={pos} onChange={setPos} />
-              <ValueLens format={format} setFormat={setFormat} tep={tep} setTep={setTep} />
-              <ChipSelect label="Sort" options={LIST_SORTS} value={listSort} onChange={setListSort} />
+              <FilterPanel
+                open={filtersOpen}
+                onToggle={() => setFiltersOpen((o) => !o)}
+                summary={buildFilterSummary({ showRank: true, rankType, pos, showLens: true, format, tep, sortOptions: LIST_SORTS, listSort, sortDefault: 'default' })}
+              >
+                <ChipSelect label="Rank" info="ranking" options={RANK_TYPES} value={rankType} onChange={setRankType} />
+                <ChipSelect label="Pos" options={POSITIONS} value={pos} onChange={setPos} />
+                <ValueLens format={format} setFormat={setFormat} tep={tep} setTep={setTep} />
+                <ChipSelect label="Sort" options={LIST_SORTS} value={listSort} onChange={setListSort} />
+              </FilterPanel>
               {/* Honest partial-load signal: "owned in N leagues" counts are over the leagues that
                   loaded — if some were throttled, say so instead of showing a subset as the whole. */}
               {rankings ? <PartialNote loaded={rankings.leaguesLoaded} total={rankings.leaguesTotal} loading={rankAuto.retrying} onRetry={loadRankings} /> : null}
@@ -481,6 +494,13 @@ export default function PlayersScreen({ active = true, onOpenPlayer, onStartWaiv
                 ListEmptyComponent={
                   !rankings ? (
                     <PlayerListSkeleton />
+                  ) : rankType === 'rookies' ? (
+                    // "Rookies" is a distinct board, not a re-sort — so an empty one is expected, not a
+                    // bug. Say why and how to get back to the full pool (usability backlog #15).
+                    <Text style={styles.note}>
+                      No rookies to show{pos ? ` at ${optLabel(POSITIONS, pos)}` : ''}. The Rookies board lists only incoming rookies —
+                      {pos ? ' clear the position filter, or ' : ' '}switch Rank back to Market for the full player pool.
+                    </Text>
                   ) : (
                     <Text style={styles.note}>{rankings.note || 'No players to rank.'}</Text>
                   )
@@ -496,9 +516,15 @@ export default function PlayersScreen({ active = true, onOpenPlayer, onStartWaiv
                     : 'Free agents available across your leagues.'}
                 </Text>
               </View>
-              <ChipSelect label="Pos" options={POSITIONS} value={pos} onChange={setPos} />
-              <ValueLens format={format} setFormat={setFormat} tep={tep} setTep={setTep} />
-              <ChipSelect label="Sort" options={FREE_SORTS} value={listSort} onChange={setListSort} />
+              <FilterPanel
+                open={filtersOpen}
+                onToggle={() => setFiltersOpen((o) => !o)}
+                summary={buildFilterSummary({ showRank: false, rankType, pos, showLens: true, format, tep, sortOptions: FREE_SORTS, listSort, sortDefault: 'value' })}
+              >
+                <ChipSelect label="Pos" options={POSITIONS} value={pos} onChange={setPos} />
+                <ValueLens format={format} setFormat={setFormat} tep={tep} setTep={setTep} />
+                <ChipSelect label="Sort" options={FREE_SORTS} value={listSort} onChange={setListSort} />
+              </FilterPanel>
               <FlatList
                 data={freeData}
                 keyExtractor={(p) => p.id}
@@ -517,11 +543,15 @@ export default function PlayersScreen({ active = true, onOpenPlayer, onStartWaiv
           ) : tab === 'watch' ? (
             <>
               {watch && watch.players.length ? (
-                <>
+                <FilterPanel
+                  open={filtersOpen}
+                  onToggle={() => setFiltersOpen((o) => !o)}
+                  summary={buildFilterSummary({ showRank: false, rankType, pos, showLens: true, format, tep, sortOptions: WATCH_SORTS, listSort, sortDefault: 'default' })}
+                >
                   <ChipSelect label="Pos" options={POSITIONS} value={pos} onChange={setPos} />
                   <ValueLens format={format} setFormat={setFormat} tep={tep} setTep={setTep} />
                   <ChipSelect label="Sort" options={WATCH_SORTS} value={listSort} onChange={setListSort} />
-                </>
+                </FilterPanel>
               ) : null}
               <FlatList
               data={watchData}
@@ -543,8 +573,14 @@ export default function PlayersScreen({ active = true, onOpenPlayer, onStartWaiv
               {mine && mine._source === 'device' ? (
                 <DeviceNote center text={`Your rosters live from MFL on-device · ${mine.totalLeagues} league${mine.totalLeagues === 1 ? '' : 's'}`} />
               ) : null}
-              <ChipSelect label="Pos" options={POSITIONS} value={pos} onChange={setPos} />
-              <ChipSelect label="Sort" options={MINE_SORTS} value={listSort} onChange={setListSort} />
+              <FilterPanel
+                open={filtersOpen}
+                onToggle={() => setFiltersOpen((o) => !o)}
+                summary={buildFilterSummary({ showRank: false, rankType, pos, showLens: false, format, tep, sortOptions: MINE_SORTS, listSort, sortDefault: 'default' })}
+              >
+                <ChipSelect label="Pos" options={POSITIONS} value={pos} onChange={setPos} />
+                <ChipSelect label="Sort" options={MINE_SORTS} value={listSort} onChange={setListSort} />
+              </FilterPanel>
               {/* Honest exposure: "N leagues" per row counts only the leagues we could read. Nulling `mine`
                   re-triggers the load effect (device-first, backend fallback). */}
               {mine ? <PartialNote loaded={mine.leaguesLoaded} total={mine.leaguesTotal} loading={mineAuto.retrying} onRetry={reloadMine} /> : null}
@@ -752,6 +788,51 @@ function PlayerListSkeleton({ count = 9 }) {
   );
 }
 
+// Resolve a chip option's label from its [key, label] pairs (null-safe).
+function optLabel(options, val) {
+  const o = options.find(([k]) => k === val);
+  return o ? o[1] : null;
+}
+// Build the one-line summary the collapsed filter bar shows — only the axes that are set to a
+// NON-default value, so a clean board reads empty (→ the bar shows its "tap to filter" placeholder)
+// and an active board reads e.g. "Win-now · QB · 2QB · Sort: Proj".
+function buildFilterSummary({ showRank, rankType, pos, showLens, format, tep, sortOptions, listSort, sortDefault }) {
+  const parts = [];
+  if (showRank && rankType !== 'value') parts.push(optLabel(RANK_TYPES, rankType));
+  if (pos) parts.push(optLabel(POSITIONS, pos));
+  if (showLens && format === 'sf') parts.push('2QB');
+  if (showLens && tep) parts.push('TE prem');
+  if (listSort && listSort !== (sortDefault || 'default')) {
+    const sl = optLabel(sortOptions, listSort);
+    if (sl) parts.push(`Sort: ${sl}`);
+  }
+  return parts.filter(Boolean).join(' · ');
+}
+
+// Collapsible container for the control stack (#15): the four labeled rows (Rank → Pos → Value → Sort)
+// used to stack open on every tab and push the actual players below the fold. Now they live behind a
+// single "Filters" bar that shows the active selections and expands on tap, so the list starts high.
+function FilterPanel({ open, onToggle, summary, children }) {
+  return (
+    <View>
+      <Pressable
+        style={({ pressed }) => [styles.filterBar, pressed && { opacity: 0.7 }]}
+        onPress={onToggle}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        accessibilityLabel={summary ? `Filters and sort: ${summary}` : 'Filters and sort'}
+      >
+        <Text style={styles.filterBarLabel}>FILTERS</Text>
+        <Text style={[styles.filterBarSummary, !summary && styles.filterBarSummaryDim]} numberOfLines={1}>
+          {summary || 'tap to filter & sort'}
+        </Text>
+        <Text style={styles.filterBarChev}>{open ? '▴' : '▾'}</Text>
+      </Pressable>
+      {open ? <View>{children}</View> : null}
+    </View>
+  );
+}
+
 // One labeled row of "pick one" chips — the single control grammar shared by every filter/sort on
 // this screen (rank mode, position, list sort, news sort). A leading uppercase label names the row,
 // an optional InfoDot explains it, then the chips. Every tab stacks these in the same order
@@ -885,6 +966,14 @@ const styles = StyleSheet.create({
   segText: { color: colors.textDim, fontSize: 13, fontWeight: '700' },
   segTextActive: { color: colors.text },
   grow: { flex: 1 },
+  // Collapsed filter bar (#15): a single tappable row that summarizes the active filters and expands
+  // the control stack below. Keeps the player list high on screen instead of pushing it past 3–4
+  // stacked control rows.
+  filterBar: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginTop: 2, marginBottom: 4, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, gap: 8 },
+  filterBarLabel: { color: colors.violetText, fontSize: 11, fontWeight: '800', letterSpacing: 0.5 },
+  filterBarSummary: { flex: 1, color: colors.text, fontSize: 13, fontWeight: '700' },
+  filterBarSummaryDim: { color: colors.textDim, fontWeight: '600' },
+  filterBarChev: { color: colors.textDim, fontSize: 12, fontWeight: '800' },
   // The single control grammar: one labeled, wrapping row of chips, used for every filter/sort
   // (rank mode, position, list sort, news sort) and the value lens. Uniform padding so a stack of
   // them reads as one tidy form. A short uppercase label leads each row; chips flow and wrap.
