@@ -44,6 +44,7 @@ export default function RosterScreen({ league, onBack, onOpenTrades, onOpenDraft
   const [baited, setBaited] = useState(() => new Set()); // player ids on the block here
   const [sortKey, setSortKey] = useState(null); // null = group by lineup slot; else a flat sorted list
   const [movingId, setMovingId] = useState(null); // player id whose IR/taxi move is in flight
+  const [manage, setManage] = useState(false); // OFF = clean scan view; ON = per-player move chips (#16)
 
   // Which roster bucket each player is in, so the per-row IR/taxi actions are correct in BOTH the
   // grouped and the flat-sorted views. active = starter/bench.
@@ -120,7 +121,8 @@ export default function RosterScreen({ league, onBack, onOpenTrades, onOpenDraft
     const on = baited.has(id);
     setBaited((cur) => {
       const next = new Set(cur);
-      on ? next.delete(id) : next.add(id);
+      if (on) next.delete(id);
+      else next.add(id);
       return next;
     });
     try {
@@ -129,7 +131,8 @@ export default function RosterScreen({ league, onBack, onOpenTrades, onOpenDraft
     } catch (e) {
       setBaited((cur) => {
         const next = new Set(cur);
-        on ? next.add(id) : next.delete(id);
+        if (on) next.add(id);
+        else next.delete(id);
         return next;
       });
     }
@@ -196,10 +199,26 @@ export default function RosterScreen({ league, onBack, onOpenTrades, onOpenDraft
         </View>
       ) : null}
 
-      {/* Make roster management discoverable: the moves live as chips under each player, easy to miss. */}
+      {/* Roster defaults to a clean SCAN view; the per-player move chips (IR / taxi / drop) only appear in
+          Manage mode, so "look at my team" isn't a wall of controls with a destructive Drop on every row
+          (usability backlog #16). The block/shop toggle lives on the row itself and stays available. */}
       {roster ? (
         <View style={styles.manageBar}>
-          <Text style={styles.manageHint}>Manage any player below — move to IR or taxi, drop, or shop the block.</Text>
+          <Text style={styles.manageHint} numberOfLines={2}>
+            {manage
+              ? 'Managing — tap a move under any player (IR, taxi, or drop).'
+              : 'Scanning your roster. Turn on Manage to move or drop players.'}
+          </Text>
+          <Pressable
+            onPress={() => setManage((m) => !m)}
+            hitSlop={8}
+            style={({ pressed }) => [styles.manageToggle, manage && styles.manageToggleOn, pressed && { opacity: 0.75 }]}
+            accessibilityRole="switch"
+            accessibilityState={{ checked: manage }}
+            accessibilityLabel="Manage roster"
+          >
+            <Text style={[styles.manageToggleText, manage && styles.manageToggleTextOn]}>{manage ? 'Done' : 'Manage'}</Text>
+          </Pressable>
         </View>
       ) : null}
 
@@ -235,7 +254,7 @@ export default function RosterScreen({ league, onBack, onOpenTrades, onOpenDraft
             </Text>
           )}
           renderItem={({ item, index }) => {
-            const acts = moveActionsFor(item);
+            const acts = manage ? moveActionsFor(item) : [];
             const busy = movingId === String(item.id);
             return (
               <Reveal delay={Math.min(index, 12) * 32} animate={index < 14}>
@@ -354,7 +373,12 @@ const styles = StyleSheet.create({
   moveTxt: { color: colors.accent, fontSize: 12, fontWeight: '800' },
   moveBtnDanger: { borderColor: colors.bad, backgroundColor: 'transparent' },
   moveTxtDanger: { color: colors.bad },
-  // "Manage any player…" intro banner — makes the inline roster moves discoverable.
-  manageBar: { marginHorizontal: 16, marginTop: 6, marginBottom: 2, backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 9 },
-  manageHint: { color: colors.textDim, fontSize: 12, lineHeight: 16, fontWeight: '600' },
+  // Manage toggle bar — a hint on the left, the Manage/Done switch on the right. Off by default so the
+  // roster reads as a clean scan; on reveals the per-player move chips (#16).
+  manageBar: { flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: 16, marginTop: 6, marginBottom: 2, backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 9 },
+  manageHint: { flex: 1, color: colors.textDim, fontSize: 12, lineHeight: 16, fontWeight: '600' },
+  manageToggle: { borderWidth: 1, borderColor: colors.accent, borderRadius: 999, paddingHorizontal: 14, minHeight: 34, justifyContent: 'center' },
+  manageToggleOn: { backgroundColor: colors.accent },
+  manageToggleText: { color: colors.accent, fontSize: 13, fontWeight: '800' },
+  manageToggleTextOn: { color: colors.onAccent },
 });
