@@ -351,11 +351,18 @@ export default function App() {
   // instantly instead of a blank spinner while the heavy cross-league read resolves.
   const openPlayer = (playerId, seed) => pushOverlay({ type: 'playerProfile', playerId, seed });
   const openTradeWizard = (queue) => pushOverlay({ type: 'tradeWizard', queue });
+  // Tab jump — used from the Home TAB, where switching to the Waivers tab is the expected move and there's
+  // no overlay stack to preserve.
   const openWaivers = (target) => {
     setWaiversTarget(target || null);
-    setOverlayStack([]); // if invoked from an overlay (e.g. the lineup editor's "Fill on waivers"), leave it
+    setOverlayStack([]);
     setTab('waivers');
   };
+  // League-scoped waivers as a stacked OVERLAY — used from in-league surfaces (league hub, roster, lineup
+  // editor, on-deck). It lands on that league's board and Back returns to the caller, instead of the old
+  // tab-jump that wiped the overlay stack and stranded the user off the cockpit (UX_GUARDRAILS C7).
+  const openWaiversScoped = (target = {}) =>
+    pushOverlay({ type: 'waivers', leagueId: target.leagueId, position: target.position || null, sort: target.sort || null });
 
   function renderTabContent(key, active) {
     // A tab covered by an overlay is NOT visible. Treat it as inactive so (a) live polls pause, and
@@ -427,9 +434,22 @@ export default function App() {
   function renderOverlay(o, covered) {
     switch (o.type) {
       case 'roster':
-        return <RosterScreen league={o.league} onBack={popOverlay} onOpenTrades={openTrades} onOpenDraft={openDraft} onOpenWaivers={openWaivers} onOpenPlayer={openPlayer} />;
+        return <RosterScreen league={o.league} onBack={popOverlay} onOpenTrades={openTrades} onOpenDraft={openDraft} onOpenWaivers={openWaiversScoped} onOpenPlayer={openPlayer} />;
       case 'lineupEditor':
-        return <LineupEditorScreen league={o.league} onBack={popOverlay} onOpenWaivers={openWaivers} />;
+        return <LineupEditorScreen league={o.league} onBack={popOverlay} onOpenWaivers={openWaiversScoped} />;
+      case 'waivers':
+        return (
+          <WaiversScreen
+            active={!covered}
+            initialLeagueId={o.leagueId}
+            initialPosition={o.position}
+            initialSort={o.sort}
+            onExit={popOverlay}
+            onStartWizard={openWaiverWizard}
+            onOpenPlayer={openPlayer}
+            onOpenLineup={openLineup}
+          />
+        );
       case 'lineupWizard':
         return <LineupWizardScreen leagues={o.leagues} initialMode={o.mode} onBack={popOverlay} />;
       case 'waiverWizard':
@@ -490,7 +510,7 @@ export default function App() {
             onOpenRoster={openRoster}
             onOpenLineup={openLineup}
             onOpenTrades={openTrades}
-            onOpenWaivers={openWaivers}
+            onOpenWaivers={openWaiversScoped}
             onOpenDraft={openDraft}
             onOpenTradeFinder={openTradeFinder}
           />
@@ -524,7 +544,7 @@ export default function App() {
             onBack={popOverlay}
             onOpenLineup={openLineup}
             onOpenDraft={openDraft}
-            onOpenWaivers={(league) => openWaivers({ leagueId: league.leagueId, position: league.position, sort: league.sort })}
+            onOpenWaivers={(league) => openWaiversScoped({ leagueId: league.leagueId, position: league.position, sort: league.sort })}
             onOpenTradeInbox={() => { popOverlay(); setTab('trades'); }}
             onOpenRoster={openRoster}
           />

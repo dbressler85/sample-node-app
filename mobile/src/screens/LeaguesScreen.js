@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, FlatList, StyleSheet, Pressable, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, FlatList, StyleSheet, Pressable, ActivityIndicator, RefreshControl, TextInput } from 'react-native';
 import { api, bg } from '../api';
 import { colors } from '../theme';
 import { TopbarTitle } from '../components/Brand';
@@ -29,6 +29,7 @@ export default function LeaguesScreen({ onBack, onOpenLeague, onOpenDraftHub }) 
   const [refreshing, setRefreshing] = useState(false);
   const [busy, setBusy] = useState({}); // leagueId -> true while a toggle is in flight
   const [enrich, setEnrich] = useState({}); // leagueId -> { value, outlook, strengthPct, atRiskPct }
+  const [query, setQuery] = useState(''); // name filter across ~15 leagues (usability backlog #9)
 
   useAndroidBack(useCallback(() => { onBack(); return true; }, [onBack]));
 
@@ -97,6 +98,12 @@ export default function LeaguesScreen({ onBack, onOpenLeague, onOpenDraftHub }) 
       .finally(() => setBusy((b) => ({ ...b, [item.leagueId]: false })));
   }, [busy, applyLocal, load]);
 
+  // Name filter (local, over the already-loaded list). Only worth showing once the list is long enough
+  // to scroll; below that a search box is just clutter.
+  const q = query.trim().toLowerCase();
+  const shown = q ? (leagues || []).filter((l) => String(l.name).toLowerCase().includes(q)) : (leagues || []);
+  const showSearch = !!(leagues && leagues.length > 6);
+
   return (
     <View style={styles.container}>
       <View style={styles.topbar}>
@@ -105,12 +112,34 @@ export default function LeaguesScreen({ onBack, onOpenLeague, onOpenDraftHub }) 
         <Pressable onPress={onOpenDraftHub} hitSlop={10}><Text style={styles.link}>Drafts ›</Text></Pressable>
       </View>
 
+      {showSearch ? (
+        <View style={styles.searchRow}>
+          <TextInput
+            style={styles.search}
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search leagues"
+            placeholderTextColor={colors.textDim}
+            autoCorrect={false}
+            autoCapitalize="none"
+            returnKeyType="search"
+            clearButtonMode="while-editing"
+            accessibilityLabel="Search your leagues by name"
+          />
+          {query.length ? (
+            <Pressable onPress={() => setQuery('')} hitSlop={8} style={styles.clearBtn} accessibilityRole="button" accessibilityLabel="Clear search">
+              <Text style={styles.clearText}>Clear</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
+
       {error ? (
         <Pressable onPress={() => { setError(null); load(); }}><Text style={styles.error}>{error} · tap to retry</Text></Pressable>
       ) : null}
 
       <FlatList
-        data={leagues || []}
+        data={shown}
         keyExtractor={(l) => l.leagueId}
         contentContainerStyle={styles.list}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.accent} />}
@@ -157,13 +186,15 @@ export default function LeaguesScreen({ onBack, onOpenLeague, onOpenDraftHub }) 
           );
         }}
         ListHeaderComponent={
-          leagues && leagues.length ? (
+          !q && leagues && leagues.length ? (
             <Text style={styles.hint}>★ pin a league to the top of every cross-league view</Text>
           ) : null
         }
         ListEmptyComponent={
           leagues == null ? (
             <View style={styles.center}><ActivityIndicator color={colors.accent} size="large" /></View>
+          ) : q ? (
+            <EmptyView title={`No leagues match “${query.trim()}”`} message="Try a different name, or clear the search." />
           ) : (
             <EmptyView title="No leagues found" message="We couldn’t find any leagues on this MFL account. Pull down to refresh." />
           )
@@ -180,6 +211,10 @@ const styles = StyleSheet.create({
   title: { color: colors.text, fontSize: 17, fontWeight: '900' },
   link: { color: colors.accent, fontSize: 15, fontWeight: '700', width: 70, textAlign: 'right' },
   list: { padding: 16 },
+  searchRow: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginTop: 4, marginBottom: 2 },
+  search: { flex: 1, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, color: colors.text, fontSize: 14 },
+  clearBtn: { paddingHorizontal: 10, paddingVertical: 8 },
+  clearText: { color: colors.accent, fontSize: 13, fontWeight: '700' },
   hint: { color: colors.textDim, fontSize: 12, marginBottom: 12, lineHeight: 17 },
   center: { padding: 40, alignItems: 'center' },
   row: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, paddingVertical: 14, paddingHorizontal: 12, marginBottom: 10 },
