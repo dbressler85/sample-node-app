@@ -136,12 +136,16 @@ export default function LineupsScreen({ active = true, onOpenLineup, onStartWiza
 
       <ModeToggle mode={mode} onChange={setMode} />
 
+      {/* When nothing needs attention the wizard would just pop an "All set" alert — so disable the CTA
+          and let it read as a status instead of a dead-end button. "Auto-set all leagues" below still
+          lets you force a re-check. */}
       <Pressable
-        style={({ pressed }) => [styles.setAll, pressed && { opacity: 0.85 }]}
+        style={({ pressed }) => [styles.setAll, (!summary || summary.needAttention === 0) && { opacity: 0.5 }, pressed && summary && summary.needAttention > 0 && { opacity: 0.85 }]}
         onPress={startWizard}
+        disabled={!summary || summary.needAttention === 0}
       >
         <Text style={styles.setAllText}>
-          {summary && summary.needAttention > 0 ? `Set Lineups · ${summary.needAttention} to review` : 'Review Lineups'}
+          {summary && summary.needAttention > 0 ? `Set Lineups · ${summary.needAttention} to review` : '✓ All lineups optimal'}
         </Text>
       </Pressable>
 

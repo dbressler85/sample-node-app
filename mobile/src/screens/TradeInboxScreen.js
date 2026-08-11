@@ -273,7 +273,10 @@ export default function TradeInboxScreen({ active = true, onBack, onOpenLeague, 
                 onRespond={respond}
                 onOpenLeague={() => onOpenLeague({ leagueId: item.leagueId, name: item.leagueName })}
                 onCounter={onCounter ? () => onCounter({ leagueId: item.leagueId, name: item.leagueName, offerId: item.id }) : null}
-                onManualCounter={onManualCounter ? () => { respond(item, 'reject'); onManualCounter({ leagueId: item.leagueId, name: item.leagueName, partnerFranchiseId: item.withFranchiseId }); } : null}
+                onManualCounter={onManualCounter ? () => appAlert('Reject and build your own?', 'This rejects their offer now (that can’t be undone), then opens the builder for your counter.', [
+                  { text: 'Keep it', style: 'cancel' },
+                  { text: 'Reject & build', style: 'destructive', onPress: () => { respond(item, 'reject'); onManualCounter({ leagueId: item.leagueId, name: item.leagueName, partnerFranchiseId: item.withFranchiseId }); } },
+                ]) : null}
                 onOpenPlayer={onOpenPlayer}
               />
             </Reveal>

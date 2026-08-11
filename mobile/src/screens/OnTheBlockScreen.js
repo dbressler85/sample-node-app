@@ -291,7 +291,10 @@ export default function OnTheBlockScreen({ onBack, onOpenPlayer, onOpenInbox, on
                   <View key={lg.leagueId} style={styles.card}>
                     <Pressable style={styles.leagueRow} onPress={() => toggleLeague(lg)}>
                       <Text style={styles.leagueName} numberOfLines={1}>{lg.name}</Text>
-                      <Text style={styles.leagueCount}>{checkSet.size || lg.count || 0} on block</Text>
+                      {/* Show the SAVED count — ticking a box doesn't advertise a player until "Save block"
+                          is tapped, so the header must not read the unsaved `checkSet`. Flag pending edits
+                          separately so the user knows a Save is outstanding. */}
+                      <Text style={styles.leagueCount}>{lg.count || 0} on block{checks[lg.leagueId] ? ' · unsaved edits' : ''}</Text>
                       <Text style={styles.caret}>{open ? '⌄' : '›'}</Text>
                     </Pressable>
 
