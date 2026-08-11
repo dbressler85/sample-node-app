@@ -6,6 +6,7 @@ import { useRequirePro } from '../entitlement';
 import { colors } from '../theme';
 import { displayLg } from '../typography';
 import SlotEditor from '../components/SlotEditor';
+import InfoDot from '../components/InfoDot';
 import useAndroidBack from '../useAndroidBack';
 
 const MODES = [
@@ -182,16 +183,19 @@ export default function LineupWizardScreen({ leagues, initialMode = 'auto', onBa
             )}
           </View>
 
-          <View style={styles.modeRow}>
-            {MODES.map((m) => (
-              <Pressable
-                key={m.key}
-                style={[styles.mode, mode === m.key && styles.modeActive]}
-                onPress={() => changeMode(m.key)}
-              >
-                <Text style={[styles.modeText, mode === m.key && styles.modeTextActive]}>{m.label}</Text>
-              </Pressable>
-            ))}
+          <View style={styles.modeWrap}>
+            <View style={styles.modeRow}>
+              {MODES.map((m) => (
+                <Pressable
+                  key={m.key}
+                  style={[styles.mode, mode === m.key && styles.modeActive]}
+                  onPress={() => changeMode(m.key)}
+                >
+                  <Text style={[styles.modeText, mode === m.key && styles.modeTextActive]}>{m.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <InfoDot id="lineupModes" size={15} style={styles.modeInfo} />
           </View>
 
           <SlotEditor slots={detail.slots} players={detail.players} assignments={assignments} onChange={(a) => { editedRef.current = true; setAssignments(a); }} />
@@ -275,7 +279,9 @@ const styles = StyleSheet.create({
   basisTag: { color: colors.textDim, fontSize: 11, marginTop: 2, fontStyle: 'italic', opacity: 0.8 },
   estTag: { color: colors.textDim, fontSize: 11, fontWeight: '700' },
   modeTag: { color: colors.accent, fontSize: 11, fontWeight: '800' },
-  modeRow: { flexDirection: 'row', marginHorizontal: 16, marginTop: 4, marginBottom: 4, backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 3 },
+  modeWrap: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginTop: 4, marginBottom: 4 },
+  modeRow: { flex: 1, flexDirection: 'row', backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 3 },
+  modeInfo: { marginLeft: 8 },
   mode: { flex: 1, paddingVertical: 7, borderRadius: 8, alignItems: 'center' },
   modeActive: { backgroundColor: colors.cardAlt },
   modeText: { color: colors.textDim, fontSize: 12, fontWeight: '700' },

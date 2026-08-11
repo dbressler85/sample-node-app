@@ -66,6 +66,10 @@ write scoping, FAAB/draftable labeling (C10). Reviewers flagged none of these; n
 14. **Lineups — three overlapping "set my lineups" paths with labels that don't signal the difference,**
     and inverted emphasis (the guided wizard is the big button; the faster bulk auto-set is demoted to
     underlined text). This sits on the most-used weekly screen — the top structural issue.
+    ✓ RESOLVED (owner decision, docs/LINEUP_FLOW_OPTIONS.md): cut to **two** clearly-labeled paths —
+    the **wizard** (primary button, walks each flagged league from the optimal lineup, adjustable) and
+    the **per-league editor** (tap a row; now signposted). The redundant bulk auto-set path + its review
+    sheet were removed. Added an "OPTIMIZE FOR ⓘ" label explaining Auto/Safe/Balanced/Aggressive.
 15. **Players — a four-row control stack** (Rank / Pos / Value-lens / Sort) pushes actual players below
     the fold, and **"Rank" conflates ordering mode with content filter** ("Rookies" empties the board;
     "Trending" just re-sorts — same chip row). Collapse into an expandable filter affordance.
