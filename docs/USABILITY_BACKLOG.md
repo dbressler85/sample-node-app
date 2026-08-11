@@ -89,6 +89,13 @@ write scoping, FAAB/draftable labeling (C10). Reviewers flagged none of these; n
 15. **Players — a four-row control stack** (Rank / Pos / Value-lens / Sort) pushes actual players below
     the fold, and **"Rank" conflates ordering mode with content filter** ("Rookies" empties the board;
     "Trending" just re-sorts — same chip row). Collapse into an expandable filter affordance.
+    ✓ RESOLVED (collapse): the control rows now live behind a single "FILTERS" bar that shows the active
+    selections ("Win-now · QB · Sort: Proj") and expands on tap — every tab (Rankings/Free/Watch/Mine/
+    Search), so the player list starts high. The empty **Rookies** board now explains itself (it's a
+    distinct incoming-rookie board, not a re-sort) + how to get back to the full pool.
+    ↳ DEFERRED: fully de-conflating Rank ordering-modes from the Rookies *content* scope needs a backend
+    change — `rankType` (incl. `rookies`/`trending`) is a single server-fetched board enum, so composing
+    "rookies + win-now" isn't possible client-side. Tracked for a backend pass.
 16. **Roster — every player carries a permanent 3-chip move row** (→IR/→Taxi/Drop), turning "scan my
     team" into a management wall with an inline destructive Drop on every row. Collapse behind
     swipe/overflow/selection mode.
