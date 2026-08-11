@@ -167,10 +167,8 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   assert(partial.totals.partial === true && partial.totals.failedCount === 1 && partial.byLeague[0].loadFailed === true, `an empty device map → league marked loadFailed, got ${JSON.stringify(partial.totals)}`);
   console.log('✓ device-origin: a league missing from the device map is marked partial, not silently dropped');
 
-  // Lineups overview rides the rosterFromDeviceFranchises seam. App-supplied rosters → identical result,
-  // zero backend rosters reads. COLD cookies so the roster memo can't mask the claim. (Single-league Home
-  // triage is now BACKEND-only — device-origin is reserved for the cross-league fan-outs — so it no longer
-  // has a device path to assert here.)
+  // Lineups overview + Home triage ride the SAME rosterFromDeviceFranchises seam. App-supplied rosters →
+  // identical result, zero backend rosters reads. COLD cookies so the roster memo can't mask the claim.
   const lineups = require('../../src/services/lineups');
   const deviceFranchises = [{ id: '0001', player: ['1', '2', '3'].map((id) => ({ id, status: 'starter' })) }];
 
@@ -183,11 +181,12 @@ const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
   assert(glg && dlg && glg.status === dlg.status, `lineups device status matches the backend (${glg && glg.status}), got ${dlg && dlg.status}`);
   console.log(`✓ device-origin lineups overview: app-supplied rosters → identical status (${dlg.status}), zero backend rosters reads`);
 
-  // Single-league Home triage is backend-only now: it still returns a valid triage (one franchise read
-  // in-season via myRosterEnriched), just without the removed device path.
   const trGet = await portfolio.getLeagueTriage('ck', 'tk', '1000');
-  assert(trGet && trGet.leagueId === '1000' && typeof trGet.status === 'string', `backend triage returns a valid payload, got ${JSON.stringify(trGet && trGet.status)}`);
-  console.log(`✓ backend home triage: valid payload (status ${trGet.status})`);
+  const rrT = rostersReads;
+  const trDev = await portfolio.getLeagueTriage('ck-tr-cold', 'tk', '1000', { deviceRosters: deviceFranchises });
+  assert(rostersReads === rrT, `home triage device path issues NO backend rosters read (cold cookie), got ${rostersReads - rrT} extra`);
+  assert(trDev.status === trGet.status && trDev.leagueId === trGet.leagueId, `home triage device matches the backend (status ${trGet.status}), got ${trDev.status}`);
+  console.log(`✓ device-origin home triage: app-supplied rosters → identical triage (status ${trDev.status}), zero backend rosters reads`);
 
   console.log('\nPORTFOLIO DASHBOARD HARNESS PASSED');
 })().catch((e) => { console.error(e.message); process.exit(1); });
