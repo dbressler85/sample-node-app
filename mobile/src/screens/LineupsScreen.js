@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -9,18 +9,14 @@ import {
   ActivityIndicator,
   } from 'react-native';
 import { appAlert } from "../components/AppAlert";
-import { api } from '../api';
 import { lineupsPreferDevice } from '../mflDevice';
-import { colors, space } from '../theme';
-import Button from '../components/Button';
-import AvailabilityBadge from '../components/AvailabilityBadge';
+import { colors } from '../theme';
 import MatchupLine from '../components/MatchupLine';
-import { toast } from '../components/Toast';
 import ErrorView from '../components/ErrorView';
 import NavTools from '../components/NavTools';
-import useAndroidBack from '../useAndroidBack';
 import useCachedResource from '../useCachedResource';
 import { ScreenTitle } from '../components/Brand';
+import InfoDot from '../components/InfoDot';
 
 const STATUS = {
   risk: { label: 'Risk', color: colors.bad },
@@ -37,24 +33,17 @@ const MODES = [
   { key: 'aggressive', label: 'Aggr' },
 ];
 
+// Two clearly-labeled paths for setting lineups (docs/LINEUP_FLOW_OPTIONS.md, owner decision):
+//   1. Wizard  — the primary button walks every flagged league one at a time, each pre-filled with the
+//                optimal lineup for the selected mode, adjustable before submit.
+//   2. Editor  — tapping any league row opens its own lineup to review what's set and hand-adjust it.
+// There is deliberately no third "bulk auto-set" path; it was the redundant flow the review flagged.
 export default function LineupsScreen({ active = true, onOpenLineup, onStartWizard }) {
   const [mode, setMode] = useState('auto');
-  const [plan, setPlan] = useState(null); // review sheet
-  const [planning, setPlanning] = useState(false);
-  const [applying, setApplying] = useState(false);
 
   // Stale-while-revalidate: paint the last lineups for this mode instantly, refetch
   // in the background. Keyed by mode so switching modes paints that mode's cache.
   const { data, error, refreshing, loading, reload } = useCachedResource(`lineups:${mode}`, () => lineupsPreferDevice(mode), { active });
-
-  // Back closes the review sheet first.
-  useAndroidBack(useCallback(() => {
-    if (plan) {
-      setPlan(null);
-      return true;
-    }
-    return false;
-  }, [plan]));
 
   function startWizard() {
     const queue = (data ? data.leagues : []).filter((l) => !l.error && l.status !== 'optimal');
@@ -63,48 +52,6 @@ export default function LineupsScreen({ active = true, onOpenLineup, onStartWiza
       return;
     }
     onStartWizard(queue.map((l) => ({ leagueId: l.leagueId, name: l.name })), mode);
-  }
-
-  async function openReview() {
-    setPlanning(true);
-    try {
-      const p = await api.planLineups(mode);
-      const changed = p.leagues.filter((l) => l.changed);
-      if (!changed.length) {
-        appAlert('Nothing to change', 'Every lineup is already optimal for this mode.');
-        return;
-      }
-      setPlan({ ...p, changed, selected: new Set(changed.map((l) => l.leagueId)) });
-    } catch (e) {
-      appAlert('Could not build plan', e.message);
-    } finally {
-      setPlanning(false);
-    }
-  }
-
-  async function confirmApply() {
-    const ids = Array.from(plan.selected);
-    setApplying(true);
-    try {
-      const res = await api.applyAllLineups(
-        mode,
-        ids.map((leagueId) => ({ leagueId }))
-      );
-      setPlan(null);
-      await reload();
-      // Telegraph the cross-league LEVERAGE — the whole reason to act here instead of league-by-league
-      // in MFL: one tap set N lineups. That "time machine" feel is what converts (docs/PRE_BETA_REVIEW.md
-      // PO pass). Fall back to the plain confirmation for a single league.
-      const n = res.summary.leaguesUpdated;
-      const pts = res.summary.pointsGained;
-      toast(n > 1
-        ? `${n} lineups set in one tap · +${pts} projected pts`
-        : `Lineup set · +${pts} projected pts`);
-    } catch (e) {
-      appAlert('Could not set lineups', e.message);
-    } finally {
-      setApplying(false);
-    }
   }
 
   if (loading) {
@@ -116,6 +63,7 @@ export default function LineupsScreen({ active = true, onOpenLineup, onStartWiza
   }
 
   const summary = data && data.summary;
+  const needAttention = summary ? summary.needAttention : 0;
 
   return (
     <View style={styles.container}>
@@ -124,9 +72,9 @@ export default function LineupsScreen({ active = true, onOpenLineup, onStartWiza
         <ScreenTitle focused={active}>Lineups</ScreenTitle>
         {summary ? (
           <Text style={styles.subtitle}>
-            {summary.needAttention === 0
+            {needAttention === 0
               ? `All ${summary.total} lineups set · Week ${data.week}`
-              : `${summary.needAttention} of ${summary.total} need attention` +
+              : `${needAttention} of ${summary.total} need attention` +
                 (summary.risky ? ` · ${summary.risky} risky` : '') +
                 (summary.unset ? ` · ${summary.unset} not set` : '') +
                 (summary.pointsAvailable > 0 ? ` · +${summary.pointsAvailable} pts` : '')}
@@ -134,28 +82,33 @@ export default function LineupsScreen({ active = true, onOpenLineup, onStartWiza
         ) : null}
       </View>
 
+      <View style={styles.modeHeader}>
+        <Text style={styles.modeLabel}>OPTIMIZE FOR</Text>
+        <InfoDot id="lineupModes" size={15} />
+      </View>
       <ModeToggle mode={mode} onChange={setMode} />
 
-      {/* When nothing needs attention the wizard would just pop an "All set" alert — so disable the CTA
-          and let it read as a status instead of a dead-end button. "Auto-set all leagues" below still
-          lets you force a re-check. */}
+      {/* Path 1 — the wizard. When nothing needs attention it would just pop an "All set" alert, so the
+          button reads as a status instead of a dead-end. The per-league editor (tapping a row) still works. */}
       <Pressable
-        style={({ pressed }) => [styles.setAll, (!summary || summary.needAttention === 0) && { opacity: 0.5 }, pressed && summary && summary.needAttention > 0 && { opacity: 0.85 }]}
+        style={({ pressed }) => [styles.setAll, needAttention === 0 && { opacity: 0.5 }, pressed && needAttention > 0 && { opacity: 0.85 }]}
         onPress={startWizard}
-        disabled={!summary || summary.needAttention === 0}
+        disabled={needAttention === 0}
+        accessibilityRole="button"
+        accessibilityLabel={needAttention > 0 ? `Set lineups, ${needAttention} to review` : 'All lineups optimal'}
       >
         <Text style={styles.setAllText}>
-          {summary && summary.needAttention > 0 ? `Set Lineups · ${summary.needAttention} to review` : '✓ All lineups optimal'}
+          {needAttention > 0 ? `Set lineups · ${needAttention} to review` : '✓ All lineups optimal'}
         </Text>
       </Pressable>
+      {needAttention > 0 ? (
+        <Text style={styles.pathHelp}>
+          Steps through each league one at a time, pre-filled with the optimal lineup — adjust before you submit.
+        </Text>
+      ) : null}
 
-      <Pressable style={styles.autoAll} onPress={openReview} disabled={planning}>
-        {planning ? (
-          <ActivityIndicator color={colors.textDim} />
-        ) : (
-          <Text style={styles.autoAllText}>Auto-set all leagues</Text>
-        )}
-      </Pressable>
+      {/* Path 2 — the per-league editor. Make the row-tap path explicit, not implicit. */}
+      <Text style={styles.pathHelpDim}>Or tap a league below to review and adjust it on its own.</Text>
 
       {error && !data ? (
         <ErrorView message={error} onRetry={reload} onRefresh={reload} refreshing={refreshing} />
@@ -170,23 +123,6 @@ export default function LineupsScreen({ active = true, onOpenLineup, onStartWiza
           renderItem={({ item }) => <Row item={item} onPress={() => onOpenLineup(item)} />}
         />
       )}
-
-      {plan ? (
-        <ReviewSheet
-          plan={plan}
-          applying={applying}
-          onToggle={(id) =>
-            setPlan((p) => {
-              const selected = new Set(p.selected);
-              if (selected.has(id)) selected.delete(id);
-              else selected.add(id);
-              return { ...p, selected };
-            })
-          }
-          onCancel={() => setPlan(null)}
-          onConfirm={confirmApply}
-        />
-      ) : null}
     </View>
   );
 }
@@ -265,80 +201,23 @@ function Row({ item, onPress }) {
   );
 }
 
-function ReviewSheet({ plan, applying, onToggle, onCancel, onConfirm }) {
-  const selectedCount = plan.selected.size;
-  const gained =
-    Math.round(
-      plan.changed.filter((l) => plan.selected.has(l.leagueId)).reduce((s, l) => s + (l.gained || 0), 0) * 10
-    ) / 10;
-
-  return (
-    <Pressable style={styles.backdrop} onPress={onCancel}>
-      <Pressable style={styles.sheet} onPress={() => {}}>
-        <Text style={styles.sheetTitle}>Review changes</Text>
-        <Text style={styles.sheetSub}>
-          {plan.mode.toUpperCase()} · {plan.changed.length} league{plan.changed.length === 1 ? '' : 's'} would change
-        </Text>
-        <FlatList
-          data={plan.changed}
-          keyExtractor={(l) => l.leagueId}
-          style={{ maxHeight: 380 }}
-          renderItem={({ item }) => {
-            const on = plan.selected.has(item.leagueId);
-            return (
-              <Pressable style={styles.planRow} onPress={() => onToggle(item.leagueId)}>
-                <View style={[styles.check, on && styles.checkOn]}>
-                  {on ? <Text style={styles.checkMark}>✓</Text> : null}
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.planName}>
-                    {item.name} <Text style={styles.planGain}>+{item.gained}</Text>
-                  </Text>
-                  {item.adds.length ? (
-                    <Text style={styles.planIn} numberOfLines={2}>
-                      IN: {item.adds.map((p) => p.name.split(',')[0]).join(', ')}
-                    </Text>
-                  ) : null}
-                  {item.drops.length ? (
-                    <Text style={styles.planOut} numberOfLines={2}>
-                      OUT: {item.drops.map((p) => p.name.split(',')[0]).join(', ')}
-                    </Text>
-                  ) : null}
-                </View>
-              </Pressable>
-            );
-          }}
-        />
-        <Button
-          title={`Set ${selectedCount} Lineup${selectedCount === 1 ? '' : 's'} · +${gained}`}
-          onPress={onConfirm}
-          busy={applying}
-          disabled={!selectedCount}
-          style={{ marginTop: space.md }}
-        />
-        <Pressable style={styles.cancel} onPress={onCancel}>
-          <Text style={styles.cancelText}>Cancel</Text>
-        </Pressable>
-      </Pressable>
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'transparent' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 4 },
   title: { color: colors.text, fontSize: 26, fontWeight: '900' },
   subtitle: { color: colors.textDim, fontSize: 13, marginTop: 2 },
-  modeRow: { flexDirection: 'row', marginHorizontal: 16, marginTop: 10, backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 3 },
+  modeHeader: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginTop: 10, gap: 6 },
+  modeLabel: { color: colors.textDim, fontSize: 11, fontWeight: '800', letterSpacing: 0.6 },
+  modeRow: { flexDirection: 'row', marginHorizontal: 16, marginTop: 6, backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 3 },
   mode: { flex: 1, paddingVertical: 7, borderRadius: 8, alignItems: 'center' },
   modeActive: { backgroundColor: colors.cardAlt },
   modeText: { color: colors.textDim, fontSize: 12, fontWeight: '700' },
   modeTextActive: { color: colors.text },
-  setAll: { backgroundColor: colors.accent, marginHorizontal: 16, marginTop: 10, marginBottom: 6, borderRadius: 14, paddingVertical: 15, alignItems: 'center' },
+  setAll: { backgroundColor: colors.accent, marginHorizontal: 16, marginTop: 12, marginBottom: 6, borderRadius: 14, paddingVertical: 15, alignItems: 'center' },
   setAllText: { color: colors.onAccent, fontSize: 16, fontWeight: '800' },
-  autoAll: { marginHorizontal: 16, marginBottom: 6, paddingVertical: 8, alignItems: 'center' },
-  autoAllText: { color: colors.textDim, fontSize: 13, fontWeight: '700', textDecorationLine: 'underline' },
+  pathHelp: { color: colors.textDim, fontSize: 12, marginHorizontal: 18, marginBottom: 8, lineHeight: 16 },
+  pathHelpDim: { color: colors.textDim, fontSize: 12, marginHorizontal: 18, marginTop: 2, marginBottom: 4, opacity: 0.85, fontWeight: '600' },
   list: { paddingHorizontal: 16, paddingBottom: 32, paddingTop: 6 },
   row: { backgroundColor: colors.card, borderRadius: 14, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: colors.border },
   rowTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -356,22 +235,4 @@ const styles = StyleSheet.create({
   chev: { color: colors.textDim, fontSize: 22, fontWeight: '700' },
   rowError: { color: colors.bad, marginTop: 6, fontSize: 13 },
   error: { color: colors.bad, textAlign: 'center' },
-  // review sheet
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: colors.scrim, justifyContent: 'flex-end' },
-  sheet: { backgroundColor: colors.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, borderTopWidth: 1, borderColor: colors.border },
-  sheetTitle: { color: colors.text, fontSize: 18, fontWeight: '900' },
-  sheetSub: { color: colors.textDim, fontSize: 12, marginTop: 2, marginBottom: 10, fontWeight: '600' },
-  planRow: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
-  check: { width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: colors.border, marginRight: 12, alignItems: 'center', justifyContent: 'center' },
-  checkOn: { backgroundColor: colors.accent, borderColor: colors.accent },
-  checkMark: { color: colors.onAccent, fontWeight: '900', fontSize: 14 },
-  planName: { color: colors.text, fontSize: 15, fontWeight: '700' },
-  planGain: { color: colors.good, fontWeight: '800' },
-  planIn: { color: colors.good, fontSize: 12, marginTop: 3 },
-  planOut: { color: colors.textDim, fontSize: 12, marginTop: 1 },
-  confirm: { backgroundColor: colors.accent, borderRadius: 12, paddingVertical: 15, alignItems: 'center', marginTop: 14 },
-  confirmOff: { backgroundColor: colors.cardAlt },
-  confirmText: { color: colors.onAccent, fontSize: 16, fontWeight: '800' },
-  cancel: { alignItems: 'center', paddingTop: 14 },
-  cancelText: { color: colors.accent, fontSize: 15, fontWeight: '700' },
 });

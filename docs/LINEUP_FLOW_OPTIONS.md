@@ -3,6 +3,14 @@
 From the usability review (Tier 3, the top structural item). This proposes concrete options; no code
 changed yet. Pick a direction and I'll build it.
 
+> **DECISION (owner):** Keep exactly **two** clearly-labeled paths and drop the redundant third (the bulk
+> "Auto-set all leagues" → review sheet). The two kept: **(1) the per-league editor** — tap a league row to
+> see what's set and hand-adjust it; **(2) the wizard** — a primary button that walks each flagged league
+> one at a time, each defaulted to the optimal projected lineup, adjustable before submit. Shipped: removed
+> the bulk auto-set path + `ReviewSheet`, relabeled the wizard button with a one-line explainer, added an
+> explicit "tap a league to review & adjust" signpost for the editor, and an "OPTIMIZE FOR ⓘ" popover that
+> spells out Auto/Safe/Balanced/Aggressive (on the Lineups screen and inside the wizard).
+
 ## The problem (today)
 
 `LineupsScreen` offers **three** ways to set lineups, and nothing tells you which to use:
