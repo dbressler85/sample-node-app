@@ -26,6 +26,10 @@ export default function LineupEditorScreen({ league, onBack, onOpenWaivers }) {
   const [loading, setLoading] = useState(!seeded);
   const [saving, setSaving] = useState(false);
   const [assignments, setAssignments] = useState(seeded ? slotsToAssignments(seeded) : []); // slot index -> player id | null
+  // Snapshot of the lineup taken right before the last "Optimize", so Optimize is reversible (it
+  // overwrites every slot). Non-null → the Undo affordance shows; cleared by any manual edit, save, or
+  // reload, since after those the shown lineup is no longer "the thing Optimize replaced."
+  const [preOptimize, setPreOptimize] = useState(null);
 
   // Load (and re-load, from the error state's Retry) the lineup detail. Extracted so a failed load
   // offers a real retry instead of a dead-end "Go back".
@@ -37,6 +41,7 @@ export default function LineupEditorScreen({ league, onBack, onOpenWaivers }) {
       setDetail(d);
       primeResource(editKey, d);
       setAssignments(slotsToAssignments(d));
+      setPreOptimize(null);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -72,7 +77,23 @@ export default function LineupEditorScreen({ league, onBack, onOpenWaivers }) {
   }, [detail, assignments]);
 
   function optimize() {
+    const gain = Math.round((detail.optimal.total - total) * 10) / 10;
+    setPreOptimize(assignments); // snapshot so Optimize is reversible
     setAssignments(detail.slots.map((s) => (s.optimal ? s.optimal.id : null)));
+    // Not silent: confirm the whole lineup just changed, and by how much.
+    toast(gain > 0.05 ? `Optimized · +${gain} projected pts` : 'Already the projected-best lineup');
+  }
+
+  function undoOptimize() {
+    if (!preOptimize) return;
+    setAssignments(preOptimize);
+    setPreOptimize(null);
+  }
+
+  // A manual slot change means the shown lineup is no longer "what Optimize replaced" — retire the Undo.
+  function editSlots(next) {
+    setPreOptimize(null);
+    setAssignments(next);
   }
 
   async function save() {
@@ -82,6 +103,7 @@ export default function LineupEditorScreen({ league, onBack, onOpenWaivers }) {
       const updated = await api.applyLineup(league.leagueId, assignments.filter(Boolean));
       setDetail(updated);
       setAssignments(updated.slots.map((s) => (s.current ? s.current.id : null)));
+      setPreOptimize(null);
       toast(`Lineup saved · ${updated.name} · ${updated.current.total} projected pts`);
     } catch (e) {
       appAlert('Could not save', e.message);
@@ -115,9 +137,27 @@ export default function LineupEditorScreen({ league, onBack, onOpenWaivers }) {
         <Pressable onPress={onBack} hitSlop={10}>
           <Text style={styles.back}>‹ Lineups</Text>
         </Pressable>
-        <Pressable onPress={optimize} hitSlop={10}>
-          <Text style={styles.optimize}>Optimize</Text>
-        </Pressable>
+        {preOptimize ? (
+          <Pressable
+            onPress={undoOptimize}
+            hitSlop={10}
+            style={({ pressed }) => [styles.optBtn, styles.undoBtn, pressed && { opacity: 0.7 }]}
+            accessibilityRole="button"
+            accessibilityLabel="Undo optimize — restore your previous lineup"
+          >
+            <Text style={[styles.optBtnText, styles.undoBtnText]}>Undo optimize</Text>
+          </Pressable>
+        ) : (
+          <Pressable
+            onPress={optimize}
+            hitSlop={10}
+            style={({ pressed }) => [styles.optBtn, pressed && { opacity: 0.7 }]}
+            accessibilityRole="button"
+            accessibilityLabel="Optimize — set every slot to the projected-best starters"
+          >
+            <Text style={styles.optBtnText}>Optimize</Text>
+          </Pressable>
+        )}
       </View>
 
       <View style={styles.header}>
@@ -153,7 +193,7 @@ export default function LineupEditorScreen({ league, onBack, onOpenWaivers }) {
         </Pressable>
       ) : null}
 
-      <SlotEditor slots={detail.slots} players={detail.players} assignments={assignments} onChange={setAssignments} />
+      <SlotEditor slots={detail.slots} players={detail.players} assignments={assignments} onChange={editSlots} />
 
       <Button
         title={dirty ? 'Save Lineup' : 'Lineup Saved'}
@@ -171,7 +211,12 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   topbar: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8 },
   back: { color: colors.accent, fontSize: 16, fontWeight: '600' },
-  optimize: { color: colors.good, fontSize: 15, fontWeight: '800' },
+  // Optimize/Undo as a bordered pill — more affordance than the old bare text link, and it toggles to a
+  // reversible "Undo optimize" once tapped (usability backlog #11: give the silent overwrite a way back).
+  optBtn: { borderWidth: 1, borderColor: colors.good, borderRadius: 999, paddingHorizontal: 14, minHeight: 34, justifyContent: 'center' },
+  optBtnText: { color: colors.good, fontSize: 13, fontWeight: '800' },
+  undoBtn: { borderColor: colors.accent },
+  undoBtnText: { color: colors.accent },
   header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8 },
   title: { color: colors.text, fontSize: 24, fontWeight: '900' },
   subtitle: { color: colors.textDim, fontSize: 14, marginTop: 2 },

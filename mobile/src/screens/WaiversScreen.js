@@ -91,7 +91,12 @@ function pruneCanceled(res, cancels) {
   return { ...res, pending: kept, summary: { ...res.summary, pending: Math.max(0, ((res.summary && res.summary.pending) || 0) - removed) } };
 }
 
-export default function WaiversScreen({ active = true, initialLeagueId, initialPosition, initialSort, onStartWizard, onOpenPlayer, onOpenLineup }) {
+// `onExit`, when provided, makes this a LEAGUE-SCOPED overlay (opened from a league hub / roster /
+// lineup editor rather than the Waivers tab): it lands straight on that league's board, and backing
+// out of the board pops the overlay back to where you came from instead of revealing the cross-league
+// overview. This keeps in-league navigation scoped and backable (UX_GUARDRAILS C7) — the tab usage
+// (no onExit) is unchanged.
+export default function WaiversScreen({ active = true, initialLeagueId, initialPosition, initialSort, onExit, onStartWizard, onOpenPlayer, onOpenLineup }) {
   // Landing overview via the shared hook: instant paint on remount (survives the tab-switch
   // unmount), throttled reloads, and it keeps the list on a failed refresh. `loadOverview`
   // (reload) is also called after a claim to reflect it immediately.
@@ -145,6 +150,9 @@ export default function WaiversScreen({ active = true, initialLeagueId, initialP
   const [picking, setPicking] = useState(false); // "New claim" search sheet open
 
   function closeBoard() {
+    // Scoped overlay: the board IS the whole screen, so its back exits to the caller (league hub),
+    // not to a cross-league overview the user never opened.
+    if (onExit) { onExit(); return; }
     setOpenLeagueId(null);
     setBoard(null);
     setPosition(null);

@@ -49,13 +49,21 @@ write scoping, FAAB/draftable labeling (C10). Reviewers flagged none of these; n
    concedes it, LeagueScreen.js:42–49). Every other in-league chip opens a scoped overlay you can back
    out of; Waivers alone teleports to the global Waivers tab and Back won't return you — breaks the
    cockpit and C7. Fix: a league-scoped waivers overlay.
+   ✓ RESOLVED: `WaiversScreen` gained an `onExit` prop → a league-scoped OVERLAY that lands on that
+   league's board and backs out to the caller. Routed every in-league/overlay opener (league hub,
+   roster, lineup-editor "Fill on waivers", on-deck) through it; the Home TAB keeps the tab jump.
 9. **LeaguesScreen — no search/filter across ~15 leagues.** Finding one league is scroll-and-scan every
    time. Add a text filter (pin already floats favorites).
+   ✓ RESOLVED: added a name search (shown once >6 leagues) with a Clear button and a "no match" empty
+   state; filters the loaded list locally, pinned-first order preserved.
 10. **Help — the ⓘ dots can't deep-link.** `HelpScreen` takes only `onBack`, no topic/anchor, so every
     ⓘ dumps the user at the top of the whole manual to hunt. Add a `topic` param + scroll-to.
 11. **LineupEditor — "Optimize" is an easy-to-miss text link that silently overwrites every slot with no
     undo.** The headline value action deserves more affordance + a way back (it's recoverable only by not
     saving and backing out).
+    ✓ RESOLVED: "Optimize" is now a bordered pill (not a bare text link); it toasts the points gained
+    (no longer silent) and toggles to a reversible "Undo optimize" that restores the pre-optimize
+    lineup. Any manual slot edit, save, or reload retires the Undo.
 12. **LeagueScreen — 3 stacked horizontal scrollers hide actions.** Ribbon + action row + team-chip bar
     all scroll horizontally with no indicator; Waivers/Draft sit off-screen right undiscovered.
 13. **DraftHub — no countdown on the on-the-clock rows,** so simultaneous drafts (the hub's whole reason)
