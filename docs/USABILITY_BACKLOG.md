@@ -106,6 +106,10 @@ write scoping, FAAB/draftable labeling (C10). Reviewers flagged none of these; n
 17. **Trades Propose builder — ~5 ways to fill a deal + up to 3 unreconciled value verdicts, and no
     one-line "is this a good idea?" at the moment of building** (the incoming OfferCard *has* a reconciled
     bottom line; the builder doesn't). Add the synthesis where the user commits.
+    ✓ RESOLVED: the builder now shows the SAME reconciled value×construction bottom line as the sent-offer
+    card, right above Propose. Hoisted the `bottomLine` reconciler into the shared `tradeMath` module
+    (single source client↔backend, held identical by the drift test), so the live preview and the
+    server's authoritative read can't disagree. Leads on the window's lens (win-now for a contender).
 18. **Portfolio — coupled lens toggles.** One By-value/By-shares toggle silently drives *two* cards
     (Allocation + Top holdings) while a visually identical toggle on Value-at-risk is independent.
 
