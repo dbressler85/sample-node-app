@@ -147,7 +147,15 @@ export default function ProfileScreen({ onBack, onOpenPortfolio, onOpenSettings,
           <ActionRow label="Settings" onPress={onOpenSettings} />
           <ActionRow label="Help & how it works" onPress={onOpenHelp} />
           {ent.reason === 'subscribed' ? <ActionRow label="Manage subscription" onPress={() => openUrl('https://play.google.com/store/account/subscriptions')} /> : null}
-          <ActionRow label="Log out" onPress={onLogout} destructive last />
+          <ActionRow
+            label="Log out"
+            onPress={() => appAlert('Log out?', 'You’ll need to sign in again with your MyFantasyLeague username and password.', [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Log out', style: 'destructive', onPress: onLogout },
+            ])}
+            destructive
+            last
+          />
         </View>
 
         {/* Legal & data (Play requires these reachable once you charge) */}

@@ -600,9 +600,12 @@ function Portfolio({ p, phase, loading, onLeagues, onPortfolio, onOpenOnDeck, on
       {/* In-season, keep the urgent action counts (these aren't outlook "modes"). */}
       {!offseason ? (
         <View style={styles.chips}>
-          <Chip label="Lineups to set" value={p.lineupsToSet} warn={p.lineupsToSet > 0} loading={loading} />
-          <Chip label="Holes" value={p.holes} bad={p.holes > 0} loading={loading} />
-          <Chip label="Injuries" value={p.injuries} bad={p.injuries > 0} loading={loading} />
+          {/* These are the app's most urgent cross-league counts — make them ACT, not just display. All
+              three (lineups to set, empty starter holes, injured starters) are exactly what Under Center
+              aggregates, so tapping any routes there instead of looking tappable and doing nothing. */}
+          <Chip label="Lineups to set" value={p.lineupsToSet} warn={p.lineupsToSet > 0} loading={loading} onPress={onOpenOnDeck} />
+          <Chip label="Holes" value={p.holes} bad={p.holes > 0} loading={loading} onPress={onOpenOnDeck} />
+          <Chip label="Injuries" value={p.injuries} bad={p.injuries > 0} loading={loading} onPress={onOpenOnDeck} />
         </View>
       ) : null}
     </View>

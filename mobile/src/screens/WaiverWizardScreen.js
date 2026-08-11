@@ -297,13 +297,23 @@ export default function WaiverWizardScreen({ leagues, seedAddId = null, onBack, 
     if (!currentStub) return;
     const s = sessionRef.current[currentStub.leagueId];
     const names = s ? s.names : [];
-    advance({
+    const go = () => advance({
       leagueId: currentStub.leagueId,
       name: currentStub.name,
       action: names.length ? 'claimed' : 'skipped',
       add: names.join(', '),
       count: names.length,
     });
+    // The builder pre-fills a recommended add, so a ready claim is sitting here even if the user never
+    // submitted it. Don't let a tap on "Next league" silently drop a valid, unsubmitted claim — confirm.
+    if (!names.length && pendingCount > 0) {
+      appAlert('Skip without filing?', `You’ve got a claim built for ${currentStub.name} that hasn’t been submitted. Skip this league anyway?`, [
+        { text: 'Keep building', style: 'cancel' },
+        { text: 'Skip anyway', style: 'destructive', onPress: go },
+      ]);
+      return;
+    }
+    go();
   }
   function nextLocked() {
     if (!currentStub) return;

@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
+import { appAlert } from '../components/AppAlert';
 import { api } from '../api';
 import { useRequirePro } from '../entitlement';
 import { colors } from '../theme';
@@ -23,6 +24,21 @@ export default function LineupWizardScreen({ leagues, initialMode = 'auto', onBa
   const [index, setIndex] = useState(0);
   const [detail, setDetail] = useState(null);
   const [assignments, setAssignments] = useState([]);
+  const editedRef = useRef(false); // did the user hand-edit this league's lineup? guards the mode-switch reset
+  // Switching mode reloads this league's optimal and REPLACES the on-screen lineup. If the user has
+  // hand-edited, don't discard those edits silently — confirm first.
+  const changeMode = (next) => {
+    if (next === mode) return;
+    if (editedRef.current) {
+      const label = (MODES.find((m) => m.key === next) || {}).label || next;
+      appAlert('Switch mode?', `This replaces your current edits with the ${label} lineup.`, [
+        { text: 'Keep edits', style: 'cancel' },
+        { text: 'Switch', onPress: () => setMode(next) },
+      ]);
+      return;
+    }
+    setMode(next);
+  };
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
@@ -52,6 +68,7 @@ export default function LineupWizardScreen({ leagues, initialMode = 'auto', onBa
         if (!alive) return;
         setDetail(d);
         setAssignments(d.slots.map((s) => (s.optimal ? s.optimal.id : s.current ? s.current.id : null)));
+        editedRef.current = false; // fresh optimal loaded → no manual edits outstanding
       } catch (e) {
         if (alive) setError(e.message);
       } finally {
@@ -170,14 +187,14 @@ export default function LineupWizardScreen({ leagues, initialMode = 'auto', onBa
               <Pressable
                 key={m.key}
                 style={[styles.mode, mode === m.key && styles.modeActive]}
-                onPress={() => setMode(m.key)}
+                onPress={() => changeMode(m.key)}
               >
                 <Text style={[styles.modeText, mode === m.key && styles.modeTextActive]}>{m.label}</Text>
               </Pressable>
             ))}
           </View>
 
-          <SlotEditor slots={detail.slots} players={detail.players} assignments={assignments} onChange={setAssignments} />
+          <SlotEditor slots={detail.slots} players={detail.players} assignments={assignments} onChange={(a) => { editedRef.current = true; setAssignments(a); }} />
 
           <View style={styles.actions}>
             <Pressable style={styles.skipInline} onPress={skip} disabled={submitting}>
