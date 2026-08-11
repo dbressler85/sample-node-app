@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, RefreshControl, ActivityIndicator } from 'react-native';
 import { colors } from '../theme';
 import { displayLabel } from '../typography';
@@ -30,6 +30,34 @@ const ordinal = (n) => {
   return `${n}${s[(v - 20) % 10] || s[v] || s[0]}`;
 };
 
+// A coarse countdown for a positive duration (ms). Drops to the two largest useful units so the label
+// stays short: "2d 3h", "3h 12m", "8m 05s", "42s". Returns null for a non-positive/invalid duration —
+// the caller renders "overdue"/"now" instead.
+function fmtCountdown(ms) {
+  if (!Number.isFinite(ms) || ms <= 0) return null;
+  const s = Math.floor(ms / 1000);
+  const d = Math.floor(s / 86400);
+  const h = Math.floor((s % 86400) / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if (d >= 1) return `${d}d ${h}h`;
+  if (h >= 1) return `${h}h ${m}m`;
+  if (m >= 1) return `${m}m ${pad(sec)}s`;
+  return `${sec}s`;
+}
+
+// Re-render on a 1s tick while `active`, so relative countdowns advance smoothly between the 15s data
+// polls. Gated so a covered/background hub isn't ticking. Date.now() is fine in app code.
+function useNow(active) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!active) return undefined;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [active]);
+  return now;
+}
+
 export default function DraftHubScreen({ covered = false, onBack, onOpenDraft, onOpenPicks }) {
   // Stale-while-revalidate: Home already fetched the drafts overview and wrote it to this same
   // 'drafts' cache key, so opening the hub from Home paints instantly, then revalidates. Device-first:
@@ -45,7 +73,14 @@ export default function DraftHubScreen({ covered = false, onBack, onOpenDraft, o
   // Poll while any draft is live or on the clock, so a new "your turn" appears
   // across leagues without a manual refresh.
   usePoll(reload, 15000, drafts.some((d) => d.myOnClock || d.status === 'in_progress') && !covered);
-  const onClock = drafts.filter((d) => d.myOnClock);
+  const now = useNow(!covered); // ticking clock for the live countdowns below
+  // On the clock: soonest autopick FIRST, so simultaneous drafts triage by urgency (#13). Drafts whose
+  // clock is unknown (no myClock) sort last — we can't rank what we can't time.
+  const onClock = drafts.filter((d) => d.myOnClock).sort((a, b) => {
+    const da = a.myClock && a.myClock.deadline ? Date.parse(a.myClock.deadline) : Infinity;
+    const db = b.myClock && b.myClock.deadline ? Date.parse(b.myClock.deadline) : Infinity;
+    return da - db;
+  });
   const live = drafts.filter((d) => !d.myOnClock && d.status === 'in_progress');
   const scheduled = drafts.filter((d) => d.status === 'scheduled')
     .sort((a, b) => new Date(a.startTime || 0) - new Date(b.startTime || 0));
@@ -93,15 +128,31 @@ export default function DraftHubScreen({ covered = false, onBack, onOpenDraft, o
         >
           {onClock.length ? (
             <Section label="On the clock — you">
-              {onClock.map((d) => (
-                <Pressable key={d.leagueId} style={({ pressed }) => [styles.row, styles.rowClock, pressed && { opacity: 0.75 }]} onPress={() => open(d)}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.name} numberOfLines={1}>{d.name}</Text>
-                    <Text style={styles.subClock}>Your pick is in{d.type ? ` · ${d.type}` : ''}</Text>
-                  </View>
-                  <Text style={styles.pickPill}>PICK</Text>
-                </Pressable>
-              ))}
+              {onClock.map((d) => {
+                const mc = d.myClock;
+                let clockText = null;
+                let urgent = false;
+                if (mc) {
+                  if (mc.paused) {
+                    clockText = 'clock paused';
+                  } else {
+                    const remain = Date.parse(mc.deadline) - now;
+                    if (remain <= 0) { clockText = 'overdue · autopick imminent'; urgent = true; }
+                    else { clockText = `${fmtCountdown(remain)} to autopick`; urgent = remain < 15 * 60 * 1000; }
+                  }
+                }
+                return (
+                  <Pressable key={d.leagueId} style={({ pressed }) => [styles.row, styles.rowClock, urgent && styles.rowOverdue, pressed && { opacity: 0.75 }]} onPress={() => open(d)}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.name} numberOfLines={1}>{d.name}</Text>
+                      <Text style={[styles.subClock, urgent && styles.subOverdue]} numberOfLines={1}>
+                        {clockText || 'Your pick is in'}{d.type ? ` · ${d.type}` : ''}
+                      </Text>
+                    </View>
+                    <Text style={styles.pickPill}>PICK</Text>
+                  </Pressable>
+                );
+              })}
             </Section>
           ) : null}
 
@@ -116,10 +167,14 @@ export default function DraftHubScreen({ covered = false, onBack, onOpenDraft, o
 
           {scheduled.length ? (
             <Section label={`Scheduled · ${scheduled.length}`}>
-              {scheduled.map((d) => (
-                <Row key={d.leagueId} d={d} onPress={() => open(d)}
-                  sub={`Scheduled${formatWhen(d.startTime) ? ` · ${formatWhen(d.startTime)}` : ''}`} />
-              ))}
+              {scheduled.map((d) => {
+                const startMs = d.startTime ? Date.parse(d.startTime) : NaN;
+                const cd = fmtCountdown(startMs - now);
+                return (
+                  <Row key={d.leagueId} d={d} onPress={() => open(d)}
+                    sub={`${cd ? `in ${cd}` : 'Scheduled'}${formatWhen(d.startTime) ? ` · ${formatWhen(d.startTime)}` : ''}`} />
+                );
+              })}
             </Section>
           ) : null}
 
@@ -171,9 +226,11 @@ const styles = StyleSheet.create({
   section: { color: colors.violetText, fontSize: 12, fontWeight: '800', letterSpacing: 0.4, textTransform: 'uppercase', marginTop: 14, marginBottom: 8 },
   row: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 15, marginBottom: 8 },
   rowClock: { borderColor: colors.gold, backgroundColor: colors.cardAlt },
+  rowOverdue: { borderColor: colors.bad },
   name: { color: colors.text, fontSize: 15, fontWeight: '800' },
   sub: { color: colors.textDim, fontSize: 12, marginTop: 3 },
   subClock: { color: colors.gold, fontSize: 12, marginTop: 3, fontWeight: '700' },
+  subOverdue: { color: colors.bad },
   pickPill: { color: colors.onAccent, backgroundColor: colors.gold, fontSize: 11, fontWeight: '900', paddingHorizontal: 9, paddingVertical: 3, borderRadius: 6, overflow: 'hidden', letterSpacing: 0.5 },
   chev: { color: colors.textDim, fontSize: 20, fontWeight: '700', marginLeft: 8 },
   error: { color: colors.bad, textAlign: 'center' },

@@ -338,11 +338,13 @@ export default function App() {
   // pushOverlay's setClosing(false) reset). Memoized once so an App re-render — tab switch, overlay
   // push/pop, font bump — doesn't hand NavTools a new value and reconcile all six headers' neon trees.
   const navTools = useMemo(() => {
-    const openOverlay = (type) => { setClosing(false); setOverlayStack((s) => [...s, { type }]); };
+    const openOverlay = (type, extra) => { setClosing(false); setOverlayStack((s) => [...s, { type, ...extra }]); };
     return {
       openProfile: () => openOverlay('profile'),
       openSettings: () => openOverlay('settings'),
       openBugReport: () => setBugReportOpen(true),
+      // Deep-link into the full manual at a topic (from an InfoDot's "Open full guide"). No topic → top.
+      openHelp: (topic) => openOverlay('help', topic ? { topic } : undefined),
     };
   }, []);
   const openHelp = () => pushOverlay({ type: 'help' });
@@ -536,7 +538,7 @@ export default function App() {
       case 'settings':
         return <SettingsScreen onBack={popOverlay} />;
       case 'help':
-        return <HelpScreen onBack={popOverlay} />;
+        return <HelpScreen onBack={popOverlay} topic={o.topic} />;
       case 'onDeck':
         return (
           <OnDeckScreen

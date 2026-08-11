@@ -84,14 +84,16 @@ export default function LeagueScreen({ league, onBack, onOpenPlayer, onOpenPlayo
       <AttentionRibbon triage={triage} league={league} onOpenLineup={onOpenLineup} onOpenWaivers={onOpenWaivers} onOpenTrades={onOpenTrades} />
 
       {actions.length ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.hRow} contentContainerStyle={styles.actionRow}>
+        // Wrap (not a horizontal scroller) so every action is visible at once — Waivers/Draft used to sit
+        // off-screen right, undiscovered (usability backlog #12). A cockpit's actions must not hide.
+        <View style={styles.actionRow}>
           {actions.map((a) => (
             <Pressable key={a.key} onPress={a.onPress} style={({ pressed }) => [styles.actionChip, pressed && { opacity: 0.7 }]} accessibilityRole="button" accessibilityLabel={a.badge ? `${a.label}, ${a.badge} waiting` : a.label}>
               <Text style={styles.actionChipText}>{a.label}</Text>
               {a.badge ? <View style={styles.actionBadge}><Text style={styles.actionBadgeText}>{a.badge}</Text></View> : null}
             </Pressable>
           ))}
-        </ScrollView>
+        </View>
       ) : null}
 
       <View style={styles.segment}>
@@ -444,8 +446,8 @@ const styles = StyleSheet.create({
   matchMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 8 },
   matchMeta: { color: colors.textDim, fontSize: 12, fontWeight: '700' },
   matchClose: { color: colors.warn, fontSize: 12, fontWeight: '800' },
-  // Scoped action row — accent-outlined chips (actions, not values), horizontally scrollable.
-  actionRow: { paddingHorizontal: 16, gap: 8, paddingTop: 8, paddingBottom: 2, alignItems: 'center' },
+  // Scoped action row — accent-outlined chips (actions, not values). Wraps so all are visible (#12).
+  actionRow: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 16, gap: 8, rowGap: 8, paddingTop: 8, paddingBottom: 2 },
   actionChip: { flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: colors.cardAlt, borderRadius: 999, borderWidth: 1, borderColor: colors.accent, paddingHorizontal: 16, minHeight: 40, justifyContent: 'center' },
   actionChipText: { color: colors.accent, fontSize: 14, fontWeight: '800' },
   // Count badge — an accent-filled pill (state/action = accent per the color law), min-circle sized.
