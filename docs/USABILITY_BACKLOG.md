@@ -99,6 +99,10 @@ write scoping, FAAB/draftable labeling (C10). Reviewers flagged none of these; n
 16. **Roster — every player carries a permanent 3-chip move row** (→IR/→Taxi/Drop), turning "scan my
     team" into a management wall with an inline destructive Drop on every row. Collapse behind
     swipe/overflow/selection mode.
+    ✓ RESOLVED: added a **Manage mode toggle**. Default OFF → a clean scan (just the player rows); ON →
+    the per-player move chips (IR / taxi / drop) appear. The destructive Drop (still confirmed) is no
+    longer omnipresent; the block/shop toggle stays on the row. (Selection-mode, not swipe — verifiable
+    on a blind build.)
 17. **Trades Propose builder — ~5 ways to fill a deal + up to 3 unreconciled value verdicts, and no
     one-line "is this a good idea?" at the moment of building** (the incoming OfferCard *has* a reconciled
     bottom line; the builder doesn't). Add the synthesis where the user commits.
