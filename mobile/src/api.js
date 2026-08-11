@@ -145,9 +145,10 @@ export const api = {
   setPin: (leagueId, on) => request(`/api/leagues/${leagueId}/pin`, { method: on ? 'POST' : 'DELETE' }),
 
   // Command center (M1.5) — the Home screen composes from leaguesList +
-  // per-league leagueTriage (progressive load), not a single /api/home call. Backend-only — single-league
-  // triage isn't a fan-out, so device-origin is reserved for the cross-league reads (see mflDevice.js).
+  // per-league leagueTriage (progressive load), not a single /api/home call.
   leagueTriage: (leagueId) => request(`/api/home/league/${leagueId}`),
+  // Device-origin: the app supplies this league's rosters it fetched from MFL on-device.
+  leagueTriageDevice: (leagueId, deviceRosters) => request(`/api/home/league/${leagueId}`, { method: 'POST', body: { deviceRosters } }),
   onDeck: () => request('/api/ondeck'),
   portfolio: () => request('/api/portfolio'),
   // Device-origin portfolio: the same dashboard, but the app supplies the per-league rosters it fetched
