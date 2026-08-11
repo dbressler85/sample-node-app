@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { colors } from '../theme';
 import { displayLg, displayLabel } from '../typography';
@@ -6,27 +6,47 @@ import { HELP } from '../help';
 import useAndroidBack from '../useAndroidBack';
 
 // "How it works" reference — every explanation the ⓘ dots link to, in one place.
-// Reached from Settings. Content lives in src/help.js so the dots and this screen
-// never disagree.
-export default function HelpScreen({ onBack }) {
+// Reached from Settings, or deep-linked to a `topic` from an InfoDot's "Open full guide"
+// (#10) — which scrolls to and briefly highlights that section. Content lives in src/help.js
+// so the dots and this screen never disagree.
+export default function HelpScreen({ onBack, topic }) {
   useAndroidBack(useCallback(() => { onBack(); return true; }, [onBack]));
+  const scrollRef = useRef(null);
+  const offsets = useRef({}); // topic id -> y offset in the scroll content
+  const [highlight, setHighlight] = useState(topic || null);
+
+  // Deep-link: once the cards have laid out, scroll to the requested topic and flash its border, then
+  // let the highlight fade so it doesn't linger.
+  useEffect(() => {
+    if (!topic) return undefined;
+    const jump = setTimeout(() => {
+      const y = offsets.current[topic];
+      if (y != null && scrollRef.current) scrollRef.current.scrollTo({ y: Math.max(0, y - 12), animated: true });
+    }, 140);
+    const fade = setTimeout(() => setHighlight(null), 2600);
+    return () => { clearTimeout(jump); clearTimeout(fade); };
+  }, [topic]);
 
   return (
     <View style={styles.container}>
       <View style={styles.topbar}>
-        <Pressable onPress={onBack} hitSlop={10}><Text style={styles.back}>‹ Settings</Text></Pressable>
+        <Pressable onPress={onBack} hitSlop={10}><Text style={styles.back}>‹ Back</Text></Pressable>
         <Text style={[styles.title, displayLg()]}>How it works</Text>
         <View style={{ width: 70 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.list}>
+      <ScrollView ref={scrollRef} contentContainerStyle={styles.list}>
         <Text style={styles.intro}>
           The app leans on a few models to turn 15 leagues into one view. Here’s exactly how each number and label is figured — no black boxes.
         </Text>
-        {HELP.map((topic) => (
-          <View key={topic.id} style={styles.card}>
-            <Text style={[styles.cardTitle, displayLabel()]}>{topic.title}</Text>
-            {topic.body.map((p, i) => (
+        {HELP.map((t) => (
+          <View
+            key={t.id}
+            onLayout={(e) => { offsets.current[t.id] = e.nativeEvent.layout.y; }}
+            style={[styles.card, highlight === t.id && styles.cardHighlight]}
+          >
+            <Text style={[styles.cardTitle, displayLabel()]}>{t.title}</Text>
+            {t.body.map((p, i) => (
               <Text key={i} style={styles.para}>{p}</Text>
             ))}
           </View>
@@ -47,6 +67,7 @@ const styles = StyleSheet.create({
   list: { padding: 16, paddingBottom: 40 },
   intro: { color: colors.textDim, fontSize: 14, lineHeight: 20, marginBottom: 16 },
   card: { backgroundColor: colors.card, borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 16, marginBottom: 12 },
+  cardHighlight: { borderColor: colors.accent, backgroundColor: colors.cardAlt },
   cardTitle: { color: colors.violetText, fontSize: 16, fontWeight: '800', marginBottom: 10 },
   para: { color: colors.textDim, fontSize: 14, lineHeight: 20, marginBottom: 10 },
   footNote: { color: colors.textDim, fontSize: 12, textAlign: 'center', marginTop: 8, lineHeight: 17, fontStyle: 'italic' },

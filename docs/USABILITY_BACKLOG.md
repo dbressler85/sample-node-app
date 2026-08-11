@@ -58,6 +58,8 @@ write scoping, FAAB/draftable labeling (C10). Reviewers flagged none of these; n
    state; filters the loaded list locally, pinned-first order preserved.
 10. **Help — the ⓘ dots can't deep-link.** `HelpScreen` takes only `onBack`, no topic/anchor, so every
     ⓘ dumps the user at the top of the whole manual to hunt. Add a `topic` param + scroll-to.
+    ✓ RESOLVED: `HelpScreen` accepts a `topic` and scrolls to + briefly highlights that card; `openHelp`
+    is on the NavTools context so any InfoDot popover now offers "Open full guide ›" that deep-links there.
 11. **LineupEditor — "Optimize" is an easy-to-miss text link that silently overwrites every slot with no
     undo.** The headline value action deserves more affordance + a way back (it's recoverable only by not
     saving and backing out).
@@ -66,8 +68,14 @@ write scoping, FAAB/draftable labeling (C10). Reviewers flagged none of these; n
     lineup. Any manual slot edit, save, or reload retires the Undo.
 12. **LeagueScreen — 3 stacked horizontal scrollers hide actions.** Ribbon + action row + team-chip bar
     all scroll horizontally with no indicator; Waivers/Draft sit off-screen right undiscovered.
+    ✓ RESOLVED (action row): the scoped action row now WRAPS instead of scrolling, so every action
+    (incl. Waivers/Draft) is visible at once. The ribbon + team-chip bar stay horizontal (content-driven
+    browse lists, not primary actions).
 13. **DraftHub — no countdown on the on-the-clock rows,** so simultaneous drafts (the hub's whole reason)
     can't be triaged by urgency; the user must open each league to find the ticking one.
+    ✓ RESOLVED: on-the-clock rows show a live "Xh Ym to autopick" countdown (overdue/paused states,
+    red when <15m) and sort soonest-first; scheduled rows show "in Xh Ym" to start. 1s local tick over
+    the existing 15s poll.
 
 ## TIER 3 — Density / cognitive load (larger product changes)
 
