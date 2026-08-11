@@ -15,6 +15,7 @@ import NeonSign from '../components/NeonSign';
 import OutlookDonut from '../components/OutlookDonut';
 
 const CONCURRENCY = 4;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // Background-warm concurrency: deliberately LOW (2, vs the 4 the visible cards get) so the after-cards
 // warm queue never floods MFL's budget — a real tap during warming competes with at most 2 background
 // reads, and the queue is ordered so the most-likely-tapped board warms first.
@@ -218,6 +219,34 @@ export async function warmHome() {
     for (const lg of list) if (collected[lg.leagueId]) pruned[lg.leagueId] = collected[lg.leagueId];
     patchHome({ statuses: pruned, at: Date.now() });
     setValue('statuses', pruned);
+
+    // Auto-heal a PARTIAL fan-out. A league whose triage dropped (status 'error') — or, offseason, one
+    // whose roster read failed INSIDE an otherwise-OK triage so it carries no dynasty — leaves the Home
+    // portfolio card stuck at "N of M leagues loaded" with no way forward but a manual pull-to-refresh
+    // (the exact "11 of 15 for 2 minutes" symptom). Retry JUST those leagues, a few times with backoff,
+    // at LOW priority so a transient per-IP throttle/timeout now self-heals. Fire-and-forget; bails the
+    // instant a newer fan-out supersedes this one (warmGen), and re-prunes to current leagues each pass.
+    const needsHeal = (e) => e && (e.status === 'error' || (e.phase === 'offseason' && !e.dynasty));
+    (async () => {
+      for (let attempt = 1; attempt <= 4; attempt += 1) {
+        if (myGen !== warmGen) return;
+        const failed = list.filter((lg) => needsHeal(collected[lg.leagueId]));
+        if (!failed.length) return;
+        await sleep(Math.min(1500 * attempt, 6000));
+        if (myGen !== warmGen) return;
+        await runPool(failed, CONCURRENCY, async (lg) => {
+          try {
+            const t = await leagueTriagePreferDevice(lg.leagueId, true);
+            collected[lg.leagueId] = { name: t.name, status: t.status, items: t.items, phase: t.phase, dynasty: t.dynasty, tradeDeadline: t.tradeDeadline };
+          } catch (e) { /* keep the prior 'error'; the next attempt retries it */ }
+        });
+        if (myGen !== warmGen) return;
+        const healed = {};
+        for (const lg of list) if (collected[lg.leagueId]) healed[lg.leagueId] = collected[lg.leagueId];
+        patchHome({ statuses: healed });
+        setValue('statuses', healed);
+      }
+    })();
 
     // Only NOW (visible league cards loaded) warm the heavy screens the user opens next — the cards had
     // first claim on MFL's budget; these must not have stolen it. Run them as a PRIORITY QUEUE at low
