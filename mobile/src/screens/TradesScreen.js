@@ -339,6 +339,16 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
       them: constructionOf(receiveList, sendList, partner.needs, partner.surplus, 'they', partner.depth),
     };
   }, [partner, sendList, receiveList, data]);
+  // One reconciled "is this a good idea?" line for the deal being BUILT — the same value×construction
+  // synthesis the sent-offer card already shows, computed from the shared trade-math so the builder and
+  // the card can't disagree. Answers the question at the moment you commit (usability backlog #17):
+  // needs both sides filled, leads on the lens your window cares about (win-now for a contender).
+  const buildBottomLine = useMemo(() => {
+    if (!sendList.length || !receiveList.length) return null;
+    const lead = tradeMath.leadingLens(preview, myOutlook);
+    const rating = buildFit && buildFit.me ? buildFit.me.rating : 'neutral';
+    return tradeMath.bottomLine(lead.verdict, rating);
+  }, [sendList.length, receiveList.length, preview, myOutlook, buildFit]);
   const tendencyNote = partnerTendency(partner);
 
   function toggle(setFn, obj, asset) {
@@ -825,6 +835,11 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
             <Text style={[styles.personalLine, { textAlign: 'right', color: VERDICT[personalPreview.verdict].color }]}>
               For you · net {personalPreview.net > 0 ? '+' : ''}{personalPreview.net} · {VERDICT[personalPreview.verdict].label}
             </Text>
+          ) : null}
+          {buildBottomLine ? (
+            <View style={[styles.bottomLine, { borderLeftColor: TONE[buildBottomLine.tone] || colors.textDim }]}>
+              <Text style={[styles.bottomLineText, { color: TONE[buildBottomLine.tone] || colors.text }]}>{buildBottomLine.text}</Text>
+            </View>
           ) : null}
           <Button
             title={counterInfo ? 'Send Counter' : 'Propose Trade'}

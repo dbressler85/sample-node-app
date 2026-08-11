@@ -201,31 +201,8 @@ async function markValidity(cookie, league, offers) {
   } catch (e) { /* no authoritative read → leave unflagged */ }
 }
 
-// Reconcile the two verdicts into one bottom line, so a deal that's good on VALUE but bad for
-// ROSTER (or vice-versa) doesn't just show two contradicting badges. Deterministic over the
-// value verdict (favorable/fair/unfavorable) × construction rating (good/caution/neutral).
-// `tone` drives the color: good / warn / bad / neutral.
-const BOTTOM_LINE = {
-  favorable: {
-    good: { tone: 'good', text: 'Green light — you gain value and it fits your roster.' },
-    caution: { tone: 'warn', text: 'Value’s in your favor, but it dents your roster — weigh the need first.' },
-    neutral: { tone: 'good', text: 'A clean value gain with no roster downside.' },
-  },
-  fair: {
-    good: { tone: 'good', text: 'Even on value and it fills a need — a fair deal worth doing.' },
-    caution: { tone: 'warn', text: 'Even on value but it opens a hole — lean pass unless you can backfill.' },
-    neutral: { tone: 'neutral', text: 'A fair, roster-neutral swap.' },
-  },
-  unfavorable: {
-    good: { tone: 'warn', text: 'You’d pay a value premium, but it fills a real need — OK if you’re contending.' },
-    caution: { tone: 'bad', text: 'Loses value and weakens your roster — pass.' },
-    neutral: { tone: 'bad', text: 'You come out light on value with no roster gain — pass.' },
-  },
-};
-function bottomLine(verdict, rating) {
-  const byV = BOTTOM_LINE[verdict] || BOTTOM_LINE.fair;
-  return byV[rating] || byV.neutral;
-}
+// The value×construction reconciliation lives in the shared trade-math module (tradeMath.bottomLine),
+// so the mobile desk's live builder preview shows the SAME bottom line as this authoritative analysis.
 
 // Attach a roster-construction read (does this deal fix a hole or open one?) to each
 // offer. `construction` is from MY side — I give `send`, I get `acquire`. For offers where
@@ -243,7 +220,7 @@ function annotateConstruction(offers, ns, franchiseId, myOutlook) {
     // on dynasty value. The lead lens is stamped on the analysis so the client can label it.
     const lead = tradeMath.leadingLens(o.analysis, myOutlook);
     if (o.analysis) { o.analysis.lens = lead.lens; o.analysis.leadVerdict = lead.verdict; }
-    o.bottomLine = bottomLine(lead.verdict, o.construction && o.construction.rating);
+    o.bottomLine = tradeMath.bottomLine(lead.verdict, o.construction && o.construction.rating);
   }
   return offers;
 }

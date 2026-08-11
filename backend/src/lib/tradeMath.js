@@ -148,4 +148,31 @@ function constructionRating(give, receive, needs, surplus, subject, depth) {
   return { rating, branch, you, score, fills, thins, fromDepth, holes };
 }
 
-module.exports = { NET_MIN, RATIO_MIN, TAG_MOD, round1, analyze, analyzeLens, leadingLens, personalAnalyze, constructionRating };
+// Reconcile the value verdict and the roster-construction rating into ONE bottom line, so a deal
+// that's good on VALUE but bad for ROSTER (or vice-versa) doesn't just show two contradicting badges.
+// Deterministic over value verdict (favorable/fair/unfavorable) × construction rating
+// (good/caution/neutral). `tone` drives the color: good / warn / bad / neutral. Single-sourced here so
+// the backend's authoritative offer analysis and the mobile desk's live builder preview read alike.
+const BOTTOM_LINE = {
+  favorable: {
+    good: { tone: 'good', text: 'Green light — you gain value and it fits your roster.' },
+    caution: { tone: 'warn', text: 'Value’s in your favor, but it dents your roster — weigh the need first.' },
+    neutral: { tone: 'good', text: 'A clean value gain with no roster downside.' },
+  },
+  fair: {
+    good: { tone: 'good', text: 'Even on value and it fills a need — a fair deal worth doing.' },
+    caution: { tone: 'warn', text: 'Even on value but it opens a hole — lean pass unless you can backfill.' },
+    neutral: { tone: 'neutral', text: 'A fair, roster-neutral swap.' },
+  },
+  unfavorable: {
+    good: { tone: 'warn', text: 'You’d pay a value premium, but it fills a real need — OK if you’re contending.' },
+    caution: { tone: 'bad', text: 'Loses value and weakens your roster — pass.' },
+    neutral: { tone: 'bad', text: 'You come out light on value with no roster gain — pass.' },
+  },
+};
+function bottomLine(verdict, rating) {
+  const byV = BOTTOM_LINE[verdict] || BOTTOM_LINE.fair;
+  return byV[rating] || byV.neutral;
+}
+
+module.exports = { NET_MIN, RATIO_MIN, TAG_MOD, round1, analyze, analyzeLens, leadingLens, personalAnalyze, constructionRating, BOTTOM_LINE, bottomLine };
