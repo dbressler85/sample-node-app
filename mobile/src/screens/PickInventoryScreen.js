@@ -1,5 +1,6 @@
 import React, { useCallback } from 'react';
 import { View, Text, StyleSheet, Pressable, SectionList, RefreshControl } from 'react-native';
+import EmptyView from '../components/EmptyView';
 import ListSkeleton from '../components/ListSkeleton';
 import { colors } from '../theme';
 import { displayLabel } from '../typography';
@@ -59,7 +60,7 @@ export default function PickInventoryScreen({ onBack, onShopPicks, onGetPicks, o
       ) : error ? (
         <ErrorView message={error} onRetry={reload} refreshing={refreshing} onRefresh={reload} />
       ) : !sections.length ? (
-        <View style={styles.center}><Text style={styles.emptyText}>No draft picks found across your leagues.</Text></View>
+        <EmptyView title="No draft picks" message="We couldn’t find any draft picks across your leagues. Pull down to refresh." />
       ) : (
         <SectionList
           sections={sections}

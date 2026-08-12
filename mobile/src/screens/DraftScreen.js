@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, FlatList, SectionList, ActivityIndicator, Modal, TextInput } from 'react-native';
+import EmptyView from '../components/EmptyView';
 import { appAlert } from "../components/AppAlert";
 import { useRequirePro } from '../entitlement';
 import { api, friendlyError } from '../api';
@@ -402,7 +403,7 @@ export default function DraftScreen({ league, demoMode, covered = false, onBack,
       </View>
 
       {data && data.status === 'none' ? (
-        <View style={styles.center}><Text style={styles.empty}>No draft in this league.</Text></View>
+        <EmptyView title="No draft in this league" message="This league doesn’t have a draft set up." />
       ) : (
         <>
         <View style={styles.tabRow} accessibilityRole="tablist">

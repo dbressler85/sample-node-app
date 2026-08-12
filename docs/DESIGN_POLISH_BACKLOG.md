@@ -71,6 +71,12 @@ build before merge.
    WaiverWizard:452/667, Portfolio:588, DraftHub:88, TradeInbox:284, PickInventory:61/72,
    Draft:392/454, OnTheBlock:352/380. Fold the "rich inline" empties (Scores:105, Playoff:90,
    Trophy:178) into `EmptyView` too so there's one treatment, not three.
+   - **Slice 1 — DONE:** the whole-body empties — DraftHub ("No drafts right now"), PickInventory
+     ("No draft picks"), Draft ("No draft in this league") — now use `EmptyView` (title + message).
+     Left TradeInbox's rich neon-glyph empty ("Quiet in here") as-is — it's a deliberate richer
+     treatment `EmptyView` can't yet match (no glyph until the Phase-4 neon slot).
+   - **Remaining:** the in-list `ListEmptyComponent` empties (Players, Waivers boards, DraftList) —
+     next slice; several are dynamic strings that map cleanly to a title.
 
 ## P2 — Iconography (tracked batch — DESIGN_SYSTEM.md §11)
 
