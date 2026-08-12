@@ -263,7 +263,9 @@ export default function DraftScreen({ league, demoMode, covered = false, onBack,
     if (data.pickClock && data.pickClock.paused) return 300000; // paused overnight → every 5 min
     return 45000; // live but not close to my turn → steady, honest cadence
   }, [data]);
-  usePoll(load, pollMs, !!(data && data.status === 'in_progress') && !picking && !covered);
+  // Don't poll while a pick is in flight (avoids clobbering) OR while the draft-confirm sheet is armed
+  // (a background refresh must not reflow the pool behind the pick you're about to commit — #21).
+  usePoll(load, pollMs, !!(data && data.status === 'in_progress') && !picking && !confirming && !covered);
 
   const myTurn = !!(data && data.onClock && data.onClock.mine);
   // In-app drafting works in BOTH modes now: live picks go through MFL's `live_draft` command
@@ -276,6 +278,17 @@ export default function DraftScreen({ league, demoMode, covered = false, onBack,
     if (!data || !data.available) return [];
     return position ? data.available.filter((p) => p.position === position) : data.available;
   }, [data, position]);
+  // Freeze the pool order while it's my turn so a background poll can't reflow the list under my finger
+  // as I reach for a Draft button (#21). Snapshot only when my turn STARTS or the position filter
+  // changes — NOT on every pool update — so the visible order holds steady while I choose; it goes live
+  // again the instant my turn ends (after I pick). The confirm sheet (which names the player) is still
+  // the final guard; this keeps the wrong row from sliding under the tap in the first place.
+  const [frozenPool, setFrozenPool] = useState(null);
+  useEffect(() => {
+    setFrozenPool(canPick ? pool : null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canPick, position]);
+  const displayPool = canPick && frozenPool ? frozenPool : pool;
   // Server-supplied draftable positions for this league (adds PK/DEF only where they're started).
   const posFilters = data && Array.isArray(data.positions) && data.positions.length ? data.positions : DEFAULT_POSITIONS;
 
@@ -432,7 +445,7 @@ export default function DraftScreen({ league, demoMode, covered = false, onBack,
         />
         ) : (
         <FlatList
-          data={pool}
+          data={displayPool}
           keyExtractor={(p) => String(p.id)}
           contentContainerStyle={styles.list}
           initialNumToRender={12}
@@ -672,7 +685,10 @@ const styles = StyleSheet.create({
   avRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 11, marginBottom: 8 },
   avRowLive: { borderColor: colors.gold },
   avRowTarget: { borderColor: colors.good, backgroundColor: colors.good + '10' },
-  avRowAvoid: { opacity: 0.5 },
+  // Avoid = a red color-WASH, not opacity. Dimming to 0.5 (the pattern Waivers explicitly rejected)
+  // kills the name's legibility and the Draft button's tap affordance on the highest-pressure screen —
+  // the ⊘ tag mark already signals "avoid" (usability backlog #20).
+  avRowAvoid: { borderColor: colors.bad, backgroundColor: colors.bad + '12' },
   avNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   tagMark: { fontSize: 13, fontWeight: '900' },
   avIdentity: { flex: 1, flexDirection: 'row', alignItems: 'center' },
