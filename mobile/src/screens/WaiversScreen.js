@@ -896,6 +896,13 @@ function ClaimSheet({ leagueId, addId, onClose, onOpenLineup, onDone }) {
               {preview.immediate ? ' · adds immediately' : preview.clearTime ? ` · ${preview.clearTime}` : ''}
             </Text>
 
+            {/* Roster occupancy — make "do I need to drop anyone?" obvious at a glance (feedback #5). */}
+            {preview.rosterSize != null && preview.rosterCount != null ? (
+              <Text style={preview.dropRequired ? styles.rosterNoteFull : styles.rosterNote}>
+                Roster {preview.rosterCount}/{preview.rosterSize} — {preview.dropRequired ? 'full, a drop is required' : 'room to add'}
+              </Text>
+            ) : null}
+
             {/* Drop */}
             <Text style={styles.fieldLabel}>{preview.dropRequired ? 'Drop (required — roster full)' : 'Drop (optional)'}</Text>
             <Pressable style={styles.dropBox} onPress={() => setChangingDrop((v) => !v)}>
@@ -1237,6 +1244,8 @@ const styles = StyleSheet.create({
   sheet: { backgroundColor: colors.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, borderTopWidth: 1, borderColor: colors.border },
   sheetTitle: { color: colors.text, fontSize: 18, fontWeight: '900' },
   sheetSub: { color: colors.textDim, fontSize: 13, marginTop: 2, marginBottom: 8 },
+  rosterNote: { color: colors.good, fontSize: 12, fontWeight: '700', marginTop: -2, marginBottom: 8 },
+  rosterNoteFull: { color: colors.warn, fontSize: 12, fontWeight: '700', marginTop: -2, marginBottom: 8 },
   fieldLabel: { color: colors.violetText, fontSize: 12, fontWeight: '700', marginTop: 14, marginBottom: 6 },
   dropBox: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: colors.cardAlt, borderRadius: 10, padding: 12 },
   dropText: { color: colors.text, fontSize: 14, fontWeight: '600' },

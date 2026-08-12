@@ -43,9 +43,20 @@ function invalidate(cookie, leagueId) {
   faMemo.invalidate(`${cookie}|${leagueId}`);
   faIdsMemo.invalidate(`${cookie}|${leagueId}`);
   rosterService.invalidate(cookie, leagueId);
+  invalidatePending(cookie, leagueId);
   // A claim here changes rosters/free-agents, so the Players tab's cross-league
   // "mine / free" map is now stale too. Lazy require avoids a playerhub↔waivers cycle.
   require('./playerhub').invalidateGather(cookie);
+}
+
+// A claim write (submit / cancel / edit / reorder) changes MFL's AUTHORITATIVE pending-waivers queue
+// but NOT the roster or free-agent pool (a pending claim doesn't process until its run). Clear only
+// the cached `pendingWaivers` read so the next reconciledPending re-pulls MFL's queue — without the
+// heavier free-agent/roster refetch a full invalidate() forces. This is what makes a just-filed claim
+// show up in Pending immediately instead of hiding behind the read-cache TTL (waivers feedback #7).
+function invalidatePending(cookie, leagueId) {
+  if (config.demoMode) return; // demo has no MFL read cache; the local store is authoritative
+  mfl.invalidateExportType(cookie, leagueId, 'pendingWaivers');
 }
 
 // Availability context (current week + injury/bye maps). In live these are now
@@ -686,6 +697,10 @@ function validateClaim(payload, ctx) {
     valueDelta,
     dropId,
     dropRequired: full,
+    // Roster occupancy so the claim sheet can say "23/24 — room to add" vs "24/24 — a drop is required"
+    // at a glance (feedback #5), instead of leaving the user to infer whether a drop is needed.
+    rosterCount: activeCount(roster),
+    rosterSize: settings.rosterSize || null,
     suggestedDrop: suggestedDrop ? { id: suggestedDrop.id, name: suggestedDrop.name, position: suggestedDrop.position, value: suggestedDrop.value } : null,
     bid,
     suggestedBid,
@@ -1034,7 +1049,11 @@ async function submitMulti(cookie, token, leagueId, claims) {
       results.push({ add: c.add, ok: false, error: mfl.errorDetail(e) });
     }
   }
+  // Immediate (open-window) claims change the roster/FA pool now → full invalidate. A pending queue
+  // claim changes only MFL's pending queue → clear just that read so the just-filed claim shows up in
+  // Pending on the next reconcile instead of hiding behind the read-cache TTL (feedback #7).
   if (pv.immediate) invalidate(cookie, leagueId);
+  else if (results.some((r) => r.ok)) invalidatePending(cookie, leagueId);
   return {
     results,
     summary: { requested: results.length, submitted: results.filter((r) => r.ok).length, totalBid: pv.summary.totalBid, budgetAfter: pv.summary.budgetAfter },
@@ -1068,9 +1087,10 @@ async function submit(cookie, token, leagueId, payload) {
   });
 
   // An immediate (free-agency) add/drop changes the roster and FA pool right away;
-  // a pending waiver claim doesn't until it processes. Refresh the reads so the
-  // board we return — and the next screen — reflect the new state.
+  // a pending waiver claim doesn't until it processes — but it DOES change MFL's pending queue, so
+  // clear that one read (feedback #7) so the claim shows up in Pending immediately.
   if (p.immediate) invalidate(cookie, leagueId);
+  else invalidatePending(cookie, leagueId);
   return { submitted: claim, board: await getBoard(cookie, token, leagueId, {}) };
 }
 
