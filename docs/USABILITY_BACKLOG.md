@@ -161,12 +161,22 @@ write scoping, FAAB/draftable labeling (C10). Reviewers flagged none of these; n
     claim?" / "Cancel claim", error "Could not cancel claim". (Pending tab already said "Cancel".)
 26. **Loading placeholder is split-brain:** `ListSkeleton` (OnDeck, League) vs a bare `ActivityIndicator`
     (Home, Scores, Leagues, Settings, and most overlays). Standardize on the skeleton.
+    ↳ DEFERRED to the design-polish P1 sweep (DESIGN_POLISH_BACKLOG.md #2, "swap the ~18 bare first-load
+    spinners for ListSkeleton") — same work, tracked there; best done as one visual sweep on a build.
 27. **Persistent instructional paragraphs never dismiss** (Roster manage-hint, OnDeck explainer, Players
     free-agent intro, elsewhere) — vertical tax on the daily power user. Make first-run-only/collapsible.
+    ✓ RESOLVED: added a reusable **`DismissibleNote`** (persists a per-id dismissal in AsyncStorage, hidden
+    until the flag resolves so a dismissed note never flashes). Applied to the OnDeck explainer and the
+    Players free-agent intro; the Roster manage-hint was already retired into the Manage toggle (#16).
+    Other one-off explainers can adopt `DismissibleNote` as they surface.
 28. **Login — no show-password toggle and no keyboard "return-to-submit"** on the app's single gate;
     the only feedback on a typo is a full round-trip error.
     ✓ RESOLVED: added an inline Show/Hide reveal on the password field, and wired the keyboard —
     username's Next focuses the password field, password's Go submits.
 29. **Back-label + destructive-confirm patterns vary** ("‹ Back" vs "‹ Hub" vs "‹ {name}"; fixed-`width`
     back labels clip — `minWidth` is the fix LeagueScreen already uses).
+    ✓ RESOLVED (clipping): converted the fixed `width` on every back label + right-aligned header link to
+    `minWidth` across 16 screens, so a longer label ("‹ Leagues") sizes to its text instead of wrapping.
+    The varying back *text* is intentional and kept — it names the return target ("‹ Hub" returns to the
+    Hub tab, "‹ Leagues" to the leagues list), which is more useful than a uniform "‹ Back".
 </content>

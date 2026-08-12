@@ -266,7 +266,7 @@ function ActionRow({ label, onPress, destructive, last, icon }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'transparent' },
   topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 },
-  back: { color: colors.accent, fontSize: 16, fontWeight: '600', width: 60 },
+  back: { color: colors.accent, fontSize: 16, fontWeight: '600', minWidth: 60 },
   body: { padding: 16 },
   card: { backgroundColor: colors.card, borderRadius: 16, borderWidth: 1, borderColor: colors.border, padding: 16, marginBottom: 14 },
   idRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },

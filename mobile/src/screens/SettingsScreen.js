@@ -170,7 +170,7 @@ export default function SettingsScreen({ onBack }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'transparent' },
   topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 },
-  back: { color: colors.accent, fontSize: 16, fontWeight: '600', width: 60 },
+  back: { color: colors.accent, fontSize: 16, fontWeight: '600', minWidth: 60 },
   title: { color: colors.text, fontSize: 17, fontWeight: '900' },
   list: { padding: 16 },
   sectionLabel: { color: colors.violetText, fontSize: 13, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 },

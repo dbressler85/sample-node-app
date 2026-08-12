@@ -364,7 +364,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8 },
-  back: { color: colors.accent, fontSize: 16, fontWeight: '600', width: 54 },
+  back: { color: colors.accent, fontSize: 16, fontWeight: '600', minWidth: 54 },
   titleWrap: { flex: 1, alignItems: 'center' },
   title: { color: colors.text, fontSize: 18, fontWeight: '900' },
   sub: { color: colors.textDim, fontSize: 12, marginTop: 1 },

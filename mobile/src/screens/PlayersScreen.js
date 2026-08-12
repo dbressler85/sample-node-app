@@ -13,6 +13,7 @@ import Pulse from '../components/Pulse';
 import NavTools from '../components/NavTools';
 import Reveal from '../components/Reveal';
 import PartialNote from '../components/PartialNote';
+import DismissibleNote from '../components/DismissibleNote';
 import DeviceNote from '../components/DeviceNote';
 import ValueCredit from '../components/ValueCredit';
 import NewsCredit from '../components/NewsCredit';
@@ -509,13 +510,13 @@ export default function PlayersScreen({ active = true, onOpenPlayer, onStartWaiv
             </>
           ) : tab === 'free' ? (
             <>
-              <View style={styles.freeIntro}>
+              <DismissibleNote id="players-free-intro" style={styles.freeIntro}>
                 <Text style={styles.freeIntroText}>
                   {free
                     ? `Free agents available in one or more of your ${free.totalLeagues} league${free.totalLeagues === 1 ? '' : 's'}, best value first. Tap a player to add him, or re-sort by availability, projection, or name.`
                     : 'Free agents available across your leagues.'}
                 </Text>
-              </View>
+              </DismissibleNote>
               <FilterPanel
                 open={filtersOpen}
                 onToggle={() => setFiltersOpen((o) => !o)}

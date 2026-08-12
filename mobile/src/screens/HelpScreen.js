@@ -62,7 +62,7 @@ export default function HelpScreen({ onBack, topic }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'transparent' },
   topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 },
-  back: { color: colors.accent, fontSize: 16, fontWeight: '600', width: 70 },
+  back: { color: colors.accent, fontSize: 16, fontWeight: '600', minWidth: 70 },
   title: { color: colors.text, fontSize: 17, fontWeight: '900' },
   list: { padding: 16, paddingBottom: 40 },
   intro: { color: colors.textDim, fontSize: 14, lineHeight: 20, marginBottom: 16 },

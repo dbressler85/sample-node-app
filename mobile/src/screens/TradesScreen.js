@@ -1223,7 +1223,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   center: { alignItems: 'center', justifyContent: 'center' },
   topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8 },
-  back: { color: colors.accent, fontSize: 16, fontWeight: '600', width: 60 },
+  back: { color: colors.accent, fontSize: 16, fontWeight: '600', minWidth: 60 },
   title: { color: colors.text, fontSize: 17, fontWeight: '800', flex: 1, textAlign: 'center' },
   formatNote: { color: colors.textDim, fontSize: 11, textAlign: 'center', marginTop: 2 },
   segment: { flexDirection: 'row', marginHorizontal: 16, marginTop: 10, backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 3 },

@@ -192,7 +192,7 @@ const styles = StyleSheet.create({
   grow: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 30 },
   topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8 },
-  back: { color: colors.accent, fontSize: 16, fontWeight: '600', width: 54 },
+  back: { color: colors.accent, fontSize: 16, fontWeight: '600', minWidth: 54 },
   title: { color: colors.text, fontSize: 20, fontWeight: '900' },
   searchWrap: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginTop: 10, backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14 },
   search: { flex: 1, color: colors.text, fontSize: 15, paddingVertical: 11 },
