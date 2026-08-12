@@ -82,5 +82,21 @@ const wr = (value) => ({ position: 'WR', value, trend: 0 });
   assert(scarce > plentiful, `scarce pickup bids more than a replaceable one (${scarce} > ${plentiful})`);
   console.log(`✓ scarcity: scarce $${scarce} > replaceable $${plentiful}`);
 
+  // #1 VALUE CEILING (the real-build complaint: "suggesting I spend 20–50% of budget on fringe
+  // pickups"). A fringe FA — low win-now value — must stay a token bid even for a contender in the
+  // endgame, when every other lever (posture, phase) is maxed. The value ceiling is what stops the
+  // budget-fraction math from handing a flyer a difference-maker's share.
+  const fringeNow = (id) => (id === 'fa1' ? 8 : id === 's1' ? 60 : id === 's2' ? 55 : null);
+  const fringeContenderLate = plan(S, wrId, { roster: ROSTER, week: 16, outlook: 'Win-now window', nowValueOf: fringeNow }).max;
+  assert(fringeContenderLate <= 12, `fringe pickup stays a token bid even for a contender in the endgame, got max $${fringeContenderLate} (>12% of budget)`);
+  console.log(`✓ value ceiling: fringe contender/endgame max $${fringeContenderLate} ≤ $12 (was 20–50% of budget)`);
+
+  // …and a genuine win-now difference-maker is NOT capped down to a token — the ceiling scales with
+  // value, so a 60-value piece still commands a real bid. (Guards against over-correcting #1.)
+  const stud = plan(S, wrId, { roster: ROSTER, week: 16, outlook: 'Win-now window', nowValueOf: strongNow }).target;
+  assert(stud >= 20, `a real win-now difference-maker still commands a real bid, got $${stud}`);
+  assert(stud > fringeContenderLate * 2, `stud bids well above a fringe flyer ($${stud} vs $${fringeContenderLate})`);
+  console.log(`✓ value scales: difference-maker $${stud} ≫ fringe $${fringeContenderLate} (same posture/phase)`);
+
   console.log('\nFAAB BID MODEL HARNESS PASSED');
 })().catch((e) => { console.error(e.message); process.exit(1); });

@@ -397,8 +397,10 @@ const BUDGET_FRACTION = {
   rebuilder: { early: 0.1, mid: 0.15, late: 0.12, endgame: 0.08 },
 };
 // How much a fit is "worth you" (scales the committed fraction): a hole/upgrade earns the full posture
-// budget; bench depth earns a token. null (no roster) is treated as a neutral pickup.
-const FIT_WORTH = { hole: 1.0, upgrade: 0.85, depthPlus: 0.45, depth: 0.2, unknown: 0.5 };
+// budget; bench depth earns a token, and an unknown/unscored pickup is treated as a flyer — NOT a
+// half-worth starter (the old unknown:0.5 / depth:0.2 let fringe adds command 20–50% of budget). The
+// value-anchored ceiling below is the real guard; these just keep fringe fits from starting high.
+const FIT_WORTH = { hole: 1.0, upgrade: 0.85, depthPlus: 0.3, depth: 0.08, unknown: 0.2 };
 const FIT_LABEL = { hole: 'Starting hole', upgrade: 'Starting upgrade', depthPlus: 'Depth', depth: 'Bench flyer', unknown: 'Pickup' };
 const POSTURE_LABEL = { contender: 'win-now', neutral: 'balanced', rebuilder: 'rebuild — hold budget' };
 
@@ -435,8 +437,10 @@ function suggestBidPlan(settings, add, opts = {}) {
   const addNow = opts.nowValueOf ? opts.nowValueOf(add.id) : null;
   if (addNow != null && opts.nextBestNow != null) scarcity = clamp(1 + (addNow - opts.nextBestNow) / 40, 0.85, 1.2);
 
-  // A hot waiver add (value momentum) earns a small bump on top of its fit; scarcity scales it.
-  const worth = clamp((FIT_WORTH[fit] != null ? FIT_WORTH[fit] : 0.5) + Math.min(0.15, (add.trend || 0) / 60000), 0.1, 1.15) * scarcity;
+  // A hot waiver add (value momentum) earns a small bump on top of its fit. Scarcity is applied AFTER
+  // the value ceiling below, not here — folding it into `worth` let the ceiling erase it for any player
+  // whose raw bid already exceeded the cap (scarce and replaceable both flattened to the same number).
+  const worth = clamp((FIT_WORTH[fit] != null ? FIT_WORTH[fit] : 0.5) + Math.min(0.15, (add.trend || 0) / 60000), 0.1, 1.15);
 
   // #7 competition: bigger leagues have more rivals who can outbid, so the price to WIN rises. Applied
   // to target/max (the "win it" numbers), not save (the uncontested price competition doesn't change).
@@ -446,9 +450,21 @@ function suggestBidPlan(settings, add, opts = {}) {
   const frac = (BUDGET_FRACTION[posture] || BUDGET_FRACTION.neutral)[phase];
   const baseRaw = remaining * frac * worth;
 
-  const target = snap(baseRaw * comp, 'up');
-  const save = Math.min(snap(baseRaw * 0.55, 'down'), target); // disciplined: grab him cheap if uncontested
-  const max = Math.max(snap(baseRaw * comp * 1.4, 'up'), target); // must-win: outbid expected competition
+  // VALUE-ANCHORED CEILING — the fix for "fringe pickups suggested at 20–50% of budget." The budget-
+  // fraction math above has no link to the player's own worth, so a low-value flyer inherited a
+  // contender's huge fraction. Cap the bid at a share of remaining budget scaled to the player's
+  // this-season value (win-now, falling back to dynasty): a fringe FA (value ~10) can never command
+  // more than ~7% of budget, while a genuine difference-maker (value ~50+) can still go big. Values
+  // are on the shared 0–100 scale, so a linear map with a hard floor/cap keeps the token bids token.
+  const addWorth = addNow != null ? addNow : add.value != null ? add.value : 0;
+  const valueCap = remaining * clamp(0.02 + addWorth / 200, 0.02, 0.5);
+  // Scarcity (±20%) rides on top of the capped base so a hard-to-replace pickup can still edge above a
+  // replaceable one at the same value tier — without it, the ceiling flattens every capped bid equally.
+  const base = Math.min(baseRaw, valueCap) * scarcity;
+
+  const target = snap(base * comp, 'up');
+  const save = Math.min(snap(base * 0.55, 'down'), target); // disciplined: grab him cheap if uncontested
+  const max = Math.max(snap(base * comp * 1.4, 'up'), target); // must-win: outbid expected competition
   const wk = opts.week ? `, Week ${opts.week}` : '';
   return { target, save, max, rationale: `${FIT_LABEL[fit]} · ${POSTURE_LABEL[posture]}${wk}`, fit, posture };
 }
