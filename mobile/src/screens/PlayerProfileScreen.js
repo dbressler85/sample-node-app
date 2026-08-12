@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, Pressable, ActivityIndicator, Image, Linking } from 'react-native';
+import ListSkeleton from '../components/ListSkeleton';
 import { appAlert } from "../components/AppAlert";
 import { api } from '../api';
 import { colors, positionColors, rgb } from '../theme';
@@ -180,7 +181,7 @@ export default function PlayerProfileScreen({ playerId, seed, onBack, onOpenTrad
             </View>
           </View>
         ) : null}
-        <View style={styles.center}><ActivityIndicator color={colors.accent} size="large" /></View>
+        <ListSkeleton rows={5} />
       </View>
     );
   }
