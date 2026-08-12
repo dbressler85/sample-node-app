@@ -48,6 +48,13 @@ build before merge.
    Trophy:164, PickInventory:57, DraftHub:84, Draft:351, TradeInbox:258, TradeFinder:59,
    PickTradeFinder:56, Leagues:166, DraftList:150, WaiverWizard:338, Portfolio:120, Lineups:112,
    Waivers:523/706, Home:386.
+   - **Slice 1 — DONE:** the read-list overlays — TradeInbox, PickInventory, PickTradeFinder,
+     TradeFinder, DraftHub, PlayoffBracket. Each was a body-level spinner beneath an already-rendered
+     header, so the swap kept the header and just filled the body; unused `ActivityIndicator` imports
+     pruned. (Closes usability backlog #26 for these.)
+   - **Remaining:** Roster, PlayerProfile, Portfolio, Trophy, Leagues, Home, Scores, DraftList, Draft,
+     Lineups, Waivers — next slices; some replace a full-screen cold-load (wrap the skeleton in the
+     screen container) so they want a per-site read, not a blind sweep.
 
 3. **Route the ~10 hand-rolled section labels through `displayLabel()`** so the eyebrow renders in
    Oswald everywhere (today it's Oswald on ~half the screens, system font on the rest). Sites:

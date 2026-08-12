@@ -1,5 +1,6 @@
 import React, { useCallback } from 'react';
-import { View, Text, StyleSheet, Pressable, SectionList, RefreshControl, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Pressable, SectionList, RefreshControl } from 'react-native';
+import ListSkeleton from '../components/ListSkeleton';
 import { colors } from '../theme';
 import { displayLabel } from '../typography';
 import { pickInventoryPreferDevice } from '../mflDevice';
@@ -54,7 +55,7 @@ export default function PickInventoryScreen({ onBack, onShopPicks, onGetPicks, o
       ) : null}
 
       {loading ? (
-        <View style={styles.center}><ActivityIndicator color={colors.accent} size="large" /></View>
+        <ListSkeleton rows={8} />
       ) : error ? (
         <ErrorView message={error} onRetry={reload} refreshing={refreshing} onRefresh={reload} />
       ) : !sections.length ? (

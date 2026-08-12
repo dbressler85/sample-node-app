@@ -1,5 +1,6 @@
 import React, { useCallback } from 'react';
-import { View, Text, StyleSheet, Pressable, FlatList, RefreshControl, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Pressable, FlatList, RefreshControl } from 'react-native';
+import ListSkeleton from '../components/ListSkeleton';
 import { colors } from '../theme';
 import { displayLabel } from '../typography';
 import { api } from '../api';
@@ -56,7 +57,7 @@ export default function PickTradeFinderScreen({ leagueId, name, intent, onBack, 
       </Text>
 
       {loading ? (
-        <View style={styles.center}><ActivityIndicator color={colors.accent} size="large" /></View>
+        <ListSkeleton rows={6} />
       ) : error ? (
         <ErrorView message={error} onRetry={reload} refreshing={refreshing} onRefresh={reload} />
       ) : !partners.length ? (

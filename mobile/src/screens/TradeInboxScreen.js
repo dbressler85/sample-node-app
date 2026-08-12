@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, FlatList, RefreshControl, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Pressable, FlatList, RefreshControl } from 'react-native';
+import ListSkeleton from '../components/ListSkeleton';
 import { appAlert } from "../components/AppAlert";
 import { useRequirePro } from '../entitlement';
 import { api } from '../api';
@@ -256,7 +257,7 @@ export default function TradeInboxScreen({ active = true, onBack, onOpenLeague, 
       ) : null}
 
       {loading ? (
-        <View style={styles.center}><ActivityIndicator color={colors.accent} size="large" /></View>
+        <ListSkeleton rows={6} />
       ) : error && !data ? (
         <ErrorView message={error} onRetry={reload} refreshing={refreshing} onRefresh={reload} />
       ) : (

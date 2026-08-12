@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, RefreshControl, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, RefreshControl } from 'react-native';
+import ListSkeleton from '../components/ListSkeleton';
 import { colors } from '../theme';
 import { displayLabel } from '../typography';
 import { TopbarTitle } from '../components/Brand';
@@ -116,7 +117,7 @@ export default function DraftHubScreen({ covered = false, onBack, onOpenDraft, o
       ) : null}
 
       {loading ? (
-        <View style={styles.center}><ActivityIndicator color={colors.accent} size="large" /></View>
+        <ListSkeleton rows={6} />
       ) : error ? (
         <ErrorView message={error} onRetry={reload} refreshing={refreshing} onRefresh={reload} />
       ) : drafts.length === 0 ? (

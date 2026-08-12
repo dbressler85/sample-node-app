@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, RefreshControl } from 'react-native';
+import ListSkeleton from '../components/ListSkeleton';
 import { api } from '../api';
 import { colors } from '../theme';
 import { TopbarTitle } from '../components/Brand';
@@ -78,7 +79,7 @@ export default function PlayoffBracketScreen({ league, onBack }) {
       </View>
 
       {loading ? (
-        <View style={styles.center}><ActivityIndicator color={colors.accent} size="large" /></View>
+        <ListSkeleton rows={5} />
       ) : error ? (
         <ErrorView message={error} onRetry={reload} refreshing={refreshing} onRefresh={reload} />
       ) : !data || !data.available || !brackets.length ? (
