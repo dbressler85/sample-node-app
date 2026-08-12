@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, SectionList, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
+import ListSkeleton from '../components/ListSkeleton';
 import { appAlert } from "../components/AppAlert";
 import { api } from '../api';
 import PlayerRow from '../components/PlayerRow';
@@ -237,9 +238,7 @@ export default function RosterScreen({ league, onBack, onOpenTrades, onOpenDraft
       ) : null}
 
       {loading ? (
-        <View style={styles.center}>
-          <ActivityIndicator color={colors.accent} size="large" />
-        </View>
+        <ListSkeleton rows={8} />
       ) : error && !roster ? (
         <ErrorView message={typeof error === 'string' ? error : error && error.message} onRetry={reload} />
       ) : (

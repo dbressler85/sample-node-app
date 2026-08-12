@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, FlatList, ActivityIndicator, RefreshControl, Modal, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
+import ListSkeleton from '../components/ListSkeleton';
 import { appAlert } from "../components/AppAlert";
 import { api } from '../api';
 import { colors } from '../theme';
@@ -162,7 +163,7 @@ export default function TrophyCaseScreen({ onBack }) {
       ) : null}
 
       {loading ? (
-        <View style={styles.center}><ActivityIndicator color={colors.accent} size="large" /></View>
+        <ListSkeleton rows={6} />
       ) : error ? (
         <ErrorView message={error} onRetry={reload} refreshing={refreshing} onRefresh={reload} />
       ) : !trophies.length ? (

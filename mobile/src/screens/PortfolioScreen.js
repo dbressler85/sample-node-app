@@ -1,5 +1,6 @@
 import React, { useCallback, useRef, useState } from 'react';
-import { View, Text, ScrollView, FlatList, StyleSheet, Pressable, ActivityIndicator, RefreshControl, Dimensions } from 'react-native';
+import { View, Text, ScrollView, FlatList, StyleSheet, Pressable, RefreshControl, Dimensions } from 'react-native';
+import ListSkeleton from '../components/ListSkeleton';
 import { api } from '../api';
 import { portfolioPreferDevice } from '../mflDevice';
 import { colors, positionColors } from '../theme';
@@ -117,7 +118,7 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
     );
   }
   if (!d) {
-    return <View style={[styles.container, styles.center]}><ActivityIndicator color={colors.accent} size="large" /></View>;
+    return <View style={styles.container}><ListSkeleton rows={6} /></View>;
   }
 
   const maxBand = Math.max(1, ...d.ageCurve.map((b) => b.value));

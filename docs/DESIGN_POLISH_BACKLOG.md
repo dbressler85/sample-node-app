@@ -52,9 +52,12 @@ build before merge.
      TradeFinder, DraftHub, PlayoffBracket. Each was a body-level spinner beneath an already-rendered
      header, so the swap kept the header and just filled the body; unused `ActivityIndicator` imports
      pruned. (Closes usability backlog #26 for these.)
-   - **Remaining:** Roster, PlayerProfile, Portfolio, Trophy, Leagues, Home, Scores, DraftList, Draft,
-     Lineups, Waivers — next slices; some replace a full-screen cold-load (wrap the skeleton in the
-     screen container) so they want a per-site read, not a blind sweep.
+   - **Slice 2 — DONE:** Roster, PlayerProfile, Trophy (body-level swaps) + Portfolio (full-screen
+     cold-load, wrapped in the screen container). Kept each file's other in-place spinners (Roster
+     move-row busy, Trophy detect).
+   - **Remaining:** Leagues, Home, Scores, DraftList, Draft, Lineups, Waivers — next slices. Several of
+     these are non-list or streaming screens where a lone spinner may be the right call (a form, a
+     stepper, a live board); those should be judged per-site, not swept.
 
 3. **Route the ~10 hand-rolled section labels through `displayLabel()`** so the eyebrow renders in
    Oswald everywhere (today it's Oswald on ~half the screens, system font on the rest). Sites:
