@@ -628,8 +628,8 @@ function BoardView({ board, loading, error, position, setPosition, sort, setSort
                 </Text>
                 {c.drop ? <Text style={styles.claimDrop} numberOfLines={1}>− {c.drop.name}</Text> : null}
               </View>
-              <Pressable onPress={() => onCancel && onCancel(c.id, board.leagueId)} hitSlop={8} style={styles.claimDelBtn}>
-                <Text style={styles.claimDel}>Delete</Text>
+              <Pressable onPress={() => onCancel && onCancel(c.id, board.leagueId)} hitSlop={8} style={styles.claimDelBtn} accessibilityRole="button" accessibilityLabel="Cancel this claim">
+                <Text style={styles.claimDel}>Cancel</Text>
               </Pressable>
             </View>
           ))}

@@ -150,14 +150,23 @@ write scoping, FAAB/draftable labeling (C10). Reviewers flagged none of these; n
 24. **Verdict vocabulary drifts three ways** for one concept: desk/inbox "You gain value / give up value"
     (`favorable/fair/unfavorable`) vs TradeFinder "You win value / pay up" (`…/light`) vs PickTradeFinder
     (same words, `unfavorable` key). Unify wording + keys.
+    ✓ RESOLVED: both finders now share ONE verdict map (favorable/fair/light) with the desk's wording for
+    the shared cases — "You gain value" / "Fair deal" — and fixed PickTradeFinder's dead `unfavorable`
+    key (the backend emits `light`, so "You pay up" never rendered). The finder-specific `light` ("you
+    pay a small premium for a target", warn) stays distinct from the desk's `unfavorable` ("you give up
+    value", bad) — genuinely different contexts (proposing to acquire vs. judging an offer received).
 25. **"Remove a pending claim" has three verbs:** board "Delete", Pending tab "Cancel", wizard ✕→"Delete
     claim?". Pick one.
+    ✓ RESOLVED: standardized on **Cancel** — board "Delete"→"Cancel", wizard "Delete claim?"→"Cancel this
+    claim?" / "Cancel claim", error "Could not cancel claim". (Pending tab already said "Cancel".)
 26. **Loading placeholder is split-brain:** `ListSkeleton` (OnDeck, League) vs a bare `ActivityIndicator`
     (Home, Scores, Leagues, Settings, and most overlays). Standardize on the skeleton.
 27. **Persistent instructional paragraphs never dismiss** (Roster manage-hint, OnDeck explainer, Players
     free-agent intro, elsewhere) — vertical tax on the daily power user. Make first-run-only/collapsible.
 28. **Login — no show-password toggle and no keyboard "return-to-submit"** on the app's single gate;
     the only feedback on a typo is a full round-trip error.
+    ✓ RESOLVED: added an inline Show/Hide reveal on the password field, and wired the keyboard —
+    username's Next focuses the password field, password's Go submits.
 29. **Back-label + destructive-confirm patterns vary** ("‹ Back" vs "‹ Hub" vs "‹ {name}"; fixed-`width`
     back labels clip — `minWidth` is the fix LeagueScreen already uses).
 </content>

@@ -3,6 +3,7 @@ import {
   View,
   Text,
   TextInput,
+  Pressable,
   StyleSheet,
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -31,8 +32,10 @@ const WASH = Math.round(Math.max(SCREEN.width, SCREEN.height) * 1.5);
 export default function LoginScreen({ onLoggedIn, justLoggedOut = false }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPw, setShowPw] = useState(false); // reveal the password on the app's single gate (#28)
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  const pwRef = useRef(null); // focus password from the username field's return key
   const reduced = useReducedMotion();
   // The crest's neon state (docs/MOTION_AND_NEON_ROADMAP.md §2.1). It rests UNLIT (dull glass) on a
   // fresh login and IGNITES when sign-in succeeds. Arriving here straight from a logout, it starts
@@ -178,15 +181,34 @@ export default function LoginScreen({ onLoggedIn, justLoggedOut = false }) {
             autoCorrect={false}
             value={username}
             onChangeText={setUsername}
+            returnKeyType="next"
+            blurOnSubmit={false}
+            onSubmitEditing={() => pwRef.current && pwRef.current.focus()}
           />
-          <TextInput
-            style={styles.input}
-            placeholder="MFL password"
-            placeholderTextColor={colors.textDim}
-            secureTextEntry
-            value={password}
-            onChangeText={setPassword}
-          />
+          <View style={styles.pwWrap}>
+            <TextInput
+              ref={pwRef}
+              style={[styles.input, styles.pwInput]}
+              placeholder="MFL password"
+              placeholderTextColor={colors.textDim}
+              secureTextEntry={!showPw}
+              autoCapitalize="none"
+              autoCorrect={false}
+              value={password}
+              onChangeText={setPassword}
+              returnKeyType="go"
+              onSubmitEditing={submit}
+            />
+            <Pressable
+              style={styles.pwToggle}
+              onPress={() => setShowPw((v) => !v)}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={showPw ? 'Hide password' : 'Show password'}
+            >
+              <Text style={styles.pwToggleText}>{showPw ? 'Hide' : 'Show'}</Text>
+            </Pressable>
+          </View>
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
 
@@ -229,6 +251,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginBottom: 12,
   },
+  // Password field + inline Show/Hide reveal (#28). The input loses its own bottom margin (the wrap
+  // owns it) and gains right padding so the text never runs under the toggle.
+  pwWrap: { position: 'relative', justifyContent: 'center', marginBottom: 12 },
+  pwInput: { marginBottom: 0, paddingRight: 68 },
+  pwToggle: { position: 'absolute', right: 10, paddingHorizontal: 6, paddingVertical: 8 },
+  pwToggleText: { color: colors.accent, fontSize: 13, fontWeight: '800' },
   button: {
     backgroundColor: colors.accent,
     borderRadius: 12,

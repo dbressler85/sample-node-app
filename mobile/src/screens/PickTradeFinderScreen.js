@@ -22,11 +22,14 @@ const OUTLOOK_COLOR = {
   Rebuilding: colors.textDim,
   Balanced: colors.textDim,
 };
-// My-perspective value verdict → tint. Favorable reads as a win, unfavorable as a caution.
+// My-perspective value verdict → tint. Shares the trade desk's wording for the shared cases
+// ("You gain value" / "Fair deal") and keys off the SAME values the backend suggester emits
+// (favorable / fair / light) — the old `unfavorable` key never matched, so "You pay up" never showed
+// (usability backlog #24). `light` = a small premium you pay for a target, a caution in this context.
 const VERDICT = {
-  favorable: { color: colors.good, label: 'You win value' },
-  fair: { color: colors.textDim, label: 'Even value' },
-  unfavorable: { color: colors.warn, label: 'You pay up' },
+  favorable: { color: colors.good, label: 'You gain value' },
+  fair: { color: colors.textDim, label: 'Fair deal' },
+  light: { color: colors.warn, label: 'You pay up' },
 };
 
 export default function PickTradeFinderScreen({ leagueId, name, intent, onBack, onOpenDeal }) {

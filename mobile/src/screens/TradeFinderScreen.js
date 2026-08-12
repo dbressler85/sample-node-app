@@ -15,10 +15,13 @@ import { Value, TopbarTitle } from '../components/Brand';
 // THIS league right now, ranked by your window (a contender tolerates paying up for a win-now fit). Each
 // row is a pre-built, value-balanced deal — tap it to open the trade desk seeded on that exact deal.
 
-// My-perspective value verdict → tint. Favorable reads as a win; 'light' means I pay up (a caution).
+// My-perspective value verdict → tint. Shares the trade desk's wording for the shared cases
+// ("You gain value" / "Fair deal"); 'light' = I pay a small premium for a target (a caution in this
+// shopping context, distinct from the desk's "you give up value"). Keyed off the backend's values
+// (favorable / fair / light) — kept identical to PickTradeFinder so the two finders can't drift (#24).
 const VERDICT = {
-  favorable: { color: colors.good, label: 'You win value' },
-  fair: { color: colors.textDim, label: 'Even value' },
+  favorable: { color: colors.good, label: 'You gain value' },
+  fair: { color: colors.textDim, label: 'Fair deal' },
   light: { color: colors.warn, label: 'You pay up' },
 };
 // The window drives what "a good deal" even means — surface it so the ranking reads as intentional.

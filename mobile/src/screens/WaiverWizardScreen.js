@@ -267,7 +267,7 @@ export default function WaiverWizardScreen({ leagues, seedAddId = null, onBack, 
       await api.cancelClaim(currentId, claimId);
       await refetchCurrent();
     } catch (e) {
-      appAlert('Could not delete claim', e.message, null, { tone: 'error' });
+      appAlert('Could not cancel claim', e.message, null, { tone: 'error' });
     } finally {
       setSubmittedBusy(false);
     }
@@ -438,9 +438,9 @@ export default function WaiverWizardScreen({ leagues, seedAddId = null, onBack, 
                   ) : null}
                   <Pressable
                     onPress={() =>
-                      appAlert('Delete claim?', `Remove your ${c.add ? shortName(c.add.name) : ''} claim from this league?`, [
+                      appAlert('Cancel this claim?', `Remove your ${c.add ? shortName(c.add.name) : ''} claim from this league?`, [
                         { text: 'Keep', style: 'cancel' },
-                        { text: 'Delete', style: 'destructive', onPress: () => deleteSubmitted(c.id) },
+                        { text: 'Cancel claim', style: 'destructive', onPress: () => deleteSubmitted(c.id) },
                       ])
                     }
                     disabled={submittedBusy}
