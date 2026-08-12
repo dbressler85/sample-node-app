@@ -398,7 +398,7 @@ function OverviewView({ overview, loading, refreshing, error, onOpen, onRefresh 
   if (error && !overview) return <ErrorView message={error} onRetry={onRefresh} onRefresh={onRefresh} refreshing={refreshing} />;
   return (
     <FlatList
-      data={overview ? overview.leagues : []}
+      data={overview ? sortByUrgency(overview.leagues) : []}
       keyExtractor={(l) => l.leagueId}
       contentContainerStyle={styles.list}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />}
@@ -433,6 +433,32 @@ function OverviewSkeleton({ count = 4 }) {
       </Pulse>
     </View>
   );
+}
+
+// A waiver run within this window counts as "imminent" — floated up top, card emphasized, and a
+// get-your-claims-in badge shown. Long enough to catch a "tonight" run you opened this morning.
+const IMMINENT_MS = 24 * 60 * 60 * 1000;
+function isImminent(item) {
+  return item && item.waiverState === 'waivers_soon' && item.nextWaiverRun != null && item.nextWaiverRun - Date.now() <= IMMINENT_MS;
+}
+// Urgency ranking for the overview: leagues with a waiver run coming FIRST (soonest run leads — that's
+// the deadline you're racing), then open free agency (actionable but no deadline), then closed, then
+// unreadable. Stable within a group (keeps the incoming pinned-first order via the original index).
+function waiverSortKey(item) {
+  if (item.error) return [3, 0];
+  if (item.waiverState === 'waivers_soon') return [0, item.nextWaiverRun != null ? item.nextWaiverRun : 0];
+  if (item.waiverState === 'fa_open') return [1, 0];
+  return [2, 0];
+}
+function sortByUrgency(leagues) {
+  return (leagues || [])
+    .map((l, i) => ({ l, i }))
+    .sort((a, b) => {
+      const ka = waiverSortKey(a.l);
+      const kb = waiverSortKey(b.l);
+      return ka[0] - kb[0] || ka[1] - kb[1] || a.i - b.i;
+    })
+    .map((x) => x.l);
 }
 
 // "in 2 days" / "in 6 hours" / "within the hour" for a future run timestamp (ms).
@@ -478,8 +504,9 @@ function LeagueCard({ item, onPress }) {
       ? `Priority #${item.waiverPriority}`
       : null;
   const st = stateInfo(item);
+  const imminent = isImminent(item);
   return (
-    <Pressable style={({ pressed }) => [styles.ovCard, { borderLeftWidth: 3, borderLeftColor: st.color }, pressed && { opacity: 0.7 }]} onPress={onPress}>
+    <Pressable style={({ pressed }) => [styles.ovCard, { borderLeftWidth: 3, borderLeftColor: st.color }, imminent && styles.ovCardImminent, pressed && { opacity: 0.7 }]} onPress={onPress}>
       <View style={styles.ovTop}>
         <Text style={styles.ovName} numberOfLines={1}>{item.name}</Text>
         <SystemBadge system={item.system} />
@@ -491,6 +518,11 @@ function LeagueCard({ item, onPress }) {
         </View>
         <Text style={styles.stateSub} numberOfLines={2}>{st.sub}</Text>
       </View>
+      {imminent ? (
+        <View style={styles.imminentBadge}>
+          <Text style={styles.imminentText}>Get your claims in — processes {runLabel(item.nextWaiverRun)}</Text>
+        </View>
+      ) : null}
       <Text style={styles.ovMeta}>
         {[
           budget,

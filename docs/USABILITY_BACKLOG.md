@@ -118,12 +118,20 @@ write scoping, FAAB/draftable labeling (C10). Reviewers flagged none of these; n
 19. **Waivers — imminent leagues aren't floated to the top; the "imminent" styling is defined but never
     applied** (`ovCardImminent`/`imminentBadge` dead — proof it was intended). Sort/group `waivers_soon`
     by run time and wire the emphasis.
+    ✓ RESOLVED: the overview now sorts by urgency — leagues with a waiver run coming (soonest first),
+    then open free agency, then closed — and a run within 24h gets the `ovCardImminent` border emphasis
+    plus a "Get your claims in — processes {when}" badge. Stable within a group (keeps pinned order).
 20. **Draft — "Avoid" rows are dimmed to `opacity:0.5`,** the exact pattern Waivers explicitly rejected
     (its comment: dimming "killed the name's legibility and tap affordance"). Use the color-wash instead —
     on the highest-pressure screen especially.
+    ✓ RESOLVED: Avoid rows now use a red color-wash (border + faint fill), matching the Target wash; the
+    ⊘ tag already signals avoid. Name legibility and the Draft button's affordance are preserved.
 21. **Draft — the pool can reflow under your finger mid-poll.** The confirm sheet (which *names* the
     player) is the only thing preventing a wrong irreversible pick — keep it, and freeze pool order while
     a row's Draft is armed.
+    ✓ RESOLVED: the pool order is frozen while it's my turn (snapshot on turn-start / filter-change, not
+    on every poll) so a background refresh can't slide a different player under my tap; polling also
+    pauses while the confirm sheet is armed. The naming confirm sheet stays as the final guard.
 22. **DraftList — reordering is 4 tiny icon buttons, one step at a time** (no drag, no to-bottom). A
     drag handle is the expected interaction for a 30+ ranked list.
 23. **PlayerProfile — Shop vs Drop show identical counts and overlapping models; Target/Avoid's ±10%
