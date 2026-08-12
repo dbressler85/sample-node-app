@@ -1505,34 +1505,16 @@ async function waiverLocks(cookie, token) {
   return map;
 }
 
-// Per-league waiver summary for the landing list (mirrors the Lineups overview):
-// one card per league showing system, budget/priority, roster space, how many
-// free agents are worth a look, top available by value, and pending claims.
-// A league's waiver POSTURE from the calendar + draft state, shared by the waiver landing AND the
-// wizard so both agree on whether you can act now:
+// Per-league waiver summary for the landing list (mirrors the Lineups overview): one card per league
+// showing system, budget/priority, roster space, how many free agents are worth a look, top available
+// by value, and pending claims. A league's waiver POSTURE (calendar + draft aware) tells the UI whether
+// you can act now — computed INLINE in getOverview so its reads join the single per-league batch:
 //   'fa_open'      — free agency is open: add anyone immediately.
 //   'waivers_soon' — a run is scheduled ahead (calendar nextWaiverRun): QUEUE claims now, they process
 //                    then. A FAAB league between runs lands here — you can and should still queue.
 //   'locked'       — neither: no open FA and no upcoming run (draft pending / offseason quiet).
-// Returns { waiverState, lockReason }. `waiverRun` is the soonest upcoming run (ms) or null.
-async function waiverPosture(cookie, token, league, settings, waiverRun) {
-  if (config.demoMode) {
-    return { waiverState: settings.system === 'free' ? 'fa_open' : 'waivers_soon', lockReason: null };
-  }
-  const draftService = require('./draft'); // lazy require — avoids a waivers↔draft cycle
-  // Bias toward LOCKED when a read is uncertain: if the "is free agency open?" check fails/loads,
-  // default it to CLOSED (not open). Wrongly showing "waivers run soon" for a league that's actually
-  // open is harmless (you'll still see the board); wrongly flashing "FA OPEN — add anyone now" for a
-  // league that's really locked invites a claim that can't process. So err on the side of locked.
-  const [calLock, open] = await Promise.all([
-    calendarLock(cookie, league).catch(() => null),
-    draftService.freeAgencyOpen(cookie, token, league).catch(() => false),
-  ]);
-  const faOpen = !calLock && open;
-  const hasUpcomingRun = waiverRun != null && waiverRun > Date.now();
-  const waiverState = faOpen ? 'fa_open' : hasUpcomingRun ? 'waivers_soon' : 'locked';
-  return { waiverState, lockReason: waiverState === 'locked' ? calLock : null };
-}
+// Bias toward LOCKED when uncertain: wrongly flashing "FA OPEN — add anyone now" for a locked league
+// invites a claim that can't process, whereas a spurious "waivers run soon" just shows the board.
 
 // `deviceReads` (optional) maps leagueId -> the raw `freeAgents` units the DEVICE fetched — when present,
 // the per-league free-agent-pool read (the heaviest here) is served from it (docs/DEVICE_ORIGIN_MFL.md).
@@ -1551,7 +1533,13 @@ async function getOverview(cookie, token, { deviceReads = null } = {}) {
         // Settings, roster, FA summary, and the next waiver-process time are independent reads —
         // fetch them all together so the league costs one throttle round-trip, not four in sequence.
         const dr = deviceReads ? deviceReads[String(league.leagueId)] : null;
-        const [settings, roster, fa, waiverRun, pending] = await Promise.all([
+        const draftService = require('./draft'); // lazy require — avoids a waivers↔draft cycle
+        // ONE parallel batch per league. The posture reads (calendarLock + freeAgencyOpen) used to run
+        // in a SECOND awaited round-trip via waiverPosture() AFTER this batch — an extra throttle-stagger
+        // round per league that, fanned across every league at once, was a big chunk of the >30s cold
+        // load (feedback #6). They don't depend on the batch results, so they join it here; the posture
+        // rules are then computed inline below (waiverPosture's own logic, no second network round).
+        const [settings, roster, fa, waiverRun, pending, calLock, faOpenRaw] = await Promise.all([
           // fresh:false — the landing is READ-ONLY (it only displays FAAB balance / priority / system /
           // roster size), so serve settings from the 24h `league` cache like getBoard does. The overview
           // fans this read across EVERY league at once; with fresh:true each league forced a near-live
@@ -1566,13 +1554,20 @@ async function getOverview(cookie, token, { deviceReads = null } = {}) {
           // Reconcile with MFL's queue so the count reflects claims placed on the site too, not just
           // in-app ones (byId is cached from the reads above).
           reconciledPending(cookie, token, league, byId),
+          // Posture inputs (were a second serial round-trip via waiverPosture) — now in the same batch.
+          config.demoMode ? Promise.resolve(null) : calendarLock(cookie, league).catch(() => null),
+          config.demoMode ? Promise.resolve(true) : draftService.freeAgencyOpen(cookie, token, league).catch(() => false),
         ]);
         const pendingCount = pending.filter((c) => (c.status || 'pending') === 'pending').length;
         // "Imminent" = the next run is ahead of us but within the act-now window. A run already
         // in the past (stale calendar occurrence) doesn't count.
         const waiverImminent = waiverRun != null && waiverRun > Date.now() && waiverRun - Date.now() <= config.waiverImminentMs;
-        // The league's pickup posture (calendar + draft aware), so the UI can be explicit.
-        const { waiverState } = await waiverPosture(cookie, token, league, settings, waiverRun);
+        // The league's pickup posture — waiverPosture's rules, inlined so its reads joined the batch
+        // above. Bias toward LOCKED when uncertain (freeAgencyOpen defaults false on error).
+        const hasUpcomingRun = waiverRun != null && waiverRun > Date.now();
+        const waiverState = config.demoMode
+          ? (settings.system === 'free' ? 'fa_open' : 'waivers_soon')
+          : (!calLock && faOpenRaw) ? 'fa_open' : hasUpcomingRun ? 'waivers_soon' : 'locked';
         return {
           leagueId: league.leagueId,
           name: league.name,
