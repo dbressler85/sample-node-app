@@ -242,7 +242,7 @@ export default function TrophyCaseScreen({ onBack }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 6 },
-  back: { color: colors.accent, fontSize: 15, fontWeight: '700', width: 74 },
+  back: { color: colors.accent, fontSize: 15, fontWeight: '700', minWidth: 74 },
   title: { color: colors.text, fontSize: 17, fontWeight: '800' },
   addBtn: { width: 74, alignItems: 'flex-end' },
   addBtnText: { color: colors.accent, fontSize: 14, fontWeight: '800' },

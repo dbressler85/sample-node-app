@@ -9,6 +9,7 @@ import useCachedResource from '../useCachedResource';
 import NeonSign from '../components/NeonSign';
 import ErrorView from '../components/ErrorView';
 import ListSkeleton from '../components/ListSkeleton';
+import DismissibleNote from '../components/DismissibleNote';
 
 // On Deck — the proactive, time-sorted view of what needs you next across every
 // league. Draft clocks (now), lineup locks (next kickoff), scheduled drafts, and
@@ -119,9 +120,11 @@ export default function OnDeckScreen({ covered = false, onBack, onOpenLineup, on
             {upcoming.length ? <Text style={{ color: colors.textDim }}>{`  ·  ${upcoming.length} upcoming`}</Text> : null}
             {data.summary && data.summary.onClock ? <Text style={{ color: colors.gold, fontWeight: '800' }}>{`  ·  ${data.summary.onClock} on the clock`}</Text> : null}
           </Text>
-          <Text style={styles.explain}>
-            <Text style={{ fontWeight: '800', color: colors.text }}>Needs you</Text> = things to act on (draft clocks, lineups, waivers you haven’t claimed, trade offers, deadlines). <Text style={{ fontWeight: '800', color: colors.text }}>Upcoming</Text> = scheduled or already done (your submitted claims processing, a scheduled draft).
-          </Text>
+          <DismissibleNote id="ondeck-explain">
+            <Text style={styles.explain}>
+              <Text style={{ fontWeight: '800', color: colors.text }}>Needs you</Text> = things to act on (draft clocks, lineups, waivers you haven’t claimed, trade offers, deadlines). <Text style={{ fontWeight: '800', color: colors.text }}>Upcoming</Text> = scheduled or already done (your submitted claims processing, a scheduled draft).
+            </Text>
+          </DismissibleNote>
         </>
       ) : null}
 
@@ -181,7 +184,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8 },
-  back: { color: colors.accent, fontSize: 16, fontWeight: '600', width: 54 },
+  back: { color: colors.accent, fontSize: 16, fontWeight: '600', minWidth: 54 },
   title: { color: colors.text, fontSize: 20, fontWeight: '900' },
   subtitle: { color: colors.textDim, fontSize: 13, textAlign: 'center', marginTop: 4 },
   explain: { color: colors.textDim, fontSize: 12, textAlign: 'center', marginTop: 4, paddingHorizontal: 24, lineHeight: 17, opacity: 0.85 },

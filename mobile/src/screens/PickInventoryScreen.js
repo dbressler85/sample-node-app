@@ -165,7 +165,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8 },
-  back: { color: colors.accent, fontSize: 16, fontWeight: '600', width: 54 },
+  back: { color: colors.accent, fontSize: 16, fontWeight: '600', minWidth: 54 },
   title: { color: colors.text, fontSize: 20, fontWeight: '900' },
   subtitle: { color: colors.textDim, fontSize: 13, textAlign: 'center', marginTop: 4 },
   list: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 32 },

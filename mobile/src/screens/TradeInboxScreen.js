@@ -412,8 +412,8 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8 },
-  back: { color: colors.accent, fontSize: 16, fontWeight: '600', width: 54 },
-  blockLink: { color: colors.accent, fontSize: 14, fontWeight: '800', width: 54, textAlign: 'right' },
+  back: { color: colors.accent, fontSize: 16, fontWeight: '600', minWidth: 54 },
+  blockLink: { color: colors.accent, fontSize: 14, fontWeight: '800', minWidth: 54, textAlign: 'right' },
   // Violet heading = the structure/wayfinding layer (color law); soft violet glow to match the ignite.
   title: { color: colors.violetText, fontSize: 20, fontWeight: '900', textShadowColor: 'rgba(139,92,246,0.5)', textShadowRadius: 9, textShadowOffset: { width: 0, height: 0 } },
   subtitle: { color: colors.textDim, fontSize: 13, marginTop: 6, paddingHorizontal: 16 },

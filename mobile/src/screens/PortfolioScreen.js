@@ -951,7 +951,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'transparent' },
   center: { alignItems: 'center', justifyContent: 'center', padding: 24 },
   topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 },
-  back: { color: colors.accent, fontSize: 16, fontWeight: '600', width: 60 },
+  back: { color: colors.accent, fontSize: 16, fontWeight: '600', minWidth: 60 },
   title: { color: colors.text, fontSize: 17, fontWeight: '900' },
   body: { padding: 16 },
   card: { backgroundColor: colors.card, borderRadius: 16, borderWidth: 1, borderColor: colors.border, padding: 16, marginBottom: 14 },

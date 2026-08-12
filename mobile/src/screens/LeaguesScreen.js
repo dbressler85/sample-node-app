@@ -207,9 +207,9 @@ export default function LeaguesScreen({ onBack, onOpenLeague, onOpenDraftHub }) 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'transparent' },
   topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 },
-  back: { color: colors.accent, fontSize: 16, fontWeight: '600', width: 70 },
+  back: { color: colors.accent, fontSize: 16, fontWeight: '600', minWidth: 70 },
   title: { color: colors.text, fontSize: 17, fontWeight: '900' },
-  link: { color: colors.accent, fontSize: 15, fontWeight: '700', width: 70, textAlign: 'right' },
+  link: { color: colors.accent, fontSize: 15, fontWeight: '700', minWidth: 70, textAlign: 'right' },
   list: { padding: 16 },
   searchRow: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginTop: 4, marginBottom: 2 },
   search: { flex: 1, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, color: colors.text, fontSize: 14 },
