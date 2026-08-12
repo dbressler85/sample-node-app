@@ -27,7 +27,15 @@ export default function WaiverWizardScreen({ leagues, seedAddId = null, onBack, 
   const [addId, setAddId] = useState(null);
   const [dropId, setDropId] = useState(null);
   const [bid, setBid] = useState(null); // string, faab only
-  const [queue, setQueue] = useState([]); // extra claims staged for THIS league (multi-add)
+  // Did the user actually touch the pre-filled suggestion? Guards the "skip without filing" warning —
+  // the untouched recommendation isn't the user's work, so skipping past it shouldn't nag (feedback #8).
+  const editedRef = useRef(false);
+  const markEdited = () => { editedRef.current = true; };
+  // Scroll the builder so an expanded add/roster picker lands at the top of the view (feedback #2).
+  const scrollRef = useRef(null);
+  const addYRef = useRef(0);
+  const dropYRef = useRef(0);
+  const scrollToY = (y) => { if (scrollRef.current) scrollRef.current.scrollTo({ y: Math.max(0, y - 8), animated: true }); };
   const [browsing, setBrowsing] = useState(false); // candidate picker open
   const [posFilter, setPosFilter] = useState(null); // position filter in the add picker
   const [changingDrop, setChangingDrop] = useState(false); // bench picker open
@@ -100,11 +108,15 @@ export default function WaiverWizardScreen({ leagues, seedAddId = null, onBack, 
     setAddId(seedAdd);
     setDropId(rec && rec.drop ? rec.drop.id : null);
     setBid(rec && rec.bid != null ? String(rec.bid) : current.system === 'faab' ? String(current.minBid || 1) : null);
-    setQueue([]);
+    editedRef.current = false; // a freshly-seeded suggestion is not the user's own work yet (#8)
     setBrowsing(false);
     setPosFilter(null);
     setChangingDrop(false);
   }, [current && current.leagueId]);
+
+  // Scroll the expanded picker to the top of the view so the list you're choosing from is in focus (#2).
+  useEffect(() => { if (browsing) setTimeout(() => scrollToY(addYRef.current), 60); }, [browsing]);
+  useEffect(() => { if (changingDrop) setTimeout(() => scrollToY(dropYRef.current), 60); }, [changingDrop]);
 
   // Positions present in this league's candidate pool, for the filter chips.
   const posOptions = useMemo(() => {
@@ -113,10 +125,9 @@ export default function WaiverWizardScreen({ leagues, seedAddId = null, onBack, 
     for (const c of current.candidates) if (!seen.includes(c.position)) seen.push(c.position);
     return seen;
   }, [current && current.leagueId]);
-  const queuedAddIds = useMemo(() => new Set(queue.map((q) => q.addId)), [queue]);
   const filteredCandidates = useMemo(
-    () => (current ? current.candidates.filter((c) => (!posFilter || c.position === posFilter) && !queuedAddIds.has(c.id)) : []),
-    [current && current.leagueId, posFilter, queuedAddIds]
+    () => (current ? current.candidates.filter((c) => !posFilter || c.position === posFilter) : []),
+    [current && current.leagueId, posFilter]
   );
 
   const candById = useMemo(() => {
@@ -157,91 +168,50 @@ export default function WaiverWizardScreen({ leagues, seedAddId = null, onBack, 
   }
   const valid = errors.length === 0;
 
-  // Running totals across the queue + the claim in progress (multi-add). The backend
-  // re-validates the whole queue on submit; these are the live client-side hints.
-  const queuedBidTotal = queue.reduce((s, q) => s + (q.bid || 0), 0);
-  const addsCount = queue.length + (add ? 1 : 0);
-  // Roster impact with CONTINGENCY: claims that share a drop are mutually exclusive (the drop happens
-  // once), so each drop-group nets zero — only claims with NO drop actually grow the roster. Mirrors
-  // the backend so the wizard doesn't block queuing two claims that drop the same player.
-  const queuedDropless = queue.filter((q) => !q.dropId).length;
-  const currentDropless = add && !dropId ? 1 : 0;
-  const rosterAfter = current ? current.rosterCount + queuedDropless + currentDropless : 0;
-  const overRoster = current && rosterAfter > current.rosterSize;
-  const totalSpend = queuedBidTotal + (isFaab && bidNum ? bidNum : 0);
-  const budgetLeftAll = isFaab && current && current.faabRemaining != null ? current.faabRemaining - totalSpend : null;
-  const overBudget = budgetLeftAll != null && budgetLeftAll < 0;
-  // Total claims we'd submit = queued + the current one (if it's complete).
-  const pendingCount = queue.length + (valid ? 1 : 0);
-  const canSubmit = pendingCount > 0 && !overRoster && !overBudget;
+  // Roster impact of THIS claim: a drop-less add grows the roster by one. (Multi-claim queuing was
+  // removed — you submit one claim, the form keeps your selection, and you tweak and submit the next.)
+  const rosterAfter = current ? current.rosterCount + (add && !dropId ? 1 : 0) : 0;
+  const overRoster = !!(current && rosterAfter > current.rosterSize);
+  const canSubmit = valid && !overRoster; // over-budget is already folded into `valid` via `errors`
 
   function advance(result) {
     setResults((r) => [...r, result]);
     setIndex((i) => i + 1);
   }
 
-  // Stash the current (valid) claim and reset the builder for another in this league.
-  function addToQueue() {
-    if (!valid || !add) return;
-    const q = { addId, dropId: dropId || null, bid: isFaab && bidNum != null ? bidNum : null, add: { name: add.name, position: add.position, value: add.value }, drop: drop ? { name: drop.name } : null };
-    const nextQueue = [...queue, q];
-    setQueue(nextQueue);
-    const nextAdd = current.candidates.find((c) => !nextQueue.some((x) => x.addId === c.id));
-    setAddId(nextAdd ? nextAdd.id : null);
-    setDropId(null);
-    setBid(current.system === 'faab' ? String(current.minBid || 1) : null);
-    setBrowsing(false);
-    setChangingDrop(false);
-    setPosFilter(null);
-  }
-  function removeFromQueue(id) {
-    setQueue((qs) => qs.filter((q) => q.addId !== id));
-  }
-
-  // Submit the built claim(s) and STAY on this league — submitting is decoupled from advancing, so you
-  // can add several claims, reorder them, then move on when ready. On success the claims land in the
-  // "already submitted" strip, and the builder reseeds to the next-best add you haven't claimed yet.
+  // Submit the built claim and STAY on this league (submitting is decoupled from advancing). On success
+  // the claim lands in the "already submitted" strip and the builder KEEPS your add/drop/bid, so you can
+  // change just one side and file the next conditional/cascading claim (feedback #3, #4).
   function submitClaims() {
-    if (!canSubmit || !current) return;
-    const claims = queue.map((q) => ({ addId: q.addId, dropId: q.dropId || undefined, bid: q.bid != null ? q.bid : undefined }));
-    if (valid && add) claims.push({ addId, dropId: dropId || undefined, bid: isFaab && bidNum != null ? bidNum : undefined });
-    if (!claims.length) return;
-    // In an OPEN free-agency league the add executes on MFL immediately — and any claim that drops a
-    // player makes that drop permanent. Gate the immediate+drop case behind a confirm (parity with the
-    // Waivers ClaimSheet); queued FAAB/waiver claims process later, so they submit straight through.
-    const drops = claims.filter((c) => c.dropId);
-    if (current.system === 'free' && drops.length) {
-      appAlert('Add now?', `This files ${claims.length} add${claims.length === 1 ? '' : 's'} that drop${drops.length === 1 ? 's' : ''} a player immediately on MyFantasyLeague. This can’t be undone from the app.`, [
+    if (!canSubmit || !current || !add) return;
+    const claim = { addId, dropId: dropId || undefined, bid: isFaab && bidNum != null ? bidNum : undefined };
+    // In an OPEN free-agency league the add executes on MFL immediately — and a drop makes that drop
+    // permanent. Gate the immediate+drop case behind a confirm (parity with the Waivers ClaimSheet).
+    if (current.system === 'free' && claim.dropId) {
+      appAlert('Add now?', `This adds ${shortName(add.name)}${drop ? ` and drops ${shortName(drop.name)}` : ''} immediately on MyFantasyLeague. This can’t be undone from the app.`, [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Add & drop', style: 'destructive', onPress: () => doSubmitClaims(claims) },
+        { text: 'Add & drop', style: 'destructive', onPress: () => doSubmitClaims(claim) },
       ]);
       return;
     }
-    doSubmitClaims(claims);
+    doSubmitClaims(claim);
   }
 
-  async function doSubmitClaims(claims) {
+  async function doSubmitClaims(claim) {
     if (!requirePro('waivers.file')) return; // Pro gate (inert until enforced)
     setSubmitting(true);
     try {
-      const names = [...queue.map((q) => q.add.name), ...(valid && add ? [add.name] : [])].map((n) => shortName(n));
-      if (claims.length === 1) await api.submitClaim(current.leagueId, claims[0]);
-      else await api.submitMultiClaim(current.leagueId, claims);
-      // Record for the Summary + so the reseed skips players already claimed here.
+      await api.submitClaim(current.leagueId, claim);
+      // Record for the Summary.
       const s = sessionFor(current.leagueId);
-      names.forEach((n) => s.names.push(n));
-      claims.forEach((c) => s.addIds.add(c.addId));
-      // Reseed the builder to the best candidate not yet claimed this league; clear the queue.
-      const nextAdd = current.candidates.find((c) => !s.addIds.has(c.id));
-      setAddId(nextAdd ? nextAdd.id : null);
-      setDropId(null);
-      setBid(current.system === 'faab' ? String(current.minBid || 1) : null);
-      setQueue([]);
-      setBrowsing(false);
-      setChangingDrop(false);
-      setPosFilter(null);
-      toast(`Submitted ${names.length} claim${names.length === 1 ? '' : 's'} — ${current.name.split(' ')[0]}`);
-      refetchCurrent(); // pull MFL's updated queue into the submitted strip (fresh ids for reorder/delete)
+      s.names.push(shortName(add.name));
+      s.addIds.add(claim.addId);
+      // KEEP the add / drop / bid selection — the usual cascading pattern is to keep one side (often the
+      // drop) and swap the other, so we don't blow the form away (feedback #3). `editedRef` stays as-is;
+      // the just-filed claim counts as this-league work, so a later "skip" needn't warn about it.
+      editedRef.current = false;
+      toast(`Claim submitted · ${shortName(add.name)}${claim.bid != null ? ` for $${claim.bid}` : ''} — ${current.name.split(' ')[0]}`);
+      refetchCurrent(); // pull MFL's updated queue into the "already submitted" strip
     } catch (e) {
       appAlert('Could not submit', e.message, null, { tone: 'error' });
     } finally {
@@ -304,10 +274,11 @@ export default function WaiverWizardScreen({ leagues, seedAddId = null, onBack, 
       add: names.join(', '),
       count: names.length,
     });
-    // The builder pre-fills a recommended add, so a ready claim is sitting here even if the user never
-    // submitted it. Don't let a tap on "Next league" silently drop a valid, unsubmitted claim — confirm.
-    if (!names.length && pendingCount > 0) {
-      appAlert('Skip without filing?', `You’ve got a claim built for ${currentStub.name} that hasn’t been submitted. Skip this league anyway?`, [
+    // Only warn if the user actually BUILT something (edited the pre-filled suggestion) and hasn't
+    // filed it — the untouched recommendation is the tool's guess, not the user's work, so skipping
+    // past it shouldn't nag (feedback #8).
+    if (!names.length && editedRef.current) {
+      appAlert('Skip without filing?', `You’ve changed the claim for ${currentStub.name} but haven’t submitted it. Skip this league anyway?`, [
         { text: 'Keep building', style: 'cancel' },
         { text: 'Skip anyway', style: 'destructive', onPress: go },
       ]);
@@ -359,7 +330,7 @@ export default function WaiverWizardScreen({ leagues, seedAddId = null, onBack, 
           </Pressable>
         </View>
       ) : showBuilder ? (
-      <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+      <ScrollView ref={scrollRef} contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
         <TopbarTitle numberOfLines={1}>{current.name}</TopbarTitle>
         <Text style={styles.subtitle}>
           <SystemBadge system={current.system} />
@@ -456,7 +427,7 @@ export default function WaiverWizardScreen({ leagues, seedAddId = null, onBack, 
         ) : null}
 
         {/* ADD */}
-        <Text style={styles.fieldLabel}>Add</Text>
+        <Text style={styles.fieldLabel} onLayout={(e) => { addYRef.current = e.nativeEvent.layout.y; }}>Add</Text>
         {add ? (
           <PlayerLine p={add} showValue onOpenPlayer={onOpenPlayer} />
         ) : (
@@ -479,7 +450,7 @@ export default function WaiverWizardScreen({ leagues, seedAddId = null, onBack, 
               <Pressable
                 key={c.id}
                 style={[styles.pickRow, c.id === addId && styles.pickRowOn]}
-                onPress={() => { setAddId(c.id); setBrowsing(false); }}
+                onPress={() => { markEdited(); setAddId(c.id); setBrowsing(false); }}
               >
                 <PlayerLine p={c} showValue compact />
               </Pressable>
@@ -490,7 +461,12 @@ export default function WaiverWizardScreen({ leagues, seedAddId = null, onBack, 
 
         {/* DROP — any rostered player is droppable (you'll often stream a bye-week starting DEF/K).
             The picker shows the whole roster grouped by position, starters labeled but selectable. */}
-        <Text style={styles.fieldLabel}>{dropRequired ? 'Drop (required — roster full)' : 'Drop (optional)'}</Text>
+        <Text style={styles.fieldLabel} onLayout={(e) => { dropYRef.current = e.nativeEvent.layout.y; }}>{dropRequired ? 'Drop (required — roster full)' : 'Drop (optional)'}</Text>
+        {/* Make the roster count unmissable so it's obvious whether a drop is even needed (feedback #5). */}
+        <Text style={[styles.rosterNote, dropRequired && styles.rosterNoteFull]}>
+          {`Roster ${current.rosterCount}/${current.rosterSize} — `}
+          {dropRequired ? 'full, so a drop is required to add.' : 'room to add without dropping.'}
+        </Text>
         <Pressable style={styles.dropBox} onPress={() => setChangingDrop((v) => !v)}>
           <Text style={styles.dropText}>
             {drop ? `− ${shortName(drop.name)}${drop.value != null ? ` (${drop.value})` : ''}` : 'None'}
@@ -500,14 +476,14 @@ export default function WaiverWizardScreen({ leagues, seedAddId = null, onBack, 
         {changingDrop ? (
           <View style={styles.picker}>
             {!dropRequired ? (
-              <Pressable style={styles.pickRow} onPress={() => { setDropId(null); setChangingDrop(false); }}>
+              <Pressable style={styles.pickRow} onPress={() => { markEdited(); setDropId(null); setChangingDrop(false); }}>
                 <Text style={styles.benchName}>None (add without dropping)</Text>
               </Pressable>
             ) : null}
             <RosterDropList
               roster={rosterList}
               dropId={dropId}
-              onSelect={(id) => { setDropId(id); setChangingDrop(false); }}
+              onSelect={(id) => { markEdited(); setDropId(id); setChangingDrop(false); }}
             />
           </View>
         ) : null}
@@ -522,53 +498,27 @@ export default function WaiverWizardScreen({ leagues, seedAddId = null, onBack, 
               FAAB bid{rec && rec.bid != null ? ` · suggested $${rec.bid}` : ''}
             </Text>
             <View style={styles.bidRow}>
-              <Stepper label="−" onPress={() => setBid(String(Math.max(0, (bidNum || 0) - 1)))} />
+              <Stepper label="−" onPress={() => { markEdited(); setBid(String(Math.max(0, (bidNum || 0) - 1))); }} />
               <TextInput
                 style={styles.bidInput}
                 keyboardType="number-pad"
                 value={bid == null ? '' : String(bid)}
-                onChangeText={(t) => setBid(t.replace(/[^0-9]/g, ''))}
+                onChangeText={(t) => { markEdited(); setBid(t.replace(/[^0-9]/g, '')); }}
               />
-              <Stepper label="+" onPress={() => setBid(String((bidNum || 0) + 1))} />
+              <Stepper label="+" onPress={() => { markEdited(); setBid(String((bidNum || 0) + 1)); }} />
               {budgetAfter != null ? <Text style={styles.budgetAfter}>${budgetAfter} left after</Text> : null}
             </View>
-            <BidPlanRow plan={rec && rec.bidPlan} current={bid} onPick={(n) => setBid(String(n))} />
+            <BidPlanRow plan={rec && rec.bidPlan} current={bid} onPick={(n) => { markEdited(); setBid(String(n)); }} />
           </>
         ) : null}
 
-        {/* MULTI-ADD: stage this claim, then queue another in the same league */}
-        <Pressable
-          style={({ pressed }) => [styles.queueBtn, !valid && styles.queueBtnOff, pressed && valid && { opacity: 0.85 }]}
-          onPress={addToQueue}
-          disabled={!valid}
-        >
-          <Text style={[styles.queueBtnText, !valid && { color: colors.textDim }]}>+ Queue this & add another</Text>
-        </Pressable>
-
-        {queue.length ? (
-          <View style={styles.queuePanel}>
-            <Text style={styles.queueTitle}>Queued in {current.name.split(' ')[0]} · {queue.length}</Text>
-            {queue.map((q) => (
-              <View key={q.addId} style={styles.queueRow}>
-                <Text style={styles.queueName} numberOfLines={1}>
-                  + {shortName(q.add.name)}
-                  <Text style={styles.queueMeta}>
-                    {`  ${q.add.position}`}{q.drop ? ` · − ${shortName(q.drop.name)}` : ''}{q.bid != null ? ` · $${q.bid}` : ''}
-                  </Text>
-                </Text>
-                <Pressable onPress={() => removeFromQueue(q.addId)} hitSlop={8}>
-                  <Text style={styles.queueRemove}>✕</Text>
-                </Pressable>
-              </View>
-            ))}
-            <Text style={[styles.runTotals, (overRoster || overBudget) && { color: colors.bad }]}>
-              {isFaab && current.faabRemaining != null ? `Bids $${totalSpend} · $${budgetLeftAll} left${overBudget ? ' — over budget!' : ''}  ·  ` : ''}
-              Roster {rosterAfter}/{current.rosterSize}{overRoster ? ' — over!' : ''}
-            </Text>
-          </View>
+        {/* One claim at a time: Submit files it and KEEPS your selection so you can tweak one side and
+            file the next conditional claim; already-filed claims show in the strip above (feedback #3/#4). */}
+        {overRoster ? (
+          <Text style={styles.errorText}>{`This add puts you at ${rosterAfter}/${current.rosterSize} — choose a drop.`}</Text>
+        ) : !valid ? (
+          <Text style={styles.errorText}>{errors[0]}</Text>
         ) : null}
-
-        {!valid && !queue.length ? <Text style={styles.errorText}>{errors[0]}</Text> : null}
         </>
         )}
       </ScrollView>
@@ -600,9 +550,7 @@ export default function WaiverWizardScreen({ leagues, seedAddId = null, onBack, 
               <Text style={styles.navBtnText}>{index + 1 === total ? 'Finish' : 'Next league ›'}</Text>
             </Pressable>
             <Button
-              title={current.system === 'free'
-                ? (pendingCount > 1 ? `Add ${pendingCount}` : 'Add')
-                : (pendingCount > 1 ? `Submit ${pendingCount}` : 'Submit claim')}
+              title={current.system === 'free' ? 'Add' : 'Submit claim'}
               onPress={submitClaims}
               busy={submitting}
               disabled={!canSubmit}
@@ -851,16 +799,9 @@ const styles = StyleSheet.create({
   bidInput: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14, color: colors.text, fontSize: 18, fontWeight: '800', minWidth: 70, textAlign: 'center' },
   budgetAfter: { color: colors.textDim, fontSize: 12, fontWeight: '600' },
   errorText: { color: colors.bad, fontSize: 13, marginTop: 16, fontWeight: '600' },
-  queueBtn: { marginTop: 20, borderWidth: 1, borderColor: colors.accent, borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
-  queueBtnOff: { borderColor: colors.border },
-  queueBtnText: { color: colors.accent, fontSize: 14, fontWeight: '800' },
-  queuePanel: { marginTop: 14, backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 12 },
-  queueTitle: { color: colors.violetText, fontSize: 11, fontWeight: '900', letterSpacing: 0.4, textTransform: 'uppercase', marginBottom: 6 },
-  queueRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
-  queueName: { color: colors.text, fontSize: 14, fontWeight: '700', flex: 1, marginRight: 10 },
-  queueMeta: { color: colors.textDim, fontSize: 12, fontWeight: '600' },
-  queueRemove: { color: colors.textDim, fontSize: 15, fontWeight: '800' },
-  runTotals: { color: colors.gold, fontSize: 12, fontWeight: '800', marginTop: 10 },
+  // Roster-count line under the Drop label — green when there's room, warn when full (feedback #5).
+  rosterNote: { color: colors.good, fontSize: 12, fontWeight: '700', marginTop: -2, marginBottom: 8 },
+  rosterNoteFull: { color: colors.warn },
   actions: { flexDirection: 'row', paddingHorizontal: 16, paddingBottom: 16, paddingTop: 4, gap: 12 },
   skipInline: { paddingHorizontal: 22, borderRadius: 14, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
   skipInlineText: { color: colors.textDim, fontSize: 15, fontWeight: '700' },
