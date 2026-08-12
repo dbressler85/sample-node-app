@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, RefreshControl } from 'react-native';
+import EmptyView from '../components/EmptyView';
 import ListSkeleton from '../components/ListSkeleton';
 import { colors } from '../theme';
 import { displayLabel } from '../typography';
@@ -121,7 +122,7 @@ export default function DraftHubScreen({ covered = false, onBack, onOpenDraft, o
       ) : error ? (
         <ErrorView message={error} onRetry={reload} refreshing={refreshing} onRefresh={reload} />
       ) : drafts.length === 0 ? (
-        <View style={styles.center}><Text style={styles.emptyText}>No drafts across your leagues right now.</Text></View>
+        <EmptyView title="No drafts right now" message="No league has a draft on the clock, live, or scheduled. Pull down to refresh when the season opens." />
       ) : (
         <ScrollView
           contentContainerStyle={styles.list}
