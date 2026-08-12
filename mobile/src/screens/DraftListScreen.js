@@ -117,6 +117,17 @@ export default function DraftListScreen({ league, onBack, onOpenPlayer }) {
     setDirty(true);
     return next;
   });
+  // Jump to the bottom — the missing partner to "to top", so a big reorder in a 30+ list is one tap
+  // either direction instead of stepping one row at a time (usability backlog #22).
+  const toBottom = (id) => setList((cur) => {
+    const i = cur.findIndex((p) => String(p.id) === String(id));
+    if (i < 0 || i >= cur.length - 1) return cur;
+    const next = [...cur];
+    const [it] = next.splice(i, 1);
+    next.push(it);
+    setDirty(true);
+    return next;
+  });
   // Quick-fill: append the top value pool players not already listed, up to `n`.
   const autoFill = (n) => {
     const pool = (data && data.available) || [];
@@ -237,6 +248,7 @@ export default function DraftListScreen({ league, onBack, onOpenPlayer }) {
                 onTop={() => toTop(p.id)}
                 onUp={() => move(p.id, -1)}
                 onDown={() => move(p.id, +1)}
+                onBottom={() => toBottom(p.id)}
                 onRemove={() => remove(p.id)}
               />
             ))
@@ -309,7 +321,7 @@ function Header({ league, onBack }) {
   );
 }
 
-function ListRow({ p, rank, first, last, onOpen, onTop, onUp, onDown, onRemove }) {
+function ListRow({ p, rank, first, last, onOpen, onTop, onUp, onDown, onBottom, onRemove }) {
   const pc = positionColors[p.position] || colors.textDim;
   return (
     <View style={[styles.row, p.drafted && styles.rowDrafted, { borderLeftColor: pc, borderLeftWidth: 3 }]}>
@@ -322,10 +334,11 @@ function ListRow({ p, rank, first, last, onOpen, onTop, onUp, onDown, onRemove }
         <Text style={styles.meta}>{p.position}{p.team ? ` · ${p.team}` : ''}{p.value != null ? ` · ${p.value}` : ''}</Text>
       </Pressable>
       <View style={styles.ctrls}>
-        <Pressable onPress={onTop} disabled={first} hitSlop={10} style={styles.ctrlBtn}><Text style={[styles.ctrl, first && styles.ctrlOff]}>⤒</Text></Pressable>
-        <Pressable onPress={onUp} disabled={first} hitSlop={10} style={styles.ctrlBtn}><Text style={[styles.ctrl, first && styles.ctrlOff]}>↑</Text></Pressable>
-        <Pressable onPress={onDown} disabled={last} hitSlop={10} style={styles.ctrlBtn}><Text style={[styles.ctrl, last && styles.ctrlOff]}>↓</Text></Pressable>
-        <Pressable onPress={onRemove} hitSlop={10} style={styles.ctrlBtn}><Text style={styles.remove}>✕</Text></Pressable>
+        <Pressable onPress={onTop} disabled={first} hitSlop={4} style={styles.ctrlBtn} accessibilityRole="button" accessibilityLabel="Move to top"><Text style={[styles.ctrl, first && styles.ctrlOff]}>⤒</Text></Pressable>
+        <Pressable onPress={onUp} disabled={first} hitSlop={4} style={styles.ctrlBtn} accessibilityRole="button" accessibilityLabel="Move up"><Text style={[styles.ctrl, first && styles.ctrlOff]}>↑</Text></Pressable>
+        <Pressable onPress={onDown} disabled={last} hitSlop={4} style={styles.ctrlBtn} accessibilityRole="button" accessibilityLabel="Move down"><Text style={[styles.ctrl, last && styles.ctrlOff]}>↓</Text></Pressable>
+        <Pressable onPress={onBottom} disabled={last} hitSlop={4} style={styles.ctrlBtn} accessibilityRole="button" accessibilityLabel="Move to bottom"><Text style={[styles.ctrl, last && styles.ctrlOff]}>⤓</Text></Pressable>
+        <Pressable onPress={onRemove} hitSlop={4} style={styles.ctrlBtn} accessibilityRole="button" accessibilityLabel={`Remove ${p.name}`}><Text style={styles.remove}>✕</Text></Pressable>
       </View>
     </View>
   );
@@ -378,8 +391,10 @@ const styles = StyleSheet.create({
   struck: { textDecorationLine: 'line-through' },
   draftedTag: { color: colors.bad, fontSize: 9, fontWeight: '900', marginLeft: 6, borderWidth: 1, borderColor: colors.bad, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1, overflow: 'hidden' },
   meta: { color: colors.textDim, fontSize: 12, marginTop: 2 },
-  ctrls: { flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: 8 },
-  ctrlBtn: { paddingHorizontal: 6, paddingVertical: 8, alignItems: 'center', justifyContent: 'center' },
+  ctrls: { flexDirection: 'row', alignItems: 'center', gap: 2, marginLeft: 6 },
+  // Five reorder controls per row (⤒ ↑ ↓ ⤓ ✕) — sized as real targets (~32×36) with near-zero hitSlop
+  // so adjacent buttons don't overlap and mis-fire. The name truncates to make room.
+  ctrlBtn: { minWidth: 32, minHeight: 36, paddingHorizontal: 3, alignItems: 'center', justifyContent: 'center' },
   ctrl: { color: colors.accent, fontSize: 17, fontWeight: '800' },
   ctrlOff: { color: colors.border },
   remove: { color: colors.bad, fontSize: 15, fontWeight: '800' },
