@@ -472,6 +472,20 @@ function invalidateLeague(cookie, leagueId) {
   }
 }
 
+// Drop just ONE export type's cached reads for a league (all param variants) — a surgical version of
+// invalidateLeague for when a write changes exactly one export and refetching the rest would be waste.
+// Used by the waivers service: a claim write changes MFL's authoritative `pendingWaivers` queue but not
+// the roster/free-agent pool, so only that read needs to refetch. Key layout: `cookie|host|TYPE|year|params`.
+function invalidateExportType(cookie, leagueId, type) {
+  const needleCookie = `${cookie || ''}|`;
+  const needleType = `|${type}|`;
+  const needleL = `"L":"${String(leagueId)}"`;
+  for (const k of readCache.keys()) {
+    if (!k.includes(needleType) || !k.includes(needleL)) continue;
+    if (k.startsWith(needleCookie) || k.startsWith('|')) readCache.delete(k);
+  }
+}
+
 // Write data via the import command. MFL reads import parameters from the QUERY STRING (its
 // official sample builds `import?L=…&TYPE=…` and only puts a DATA payload in the POST body).
 // Sending L/PICKS/ROUND/etc. in the body instead made MFL's handler see no params and return a
@@ -615,6 +629,7 @@ module.exports = {
   importRequest,
   miscRequest,
   invalidateLeague,
+  invalidateExportType,
   toArray,
   text,
   num,
