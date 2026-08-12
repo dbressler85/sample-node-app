@@ -296,6 +296,17 @@ export default function PlayerProfileScreen({ playerId, seed, onBack, onOpenTrad
             <Text style={[styles.tagTxt, watched && styles.tagTxtOn]}>Watch</Text>
           </Pressable>
         </View>
+        {/* Make the Target/Avoid ±10% effect VISIBLE, not just a code comment (usability backlog #23):
+            show what the tag does to HIS value FOR YOU next to the honest market number. */}
+        {tag && p.value != null ? (
+          <Text style={styles.tagEffect}>
+            <Text style={{ color: tag === 'target' ? colors.good : colors.bad, fontWeight: '800' }}>
+              {tag === 'target' ? 'Target · +10% for you' : 'Avoid · −10% for you'}
+            </Text>
+            {`  →  your value ${Math.round(p.value * (tag === 'target' ? 1.1 : 0.9))} `}
+            <Text style={styles.tagEffectDim}>(market {p.value})</Text>
+          </Text>
+        ) : null}
 
         {/* Outlook */}
         {p.outlook ? (
@@ -421,28 +432,35 @@ export default function PlayerProfileScreen({ playerId, seed, onBack, onOpenTrad
       {/* Action bar */}
       {canAdd || canTrade || canDrop ? (
         <View style={styles.actionBar}>
-          {/* Consistent labels: Add (N) · Trade for (N) · Drop (N) — each count is the number
+          {/* Shop and Drop carry the same count (both act over the leagues you roster him), so spell out
+              that they're NOT the same action — one keeps him, one lets him go (usability backlog #23). */}
+          {canShop && canDrop ? (
+            <Text style={styles.actionHint}>Shop lists him on your trade block (he stays yours) · Drop releases him to free agency</Text>
+          ) : null}
+          {/* Consistent labels: Add (N) · Trade for (N) · Shop (N) · Drop (N) — each count is the number
               of your leagues that action applies to. */}
-          {canAdd ? (
-            <Pressable style={[styles.actionBtn, { backgroundColor: colors.accent }]} onPress={() => setSheet('add')}>
-              <Text style={styles.actionText}>Add ({p.actions.addLeagues.length})</Text>
-            </Pressable>
-          ) : null}
-          {canTrade ? (
-            <Pressable style={[styles.actionBtn, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.accent }]} onPress={() => setSheet('trade')}>
-              <Text style={[styles.actionText, { color: colors.accent }]}>Trade for ({tradeLeagues})</Text>
-            </Pressable>
-          ) : null}
-          {canShop ? (
-            <Pressable style={[styles.actionBtn, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.accent }]} onPress={() => setSheet('bait')}>
-              <Text style={[styles.actionText, { color: colors.accent }]}>Shop ({p.actions.dropLeagues.length})</Text>
-            </Pressable>
-          ) : null}
-          {canDrop ? (
-            <Pressable style={[styles.actionBtn, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.bad }]} onPress={() => setSheet('drop')}>
-              <Text style={[styles.actionText, { color: colors.bad }]}>Drop ({p.actions.dropLeagues.length})</Text>
-            </Pressable>
-          ) : null}
+          <View style={styles.actionRow}>
+            {canAdd ? (
+              <Pressable style={[styles.actionBtn, { backgroundColor: colors.accent }]} onPress={() => setSheet('add')}>
+                <Text style={styles.actionText}>Add ({p.actions.addLeagues.length})</Text>
+              </Pressable>
+            ) : null}
+            {canTrade ? (
+              <Pressable style={[styles.actionBtn, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.accent }]} onPress={() => setSheet('trade')}>
+                <Text style={[styles.actionText, { color: colors.accent }]}>Trade for ({tradeLeagues})</Text>
+              </Pressable>
+            ) : null}
+            {canShop ? (
+              <Pressable style={[styles.actionBtn, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.accent }]} onPress={() => setSheet('bait')}>
+                <Text style={[styles.actionText, { color: colors.accent }]}>Shop ({p.actions.dropLeagues.length})</Text>
+              </Pressable>
+            ) : null}
+            {canDrop ? (
+              <Pressable style={[styles.actionBtn, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.bad }]} onPress={() => setSheet('drop')}>
+                <Text style={[styles.actionText, { color: colors.bad }]}>Drop ({p.actions.dropLeagues.length})</Text>
+              </Pressable>
+            ) : null}
+          </View>
         </View>
       ) : null}
 
@@ -593,6 +611,9 @@ const styles = StyleSheet.create({
   tagAvoidOn: { borderColor: colors.bad, backgroundColor: colors.bad + '22', shadowColor: colors.bad, shadowOpacity: 0.5, shadowRadius: 8, shadowOffset: { width: 0, height: 0 } },
   tagWatchOn: { borderColor: colors.watch, backgroundColor: colors.watch + '22', shadowColor: colors.watch, shadowOpacity: 0.5, shadowRadius: 8, shadowOffset: { width: 0, height: 0 } },
   tagTxt: { color: colors.textDim, fontSize: 13, fontWeight: '800' },
+  // Makes the Target/Avoid ±10% personal adjustment visible next to the honest market value (#23).
+  tagEffect: { color: colors.text, fontSize: 12, fontWeight: '700', marginTop: 2, marginBottom: 6 },
+  tagEffectDim: { color: colors.textDim, fontWeight: '600' },
   tagTxtOn: { color: colors.text },
   card: { backgroundColor: colors.card, borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 14, marginTop: 12 },
   cardTitle: { color: colors.violetText, fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 },
@@ -629,7 +650,10 @@ const styles = StyleSheet.create({
   clRel: { fontSize: 12, fontWeight: '700', marginRight: 10 },
   clValue: { color: colors.gold, fontSize: 13, fontWeight: '900', width: 34, textAlign: 'right' },
   clProj: { color: colors.textDim, fontSize: 13, fontWeight: '800', width: 40, textAlign: 'right' },
-  actionBar: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', gap: 10, padding: 14, backgroundColor: colors.bg, borderTopWidth: 1, borderTopColor: colors.border },
+  actionBar: { position: 'absolute', left: 0, right: 0, bottom: 0, padding: 14, backgroundColor: colors.bg, borderTopWidth: 1, borderTopColor: colors.border },
+  actionRow: { flexDirection: 'row', gap: 10 },
+  // Disambiguates the same-count Shop vs Drop buttons above the bar (#23).
+  actionHint: { color: colors.textDim, fontSize: 11, lineHeight: 15, fontWeight: '600', marginBottom: 8 },
   actionBtn: { flex: 1, borderRadius: 12, paddingVertical: 15, alignItems: 'center' },
   actionText: { color: colors.onAccent, fontSize: 15, fontWeight: '800' },
   error: { color: colors.bad, textAlign: 'center', marginBottom: 16 },

@@ -134,8 +134,16 @@ write scoping, FAAB/draftable labeling (C10). Reviewers flagged none of these; n
     pauses while the confirm sheet is armed. The naming confirm sheet stays as the final guard.
 22. **DraftList — reordering is 4 tiny icon buttons, one step at a time** (no drag, no to-bottom). A
     drag handle is the expected interaction for a 30+ ranked list.
+    ✓ PARTIAL: added a **"to bottom"** control (the missing partner to "to top") so a big reorder is one
+    tap either direction, and enlarged the reorder buttons to real ~32×36 targets with non-overlapping
+    hitSlop. ↳ DEFERRED: a true **drag handle** needs a gesture library (react-native-draggable-flatlist
+    / gesture-handler + reanimated) — a dependency add best verified on a build; owner greenlight.
 23. **PlayerProfile — Shop vs Drop show identical counts and overlapping models; Target/Avoid's ±10%
     effect is invisible** (explained only in a code comment; the value number doesn't visibly move).
+    ✓ RESOLVED: tagging Target/Avoid now shows a visible line — "Target · +10% for you → your value N
+    (market M)" — so the adjustment is on-screen, not just in a comment. Added a caption under the action
+    bar spelling out that **Shop** lists him on your block (he stays yours) vs **Drop** releases him, so
+    the two same-count buttons read as the different actions they are.
 
 ## TIER 5 — Cross-screen consistency
 
