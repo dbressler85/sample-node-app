@@ -20,6 +20,7 @@ import { waiversOverviewPreferDevice } from '../mflDevice';
 import { colors, positionColors, size } from '../theme';
 import { displayLabel } from '../typography';
 import Button from '../components/Button';
+import EmptyView from '../components/EmptyView';
 import { celebrate } from '../components/Celebrate';
 import AvailabilityBadge from '../components/AvailabilityBadge';
 import ValueDelta from '../components/ValueDelta';
@@ -408,7 +409,7 @@ function OverviewView({ overview, loading, refreshing, error, onOpen, onRefresh 
           <LeagueCard item={item} onPress={() => onOpen(item.leagueId)} />
         </Reveal>
       )}
-      ListEmptyComponent={<Text style={styles.empty}>No leagues found.</Text>}
+      ListEmptyComponent={<EmptyView title="No leagues" message="No leagues found for this account." />}
     />
   );
 }
@@ -648,16 +649,16 @@ function BoardView({ board, loading, error, position, setPosition, sort, setSort
       )}
         ListEmptyComponent={
           position ? (
-            <Text style={styles.empty}>No {position} free agents right now.</Text>
+            <EmptyView title="No free agents" message={`No ${position} free agents right now.`} />
           ) : (
             // An empty pool with NO filter almost always means the free-agent read blipped (a live league
             // always has free agents) — offer a retry + point at New claim, not a dead "none".
-            <View style={styles.faEmptyWrap}>
-              <Text style={styles.empty}>The free-agent list didn’t load. Retry, or use “＋ New claim” above to search for a player.</Text>
-              <Pressable style={({ pressed }) => [styles.retry, pressed && { opacity: 0.85 }]} onPress={onRetry}>
-                <Text style={styles.retryText}>Retry</Text>
-              </Pressable>
-            </View>
+            <EmptyView
+              title="Couldn’t load free agents"
+              message="Retry, or use “New claim” above to search for a player."
+              actionTitle="Retry"
+              onAction={onRetry}
+            />
           )
         }
       />
@@ -749,7 +750,7 @@ function PendingView({ pending, onCancel, onEdit, onOpenPlayer }) {
   return (
     <ScrollView contentContainerStyle={styles.list}>
       <Text style={styles.subsection}>Pending claims · {pending.summary.pending}</Text>
-      {pending.pending.length === 0 ? <Text style={styles.empty}>No pending claims.</Text> : null}
+      {pending.pending.length === 0 ? <EmptyView title="No pending claims" message="Claims you queue across your leagues show up here until they process." /> : null}
       {pending.pending.map((c) => {
         // A queued FAAB bid can be re-bid before it processes (backend re-files the round with the new
         // bid). Only FAAB claims carry an editable $ — fcfs/priority claims have nothing to change.
@@ -1220,9 +1221,6 @@ const styles = StyleSheet.create({
   editClaim: { color: colors.accent, fontSize: 13, fontWeight: '700', marginRight: 16 },
   newClaimBtn: { marginHorizontal: 16, marginBottom: 10, backgroundColor: colors.accent, borderRadius: 10, paddingVertical: 11, alignItems: 'center' },
   newClaimText: { color: colors.onAccent, fontSize: 14, fontWeight: '800' },
-  faEmptyWrap: { alignItems: 'center', paddingVertical: 24, paddingHorizontal: 24 },
-  retry: { marginTop: 14, backgroundColor: colors.accent, borderRadius: 10, paddingHorizontal: 24, paddingVertical: 11, minHeight: 44, justifyContent: 'center' },
-  retryText: { color: colors.onAccent, fontSize: 15, fontWeight: '800' },
   searchInput: { marginTop: 10, backgroundColor: colors.cardAlt, borderRadius: 10, borderWidth: 1, borderColor: colors.border, color: colors.text, fontSize: 16, paddingHorizontal: 14, paddingVertical: 11 },
   pickRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   pickName: { flex: 1, color: colors.text, fontSize: 15, fontWeight: '700', marginLeft: 10 },

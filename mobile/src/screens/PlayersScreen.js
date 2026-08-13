@@ -15,6 +15,7 @@ import NavTools from '../components/NavTools';
 import Reveal from '../components/Reveal';
 import PartialNote from '../components/PartialNote';
 import DismissibleNote from '../components/DismissibleNote';
+import EmptyView from '../components/EmptyView';
 import DeviceNote from '../components/DeviceNote';
 import ValueCredit from '../components/ValueCredit';
 import NewsCredit from '../components/NewsCredit';
@@ -448,7 +449,7 @@ export default function PlayersScreen({ active = true, onOpenPlayer, onStartWaiv
               extraData={{ tagOverride, watchOverride, listSort }}
               contentContainerStyle={styles.list}
               renderItem={({ item, index }) => <Reveal delay={Math.min(index, 12) * 32} animate={index < 14}><PlayerRow p={item} tag={resolveTag(item)} watched={resolveWatch(item)} {...rowActions} onPress={() => onOpenPlayer(item.id)} /></Reveal>}
-              ListEmptyComponent={<Text style={styles.empty}>No players match “{query}”.</Text>}
+              ListEmptyComponent={<EmptyView title="No matches" message={`No players match “${query}”.`} />}
             />
           )}
         </>
@@ -499,12 +500,12 @@ export default function PlayersScreen({ active = true, onOpenPlayer, onStartWaiv
                   ) : rankType === 'rookies' ? (
                     // "Rookies" is a distinct board, not a re-sort — so an empty one is expected, not a
                     // bug. Say why and how to get back to the full pool (usability backlog #15).
-                    <Text style={styles.note}>
-                      No rookies to show{pos ? ` at ${optLabel(POSITIONS, pos)}` : ''}. The Rookies board lists only incoming rookies —
-                      {pos ? ' clear the position filter, or ' : ' '}switch Rank back to Market for the full player pool.
-                    </Text>
+                    <EmptyView
+                      title="No rookies to show"
+                      message={`The Rookies board lists only incoming rookies${pos ? ` (none at ${optLabel(POSITIONS, pos)})` : ''}. ${pos ? 'Clear the position filter, or switch' : 'Switch'} Rank back to Market for the full player pool.`}
+                    />
                   ) : (
-                    <Text style={styles.note}>{rankings.note || 'No players to rank.'}</Text>
+                    <EmptyView title="Nothing to rank" message={rankings.note || 'No players to rank right now.'} />
                   )
                 }
               />
@@ -537,7 +538,7 @@ export default function PlayersScreen({ active = true, onOpenPlayer, onStartWaiv
                   !free ? (
                     <PlayerListSkeleton />
                   ) : (
-                    <Text style={styles.note}>{pos ? `No ${pos}s are available in any of your leagues right now.` : 'No available players across your leagues right now.'}</Text>
+                    <EmptyView title="No free agents" message={pos ? `No ${pos}s are available in any of your leagues right now.` : 'No available players across your leagues right now.'} />
                   )
                 }
               />
@@ -565,7 +566,7 @@ export default function PlayersScreen({ active = true, onOpenPlayer, onStartWaiv
                 !watch ? (
                   <Center><ActivityIndicator color={colors.accent} /></Center>
                 ) : (
-                  <Text style={styles.note}>No players on your watchlist yet. Open a player and tap ☆ Watch to track him across your leagues.</Text>
+                  <EmptyView title="No watchlist yet" message="Open a player and tap Watch to track him across your leagues." />
                 )
               }
             />
@@ -596,7 +597,7 @@ export default function PlayersScreen({ active = true, onOpenPlayer, onStartWaiv
                   !mine ? (
                     <PlayerListSkeleton />
                   ) : (
-                    <Text style={styles.note}>{pos ? `You don’t roster any ${pos}s.` : 'You don’t roster any players yet.'}</Text>
+                    <EmptyView title="Nothing rostered" message={pos ? `You don’t roster any ${pos}s.` : 'You don’t roster any players yet.'} />
                   )
                 }
               />
@@ -631,7 +632,7 @@ export default function PlayersScreen({ active = true, onOpenPlayer, onStartWaiv
                   !news ? (
                     <Center><ActivityIndicator color={colors.accent} /></Center>
                   ) : (
-                    <Text style={styles.note}>{newsQuery ? `No news matches “${newsQuery}”.` : 'No news affecting your rostered players right now.'}</Text>
+                    <EmptyView title="No news" message={newsQuery ? `No news matches “${newsQuery}”.` : 'No news affecting your rostered players right now.'} />
                   )
                 }
                 ListFooterComponent={newsData.length ? <NewsCredit center style={styles.credit} /> : null}
@@ -1038,8 +1039,6 @@ const styles = StyleSheet.create({
   dot: { width: 10, height: 10, borderRadius: 5, marginRight: 10 },
   newsHead: { color: colors.text, fontSize: 14, fontWeight: '700' },
   chev: { color: colors.textDim, fontSize: 20, marginLeft: 8 },
-  empty: { color: colors.textDim, textAlign: 'center', marginTop: 24 },
-  note: { color: colors.textDim, textAlign: 'center', marginTop: 40, marginHorizontal: 28, fontSize: 14, lineHeight: 20 },
   loadMore: { paddingVertical: 20 },
   credit: { marginTop: 12, marginBottom: 24 },
   errorBanner: { color: colors.bad, backgroundColor: colors.card, marginHorizontal: 16, marginBottom: 8, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, fontSize: 12, fontWeight: '600', textAlign: 'center' },
