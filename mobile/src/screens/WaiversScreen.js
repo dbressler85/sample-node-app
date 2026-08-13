@@ -18,6 +18,7 @@ import { useRequirePro } from '../entitlement';
 import { api } from '../api';
 import { waiversOverviewPreferDevice } from '../mflDevice';
 import { colors, positionColors, size } from '../theme';
+import { displayLabel } from '../typography';
 import Button from '../components/Button';
 import { celebrate } from '../components/Celebrate';
 import AvailabilityBadge from '../components/AvailabilityBadge';
@@ -615,7 +616,7 @@ function BoardView({ board, loading, error, position, setPosition, sort, setSort
           building a third, and remove one without leaving the board. */}
       {board.pending && board.pending.length ? (
         <View style={styles.claimsStrip}>
-          <Text style={styles.claimsTitle}>
+          <Text style={[styles.claimsTitle, displayLabel()]}>
             {board.pending.length} claim{board.pending.length === 1 ? '' : 's'} submitted here
           </Text>
           {board.pending.map((c) => (

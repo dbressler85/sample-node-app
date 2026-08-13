@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, FlatList, StyleSheet, RefreshControl, ActivityIndicator, Pressable } from 'react-native';
 import { api } from '../api';
 import { colors } from '../theme';
+import { displayLabel } from '../typography';
 import { ScreenTitle } from '../components/Brand';
 import NavTools from '../components/NavTools';
 import { celebrate } from '../components/Celebrate';
@@ -156,7 +157,7 @@ function Game({ g, onOpenLineup }) {
       {/* WHO you still have coming — the swing players behind the "N left" count. */}
       {!g.locked && g.me.yetToPlayers && g.me.yetToPlayers.length ? (
         <Text style={styles.ytpLine} numberOfLines={2}>
-          <Text style={styles.ytpLabel}>Still to play  </Text>
+          <Text style={[styles.ytpLabel, displayLabel()]}>Still to play  </Text>
           {g.me.yetToPlayers.map((p) => `${p.name.split(',')[0]}${p.position ? ` (${p.position})` : ''}`).join(', ')}
         </Text>
       ) : null}

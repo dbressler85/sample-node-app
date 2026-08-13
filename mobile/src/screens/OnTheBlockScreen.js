@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Pressable, ScrollView, RefreshControl, Activity
 import { appAlert } from "../components/AppAlert";
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
+import { displayLabel } from '../typography';
 import { TopbarTitle } from '../components/Brand';
 import useAndroidBack from '../useAndroidBack';
 import AvailabilityBadge from '../components/AvailabilityBadge';
@@ -329,7 +330,7 @@ export default function OnTheBlockScreen({ onBack, onOpenPlayer, onOpenInbox, on
                             );
                           })}
 
-                          <Text style={styles.askLabel}>Asking price / target (for this whole league)</Text>
+                          <Text style={[styles.askLabel, displayLabel()]}>Asking price / target (for this whole league)</Text>
                           <TextInput
                             style={styles.askInput}
                             value={notes[lg.leagueId] != null ? notes[lg.leagueId] : lg.note}

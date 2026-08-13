@@ -8,6 +8,7 @@ import Reveal from '../components/Reveal';
 import NeonSign from '../components/NeonSign';
 import ErrorView from '../components/ErrorView';
 import { colors } from '../theme';
+import { displayLabel } from '../typography';
 import { TopbarTitle } from '../components/Brand';
 import useCachedResource from '../useCachedResource';
 
@@ -225,7 +226,7 @@ export default function RosterScreen({ league, onBack, onOpenTrades, onOpenDraft
 
       {roster ? (
         <View style={styles.sortRow}>
-          <Text style={styles.sortLabel}>Sort</Text>
+          <Text style={[styles.sortLabel, displayLabel()]}>Sort</Text>
           {SORT_OPTIONS.map((o) => {
             const on = sortKey === o.key;
             return (
@@ -248,7 +249,7 @@ export default function RosterScreen({ league, onBack, onOpenTrades, onOpenDraft
           contentContainerStyle={styles.list}
           stickySectionHeadersEnabled={false}
           renderSectionHeader={({ section }) => (
-            <Text style={styles.sectionHeader}>
+            <Text style={[styles.sectionHeader, displayLabel()]}>
               {section.title} · {section.data.length}
             </Text>
           )}
@@ -277,7 +278,7 @@ export default function RosterScreen({ league, onBack, onOpenTrades, onOpenDraft
           ListFooterComponent={
             roster && roster.picks && roster.picks.length ? (
               <View>
-                <Text style={styles.sectionHeader}>
+                <Text style={[styles.sectionHeader, displayLabel()]}>
                   Draft picks · {roster.picks.length}
                   {picksTotal != null ? <Text style={styles.picksTotal}>{`  ·  ${picksTotal} value`}</Text> : null}
                 </Text>
