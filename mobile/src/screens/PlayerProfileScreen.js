@@ -10,6 +10,7 @@ import AddAcrossSheet from '../components/AddAcrossSheet';
 import TradeAcrossSheet from '../components/TradeAcrossSheet';
 import TradeBaitSheet from '../components/TradeBaitSheet';
 import BottomSheet from '../components/BottomSheet';
+import Button from '../components/Button';
 import Checkbox from '../components/Checkbox';
 import { TargetIcon, AvoidIcon, WatchIcon, NeonToggle } from '../components/PlayerActionIcons';
 import useAndroidBack from '../useAndroidBack';
@@ -564,14 +565,15 @@ function DropSheet({ player, onClose, onDone }) {
           );
         })}
       </ScrollView>
-      <Pressable
-        style={({ pressed }) => [styles.confirm, { backgroundColor: colors.bad }, (!selected.size || busy) && styles.confirmOff, pressed && selected.size && { opacity: 0.85 }]}
+      <Button
+        title={`Drop from ${selected.size} league${selected.size === 1 ? '' : 's'}`}
+        variant="filledDestructive"
         onPress={submit}
-        disabled={!selected.size || busy}
-      >
-        {busy ? <ActivityIndicator color={colors.onAccent} /> : <Text style={styles.confirmText}>Drop from {selected.size} league{selected.size === 1 ? '' : 's'}</Text>}
-      </Pressable>
-      <Pressable style={styles.cancelBtn} onPress={onClose}><Text style={styles.cancelText}>Cancel</Text></Pressable>
+        busy={busy}
+        disabled={!selected.size}
+        style={styles.dropConfirm}
+      />
+      <Button title="Cancel" variant="ghost" onPress={onClose} style={styles.dropCancel} />
     </BottomSheet>
   );
 }
@@ -669,10 +671,7 @@ const styles = StyleSheet.create({
   check: { marginRight: 12 },
   addLeague: { color: colors.text, fontSize: 15, fontWeight: '700' },
   addMeta: { color: colors.textDim, fontSize: 12, marginTop: 2, fontWeight: '500' },
-  confirm: { backgroundColor: colors.accent, borderRadius: 12, paddingVertical: 15, alignItems: 'center', marginTop: 16 },
-  confirmOff: { backgroundColor: colors.cardAlt },
-  confirmText: { color: colors.onAccent, fontSize: 16, fontWeight: '800' },
+  dropConfirm: { marginTop: 16 },
+  dropCancel: { marginTop: 10 },
   tip: { color: colors.textDim, fontSize: 12, textAlign: 'center', marginTop: 10 },
-  cancelBtn: { alignItems: 'center', paddingTop: 14 },
-  cancelText: { color: colors.accent, fontSize: 15, fontWeight: '700' },
 });

@@ -7,7 +7,8 @@ import { colors, radius, space, size, weight } from '../theme';
 //   primary     — accent fill, DARK ink (onAccent) so the label passes WCAG AA (white-on-accent fails)
 //   gold        — gold fill, dark ink (a value/championship CTA)
 //   ghost       — bordered, no fill (secondary)
-//   destructive — bad-tinted bordered (reject/withdraw)
+//   destructive — bad-tinted bordered (reject/withdraw — deliberately NOT alarming)
+//   filledDestructive — SOLID bad fill (a prominent, irreversible drop/delete you want to read as danger)
 // Always >=44pt tall, springs on press (PressableScale), and carries the button a11y role.
 export default function Button({ title, onPress, variant = 'primary', busy = false, disabled = false, style, textStyle }) {
   const v = VARIANTS[variant] || VARIANTS.primary;
@@ -35,6 +36,8 @@ const VARIANTS = {
   gold: { box: { backgroundColor: colors.gold }, fg: colors.onAccent, spinner: colors.onAccent },
   ghost: { box: { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.border }, fg: colors.text, spinner: colors.text },
   destructive: { box: { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.bad }, fg: colors.bad, spinner: colors.bad },
+  // Dark ink on the coral `bad` fill: white fails AA on it (same reason primary/gold use onAccent).
+  filledDestructive: { box: { backgroundColor: colors.bad }, fg: colors.onAccent, spinner: colors.onAccent },
 };
 
 const styles = StyleSheet.create({
