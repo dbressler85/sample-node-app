@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, FlatList, RefreshControl } from 'react-native';
 import { api } from '../api';
 import { colors } from '../theme';
+import { displayLabel } from '../typography';
 import { TopbarTitle } from '../components/Brand';
 import useAndroidBack from '../useAndroidBack';
 import usePoll from '../usePoll';
@@ -140,7 +141,7 @@ export default function OnDeckScreen({ covered = false, onBack, onOpenLineup, on
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={reload} tintColor={colors.accent} />}
           renderItem={({ item: row }) =>
             row.header ? (
-              <Text style={styles.sectionHeader}>{row.header} · {row.count}</Text>
+              <Text style={[styles.sectionHeader, displayLabel()]}>{row.header} · {row.count}</Text>
             ) : (
               <DeadlineRow item={row.item} onPress={() => act(row.item)} />
             )

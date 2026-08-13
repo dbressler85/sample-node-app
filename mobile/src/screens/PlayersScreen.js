@@ -3,6 +3,7 @@ import { View, Text, FlatList, StyleSheet, Pressable, TextInput, ActivityIndicat
 import { api, friendlyError } from '../api';
 import { exposurePreferDevice, bestAvailablePreferDevice } from '../mflDevice';
 import { colors, positionColors, rgb } from '../theme';
+import { displayLabel } from '../typography';
 import AvailabilityBadge from '../components/AvailabilityBadge';
 import AddAcrossSheet from '../components/AddAcrossSheet';
 import { TargetIcon, AvoidIcon, WatchIcon, NeonToggle } from '../components/PlayerActionIcons';
@@ -841,7 +842,7 @@ function FilterPanel({ open, onToggle, summary, children }) {
 function ChipSelect({ label, info, options, value, onChange }) {
   return (
     <View style={styles.controlRow}>
-      <Text style={styles.controlLabel}>{label}</Text>
+      <Text style={[styles.controlLabel, displayLabel()]}>{label}</Text>
       {info ? <InfoDot id={info} size={16} /> : null}
       {options.map(([k, lbl]) => (
         <PopChip
@@ -867,7 +868,7 @@ function ChipSelect({ label, info, options, value, onChange }) {
 function ValueLens({ format, setFormat, tep, setTep }) {
   return (
     <View style={styles.controlRow}>
-      <Text style={styles.controlLabel}>Value</Text>
+      <Text style={[styles.controlLabel, displayLabel()]}>Value</Text>
       <InfoDot id="format" size={16} />
       <View style={styles.lensToggle}>
         {[['1qb', '1QB'], ['sf', '2QB']].map(([k, label]) => (

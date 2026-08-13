@@ -5,6 +5,7 @@ import { useRequirePro } from '../entitlement';
 import { api } from '../api';
 import tradeMath from '../tradeMath';
 import { colors, positionColors, size, space } from '../theme';
+import { displayLabel } from '../typography';
 import Button from '../components/Button';
 import { TopbarTitle } from '../components/Brand';
 import { celebrate } from '../components/Celebrate';
@@ -606,7 +607,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
       {/* Manual trade deadline — MFL exposes none, so the owner sets it; it then counts down on
           On Deck. */}
       <View style={styles.deadlineRow}>
-        <Text style={styles.deadlineLabel}>Trade deadline</Text>
+        <Text style={[styles.deadlineLabel, displayLabel()]}>Trade deadline</Text>
         {editingDeadline ? (
           <View style={styles.deadlineEdit}>
             <TextInput
@@ -774,7 +775,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
                   and THEIR players/picks on the right to get. */}
               <View style={styles.buildCols}>
                 <View style={styles.buildCol}>
-                  <Text style={styles.buildColLabel} numberOfLines={1}>YOU SEND{sendList.length ? ` · ${preview.sendValue}` : ''}</Text>
+                  <Text style={[styles.buildColLabel, displayLabel()]} numberOfLines={1}>YOU SEND{sendList.length ? ` · ${preview.sendValue}` : ''}</Text>
                   {sendOptions.map((a) => (
                     <AssetRow key={a.id} asset={a} on={!!send[a.id]} onPress={() => toggle(setSend, send, a)} tint={colors.accent} compact />
                   ))}
@@ -783,7 +784,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
                 </View>
                 <View style={styles.buildColDiv} />
                 <View style={styles.buildCol}>
-                  <Text style={styles.buildColLabel} numberOfLines={1}>YOU GET{receiveList.length ? ` · ${preview.acquireValue}` : ''}</Text>
+                  <Text style={[styles.buildColLabel, displayLabel()]} numberOfLines={1}>YOU GET{receiveList.length ? ` · ${preview.acquireValue}` : ''}</Text>
                   {receiveOptions.map((a) => (
                     <AssetRow key={a.id} asset={a} on={!!receive[a.id]} onPress={() => toggle(setReceive, receive, a)} tint={colors.accent} compact />
                   ))}

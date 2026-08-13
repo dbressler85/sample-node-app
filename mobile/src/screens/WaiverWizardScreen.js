@@ -4,6 +4,7 @@ import { appAlert } from "../components/AppAlert";
 import { useRequirePro } from '../entitlement';
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
+import { displayLabel } from '../typography';
 import Button from '../components/Button';
 import { TopbarTitle } from '../components/Brand';
 import AvailabilityBadge from '../components/AvailabilityBadge';
@@ -370,7 +371,7 @@ export default function WaiverWizardScreen({ leagues, seedAddId = null, onBack, 
             delete inline; new claims append to the bottom. */}
         {current.submitted && current.submitted.length ? (
           <View style={styles.submittedStrip}>
-            <Text style={styles.submittedTitle}>
+            <Text style={[styles.submittedTitle, displayLabel()]}>
               {current.submitted.length} already submitted here{current.submitted.length > 1 ? ' · top tried first' : ''}
             </Text>
             {current.submitted.map((c, i) => (
@@ -625,7 +626,7 @@ function RosterDropList({ roster, dropId, onSelect }) {
         lastPos = p.position;
         return (
           <View key={p.id}>
-            {header ? <Text style={styles.posGroupHeader}>{header}</Text> : null}
+            {header ? <Text style={[styles.posGroupHeader, displayLabel()]}>{header}</Text> : null}
             <RosterRow p={p} selected={p.id === dropId} onPress={() => onSelect(p.id)} />
           </View>
         );

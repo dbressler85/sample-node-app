@@ -10,6 +10,7 @@ import NavTools from '../components/NavTools';
 import useCachedResource from '../useCachedResource';
 import { getValue, setValue } from '../cache';
 import { colors, positionColors } from '../theme';
+import { displayLabel } from '../typography';
 import { celebrate } from '../components/Celebrate';
 import InfoDot from '../components/InfoDot';
 import ErrorView from '../components/ErrorView';
@@ -250,7 +251,7 @@ export default function TradeInboxScreen({ active = true, onBack, onOpenLeague, 
         <View style={styles.seasonBanner}>
           <View style={styles.seasonLabelRow}>
             <NeonSign glyph="calendar" color="accent" grade="inline" size={14} />
-            <Text style={styles.seasonLabel}>{data.seasonal.label}</Text>
+            <Text style={[styles.seasonLabel, displayLabel()]}>{data.seasonal.label}</Text>
           </View>
           <Text style={styles.seasonMsg}>{data.seasonal.message}</Text>
         </View>
