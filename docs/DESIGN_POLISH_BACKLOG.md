@@ -56,9 +56,12 @@ build before merge.
    - **Slice 2 — DONE:** Roster, PlayerProfile, Trophy (body-level swaps) + Portfolio (full-screen
      cold-load, wrapped in the screen container). Kept each file's other in-place spinners (Roster
      move-row busy, Trophy detect).
-   - **Remaining:** Leagues, Home, Scores, DraftList, Draft, Lineups, Waivers — next slices. Several of
-     these are non-list or streaming screens where a lone spinner may be the right call (a form, a
-     stepper, a live board); those should be judged per-site, not swept.
+   - **Slice 3 — DONE (PR #404):** the list-first cold loads — Leagues (ListEmptyComponent), Scores,
+     Lineups, DraftList (below its header). **Judged-out (kept the lone spinner):** Home (a tiles +
+     portfolio dashboard, not a list) and Draft (a live draft board whose first paint is the on-clock
+     header, not list rows) — a card-row skeleton would misrepresent both.
+   - **Remaining:** Waivers boards (the FA board + best-available already skeleton via their own paths;
+     any lone spinner left there is a streaming/secondary load) — judge per-site if a build shows one.
 
 3. **Route the ~10 hand-rolled section labels through `displayLabel()`** so the eyebrow renders in
    Oswald everywhere (today it's Oswald on ~half the screens, system font on the rest).

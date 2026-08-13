@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, FlatList, StyleSheet, Pressable, ActivityIndicator, RefreshControl, TextInput } from 'react-native';
+import { View, Text, FlatList, StyleSheet, Pressable, RefreshControl, TextInput } from 'react-native';
 import { api, bg } from '../api';
 import { colors } from '../theme';
 import { TopbarTitle } from '../components/Brand';
 import Reveal from '../components/Reveal';
 import EmptyView from '../components/EmptyView';
+import ListSkeleton from '../components/ListSkeleton';
 import useAndroidBack from '../useAndroidBack';
 import { peekResource, primeResource } from '../useCachedResource';
 import { setValue } from '../cache';
@@ -192,7 +193,7 @@ export default function LeaguesScreen({ onBack, onOpenLeague, onOpenDraftHub }) 
         }
         ListEmptyComponent={
           leagues == null ? (
-            <View style={styles.center}><ActivityIndicator color={colors.accent} size="large" /></View>
+            <ListSkeleton rows={6} />
           ) : q ? (
             <EmptyView title={`No leagues match “${query.trim()}”`} message="Try a different name, or clear the search." />
           ) : (

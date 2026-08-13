@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, RefreshControl } from 'react-native';
 import { appAlert } from "../components/AppAlert";
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import Button from '../components/Button';
 import EmptyView from '../components/EmptyView';
+import ListSkeleton from '../components/ListSkeleton';
 import ErrorView from '../components/ErrorView';
 import LeagueContext from '../components/LeagueContext';
 import NeonSign from '../components/NeonSign';
@@ -160,7 +161,7 @@ export default function DraftListScreen({ league, onBack, onOpenPlayer }) {
     return (
       <View style={styles.container}>
         <Header league={league} onBack={onBack} />
-        <View style={styles.center}><ActivityIndicator color={colors.accent} size="large" /></View>
+        <ListSkeleton rows={6} />
       </View>
     );
   }
