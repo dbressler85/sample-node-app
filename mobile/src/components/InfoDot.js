@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
 import { Text, View, Pressable, Modal, ScrollView, StyleSheet } from 'react-native';
 import { colors } from '../theme';
+import { GlyphMark } from './NeonGlyphs';
 import { HELP_BY_ID } from '../help';
 import { useNavTools } from './NavTools';
 
-// A small ⓘ affordance placed next to a computed feature. Tapping opens a popover
+// A small info affordance placed next to a computed feature. Tapping opens a popover
 // with that topic's explanation — the same content as the Help screen, keyed by id,
 // so the two never drift. Fails safe: an unknown id renders nothing. The popover also
-// offers "Open full guide" → the Help screen scrolled to this topic (#10).
+// offers "Open full guide" → the Help screen scrolled to this topic (#10). The mark is the
+// shared vector `info` glyph (DESIGN_SYSTEM.md §11 — no emoji), replacing the bare ⓘ.
 export default function InfoDot({ id, size = 14, color = colors.textDim, style }) {
   const [open, setOpen] = useState(false);
   const { openHelp } = useNavTools();
@@ -16,7 +18,7 @@ export default function InfoDot({ id, size = 14, color = colors.textDim, style }
   return (
     <>
       <Pressable onPress={() => setOpen(true)} hitSlop={16} style={style} accessibilityRole="button" accessibilityLabel={`How this works: ${topic.title}`}>
-        <Text style={[styles.dot, { fontSize: size, color }]}>ⓘ</Text>
+        <GlyphMark name="info" size={size + 3} color={color} weight={1.8} />
       </Pressable>
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
         <Pressable style={styles.backdrop} onPress={() => setOpen(false)}>
@@ -46,7 +48,6 @@ export default function InfoDot({ id, size = 14, color = colors.textDim, style }
 }
 
 const styles = StyleSheet.create({
-  dot: { fontWeight: '700' },
   backdrop: { flex: 1, backgroundColor: colors.scrim, alignItems: 'center', justifyContent: 'center', padding: 24 },
   sheet: { width: '100%', maxWidth: 440, backgroundColor: colors.card, borderRadius: 16, borderWidth: 1, borderColor: colors.border, padding: 20 },
   title: { color: colors.text, fontSize: 17, fontWeight: '900', marginBottom: 12 },

@@ -42,6 +42,9 @@ const PATHS = {
   cross: ['M12 5 V19', 'M5 12 H19'],
   // Warning bang (a lineup we couldn't verify).
   bang: ['M12 4 L21 20 H3 Z', 'M12 10 V15', 'M12 17.6 V17.9'],
+  // A circled lower-case "i" — the missing `info` member of the family (InfoDot + the toast's info tone
+  // used the bare ⓘ glyph before). Circle + a short stem + a dot cap above it.
+  info: ['M4 12 A8 8 0 1 1 20 12 A8 8 0 1 1 4 12', 'M12 11 V16.4', 'M12 7.4 V7.7'],
   // Padlock (waivers locked): body + shackle + keyhole.
   lock: ['M6.5 10.5 H17.5 V19.5 H6.5 Z', 'M8.5 10.5 V8 A3.5 3.5 0 0 1 15.5 8 V10.5', 'M12 13.8 V16.2'],
   // A ring dot (free agency open / draft live — a lit "go" light). Two half-arcs so it closes cleanly.
@@ -92,6 +95,21 @@ export function NeonGlyph({ name, size = 22, color = '#4F8CFF', core = '#F6FBFF'
       {/* white tube core */}
       {d.map((p, i) => (
         <Path key={`c${i}`} d={p} stroke={core} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+      ))}
+    </Svg>
+  );
+}
+
+// A PLAIN single-color glyph (no neon bloom) — for functional UI chrome that either sits ON a colored
+// fill (a checkbox tick on the accent square) or just needs a crisp legible mark at small sizes, where
+// the two-layer tube would muddy. Same path family as NeonGlyph, one solid stroke.
+export function GlyphMark({ name, size = 16, color = '#FFFFFF', weight = 2.2 }) {
+  const d = PATHS[name];
+  if (!d) return null;
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      {d.map((p, i) => (
+        <Path key={i} d={p} stroke={color} strokeWidth={weight} strokeLinecap="round" strokeLinejoin="round" />
       ))}
     </Svg>
   );
