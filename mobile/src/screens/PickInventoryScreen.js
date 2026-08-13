@@ -1,6 +1,7 @@
 import React, { useCallback } from 'react';
 import { View, Text, StyleSheet, Pressable, SectionList, RefreshControl } from 'react-native';
 import EmptyView from '../components/EmptyView';
+import { GlyphMark } from '../components/NeonGlyphs';
 import ListSkeleton from '../components/ListSkeleton';
 import { colors } from '../theme';
 import { displayLabel } from '../typography';
@@ -156,7 +157,7 @@ function PickRow({ p, onTradePick }) {
           style={({ pressed }) => [styles.tradeBtn, pressed && { opacity: 0.6 }]}
           accessibilityLabel="Shop this pick"
         >
-          <Text style={styles.tradeIcon}>⇄</Text>
+          <GlyphMark name="swap" size={16} color={colors.accent} weight={2.2} />
         </Pressable>
       ) : null}
     </View>

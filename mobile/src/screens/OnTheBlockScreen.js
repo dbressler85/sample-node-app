@@ -10,6 +10,7 @@ import AvailabilityBadge from '../components/AvailabilityBadge';
 import LeagueContext from '../components/LeagueContext';
 import ErrorView from '../components/ErrorView';
 import ListSkeleton from '../components/ListSkeleton';
+import { TargetIcon, AvoidIcon, WatchIcon } from '../components/PlayerActionIcons';
 import { toast } from '../components/Toast';
 import { peekResource, primeResource } from '../useCachedResource';
 import { getValue, setValue } from '../cache';
@@ -21,9 +22,9 @@ function TagMarks({ tag, watched }) {
   if (!tag && !watched) return null;
   return (
     <View style={styles.tagMarks}>
-      {tag === 'target' ? <Text style={[styles.tagMark, { color: colors.good }]}>◎</Text> : null}
-      {tag === 'avoid' ? <Text style={[styles.tagMark, { color: colors.bad }]}>⊘</Text> : null}
-      {watched ? <Text style={[styles.tagMark, { color: colors.watch }]}>★</Text> : null}
+      {tag === 'target' ? <TargetIcon size={14} color={colors.good} /> : null}
+      {tag === 'avoid' ? <AvoidIcon size={14} color={colors.bad} /> : null}
+      {watched ? <WatchIcon size={14} color={colors.watch} filled /> : null}
     </View>
   );
 }
