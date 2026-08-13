@@ -4,6 +4,7 @@ import { appAlert } from "../components/AppAlert";
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import Button from '../components/Button';
+import EmptyView from '../components/EmptyView';
 import ErrorView from '../components/ErrorView';
 import LeagueContext from '../components/LeagueContext';
 import NeonSign from '../components/NeonSign';
@@ -235,7 +236,7 @@ export default function DraftListScreen({ league, onBack, onOpenPlayer }) {
       {seg === 'list' ? (
         <ScrollView contentContainerStyle={styles.list} refreshControl={<RefreshControl refreshing={false} onRefresh={load} tintColor={colors.accent} />}>
           {!list.length ? (
-            <Text style={styles.empty}>No players yet. Switch to “Add players” to build your list, or auto-fill the top available.</Text>
+            <EmptyView title="No players yet" message="Switch to “Add players” to build your list, or auto-fill the top available." />
           ) : (
             list.map((p, i) => (
               <ListRow
