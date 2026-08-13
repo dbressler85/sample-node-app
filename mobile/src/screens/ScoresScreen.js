@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, FlatList, StyleSheet, RefreshControl, ActivityIndicator, Pressable } from 'react-native';
+import { View, Text, FlatList, StyleSheet, RefreshControl, Pressable } from 'react-native';
 import { api } from '../api';
 import { colors } from '../theme';
 import { displayLabel } from '../typography';
@@ -8,6 +8,7 @@ import NavTools from '../components/NavTools';
 import { celebrate } from '../components/Celebrate';
 import NeonSign from '../components/NeonSign';
 import ErrorView from '../components/ErrorView';
+import ListSkeleton from '../components/ListSkeleton';
 import Pulse from '../components/Pulse';
 import AnimatedNumber from '../components/AnimatedNumber';
 import { getValue, setValue } from '../cache';
@@ -63,8 +64,8 @@ export default function ScoresScreen({ onOpenLineup, active = true }) {
 
   if (loading) {
     return (
-      <View style={[styles.container, styles.center]}>
-        <ActivityIndicator color={colors.accent} size="large" />
+      <View style={styles.container}>
+        <ListSkeleton rows={5} />
       </View>
     );
   }

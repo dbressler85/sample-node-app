@@ -6,13 +6,13 @@ import {
   StyleSheet,
   Pressable,
   RefreshControl,
-  ActivityIndicator,
   } from 'react-native';
 import { appAlert } from "../components/AppAlert";
 import { lineupsPreferDevice } from '../mflDevice';
 import { colors } from '../theme';
 import MatchupLine from '../components/MatchupLine';
 import ErrorView from '../components/ErrorView';
+import ListSkeleton from '../components/ListSkeleton';
 import NavTools from '../components/NavTools';
 import useCachedResource from '../useCachedResource';
 import { ScreenTitle } from '../components/Brand';
@@ -56,8 +56,8 @@ export default function LineupsScreen({ active = true, onOpenLineup, onStartWiza
 
   if (loading) {
     return (
-      <View style={[styles.container, styles.center]}>
-        <ActivityIndicator color={colors.accent} size="large" />
+      <View style={styles.container}>
+        <ListSkeleton rows={5} />
       </View>
     );
   }
