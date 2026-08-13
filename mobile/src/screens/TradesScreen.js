@@ -7,6 +7,7 @@ import tradeMath from '../tradeMath';
 import { colors, positionColors, size, space } from '../theme';
 import { displayLabel } from '../typography';
 import Button from '../components/Button';
+import { GlyphMark } from '../components/NeonGlyphs';
 import { TopbarTitle } from '../components/Brand';
 import { celebrate } from '../components/Celebrate';
 import { toast } from '../components/Toast';
@@ -627,7 +628,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
             >
               {savingDeadline ? <ActivityIndicator size="small" color={colors.accent} /> : <Text style={styles.deadlineSaveTxt}>Save</Text>}
             </Pressable>
-            <Pressable onPress={() => setEditingDeadline(false)} hitSlop={8}><Text style={styles.deadlineCancel}>✕</Text></Pressable>
+            <Pressable onPress={() => setEditingDeadline(false)} hitSlop={8}><GlyphMark name="x" size={14} color={colors.textDim} weight={2} /></Pressable>
           </View>
         ) : deadline ? (
           <View style={styles.deadlineEdit}>

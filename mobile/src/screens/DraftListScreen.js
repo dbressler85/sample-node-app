@@ -6,6 +6,7 @@ import { colors, positionColors } from '../theme';
 import Button from '../components/Button';
 import EmptyView from '../components/EmptyView';
 import ListSkeleton from '../components/ListSkeleton';
+import { GlyphMark } from '../components/NeonGlyphs';
 import ErrorView from '../components/ErrorView';
 import LeagueContext from '../components/LeagueContext';
 import NeonSign from '../components/NeonSign';
@@ -273,7 +274,7 @@ export default function DraftListScreen({ league, onBack, onOpenPlayer }) {
               autoCapitalize="none"
               autoCorrect={false}
             />
-            {query ? <Pressable onPress={() => setQuery('')} hitSlop={10}><Text style={styles.clear}>✕</Text></Pressable> : null}
+            {query ? <Pressable onPress={() => setQuery('')} hitSlop={10}><GlyphMark name="x" size={13} color={colors.textDim} weight={2} /></Pressable> : null}
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.posScroll} contentContainerStyle={styles.posRow}>
             {POSITIONS.map(([k, label]) => (
@@ -337,10 +338,10 @@ function ListRow({ p, rank, first, last, onOpen, onTop, onUp, onDown, onBottom, 
       </Pressable>
       <View style={styles.ctrls}>
         <Pressable onPress={onTop} disabled={first} hitSlop={4} style={styles.ctrlBtn} accessibilityRole="button" accessibilityLabel="Move to top"><Text style={[styles.ctrl, first && styles.ctrlOff]}>⤒</Text></Pressable>
-        <Pressable onPress={onUp} disabled={first} hitSlop={4} style={styles.ctrlBtn} accessibilityRole="button" accessibilityLabel="Move up"><Text style={[styles.ctrl, first && styles.ctrlOff]}>↑</Text></Pressable>
-        <Pressable onPress={onDown} disabled={last} hitSlop={4} style={styles.ctrlBtn} accessibilityRole="button" accessibilityLabel="Move down"><Text style={[styles.ctrl, last && styles.ctrlOff]}>↓</Text></Pressable>
+        <Pressable onPress={onUp} disabled={first} hitSlop={4} style={styles.ctrlBtn} accessibilityRole="button" accessibilityLabel="Move up"><GlyphMark name="up" size={17} color={first ? colors.border : colors.accent} weight={2.2} /></Pressable>
+        <Pressable onPress={onDown} disabled={last} hitSlop={4} style={styles.ctrlBtn} accessibilityRole="button" accessibilityLabel="Move down"><GlyphMark name="down" size={17} color={last ? colors.border : colors.accent} weight={2.2} /></Pressable>
         <Pressable onPress={onBottom} disabled={last} hitSlop={4} style={styles.ctrlBtn} accessibilityRole="button" accessibilityLabel="Move to bottom"><Text style={[styles.ctrl, last && styles.ctrlOff]}>⤓</Text></Pressable>
-        <Pressable onPress={onRemove} hitSlop={4} style={styles.ctrlBtn} accessibilityRole="button" accessibilityLabel={`Remove ${p.name}`}><Text style={styles.remove}>✕</Text></Pressable>
+        <Pressable onPress={onRemove} hitSlop={4} style={styles.ctrlBtn} accessibilityRole="button" accessibilityLabel={`Remove ${p.name}`}><GlyphMark name="x" size={15} color={colors.bad} weight={2.2} /></Pressable>
       </View>
     </View>
   );

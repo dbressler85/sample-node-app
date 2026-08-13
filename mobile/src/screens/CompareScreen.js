@@ -4,6 +4,7 @@ import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import { displayLabel } from '../typography';
 import { TopbarTitle } from '../components/Brand';
+import { GlyphMark } from '../components/NeonGlyphs';
 import ErrorView from '../components/ErrorView';
 import useAndroidBack from '../useAndroidBack';
 import { peekResource, primeResource } from '../useCachedResource';
@@ -118,7 +119,7 @@ export default function CompareScreen({ seedPlayer, onBack, onOpenPlayer }) {
             autoCapitalize="none"
             autoCorrect={false}
           />
-          {query ? <Pressable onPress={() => setQuery('')} hitSlop={10}><Text style={styles.clear}>✕</Text></Pressable> : null}
+          {query ? <Pressable onPress={() => setQuery('')} hitSlop={10}><GlyphMark name="x" size={14} color={colors.textDim} weight={2} /></Pressable> : null}
         </View>
       ) : null}
 
@@ -148,7 +149,7 @@ export default function CompareScreen({ seedPlayer, onBack, onOpenPlayer }) {
               const pc = positionColors[p.position] || colors.textDim;
               return (
                 <View key={p.id} style={styles.playerCol}>
-                  <Pressable onPress={() => removePlayer(p.id)} hitSlop={8} style={styles.removeBtn}><Text style={styles.removeTxt}>✕</Text></Pressable>
+                  <Pressable onPress={() => removePlayer(p.id)} hitSlop={8} style={styles.removeBtn}><GlyphMark name="x" size={13} color={colors.textDim} weight={2} /></Pressable>
                   <Pressable onPress={() => onOpenPlayer && onOpenPlayer(p.id)}>
                     <Text style={[styles.playerName, { color: pc }]} numberOfLines={2}>{p.name}</Text>
                     <Text style={styles.playerMeta} numberOfLines={1}>{p.position} · {p.team}</Text>

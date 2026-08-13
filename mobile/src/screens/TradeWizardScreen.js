@@ -1,6 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { colors } from '../theme';
+import { GlyphMark } from '../components/NeonGlyphs';
 import useAndroidBack from '../useAndroidBack';
 import TradesScreen from './TradesScreen';
 
@@ -49,7 +50,7 @@ export default function TradeWizardScreen({ queue, onExit, onOpenPlayer }) {
   return (
     <View style={styles.container}>
       <View style={styles.bar}>
-        <Pressable onPress={onExit} hitSlop={10}><Text style={styles.close}>✕</Text></Pressable>
+        <Pressable onPress={onExit} hitSlop={10} style={styles.closeBtn}><GlyphMark name="x" size={16} color={colors.textDim} weight={2} /></Pressable>
         <View style={styles.progressWrap}>
           <Text style={styles.step}>League {index + 1} of {total}</Text>
           <View style={styles.track}>
@@ -98,7 +99,7 @@ export default function TradeWizardScreen({ queue, onExit, onOpenPlayer }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'transparent' },
   bar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
-  close: { color: colors.textDim, fontSize: 18, fontWeight: '800', width: 40 },
+  closeBtn: { width: 40 },
   skip: { color: colors.accent, fontSize: 14, fontWeight: '800', width: 52, textAlign: 'right' },
   progressWrap: { flex: 1, alignItems: 'center' },
   step: { color: colors.text, fontSize: 13, fontWeight: '800' },

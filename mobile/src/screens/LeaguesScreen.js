@@ -6,6 +6,7 @@ import { TopbarTitle } from '../components/Brand';
 import Reveal from '../components/Reveal';
 import EmptyView from '../components/EmptyView';
 import ListSkeleton from '../components/ListSkeleton';
+import { GlyphMark } from '../components/NeonGlyphs';
 import useAndroidBack from '../useAndroidBack';
 import { peekResource, primeResource } from '../useCachedResource';
 import { setValue } from '../cache';
@@ -163,7 +164,8 @@ export default function LeaguesScreen({ onBack, onOpenLeague, onOpenDraftHub }) 
                 accessibilityState={{ selected: item.pinned }}
                 accessibilityLabel={item.pinned ? `Unpin ${item.name}` : `Pin ${item.name} to the top`}
               >
-                <Text style={[styles.pin, item.pinned && styles.pinOn]}>{item.pinned ? '★' : '☆'}</Text>
+                <GlyphMark name="star" size={18} color={item.pinned ? colors.accent : colors.textDim} fill={item.pinned ? colors.accent : 'none'} weight={1.6} />
+
               </Pressable>
               <Pressable style={styles.nameWrap} onPress={() => openLeague(item)}>
                 <View style={styles.nameLine}>

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet, ActivityIndicator, Linking } from 'react-native';
 import { colors, rgb, glow, space, radius, size, weight } from '../theme';
 import { displayLabel } from '../typography';
+import { GlyphMark } from '../components/NeonGlyphs';
 import { PLANS } from '../entitlement/billing';
 import { actionLabel } from '../entitlement/core';
 import { useEntitlement } from '../entitlement';
@@ -67,7 +68,7 @@ export default function PaywallScreen({ context = {}, onClose }) {
       <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Close" />
       <View style={styles.card}>
         <Pressable style={styles.close} onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close">
-          <Text style={styles.closeText}>✕</Text>
+          <GlyphMark name="x" size={17} color={colors.textDim} weight={2} />
         </Pressable>
 
         <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>

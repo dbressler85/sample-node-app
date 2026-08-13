@@ -16,6 +16,7 @@ import Reveal from '../components/Reveal';
 import PartialNote from '../components/PartialNote';
 import DismissibleNote from '../components/DismissibleNote';
 import EmptyView from '../components/EmptyView';
+import { GlyphMark } from '../components/NeonGlyphs';
 import DeviceNote from '../components/DeviceNote';
 import ValueCredit from '../components/ValueCredit';
 import NewsCredit from '../components/NewsCredit';
@@ -418,7 +419,7 @@ export default function PlayersScreen({ active = true, onOpenPlayer, onStartWaiv
         />
         {query ? (
           <Pressable onPress={() => setQuery('')} hitSlop={10}>
-            <Text style={styles.clear}>✕</Text>
+            <GlyphMark name="x" size={14} color={colors.textDim} weight={2} />
           </Pressable>
         ) : null}
       </View>
@@ -616,7 +617,7 @@ export default function PlayersScreen({ active = true, onOpenPlayer, onStartWaiv
                 />
                 {newsQuery ? (
                   <Pressable onPress={() => setNewsQuery('')} hitSlop={10}>
-                    <Text style={styles.clear}>✕</Text>
+                    <GlyphMark name="x" size={14} color={colors.textDim} weight={2} />
                   </Pressable>
                 ) : null}
               </View>

@@ -102,12 +102,16 @@ build before merge.
      → `check` vector via a new plain `GlyphMark` renderer), `Toast` (`✓`/`ℹ`/`⚠` → `check`/`info`/
      `bang` `NeonGlyph`s), `InfoDot` (`ⓘ` → the new `info` glyph). Also **added the missing `info`
      glyph** to the family (the review's named gap) + `GlyphMark` for on-fill/crisp chrome marks.
+   - **Slice 2 — DONE (PR #405):** the tappable controls whose only icon was an emoji — the `✕`
+     close/clear/remove/dismiss taps (shared `DismissibleNote` + Paywall, TradeWizard, Players,
+     DraftList, Trades, Compare, WaiverWizard), the `↑↓`/`▲▼` reorder glyphs (DraftList, WaiverWizard),
+     and the `★`/`☆` pin (Leagues). Added `up` to the glyph family and a `fill` prop to `GlyphMark`
+     (filled star = pinned). Left the `⇄`/`★` that appear inside COPY or labels (not controls).
    - **Remaining:**
-     - **Tappable controls whose only icon is an emoji** (~16): the `✕` close/clear taps, `▲▼`/`↑↓`
-       reorder glyphs (DraftList, WaiverWizard), `★`/`☆` pin (Leagues:136).
      - **Cross-screen inconsistencies** (same concept vector-in-one-place, emoji-in-another):
-       watch/star, target/avoid, swap/`⇄`, check. The trophy icon is the correct template — always
-       the vector via `NeonSign`.
+       watch/star, target/avoid, swap/`⇄` in labels, check. The trophy icon is the correct template —
+       always the vector via `NeonSign`. Plus the inline `▲▼`/`◆` trend indicators (Portfolio, Players,
+       PlayerProfile) — decorative, lower priority.
 
 ## P3 — Accessibility & remaining color hygiene (bounded)
 
