@@ -377,8 +377,9 @@ export default function DraftScreen({ league, demoMode, covered = false, onBack,
           </Pressable>
           <TopbarTitle focused={!covered} numberOfLines={1}>{league.name}</TopbarTitle>
           {onOpenTrades ? (
-            <Pressable onPress={() => onOpenTrades(league)} hitSlop={10}>
-              <Text style={styles.tradesLink}>⇄ Trades</Text>
+            <Pressable onPress={() => onOpenTrades(league)} hitSlop={10} style={styles.tradesLinkBtn}>
+              <GlyphMark name="swap" size={14} color={colors.accent} weight={2} />
+              <Text style={styles.tradesLink}>Trades</Text>
             </Pressable>
           ) : <View style={{ width: 44 }} />}
         </View>
@@ -617,7 +618,8 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8 },
   back: { color: colors.accent, fontSize: 16, fontWeight: '600', minWidth: 60 },
-  tradesLink: { color: colors.accent, fontSize: 14, fontWeight: '800', minWidth: 60, textAlign: 'right' },
+  tradesLinkBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4, minWidth: 60 },
+  tradesLink: { color: colors.accent, fontSize: 14, fontWeight: '800' },
   title: { color: colors.text, fontSize: 17, fontWeight: '800', flex: 1, textAlign: 'center' },
   list: { padding: 16 },
   tabRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },

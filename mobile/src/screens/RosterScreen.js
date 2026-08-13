@@ -9,6 +9,7 @@ import NeonSign from '../components/NeonSign';
 import ErrorView from '../components/ErrorView';
 import { colors } from '../theme';
 import { displayLabel } from '../typography';
+import { GlyphMark } from '../components/NeonGlyphs';
 import { TopbarTitle } from '../components/Brand';
 import useCachedResource from '../useCachedResource';
 
@@ -180,8 +181,9 @@ export default function RosterScreen({ league, onBack, onOpenTrades, onOpenDraft
             </Pressable>
           ) : null}
           {onOpenTrades ? (
-            <Pressable onPress={() => onOpenTrades(league)} hitSlop={10}>
-              <Text style={styles.trades}>⇄ Trades</Text>
+            <Pressable onPress={() => onOpenTrades(league)} hitSlop={10} style={styles.tradesLink}>
+              <GlyphMark name="swap" size={14} color={colors.accent} weight={2} />
+              <Text style={styles.trades}>Trades</Text>
             </Pressable>
           ) : null}
         </View>
@@ -335,6 +337,7 @@ const styles = StyleSheet.create({
   topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8 },
   back: { color: colors.accent, fontSize: 16, fontWeight: '600' },
   topActions: { flexDirection: 'row', gap: 16 },
+  tradesLink: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   trades: { color: colors.accent, fontSize: 15, fontWeight: '800' },
   header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8 },
   title: { color: colors.text, fontSize: 24, fontWeight: '900' },

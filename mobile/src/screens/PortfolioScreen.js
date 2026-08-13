@@ -1,6 +1,7 @@
 import React, { useCallback, useRef, useState } from 'react';
 import { View, Text, ScrollView, FlatList, StyleSheet, Pressable, RefreshControl, Dimensions } from 'react-native';
 import ListSkeleton from '../components/ListSkeleton';
+import { GlyphMark } from '../components/NeonGlyphs';
 import { api } from '../api';
 import { portfolioPreferDevice } from '../mflDevice';
 import { colors, positionColors } from '../theme';
@@ -295,7 +296,7 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
                       style={[styles.shop, baited && styles.shopOn]}
                       accessibilityLabel={baited ? `Stop shopping ${a.name} in ${a.high.name}` : `Shop ${a.name} in ${a.high.name}`}
                     >
-                      <Text style={[styles.shopTxt, baited && styles.shopTxtOn]}>{baited ? '⇄ Shopping' : '⇄ Shop'}</Text>
+                      <GlyphMark name="swap" size={12} color={baited ? colors.onAccent : colors.textDim} weight={2} /><Text style={[styles.shopTxt, baited && styles.shopTxtOn]}>{baited ? 'Shopping' : 'Shop'}</Text>
                     </Pressable>
                   </View>
                 </Reveal>
@@ -501,7 +502,7 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
                         style={[styles.shop, baited && styles.shopOn]}
                         accessibilityLabel={baited ? `Stop shopping ${p.name}` : `Shop ${p.name} in all ${p.leagues || 1} leagues`}
                       >
-                        <Text style={[styles.shopTxt, baited && styles.shopTxtOn]}>{baited ? '⇄ Shopping' : '⇄ Shop'}</Text>
+                        <GlyphMark name="swap" size={12} color={baited ? colors.onAccent : colors.textDim} weight={2} /><Text style={[styles.shopTxt, baited && styles.shopTxtOn]}>{baited ? 'Shopping' : 'Shop'}</Text>
                       </Pressable>
                     </View>
                   );
@@ -900,7 +901,7 @@ const HoldingRow = React.memo(function HoldingRow({ h, index, baited, onOpen, on
           style={[styles.shop, baited && styles.shopOn]}
           accessibilityLabel={baited ? `Stop shopping ${h.name}` : `Shop ${h.name} in all ${h.leagues} leagues`}
         >
-          <Text style={[styles.shopTxt, baited && styles.shopTxtOn]}>{baited ? '⇄ Shopping' : '⇄ Shop'}</Text>
+          <GlyphMark name="swap" size={12} color={baited ? colors.onAccent : colors.textDim} weight={2} /><Text style={[styles.shopTxt, baited && styles.shopTxtOn]}>{baited ? 'Shopping' : 'Shop'}</Text>
         </Pressable>
       </View>
     </Reveal>
@@ -993,7 +994,7 @@ const styles = StyleSheet.create({
   // changes the height; alignItems centers them in the fixed box.
   holdRow: { flexDirection: 'row', alignItems: 'center', height: 54, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   holdIdentity: { flex: 1, flexDirection: 'row', alignItems: 'center' },
-  shop: { marginLeft: 10, borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 9, paddingVertical: 5 },
+  shop: { flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 10, borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingHorizontal: 9, paddingVertical: 5 },
   shopOn: { backgroundColor: colors.accent, borderColor: colors.accent },
   shopTxt: { color: colors.textDim, fontSize: 11, fontWeight: '800' },
   shopTxtOn: { color: colors.onAccent },
