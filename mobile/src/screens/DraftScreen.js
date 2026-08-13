@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, FlatList, SectionList, ActivityIndicator, Modal, TextInput } from 'react-native';
 import EmptyView from '../components/EmptyView';
+import { GlyphMark } from '../components/NeonGlyphs';
 import { appAlert } from "../components/AppAlert";
 import { useRequirePro } from '../entitlement';
 import { api, friendlyError } from '../api';
@@ -121,7 +122,7 @@ const BoardRow = React.memo(function BoardRow({ s, isClock, onScout, onTradePick
           style={({ pressed }) => [styles.bTrade, pressed && { opacity: 0.6 }]}
           accessibilityLabel={s.mine ? 'Shop this pick' : 'Trade for this pick'}
         >
-          <Text style={styles.bTradeIcon}>⇄</Text>
+          <GlyphMark name="swap" size={17} color={colors.accent} weight={2.2} />
         </Pressable>
       ) : null}
     </Pressable>

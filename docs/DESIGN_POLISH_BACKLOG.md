@@ -107,11 +107,17 @@ build before merge.
      DraftList, Trades, Compare, WaiverWizard), the `↑↓`/`▲▼` reorder glyphs (DraftList, WaiverWizard),
      and the `★`/`☆` pin (Leagues). Added `up` to the glyph family and a `fill` prop to `GlyphMark`
      (filled star = pinned). Left the `⇄`/`★` that appear inside COPY or labels (not controls).
+   - **Slice 3 — DONE (PR #406):** the two `⇄` Shop/Trade pick buttons that were also tappable-only
+     controls (PickInventory, Draft) → `swap` vector; and OnTheBlock's `◎`/`⊘`/`★` status markers →
+     the existing `TargetIcon`/`AvoidIcon`/`WatchIcon` vectors (closes the target/avoid + watch/star
+     cross-screen inconsistency for that screen).
    - **Remaining:**
-     - **Cross-screen inconsistencies** (same concept vector-in-one-place, emoji-in-another):
-       watch/star, target/avoid, swap/`⇄` in labels, check. The trophy icon is the correct template —
-       always the vector via `NeonSign`. Plus the inline `▲▼`/`◆` trend indicators (Portfolio, Players,
-       PlayerProfile) — decorative, lower priority.
+     - **`⇄ Label` buttons** (icon + text): `⇄ Shop`/`⇄ Shopping` (PlayerRow, Portfolio ×3),
+       `⇄ Trades` (Draft, Roster), `⇄ Block` (TradeInbox), `⇄ Propose` (OnTheBlock). These need a
+       flex-row (icon + `<Text>`) instead of a leading glyph in the string — **wants a build** to
+       verify baseline alignment, so held for a build-in-the-loop slice.
+     - The inline `▲▼`/`◆` trend indicators (Portfolio, Players, PlayerProfile) and the small `⇄`
+       bait-tag pills — decorative, lowest priority.
 
 ## P3 — Accessibility & remaining color hygiene (bounded)
 
