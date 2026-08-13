@@ -36,9 +36,10 @@ build before merge.
    - **Intentional exceptions (NOT converted):**
      - **Paywall** CTA — gold + glow + pill hero; `Button.gold` is a flat fill with no glow/pill, so
        converting would strip the ratified brand look. Left bespoke.
-     - **PlayerProfile** drop — a FILLED-red prominent destructive; `Button.destructive` is only an
-       *outline*. **Action item: add a `filled-destructive` variant to `Button`**, then convert
-       drop + cancel.
+     - **PlayerProfile** drop — **DONE (PR #403):** added a `filledDestructive` variant to `Button`
+       (solid `bad` fill, dark ink so it passes AA — white fails on the coral red) and converted the
+       DropSheet confirm (→ `filledDestructive`) + cancel (→ `ghost`). The compact action-row Drop
+       *trigger* stays a bordered pill to match its Add/Shop/Trade siblings.
      - **Settings** test/diagnose — accent-bordered *utility* buttons; `Button.ghost` (neutral) would
        drop the accent affordance. Left, or add a `utility`/outline-accent variant.
    - Dead per-screen button styles from converted sites are left inert; prune in a later pass.
@@ -81,8 +82,13 @@ build before merge.
      ("No draft picks"), Draft ("No draft in this league") — now use `EmptyView` (title + message).
      Left TradeInbox's rich neon-glyph empty ("Quiet in here") as-is — it's a deliberate richer
      treatment `EmptyView` can't yet match (no glyph until the Phase-4 neon slot).
-   - **Remaining:** the in-list `ListEmptyComponent` empties (Players, Waivers boards, DraftList) —
-     next slice; several are dynamic strings that map cleanly to a title.
+   - **Slice 2 — DONE (PR #402):** the in-list `ListEmptyComponent` / inline empties — Players (search,
+     rookies, rank, free, watch, mine, news), Waivers (no-leagues, position FA, couldn't-load-with-retry
+     via `EmptyView`'s action, pending), DraftList (empty list). Left the search-as-you-type hints
+     (Waivers new-claim sheet, DraftList add-players) as lightweight inline text — a full `EmptyView`
+     is oversized in a compact search area. Pruned the dead empty/note/faEmptyWrap/retry styles.
+   - **Remaining:** the rich inline empties (Scores, Playoff, Trophy) still use bespoke richer
+     treatments — fold in once the Phase-4 neon glyph slot lands (EmptyView can't match them yet).
 
 ## P2 — Iconography (tracked batch — DESIGN_SYSTEM.md §11)
 
