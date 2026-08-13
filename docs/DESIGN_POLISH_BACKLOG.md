@@ -60,11 +60,17 @@ build before merge.
      stepper, a live board); those should be judged per-site, not swept.
 
 3. **Route the ~10 hand-rolled section labels through `displayLabel()`** so the eyebrow renders in
-   Oswald everywhere (today it's Oswald on ~half the screens, system font on the rest). Sites:
-   Roster:341/335, OnDeck:189, Trades:1221/1234/1287, WaiverWizard:784/813/834/854,
-   Players:892/940, Waivers:1135/1166, League:428/434, OnTheBlock:471, TradeInbox:472/475,
-   Scores:209. Then **pin the numeric contract** (size.caption 12 / ~0.16em) inside the helper or
-   a shared style so the current size drift (10/11/12/13) can't recur.
+   Oswald everywhere (today it's Oswald on ~half the screens, system font on the rest).
+   - **DONE (PR #400):** the structural `violetText` eyebrows + the two clear Trades section labels —
+     OnDeck (section header), Scores (still-to-play), Roster (sort + position headers), Players
+     (control labels), Waivers (claims title), OnTheBlock (asking price), TradeInbox (season label),
+     WaiverWizard (submitted + pos-group headers), Trades (deadline + YOU SEND/GET). Applied at the
+     JSX site (displayLabel() must be called at render, NOT in StyleSheet.create where fonts.ready is
+     still false). Left data-table headers, uppercase player names, and inline chip micro-labels alone
+     (not eyebrows).
+   - **Remaining:** **pin the numeric contract** (size.caption 12 / ~0.16em) inside the helper or a
+     shared style so the current size drift (10/11/12/13) can't recur — deferred (baking size into
+     displayLabel() risks overriding callers that intentionally spread it after their own fontSize).
 
 4. **Give the ~15 bare `<Text>No X</Text>` empties to `EmptyView`** (§10). Sites incl.
    Trades:642, Players:442/485/512/536/596, Waivers:401/710/1038, DraftList:226/276,
@@ -82,15 +88,17 @@ build before merge.
 
 5. **Emoji → vector icon migration (~46 sites).** Vectors already exist for nearly all of them
    (`x`, `check`, `swap`, `bolt`, `star`/`WatchIcon`, `target`/`TargetIcon`, `AvoidIcon`, `bang`,
-   `trophy`, `search`, `dollar`, `tag`). Do highest-visibility first:
-   - **Shared primitives that propagate everywhere:** `Checkbox.js:13` (`✓`), `Toast.js:24/26`
-     (`✓`/`⚠`) — fixing these two touches every checkbox and toast in the app.
-   - **Tappable controls whose only icon is an emoji** (~16): the `✕` close/clear taps, `▲▼`/`↑↓`
-     reorder glyphs (DraftList, WaiverWizard), `★`/`☆` pin (Leagues:136).
-   - **Cross-screen inconsistencies** (same concept vector-in-one-place, emoji-in-another):
-     watch/star, target/avoid, swap/`⇄`, check. The trophy icon is the correct template — always
-     the vector via `NeonSign`.
-   - **Gap:** there is no vector `info` glyph (`InfoDot.js` uses `ⓘ`) — add one to the family.
+   `trophy`, `search`, `dollar`, `tag`, and now `info`). Do highest-visibility first:
+   - **Slice 1 — DONE (PR #399):** the shared primitives that propagate everywhere — `Checkbox` (`✓`
+     → `check` vector via a new plain `GlyphMark` renderer), `Toast` (`✓`/`ℹ`/`⚠` → `check`/`info`/
+     `bang` `NeonGlyph`s), `InfoDot` (`ⓘ` → the new `info` glyph). Also **added the missing `info`
+     glyph** to the family (the review's named gap) + `GlyphMark` for on-fill/crisp chrome marks.
+   - **Remaining:**
+     - **Tappable controls whose only icon is an emoji** (~16): the `✕` close/clear taps, `▲▼`/`↑↓`
+       reorder glyphs (DraftList, WaiverWizard), `★`/`☆` pin (Leagues:136).
+     - **Cross-screen inconsistencies** (same concept vector-in-one-place, emoji-in-another):
+       watch/star, target/avoid, swap/`⇄`, check. The trophy icon is the correct template — always
+       the vector via `NeonSign`.
 
 ## P3 — Accessibility & remaining color hygiene (bounded)
 
