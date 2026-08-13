@@ -11,6 +11,7 @@ import LeagueContext from '../components/LeagueContext';
 import ErrorView from '../components/ErrorView';
 import ListSkeleton from '../components/ListSkeleton';
 import { TargetIcon, AvoidIcon, WatchIcon } from '../components/PlayerActionIcons';
+import { GlyphMark } from '../components/NeonGlyphs';
 import { toast } from '../components/Toast';
 import { peekResource, primeResource } from '../useCachedResource';
 import { getValue, setValue } from '../cache';
@@ -422,7 +423,8 @@ export default function OnTheBlockScreen({ onBack, onOpenPlayer, onOpenInbox, on
                           style={({ pressed }) => [styles.proposeBtn, pressed && { opacity: 0.85 }]}
                           onPress={() => onProposeWith({ leagueId: lg.leagueId, name: lg.name, partnerFranchiseId: team.franchiseId, receiveTokens: [...sel] })}
                         >
-                          <Text style={styles.proposeTxt}>⇄ Propose trade for {sel.size} · {team.name}</Text>
+                          <GlyphMark name="swap" size={14} color={colors.onAccent} weight={2.2} />
+                          <Text style={styles.proposeTxt}>Propose trade for {sel.size} · {team.name}</Text>
                         </Pressable>
                       ) : null}
                     </View>
@@ -482,7 +484,7 @@ const styles = StyleSheet.create({
   teamName: { color: colors.text, fontSize: 14, fontWeight: '800', flex: 1, marginRight: 10 },
   teamVal: { color: colors.gold, fontSize: 14, fontWeight: '900' },
   teamNote: { color: colors.textDim, fontSize: 12, fontStyle: 'italic', marginTop: 3, lineHeight: 16 },
-  proposeBtn: { backgroundColor: colors.accent, borderRadius: 10, paddingVertical: 11, alignItems: 'center', marginTop: 10 },
+  proposeBtn: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, backgroundColor: colors.accent, borderRadius: 10, paddingVertical: 11, marginTop: 10 },
   proposeTxt: { color: colors.onAccent, fontSize: 14, fontWeight: '900' },
   error: { color: colors.bad, textAlign: 'center', paddingVertical: 12 },
   emptyWrap: { paddingTop: 60, alignItems: 'center' },

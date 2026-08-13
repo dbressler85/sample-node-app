@@ -111,13 +111,14 @@ build before merge.
      controls (PickInventory, Draft) → `swap` vector; and OnTheBlock's `◎`/`⊘`/`★` status markers →
      the existing `TargetIcon`/`AvoidIcon`/`WatchIcon` vectors (closes the target/avoid + watch/star
      cross-screen inconsistency for that screen).
-   - **Remaining:**
-     - **`⇄ Label` buttons** (icon + text): `⇄ Shop`/`⇄ Shopping` (PlayerRow, Portfolio ×3),
-       `⇄ Trades` (Draft, Roster), `⇄ Block` (TradeInbox), `⇄ Propose` (OnTheBlock). These need a
-       flex-row (icon + `<Text>`) instead of a leading glyph in the string — **wants a build** to
-       verify baseline alignment, so held for a build-in-the-loop slice.
-     - The inline `▲▼`/`◆` trend indicators (Portfolio, Players, PlayerProfile) and the small `⇄`
-       bait-tag pills — decorative, lowest priority.
+   - **Slice 4 — DONE (PR #407):** the `⇄ Label` buttons → a flex-row of `swap` vector + `<Text>`:
+     `Shop`/`Shopping` (shared PlayerRow + Portfolio ×3), `Trades` (Draft topbar + Roster), `Block`
+     (TradeInbox topbar), `Propose trade` (OnTheBlock). Icon tint matches each label; the two topbar
+     links keep their right-alignment via a `justify-flex-end` row (dropped the text's minWidth /
+     textAlign onto the row). Pill buttons gained `flexDirection:'row'` + `gap`.
+   - **Remaining (decorative, lowest priority):** the inline `▲▼`/`◆` trend indicators (Portfolio,
+     Players, PlayerProfile), the small `⇄` bait-tag pills (Trades), and the `⇄`/`★` that appear
+     inside explanatory copy or trade-activity strings (`A ⇄ B`) — content, not controls.
 
 ## P3 — Accessibility & remaining color hygiene (bounded)
 

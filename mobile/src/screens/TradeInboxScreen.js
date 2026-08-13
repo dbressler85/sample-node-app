@@ -11,6 +11,7 @@ import useCachedResource from '../useCachedResource';
 import { getValue, setValue } from '../cache';
 import { colors, positionColors } from '../theme';
 import { displayLabel } from '../typography';
+import { GlyphMark } from '../components/NeonGlyphs';
 import { celebrate } from '../components/Celebrate';
 import InfoDot from '../components/InfoDot';
 import ErrorView from '../components/ErrorView';
@@ -220,8 +221,9 @@ export default function TradeInboxScreen({ active = true, onBack, onOpenLeague, 
         <ScreenTitle focused={active}>Trades</ScreenTitle>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
           {onOpenBlock ? (
-            <Pressable onPress={onOpenBlock} hitSlop={10}>
-              <Text style={styles.blockLink}>⇄ Block</Text>
+            <Pressable onPress={onOpenBlock} hitSlop={10} style={styles.blockLinkBtn}>
+              <GlyphMark name="swap" size={14} color={colors.accent} weight={2} />
+              <Text style={styles.blockLink}>Block</Text>
             </Pressable>
           ) : null}
           <NavTools active={active} />
@@ -415,7 +417,8 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8 },
   back: { color: colors.accent, fontSize: 16, fontWeight: '600', minWidth: 54 },
-  blockLink: { color: colors.accent, fontSize: 14, fontWeight: '800', minWidth: 54, textAlign: 'right' },
+  blockLinkBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4, minWidth: 54 },
+  blockLink: { color: colors.accent, fontSize: 14, fontWeight: '800' },
   // Violet heading = the structure/wayfinding layer (color law); soft violet glow to match the ignite.
   title: { color: colors.violetText, fontSize: 20, fontWeight: '900', textShadowColor: 'rgba(139,92,246,0.5)', textShadowRadius: 9, textShadowOffset: { width: 0, height: 0 } },
   subtitle: { color: colors.textDim, fontSize: 13, marginTop: 6, paddingHorizontal: 16 },
