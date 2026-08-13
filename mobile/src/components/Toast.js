@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Animated, AccessibilityInfo } from 'react-native';
 import { colors } from '../theme';
+import { NeonGlyph } from './NeonGlyphs';
 import useReducedMotion from '../useReducedMotion';
 import haptics from '../haptics';
 
@@ -20,10 +21,12 @@ export function toast(message, opts = {}) {
   }
 }
 
+// Tone → shared vector glyph (DESIGN_SYSTEM.md §11 — no emoji): a wired check / info-i / warning bang,
+// each lit in its tone color as the toast's neon punctuation instead of the old ✓ / ℹ / ⚠ system glyphs.
 const TONE = {
-  success: { color: colors.good, icon: '✓' },
-  info: { color: colors.accent, icon: 'ℹ' },
-  error: { color: colors.bad, icon: '⚠' },
+  success: { color: colors.good, glyph: 'check' },
+  info: { color: colors.accent, glyph: 'info' },
+  error: { color: colors.bad, glyph: 'bang' },
 };
 
 export function ToastHost() {
@@ -64,7 +67,7 @@ export function ToastHost() {
       style={[styles.wrap, { opacity: anim, transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [50, 0] }) }] }]}
     >
       <View style={[styles.toast, { borderColor: tone.color }]}>
-        <Text style={[styles.icon, { color: tone.color }]}>{tone.icon}</Text>
+        <NeonGlyph name={tone.glyph} size={18} color={tone.color} />
         <Text style={styles.msg} numberOfLines={3}>{t.message}</Text>
       </View>
     </Animated.View>
@@ -89,6 +92,5 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 8,
   },
-  icon: { fontSize: 16, fontWeight: '900' },
   msg: { color: colors.text, fontSize: 14, fontWeight: '700', flexShrink: 1 },
 });
