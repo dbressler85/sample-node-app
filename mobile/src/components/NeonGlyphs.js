@@ -22,6 +22,7 @@ const PATHS = {
   // Counter-clockwise undo arrow.
   undo: ['M8.5 6 L5 9 L8.5 12', 'M5.5 9 H14 A4.5 4.5 0 0 1 14 18 H9.5'],
   down: ['M12 4 V17.5', 'M6.5 12 L12 19 L17.5 12'],
+  up: ['M12 20 V6.5', 'M6.5 12 L12 5 L17.5 12'],
   // Star (the watchlist sign).
   star: ['M12 2.6 L14.55 9.1 L21.5 9.35 L15.95 13.7 L17.9 20.5 L12 16.5 L6.1 20.5 L8.05 13.7 L2.5 9.35 L9.45 9.1 Z'],
   // Hourglass (deadline).
@@ -103,13 +104,13 @@ export function NeonGlyph({ name, size = 22, color = '#4F8CFF', core = '#F6FBFF'
 // A PLAIN single-color glyph (no neon bloom) — for functional UI chrome that either sits ON a colored
 // fill (a checkbox tick on the accent square) or just needs a crisp legible mark at small sizes, where
 // the two-layer tube would muddy. Same path family as NeonGlyph, one solid stroke.
-export function GlyphMark({ name, size = 16, color = '#FFFFFF', weight = 2.2 }) {
+export function GlyphMark({ name, size = 16, color = '#FFFFFF', weight = 2.2, fill = 'none' }) {
   const d = PATHS[name];
   if (!d) return null;
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       {d.map((p, i) => (
-        <Path key={i} d={p} stroke={color} strokeWidth={weight} strokeLinecap="round" strokeLinejoin="round" />
+        <Path key={i} d={p} stroke={color} strokeWidth={weight} fill={fill} strokeLinecap="round" strokeLinejoin="round" />
       ))}
     </Svg>
   );

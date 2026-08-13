@@ -5,6 +5,7 @@ import { useRequirePro } from '../entitlement';
 import { api } from '../api';
 import { colors, positionColors } from '../theme';
 import { displayLabel } from '../typography';
+import { GlyphMark } from '../components/NeonGlyphs';
 import Button from '../components/Button';
 import { TopbarTitle } from '../components/Brand';
 import AvailabilityBadge from '../components/AvailabilityBadge';
@@ -401,10 +402,10 @@ export default function WaiverWizardScreen({ leagues, seedAddId = null, onBack, 
                   {current.submitted.length > 1 ? (
                     <>
                       <Pressable onPress={() => moveSubmitted(i, -1)} disabled={i === 0 || submittedBusy} hitSlop={6} style={styles.reorderBtn}>
-                        <Text style={[styles.reorderArrow, (i === 0 || submittedBusy) && styles.reorderArrowOff]}>▲</Text>
+                        <GlyphMark name="up" size={14} color={(i === 0 || submittedBusy) ? colors.border : colors.accent} weight={2.4} />
                       </Pressable>
                       <Pressable onPress={() => moveSubmitted(i, 1)} disabled={i === current.submitted.length - 1 || submittedBusy} hitSlop={6} style={styles.reorderBtn}>
-                        <Text style={[styles.reorderArrow, (i === current.submitted.length - 1 || submittedBusy) && styles.reorderArrowOff]}>▼</Text>
+                        <GlyphMark name="down" size={14} color={(i === current.submitted.length - 1 || submittedBusy) ? colors.border : colors.accent} weight={2.4} />
                       </Pressable>
                     </>
                   ) : null}
@@ -419,7 +420,7 @@ export default function WaiverWizardScreen({ leagues, seedAddId = null, onBack, 
                     hitSlop={6}
                     style={styles.reorderBtn}
                   >
-                    <Text style={[styles.submittedDelete, submittedBusy && styles.reorderArrowOff]}>✕</Text>
+                    <GlyphMark name="x" size={14} color={submittedBusy ? colors.border : colors.bad} weight={2.4} />
                   </Pressable>
                 </View>
               </View>

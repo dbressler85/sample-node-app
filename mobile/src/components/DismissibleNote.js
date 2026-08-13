@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Pressable, StyleSheet } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors } from '../theme';
+import { GlyphMark } from './NeonGlyphs';
 
 // A one-time instructional note the daily power user can retire. It renders its children (rich text
 // allowed) with a corner ✕; dismissing persists a per-`id` flag so the note stays gone across launches
@@ -31,7 +32,7 @@ export default function DismissibleNote({ id, style, children }) {
     <View style={[styles.wrap, style]}>
       {children}
       <Pressable onPress={dismiss} hitSlop={10} style={styles.x} accessibilityRole="button" accessibilityLabel="Dismiss this tip">
-        <Text style={styles.xText}>✕</Text>
+        <GlyphMark name="x" size={14} color={colors.textDim} weight={2} />
       </Pressable>
     </View>
   );
@@ -41,5 +42,4 @@ const styles = StyleSheet.create({
   // Reserve room on the right so the content never runs under the dismiss control.
   wrap: { position: 'relative', paddingRight: 24 },
   x: { position: 'absolute', right: 2, top: -2, paddingHorizontal: 6, paddingVertical: 4 },
-  xText: { color: colors.textDim, fontSize: 13, fontWeight: '800' },
 });
