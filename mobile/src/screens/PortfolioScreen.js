@@ -1086,7 +1086,7 @@ const styles = StyleSheet.create({
   // --- Sub-tabs + Teams view ---------------------------------------------------
   segRow: { flexDirection: 'row', gap: 8, marginHorizontal: 16, marginTop: 6, marginBottom: 4 },
   coverageBar: { paddingHorizontal: 16 }, // gutter for the persistent PartialNote above both tabs
-  seg: { flex: 1, paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, alignItems: 'center' },
+  seg: { flex: 1, minHeight: 44, justifyContent: 'center', paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, alignItems: 'center' },
   segOn: { borderColor: colors.accent, backgroundColor: colors.accent + '1F' },
   segText: { color: colors.textDim, fontSize: 14, fontWeight: '800' },
   segTextOn: { color: colors.accent },

@@ -454,7 +454,7 @@ const styles = StyleSheet.create({
   actionBadge: { minWidth: 20, height: 20, borderRadius: 10, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 },
   actionBadgeText: { color: colors.onAccent, fontSize: 11, fontWeight: '900', fontVariant: ['tabular-nums'] },
   segment: { flexDirection: 'row', marginHorizontal: 16, backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 3, marginTop: 6, marginBottom: 4 },
-  seg: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
+  seg: { flex: 1, minHeight: 44, justifyContent: 'center', paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
   segActive: { backgroundColor: colors.cardAlt },
   segText: { color: colors.textDim, fontSize: 13, fontWeight: '700' },
   segTextActive: { color: colors.accent, fontWeight: '800' }, // accent-tinted active (DESIGN_SYSTEM §10)

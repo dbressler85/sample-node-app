@@ -1241,7 +1241,7 @@ const styles = StyleSheet.create({
   deadlineEditBtn: { color: colors.accent, fontSize: 13, fontWeight: '800' },
   deadlineClear: { color: colors.bad, fontSize: 13, fontWeight: '800' },
   deadlineSet: { color: colors.accent, fontSize: 14, fontWeight: '800' },
-  seg: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
+  seg: { flex: 1, minHeight: 44, justifyContent: 'center', paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
   segActive: { backgroundColor: colors.cardAlt },
   segText: { color: colors.textDim, fontSize: 13, fontWeight: '700' },
   segTextActive: { color: colors.text },
