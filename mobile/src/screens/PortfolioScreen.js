@@ -36,7 +36,7 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
   // (invalidate-on-write), so returning here refetches (C3).
   // Device-first: the per-league roster fan-out runs on-device (its own IP), the backend only aggregates;
   // silently falls back to the backend's own resilient fan-out on any device-read failure. `_source` tags it.
-  const { data: d, error: fetchError, refreshing, reload } = useCachedResource('portfolio', () => portfolioPreferDevice());
+  const { data: d, error: fetchError, refreshing, fetching, reload, refetch } = useCachedResource('portfolio', () => portfolioPreferDevice());
   const [posFilter, setPosFilter] = useState(null); // tap an allocation segment to filter holdings by position
   const [showAllHoldings, setShowAllHoldings] = useState(false); // Top holdings: 12 by default, expand to the full book
   const [holdView, setHoldView] = useState('value'); // Top holdings ranking: 'value' (biggest bets) | 'exposure' (most leagues)
@@ -208,7 +208,10 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
               the trend + sparkline are hidden — comparing a partial aggregate to a complete one reads as a
               fake catastrophic drop. The banner explains it; pull-to-refresh loads the rest. */}
           {!d.totals.partial ? <ChangeLine change={d.change} /> : null}
-          <PartialNote loaded={d.totals.teams} total={d.totals.leagues} onRetry={reload} />
+          {/* Retry heals the gap with a SILENT refetch (not `reload`, which fires the pull-to-refresh
+              RefreshControl and left a spinner floating over the painted book). `loading={fetching}`
+              shows inline "Loading N of M…" progress in the note itself while it re-reads. */}
+          <PartialNote loaded={d.totals.teams} total={d.totals.leagues} onRetry={refetch} loading={fetching} />
           {d._source === 'device' ? <DeviceNote text={`Rosters live from MFL on-device · ${d.totals.leagues} league${d.totals.leagues === 1 ? '' : 's'}`} /> : null}
           {d.totals.partial ? (
             <Text style={styles.buildingHint}>Value trend hidden until all {d.totals.leagues} leagues load — pull to refresh.</Text>
