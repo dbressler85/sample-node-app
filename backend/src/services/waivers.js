@@ -14,6 +14,7 @@ const config = require('../config');
 const demo = require('../demo/fixtures');
 const mfl = require('../lib/mfl');
 const mflRepo = require('../lib/mflRepo');
+const divisionContext = require('../lib/divisionContext');
 const { withRetry, withWriteRetry } = require('../lib/retry');
 const scoringLib = require('../lib/scoring');
 const availabilityLib = require('../lib/availability');
@@ -982,7 +983,11 @@ async function submitClaimInner({ cookie, league, system, add, drop, bid, locked
     try {
       const [status] = await mflRepo.playerRosterStatus(league, cookie, add);
       if (status) {
-        const elig = mflRepo.addEligibility(status);
+        // Multi-copy leagues: a player rostered only in ANOTHER division is a free agent for my
+        // team, so the "already rostered" pre-flight must be division-aware. Fail-soft (null ctx →
+        // today's league-wide gate; the write below stays authoritative either way).
+        const divCtx = await divisionContext.resolve(cookie, league).catch(() => null);
+        const elig = mflRepo.addEligibility(status, divCtx);
         if (!elig.addable) {
           const err = new Error(elig.reason);
           err.status = 409;
