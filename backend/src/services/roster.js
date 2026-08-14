@@ -5,6 +5,7 @@
 const mfl = require('../lib/mfl');
 const { withWriteRetry } = require('../lib/retry');
 const mflRepo = require('../lib/mflRepo');
+const divisionContext = require('../lib/divisionContext');
 const config = require('../config');
 const demo = require('../demo/fixtures');
 const players = require('../lib/players');
@@ -383,7 +384,14 @@ async function buildRoster(cookie, leagueId) {
   ]);
   const recordPct = recordPctByFranchise(standingsRows).get(String(league.franchiseId)) ?? null;
   const record = recordForFranchise(standingsRows, league.franchiseId);
-  return assembleRoster(league, franchises, { byId, week, statusMap, byeMap, enr, picks, recordPct, record });
+  // Multi-copy leagues: rank my roster's strength/age against MY division only (the all-franchise
+  // read carries every division, with players duplicated across them). Reuses the franchises we
+  // already fetched for detection — no extra read. No-op for normal leagues (multiCopy:false).
+  const divCtx = await divisionContext.resolve(cookie, league, franchises).catch(() => null);
+  const scoped = divCtx && divCtx.multiCopy && Array.isArray(franchises)
+    ? franchises.filter((f) => divCtx.includes(f.id))
+    : franchises;
+  return assembleRoster(league, scoped, { byId, week, statusMap, byeMap, enr, picks, recordPct, record });
 }
 
 // Build my enriched roster (+ strength summary) from franchises the DEVICE fetched straight from MFL,

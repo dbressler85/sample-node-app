@@ -309,13 +309,24 @@ async function playerProfiles(cookie, players) {
 // Interpret a normalized status into add eligibility for THIS league. addable=false carries a
 // human reason. (Note: intended for the immediate free-agency path — during a waiver period a
 // claim is a bid, not a direct add, so this is not a gate for FAAB/priority claims.)
-function addEligibility(status) {
+//
+// `divCtx` (optional, from lib/divisionContext) makes this multi-copy aware. In a MULTI-COPY league
+// each division is its own player pool, so a player rostered in ANOTHER division is still a free
+// agent for MY team — only a franchise in MY division blocks the add. In a normal league divCtx is
+// absent (or multiCopy:false) and ANY rostering franchise blocks, exactly as before.
+function addEligibility(status, divCtx = null) {
   if (!status) return { addable: false, reason: 'No roster status returned.' };
   if (status.error) return { addable: false, reason: status.error };
-  if (status.franchises.length) return { addable: false, reason: `Already rostered (franchise ${status.franchises[0].franchiseId}).` };
+  const multiCopy = !!(divCtx && divCtx.multiCopy);
+  // Only in-division owners block in a multi-copy league; otherwise every rostering franchise blocks.
+  const blocking = multiCopy ? status.franchises.filter((f) => divCtx.includes(f.franchiseId)) : status.franchises;
+  if (blocking.length) return { addable: false, reason: `Already rostered (franchise ${blocking[0].franchiseId}).` };
   if (status.cantAdd) return { addable: false, reason: 'MyFantasyLeague won’t allow adding this player right now.' };
   if (status.locked) return { addable: false, reason: 'This player is locked (his game has started).' };
   if (status.isFreeAgent) return { addable: true, reason: null };
+  // Multi-copy only: rostered solely in OTHER divisions — not a global free agent, but free for my
+  // team. No in-division owner and not locked → let the add proceed; MFL's write stays authoritative.
+  if (multiCopy) return { addable: true, reason: null };
   return { addable: false, reason: 'Not an available free agent.' };
 }
 

@@ -9,6 +9,7 @@ const demo = require('../demo/fixtures');
 const mfl = require('../lib/mfl');
 const mflRead = require('../lib/mflRead'); // shared read core: owns transaction parsing (device + backend)
 const mflRepo = require('../lib/mflRepo');
+const divisionContext = require('../lib/divisionContext');
 const { logDegrade } = require('../lib/safe');
 const leaguesService = require('./leagues');
 const playersLib = require('../lib/players');
@@ -79,7 +80,13 @@ async function getStandings(cookie, leagueId) {
     playoffSpots = spots;
   }
 
-  const standings = rows.map((r, i) => ({
+  // Multi-copy leagues: standings mix every division into one scrambled list. Scope to MY division
+  // (and re-rank within it) so the table reads as my ~N-team division. No-op for normal leagues
+  // (multiCopy:false → every row kept, ranks unchanged).
+  const divCtx = await divisionContext.resolve(cookie, league).catch(() => null);
+  const scopedRows = divCtx && divCtx.multiCopy ? rows.filter((r) => divCtx.includes(r.id)) : rows;
+
+  const standings = scopedRows.map((r, i) => ({
     rank: i + 1,
     franchiseId: r.id,
     name: r.name,
@@ -172,7 +179,12 @@ async function getTeams(cookie, leagueId) {
     })
     .sort((a, b) => b.totalValue - a.totalValue);
 
-  return { leagueId: String(league.leagueId), name: league.name, format: leagueFormat.label(fmt), teams };
+  // Multi-copy leagues: the roster read returns every division's teams (the same players duplicated
+  // across divisions), so scope opponent scouting to MY division. No-op for normal leagues.
+  const divCtx = await divisionContext.resolve(cookie, league).catch(() => null);
+  const scopedTeams = divCtx && divCtx.multiCopy ? teams.filter((t) => divCtx.includes(t.franchiseId)) : teams;
+
+  return { leagueId: String(league.leagueId), name: league.name, format: leagueFormat.label(fmt), teams: scopedTeams };
 }
 
 const TXN_LABEL = {
