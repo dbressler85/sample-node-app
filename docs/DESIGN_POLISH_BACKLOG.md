@@ -150,8 +150,11 @@ build before merge.
 9. **Other consistency stragglers.**
    - **DONE (PR #408):** LineupEditor/LineupWizard header titles white → `colors.violetText` (they
      already use Oswald via `displayLg()`; only the color was off). Color-only.
-   - **Remaining:** the TradesScreen reject modal is center-anchored where the house style is a bottom
-     sheet (§10); several ad-hoc `Modal+View` sheets could adopt `BottomSheet` — layout changes, build.
+   - **DONE (PR #414):** the TradesScreen reject modal → the house bottom-sheet (§10): slides up from
+     the bottom (was center-anchored fade), top-rounded full-width sheet + grabber, mirroring the
+     `DropSheet` already in the same file.
+   - **Remaining:** several other ad-hoc `Modal+View` sheets could still adopt the bottom-sheet idiom —
+     eyeball case by case on the build.
 
 ## P4 — Deferred / not recommended as a sweep
 
