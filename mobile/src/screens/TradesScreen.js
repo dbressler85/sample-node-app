@@ -853,10 +853,11 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
       ) : null}
 
       {/* Reject an incoming offer, optionally with a note MFL delivers to the originator. */}
-      <Modal visible={!!rejectTarget} transparent animationType="fade" onRequestClose={() => setRejectTarget(null)}>
-        <Pressable style={styles.modalScrim} onPress={() => setRejectTarget(null)}>
+      <Modal visible={!!rejectTarget} transparent animationType="slide" onRequestClose={() => setRejectTarget(null)}>
+        <Pressable style={styles.rejectScrim} onPress={() => setRejectTarget(null)}>
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ width: '100%' }}>
           <Pressable style={styles.rejectSheet} onPress={() => {}}>
+            <View style={styles.grabber} />
             <Text style={styles.rejectTitle}>Reject offer{rejectTarget && rejectTarget.withName ? ` from ${rejectTarget.withName}` : ''}?</Text>
             <Text style={styles.rejectHint}>Add an optional note for them (they’ll see it with the rejection).</Text>
             <TextInput
@@ -1337,7 +1338,9 @@ const styles = StyleSheet.create({
   acceptText: { color: colors.onAccent, fontWeight: '800', fontSize: 14 },
   // Reject-with-note modal.
   modalScrim: { flex: 1, backgroundColor: colors.scrim, justifyContent: 'center', paddingHorizontal: 24 },
-  rejectSheet: { backgroundColor: colors.bg, borderRadius: 16, borderWidth: 1, borderColor: colors.border, padding: 18 },
+  rejectScrim: { flex: 1, backgroundColor: colors.scrim, justifyContent: 'flex-end' }, // bottom-anchored, house sheet style (§10)
+  rejectSheet: { backgroundColor: colors.bg, borderTopLeftRadius: 18, borderTopRightRadius: 18, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 18, paddingTop: 12, paddingBottom: 24 },
+  grabber: { alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: colors.border, marginBottom: 12 },
   rejectTitle: { color: colors.text, fontSize: 16, fontWeight: '800', marginBottom: 6 },
   rejectHint: { color: colors.textDim, fontSize: 12, marginBottom: 12 },
   rejectInput: { minHeight: 64, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, color: colors.text, fontSize: 14, padding: 10, textAlignVertical: 'top' },
