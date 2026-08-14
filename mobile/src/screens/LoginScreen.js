@@ -238,8 +238,8 @@ const styles = StyleSheet.create({
   // The gold rule wipes out from the center as the brand settles.
   rule: { alignSelf: 'center', width: 64, height: 3, borderRadius: 2, backgroundColor: colors.gold, marginTop: 10 },
   tagline: { color: colors.textDim, fontSize: 14, textAlign: 'center', marginTop: 8, marginBottom: 22 },
-  demoPill: { alignSelf: 'center', borderWidth: 1, borderColor: colors.gold, borderRadius: 6, paddingHorizontal: 10, paddingVertical: 3, marginBottom: 18 },
-  demoPillText: { color: colors.gold, fontSize: 11, fontWeight: '900', letterSpacing: 1 },
+  demoPill: { alignSelf: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: 6, paddingHorizontal: 10, paddingVertical: 3, marginBottom: 18 },
+  demoPillText: { color: colors.textDim, fontSize: 11, fontWeight: '900', letterSpacing: 1 },
   input: {
     backgroundColor: 'rgba(20,28,48,0.85)',
     borderColor: colors.border,
