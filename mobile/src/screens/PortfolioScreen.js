@@ -285,7 +285,7 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
               return (
                 <Reveal key={a.id} delay={Math.min(i, 6) * 45}>
                   <View style={styles.arbRow}>
-                    <PressableScale style={styles.arbMain} onPress={() => onOpenPlayer && onOpenPlayer(a.id, { id: a.id, name: a.name, position: a.position })}>
+                    <PressableScale pressableStyle={styles.arbMain} style={styles.arbMainInner} onPress={() => onOpenPlayer && onOpenPlayer(a.id, { id: a.id, name: a.name, position: a.position })}>
                       <View style={[styles.posBadge, { borderColor: positionColors[a.position] || colors.textDim }]}>
                         <Text style={[styles.pos, { color: positionColors[a.position] || colors.textDim }]}>{a.position}</Text>
                       </View>
@@ -1024,7 +1024,12 @@ const styles = StyleSheet.create({
   concBye: { color: colors.textDim, fontSize: 13, marginTop: 8, lineHeight: 18 },
   moverRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   arbRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 9, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
-  arbMain: { flex: 1, flexDirection: 'row', alignItems: 'center', minWidth: 0 },
+  // arbMain is the OUTER touch target (flex:1 next to the Shop button) — it MUST go on PressableScale's
+  // `pressableStyle`, not `style` (which styles the inner Animated.View). Passing flex via `style` left
+  // the outer Pressable unsized, so the inner text column collapsed to 0 width → blank "ghost" rows
+  // (position badge + Shop, no name/value). Row direction for the badge+text lives on the inner view.
+  arbMain: { flex: 1, minWidth: 0 },
+  arbMainInner: { flexDirection: 'row', alignItems: 'center', width: '100%' },
   arbName: { color: colors.text, fontSize: 15, fontWeight: '800' },
   arbLine: { color: colors.textDim, fontSize: 12, marginTop: 2, lineHeight: 16 },
   arbHint: { color: colors.accent, fontSize: 11, marginTop: 2, lineHeight: 15, fontWeight: '600' },
