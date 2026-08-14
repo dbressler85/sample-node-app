@@ -271,7 +271,7 @@ const styles = StyleSheet.create({
   bar: { height: 4, backgroundColor: colors.card, marginHorizontal: 16, marginTop: 10, borderRadius: 2, overflow: 'hidden' },
   barFill: { height: 4, backgroundColor: colors.accent },
   header: { paddingHorizontal: 20, paddingTop: 10, paddingBottom: 6 },
-  title: { color: colors.text, fontSize: 22, fontWeight: '900' },
+  title: { color: colors.violetText, fontSize: 22, fontWeight: '900' },
   subtitle: { color: colors.textDim, fontSize: 14, marginTop: 2 },
   totalStrong: { color: colors.text, fontWeight: '800' },
   emptyHint: { color: colors.bad, fontWeight: '700' },

@@ -6,8 +6,10 @@ import { colors, space, size, radius } from '../theme';
 // The one empty-state treatment (docs/DESIGN_SYSTEM.md §10): a short title, an optional line of
 // context, and an optional CTA — no emoji (a neon glyph slots in at `accent` once the neon-sign
 // system lands in Phase 4). Use for any "nothing here yet" list, so empties read intentional, not
-// broken. `tone` tints the little accent bar (defaults to the value gold).
-export default function EmptyView({ title, message, actionTitle, onAction, tone = colors.gold, style }) {
+// broken. `tone` tints the little bar; it defaults to a NEUTRAL structural hue — gold is reserved for
+// VALUE (color law), and a "nothing here" state isn't value (matches the callers that already pass
+// `tone={colors.textDim}`).
+export default function EmptyView({ title, message, actionTitle, onAction, tone = colors.textDim, style }) {
   return (
     <View style={[styles.wrap, style]}>
       <View style={[styles.bar, { backgroundColor: tone }]} />

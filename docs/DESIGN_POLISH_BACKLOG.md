@@ -129,16 +129,24 @@ build before merge.
 
 7. **Sub-44 touch targets** (§9): back buttons ~40px (hitSlop only), sort chips ~26px, segmented
    controls ~32px (add `minHeight:44`), reorder/`✕` glyphs. Also unify `PortfolioScreen`'s
-   bordered-pill segmented control (1076) onto the shared inset-track idiom.
+   bordered-pill segmented control (1076) onto the shared inset-track idiom. **HELD FOR THE BUILD** —
+   `minHeight:44` visibly grows every segmented bar / sort chip in the app; judge on-device (per §9,
+   not a blind sweep) rather than inflating ~10 screens' controls sight-unseen.
 
-8. **Remaining small color-law leaks** (non-paywall): Login gold DEMO pill + gold title rule →
-   neutral/structure; `EmptyView`'s accent bar defaulting to `gold` → a non-value hue; DraftScreen
-   gold *action* buttons (600/681/647) → accent (on-clock/clock gold is correct, keep it);
-   `Sparkline`/`Button` gold defaults are latent — leave but don't spread.
+8. **Remaining small color-law leaks** (non-paywall).
+   - **DONE (PR #408):** `EmptyView`'s bar defaulting to `gold` → `colors.textDim` (a neutral, matching
+     the callers that already passed `tone={colors.textDim}`); Login gold DEMO **pill** → neutral
+     border/text (a status badge isn't value). Both color-only, zero layout risk.
+   - **Held for the build:** the Login gold **title rule** (part of the brand lockup — a brand call,
+     eyeball first) and the DraftScreen gold *action* buttons → accent (keep on-clock/clock gold — a
+     semantic judgment on a live board that wants the device). `Sparkline`/`Button` gold defaults are
+     latent — leave but don't spread.
 
-9. **Other consistency stragglers:** LineupEditor/LineupWizard header titles are white 24px (not
-   the violet title treatment); the TradesScreen reject modal is center-anchored where the house
-   style is a bottom sheet (§10); several ad-hoc `Modal+View` sheets could adopt `BottomSheet`.
+9. **Other consistency stragglers.**
+   - **DONE (PR #408):** LineupEditor/LineupWizard header titles white → `colors.violetText` (they
+     already use Oswald via `displayLg()`; only the color was off). Color-only.
+   - **Remaining:** the TradesScreen reject modal is center-anchored where the house style is a bottom
+     sheet (§10); several ad-hoc `Modal+View` sheets could adopt `BottomSheet` — layout changes, build.
 
 ## P4 — Deferred / not recommended as a sweep
 

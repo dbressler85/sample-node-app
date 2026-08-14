@@ -218,7 +218,7 @@ const styles = StyleSheet.create({
   undoBtn: { borderColor: colors.accent },
   undoBtnText: { color: colors.accent },
   header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8 },
-  title: { color: colors.text, fontSize: 24, fontWeight: '900' },
+  title: { color: colors.violetText, fontSize: 24, fontWeight: '900' },
   subtitle: { color: colors.textDim, fontSize: 14, marginTop: 2 },
   format: { color: colors.textDim, fontSize: 11, fontWeight: '700', marginTop: 4, letterSpacing: 0.3 },
   matchup: { color: colors.textDim, fontSize: 13, marginTop: 4 },
