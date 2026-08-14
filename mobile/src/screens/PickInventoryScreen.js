@@ -118,12 +118,12 @@ function LeagueHeader({ league, onShopPicks, onGetPicks }) {
       {(onShopPicks || onGetPicks) && league.count > 0 ? (
         <View style={styles.ctaRow}>
           {onShopPicks ? (
-            <PressableScale style={styles.cta} onPress={() => onShopPicks(arg)}>
+            <PressableScale pressableStyle={styles.cta} style={styles.ctaVisual} onPress={() => onShopPicks(arg)}>
               <Text style={styles.ctaText}>Shop picks</Text>
             </PressableScale>
           ) : null}
           {onGetPicks ? (
-            <PressableScale style={[styles.cta, styles.ctaAlt]} onPress={() => onGetPicks(arg)}>
+            <PressableScale pressableStyle={[styles.cta, styles.ctaAlt]} style={styles.ctaVisual} onPress={() => onGetPicks(arg)}>
               <Text style={[styles.ctaText, styles.ctaTextAlt]}>Get picks</Text>
             </PressableScale>
           ) : null}
@@ -187,7 +187,11 @@ const styles = StyleSheet.create({
   leagueEmpty: { color: colors.textDim, fontSize: 13, fontStyle: 'italic', paddingVertical: 6 },
   credit: { marginTop: 8, marginBottom: 20 },
   ctaRow: { flexDirection: 'row', marginTop: 10, marginBottom: 2 },
-  cta: { flex: 1, borderRadius: 10, borderWidth: 1, borderColor: colors.accent, paddingVertical: 8, alignItems: 'center', marginRight: 8, backgroundColor: 'rgba(79,140,255,0.10)' },
+  // Layout (flex/margin) MUST live on PressableScale's `pressableStyle` (the outer Pressable); the
+  // visual button (border/bg/padding) is the inner `style` that scales on press. Passing flex via
+  // `style` left the buttons content-width + left-packed instead of two equal halves.
+  cta: { flex: 1, marginRight: 8 },
+  ctaVisual: { width: '100%', borderRadius: 10, borderWidth: 1, borderColor: colors.accent, paddingVertical: 8, alignItems: 'center', backgroundColor: 'rgba(79,140,255,0.10)' },
   ctaAlt: { marginRight: 0 },
   ctaText: { color: colors.accent, fontSize: 13, fontWeight: '800', letterSpacing: 0.2 },
   ctaTextAlt: { color: colors.accent },
