@@ -965,7 +965,7 @@ const styles = StyleSheet.create({
   search: { flex: 1, color: colors.text, fontSize: 16, paddingVertical: 12 },
   clear: { color: colors.textDim, fontSize: 16, paddingHorizontal: 6 },
   segment: { flexDirection: 'row', marginHorizontal: 16, backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 3, marginBottom: 6 },
-  seg: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
+  seg: { flex: 1, minHeight: 44, justifyContent: 'center', paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
   segActive: { backgroundColor: colors.cardAlt },
   segText: { color: colors.textDim, fontSize: 13, fontWeight: '700' },
   segTextActive: { color: colors.text },

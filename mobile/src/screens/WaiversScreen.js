@@ -1170,7 +1170,7 @@ const styles = StyleSheet.create({
   backChev: { color: colors.accent, fontSize: 26, fontWeight: '800', marginRight: 6, marginTop: -2 },
   backText: { color: colors.accent, fontSize: 15, fontWeight: '700', flex: 1 },
   segment: { flexDirection: 'row', marginHorizontal: 16, backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 3, marginBottom: 8 },
-  seg: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
+  seg: { flex: 1, minHeight: 44, justifyContent: 'center', paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
   segActive: { backgroundColor: colors.cardAlt },
   segText: { color: colors.textDim, fontSize: 13, fontWeight: '700' },
   segTextActive: { color: colors.text },

@@ -128,10 +128,14 @@ build before merge.
    build to confirm no badge overflow, hence P3 not a blind sweep.
 
 7. **Sub-44 touch targets** (§9): back buttons ~40px (hitSlop only), sort chips ~26px, segmented
-   controls ~32px (add `minHeight:44`), reorder/`✕` glyphs. Also unify `PortfolioScreen`'s
-   bordered-pill segmented control (1076) onto the shared inset-track idiom. **HELD FOR THE BUILD** —
-   `minHeight:44` visibly grows every segmented bar / sort chip in the app; judge on-device (per §9,
-   not a blind sweep) rather than inflating ~10 screens' controls sight-unseen.
+   controls ~32px (add `minHeight:44`), reorder/`✕` glyphs.
+   - **DONE (PR #412):** the segmented-control tab switchers → `minHeight: 44` + `justifyContent:
+     'center'` across DraftList, LeagueScreen, OnTheBlock, Players, Trades, Waivers, Portfolio — the
+     primary navigation controls, now at the §9 touch minimum. (Reorder/`✕` glyphs already carry
+     `hitSlop` from the P2 icon work.)
+   - **Remaining (judge on the build):** the small sort/filter chips (`minHeight:44` visibly grows a
+     horizontal chip row — decide on-device whether that reads as chunky), the ~40px back buttons, and
+     unifying `PortfolioScreen`'s bordered-pill segmented control onto the shared inset-track idiom.
 
 8. **Remaining small color-law leaks** (non-paywall).
    - **DONE (PR #408):** `EmptyView`'s bar defaulting to `gold` → `colors.textDim` (a neutral, matching

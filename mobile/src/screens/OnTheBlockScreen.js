@@ -454,7 +454,7 @@ const styles = StyleSheet.create({
   title: { color: colors.text, fontSize: 20, fontWeight: '900' },
   subtitle: { color: colors.textDim, fontSize: 13, textAlign: 'center', marginTop: 6 },
   segment: { flexDirection: 'row', marginHorizontal: 16, marginTop: 10, backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 3 },
-  seg: { flex: 1, paddingVertical: 7, borderRadius: 8, alignItems: 'center' },
+  seg: { flex: 1, minHeight: 44, justifyContent: 'center', paddingVertical: 7, borderRadius: 8, alignItems: 'center' },
   segOn: { backgroundColor: colors.cardAlt },
   segTxt: { color: colors.textDim, fontSize: 13, fontWeight: '800' },
   segTxtOn: { color: colors.text },

@@ -380,7 +380,7 @@ const styles = StyleSheet.create({
   nextUp: { color: colors.textDim, fontSize: 12, marginTop: 3 },
   nextUpName: { color: colors.gold, fontWeight: '800' },
   segment: { flexDirection: 'row', marginHorizontal: 16, marginTop: 10, backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 3 },
-  seg: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
+  seg: { flex: 1, minHeight: 44, justifyContent: 'center', paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
   segActive: { backgroundColor: colors.cardAlt },
   segText: { color: colors.textDim, fontSize: 13, fontWeight: '700' },
   segTextActive: { color: colors.text },
