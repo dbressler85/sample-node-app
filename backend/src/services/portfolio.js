@@ -605,7 +605,12 @@ async function getDashboard(cookie, token, { deviceRosters = null } = {}) {
   // gaps (both an absolute and a relative floor) so same-format holdings (spread ~0) don't show.
   const ARB_MIN_SPREAD = 8; // points on the 0-100 scale
   const ARB_MIN_SPREAD_PCT = 15; // relative to the lowest-valuing league
-  const arbitrage = [...holdMap.values()]
+  // Cross-league arbitrage needs the COMPLETE cross-league picture. On a partial load (some leagues'
+  // rosters failed to read) a player can look like a 2-league hold only because his other league didn't
+  // load, and the "worth most HERE" call is computed against a missing leg — so the rows are unreliable
+  // (and read as broken/ghost rows in the app). Suppress it while partial, exactly like `movers` below;
+  // the app self-heals to the full set on retry. (`failedLeagues` is resolved above, at load time.)
+  const arbitrage = failedLeagues.length ? [] : [...holdMap.values()]
     .filter((h) => h.perLeague.length >= 2)
     .map((h) => {
       const sorted = [...h.perLeague].sort((a, b) => b.value - a.value);
