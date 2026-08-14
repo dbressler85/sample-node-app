@@ -141,10 +141,11 @@ build before merge.
    - **DONE (PR #408):** `EmptyView`'s bar defaulting to `gold` → `colors.textDim` (a neutral, matching
      the callers that already passed `tone={colors.textDim}`); Login gold DEMO **pill** → neutral
      border/text (a status badge isn't value). Both color-only, zero layout risk.
+   - **DONE (PR #413):** DraftScreen gold *action* buttons → accent — the "Draft" confirm
+     (`sheetBtnGo`) and the "My Draft List" nav (`listBtn`/`listBtnTitle`). Kept the on-the-clock /
+     clock spotlight gold (that's value/state, correct per the doc).
    - **Held for the build:** the Login gold **title rule** (part of the brand lockup — a brand call,
-     eyeball first) and the DraftScreen gold *action* buttons → accent (keep on-clock/clock gold — a
-     semantic judgment on a live board that wants the device). `Sparkline`/`Button` gold defaults are
-     latent — leave but don't spread.
+     eyeball first). `Sparkline`/`Button` gold defaults are latent — leave but don't spread.
 
 9. **Other consistency stragglers.**
    - **DONE (PR #408):** LineupEditor/LineupWizard header titles white → `colors.violetText` (they
