@@ -183,6 +183,15 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
         ))}
       </View>
 
+      {/* Coverage banner — PERSISTENT, above BOTH tabs and OUTSIDE the scroll, so "Showing N of M
+          leagues" + Retry stay visible no matter which tab you're on or how far you've scrolled.
+          The whole screen is ONE fetch, so this single count is the coverage for every section —
+          there is never a per-chart difference (a chart is either shown from this data or hidden
+          until complete). Renders nothing once all leagues are in. */}
+      <View style={styles.coverageBar}>
+        <PartialNote loaded={d.totals.teams} total={d.totals.leagues} onRetry={refetch} loading={fetching} />
+      </View>
+
       {portTab === 'teams' ? (
         <TeamsView d={d} refreshing={refreshing} reload={reload} onOpenLeague={onOpenLeague} teamSort={teamSort} setTeamSort={setTeamSort} />
       ) : (
@@ -208,10 +217,8 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
               the trend + sparkline are hidden — comparing a partial aggregate to a complete one reads as a
               fake catastrophic drop. The banner explains it; pull-to-refresh loads the rest. */}
           {!d.totals.partial ? <ChangeLine change={d.change} /> : null}
-          {/* Retry heals the gap with a SILENT refetch (not `reload`, which fires the pull-to-refresh
-              RefreshControl and left a spinner floating over the painted book). `loading={fetching}`
-              shows inline "Loading N of M…" progress in the note itself while it re-reads. */}
-          <PartialNote loaded={d.totals.teams} total={d.totals.leagues} onRetry={refetch} loading={fetching} />
+          {/* (Coverage "Showing N of M — Retry" now lives in the PERSISTENT banner above both tabs,
+              so it never scrolls out of view; not repeated here.) */}
           {d._source === 'device' ? <DeviceNote text={`Rosters live from MFL on-device · ${d.totals.leagues} league${d.totals.leagues === 1 ? '' : 's'}`} /> : null}
           {d.totals.partial ? (
             <Text style={styles.buildingHint}>Value trend hidden until all {d.totals.leagues} leagues load — pull to refresh.</Text>
@@ -1078,6 +1085,7 @@ const styles = StyleSheet.create({
 
   // --- Sub-tabs + Teams view ---------------------------------------------------
   segRow: { flexDirection: 'row', gap: 8, marginHorizontal: 16, marginTop: 6, marginBottom: 4 },
+  coverageBar: { paddingHorizontal: 16 }, // gutter for the persistent PartialNote above both tabs
   seg: { flex: 1, paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, alignItems: 'center' },
   segOn: { borderColor: colors.accent, backgroundColor: colors.accent + '1F' },
   segText: { color: colors.textDim, fontSize: 14, fontWeight: '800' },
