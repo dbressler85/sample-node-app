@@ -613,7 +613,7 @@ const styles = StyleSheet.create({
   sheetBtns: { flexDirection: 'row', gap: 10, marginTop: 18 },
   sheetBtn: { flex: 1, alignItems: 'center', paddingVertical: 13, borderRadius: 12, borderWidth: 1, borderColor: colors.border },
   sheetBtnText: { color: colors.text, fontSize: 15, fontWeight: '800' },
-  sheetBtnGo: { backgroundColor: colors.gold, borderColor: colors.gold },
+  sheetBtnGo: { backgroundColor: colors.accent, borderColor: colors.accent }, // the Draft action → accent (color law: gold = value, accent = action)
   sheetBtnGoText: { color: colors.onAccent },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8 },
@@ -661,8 +661,8 @@ const styles = StyleSheet.create({
   badge: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 4 },
   badgeText: { fontSize: 12, fontWeight: '800' },
   sched: { color: colors.textDim, fontSize: 13, marginTop: 6 },
-  listBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.gold + '77', paddingHorizontal: 14, paddingVertical: 12, marginTop: 12 },
-  listBtnTitle: { color: colors.gold, fontSize: 14, fontWeight: '900' },
+  listBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.accent + '77', paddingHorizontal: 14, paddingVertical: 12, marginTop: 12 }, // "My Draft List" nav → accent (action, not value)
+  listBtnTitle: { color: colors.accent, fontSize: 14, fontWeight: '900' },
   listBtnSub: { color: colors.textDim, fontSize: 11, marginTop: 2, lineHeight: 15 },
   listBtnChev: { color: colors.textDim, fontSize: 20, fontWeight: '700', marginLeft: 8 },
   clock: { backgroundColor: colors.gold + '22', borderColor: colors.gold, borderWidth: 1, borderRadius: 12, padding: 14, marginTop: 12 },
