@@ -174,9 +174,10 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
         <View style={{ width: 60 }} />
       </View>
 
-      {/* Sub-tabs (tabs-lite): Overview keeps the full analysis scroll; Teams is the per-team view. */}
+      {/* Sub-tabs (tabs-lite): By Players is the player-centric analysis scroll; Teams is the
+          per-team (per-league) view. Key stays 'overview' for state/back-compat. */}
       <View style={styles.segRow}>
-        {[['overview', 'Overview'], ['teams', 'Teams']].map(([k, lbl]) => (
+        {[['overview', 'By Players'], ['teams', 'Teams']].map(([k, lbl]) => (
           <Pressable key={k} onPress={() => setPortTab(k)} style={[styles.seg, portTab === k && styles.segOn]} accessibilityRole="tab" accessibilityState={{ selected: portTab === k }}>
             <Text style={[styles.segText, portTab === k && styles.segTextOn]}>{lbl}</Text>
           </Pressable>
@@ -209,37 +210,9 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={reload} tintColor={colors.accent} />}
         ListHeaderComponent={(
           <View>
-        {/* Hero: total value, movement, and the value-over-time line — the portfolio glance. */}
-        <View style={styles.card}>
-          <Text style={styles.totalLabel}>Total dynasty value · {d.totals.teams} team{d.totals.teams === 1 ? '' : 's'}</Text>
-          <AnimatedNumber value={d.totals.rosterValue} style={styles.totalValue} />
-          {/* While partial (some leagues didn't load), the total is only a FRACTION of your portfolio, so
-              the trend + sparkline are hidden — comparing a partial aggregate to a complete one reads as a
-              fake catastrophic drop. The banner explains it; pull-to-refresh loads the rest. */}
-          {!d.totals.partial ? <ChangeLine change={d.change} /> : null}
-          {/* (Coverage "Showing N of M — Retry" now lives in the PERSISTENT banner above both tabs,
-              so it never scrolls out of view; not repeated here.) */}
-          {d._source === 'device' ? <DeviceNote text={`Rosters live from MFL on-device · ${d.totals.leagues} league${d.totals.leagues === 1 ? '' : 's'}`} /> : null}
-          {d.totals.partial ? (
-            <Text style={styles.buildingHint}>Value trend hidden until all {d.totals.leagues} leagues load — pull to refresh.</Text>
-          ) : d.history && d.history.length >= 2 ? (
-            <View style={styles.chartWrap}>
-              <Sparkline
-                data={d.history.map((h) => h.value)}
-                width={CHART_W}
-                height={64}
-                color={!d.change || d.change.absolute >= 0 ? colors.good : colors.bad}
-              />
-            </View>
-          ) : (
-            <Text style={styles.buildingHint}>Tracking your value — the trend line fills in over the coming days.</Text>
-          )}
-          <View style={styles.statRow}>
-            <Stat label="Players" value={d.totals.playerCount} />
-            <Stat label="Value-wtd age" value={d.totals.valueWeightedAge != null ? `${d.totals.valueWeightedAge}y` : '—'} />
-            <Stat label="Leagues" value={d.totals.leagues} />
-          </View>
-        </View>
+        {/* Hero: total value, movement, and the value-over-time line — now shared at the top of BOTH
+            tabs (By Players + Teams) via PortfolioHero, so the portfolio glance is always the anchor. */}
+        <PortfolioHero d={d} />
 
         {/* Movers — which of your holdings rose/fell most since we started tracking. Hidden on a partial
             load: a holding's value is understated when some leagues failed, so its "move" would be a
@@ -627,35 +600,8 @@ export default function PortfolioScreen({ onBack, onOpenPlayer, onOpenLeague }) 
           );
         })()}
 
-        {/* Per-league */}
-        <View style={styles.card}>
-          <Text style={[styles.cardTitle, displayLabel()]}>By league</Text>
-          {d.byLeague.map((l) => {
-            const inner = (
-              <>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.leagueName} numberOfLines={1}>{l.name}</Text>
-                  <Text style={[styles.leagueSub, l.loadFailed && { color: colors.warn }]} numberOfLines={1}>
-                    {l.loadFailed
-                      ? "couldn't load — pull to refresh"
-                      : [l.outlook, l.coreAge != null ? `core ${l.coreAge}y` : null, l.strengthLabel].filter(Boolean).join(' · ')}
-                  </Text>
-                </View>
-                {l.atRiskPct > 0 ? <Text style={[styles.leagueRisk, l.atRiskPct >= 20 && { color: colors.bad }]}>{l.atRiskPct}% risk</Text> : null}
-                <Text style={styles.leagueVal}>{l.value != null ? l.value : '—'}</Text>
-                {onOpenLeague ? <Text style={styles.leagueChev}>›</Text> : null}
-              </>
-            );
-            return onOpenLeague ? (
-              <PressableScale key={l.leagueId} style={styles.leagueRow} onPress={() => onOpenLeague({ leagueId: l.leagueId, name: l.name })}>
-                {inner}
-              </PressableScale>
-            ) : (
-              <View key={l.leagueId} style={styles.leagueRow}>{inner}</View>
-            );
-          })}
-        </View>
-
+        {/* Per-league lives on the Teams tab now (enhanced TeamRow: value · trend · share · outlook ·
+            core age · at-risk · format), so By Players stays player-centric. */}
         <View style={{ height: 30 }} />
           </View>
         )}
@@ -682,6 +628,39 @@ function outlookColor(o) {
   return colors.accent; // Balanced / unknown
 }
 
+// The portfolio glance — total value, movement, the value-over-time line, and the headline stats.
+// Shared so it anchors the top of BOTH tabs (By Players + Teams). Partial-load safe: the trend +
+// sparkline hide until every league is in (a partial aggregate vs a full one reads as a fake crash).
+function PortfolioHero({ d }) {
+  return (
+    <View style={styles.card}>
+      <Text style={styles.totalLabel}>Total dynasty value · {d.totals.teams} team{d.totals.teams === 1 ? '' : 's'}</Text>
+      <AnimatedNumber value={d.totals.rosterValue} style={styles.totalValue} />
+      {!d.totals.partial ? <ChangeLine change={d.change} /> : null}
+      {d._source === 'device' ? <DeviceNote text={`Rosters live from MFL on-device · ${d.totals.leagues} league${d.totals.leagues === 1 ? '' : 's'}`} /> : null}
+      {d.totals.partial ? (
+        <Text style={styles.buildingHint}>Value trend hidden until all {d.totals.leagues} leagues load — pull to refresh.</Text>
+      ) : d.history && d.history.length >= 2 ? (
+        <View style={styles.chartWrap}>
+          <Sparkline
+            data={d.history.map((h) => h.value)}
+            width={CHART_W}
+            height={64}
+            color={!d.change || d.change.absolute >= 0 ? colors.good : colors.bad}
+          />
+        </View>
+      ) : (
+        <Text style={styles.buildingHint}>Tracking your value — the trend line fills in over the coming days.</Text>
+      )}
+      <View style={styles.statRow}>
+        <Stat label="Players" value={d.totals.playerCount} />
+        <Stat label="Value-wtd age" value={d.totals.valueWeightedAge != null ? `${d.totals.valueWeightedAge}y` : '—'} />
+        <Stat label="Leagues" value={d.totals.leagues} />
+      </View>
+    </View>
+  );
+}
+
 function TeamsView({ d, refreshing, reload, onOpenLeague, teamSort, setTeamSort }) {
   const mix = d.outlookMix || {};
   const segments = OUTLOOK_MIX.map((o) => ({ key: o.key, color: o.color, value: mix[o.key] || 0 }));
@@ -700,6 +679,8 @@ function TeamsView({ d, refreshing, reload, onOpenLeague, teamSort, setTeamSort 
       renderItem={({ item: l }) => <TeamRow l={l} onOpenLeague={onOpenLeague} />}
       ListHeaderComponent={(
         <View>
+          {/* Same total-value glance that anchors the By Players tab. */}
+          <PortfolioHero d={d} />
           <View style={styles.card}>
             <Text style={[styles.cardTitle, displayLabel()]}>Team outlook</Text>
             {d.totals.partial ? (
@@ -742,6 +723,7 @@ function TeamRow({ l, onOpenLeague }) {
   const meta = [
     l.loadFailed ? "couldn't load" : l.outlook || 'Balanced',
     rec,
+    l.coreAge != null ? `core ${l.coreAge}y` : null,
     l.format ? l.format.label : null,
     l.strengthLabel,
   ].filter(Boolean).join(' · ');
@@ -761,6 +743,7 @@ function TeamRow({ l, onOpenLeague }) {
         <View style={styles.teamMetaRow}>
           <View style={[styles.oDot, { backgroundColor: oColor }]} />
           <Text style={styles.teamMeta} numberOfLines={1}>{meta}</Text>
+          {l.atRiskPct > 0 ? <Text style={[styles.teamRisk, l.atRiskPct >= 20 && { color: colors.bad }]}>{l.atRiskPct}% risk</Text> : null}
         </View>
       </View>
       {l.history && l.history.length >= 2 ? (
@@ -1081,11 +1064,6 @@ const styles = StyleSheet.create({
   hint: { color: colors.textDim, fontSize: 11, marginTop: 6, lineHeight: 15 },
   credit: { marginTop: 10 },
   tagLine: { color: colors.text, fontSize: 13, lineHeight: 20 },
-  leagueRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
-  leagueName: { color: colors.text, fontSize: 14, fontWeight: '700' },
-  leagueSub: { color: colors.textDim, fontSize: 12, marginTop: 1 },
-  leagueRisk: { color: colors.warn, fontSize: 12, fontWeight: '800', marginRight: 12 },
-  leagueVal: { color: colors.gold, fontSize: 15, fontWeight: '900', width: 44, textAlign: 'right' },
   leagueChev: { color: colors.textDim, fontSize: 18, fontWeight: '700', marginLeft: 8 },
 
   // --- Sub-tabs + Teams view ---------------------------------------------------
@@ -1114,6 +1092,7 @@ const styles = StyleSheet.create({
   teamMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 },
   oDot: { width: 8, height: 8, borderRadius: 4 },
   teamMeta: { color: colors.textDim, fontSize: 12, fontWeight: '600', flex: 1 },
+  teamRisk: { color: colors.warn, fontSize: 12, fontWeight: '800', flexShrink: 0 },
   teamSpark: { width: 54 },
   teamRight: { alignItems: 'flex-end', minWidth: 68 },
   teamVal: { color: colors.gold, fontSize: 16, fontWeight: '900' },
