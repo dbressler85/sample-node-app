@@ -887,40 +887,71 @@ async function lostBidResults(cookie, token, league, byId, wins) {
   }
 }
 
+// How long a just-submitted app claim is trusted before MFL's queue must confirm it. After a submit
+// we invalidate the pendingWaivers read, and MFL registers a queued claim synchronously, so the next
+// read normally already lists it — this window only covers a brief propagation lag, NOT the days a
+// claim legitimately waits for its run (MFL carries those the whole time). Kept short so a settled
+// claim can't hide behind it.
+const PENDING_GRACE_MS = 2 * 60 * 1000;
+
+// Reconcile the local optimistic mirror against MFL's AUTHORITATIVE pending set (`mflAddIds`). MFL is
+// the source of truth for what's actually queued, so a local *pending* claim MFL no longer lists has
+// been processed by a run (won, or outbid) and must stop showing as pending — we drop it from the
+// mirror. A local claim MFL still lists is represented by MFL's own row (deduped out here). A
+// just-filed claim MFL hasn't caught up to yet is kept for the grace window. Non-pending mirrors
+// (e.g. immediate/processed adds) pass through untouched. Pure (clock injected) for testability.
+// Returns { keep: rawClaims to merge after MFL's rows, removeIds: mirror ids to delete }.
+function reconcileLocalClaims(localClaims, mflAddIds, now, graceMs) {
+  const keep = [];
+  const removeIds = [];
+  for (const c of localClaims) {
+    const addId = c.add && (c.add.id || c.add);
+    if (addId != null && mflAddIds.has(String(addId))) continue; // MFL's row represents it (dedup)
+    const isPending = (c.status || 'pending') === 'pending';
+    const fresh = c.at != null && now - c.at < graceMs;
+    if (isPending && !fresh) { removeIds.push(c.id); continue; } // settled by a run → clean the mirror
+    keep.push(c); // just-filed pending (grace) or a non-pending mirror → keep
+  }
+  return { keep, removeIds };
+}
+
 // Merge the local claim store with MFL's AUTHORITATIVE pending waivers for ONE league — so claims
-// queued on MFL (including bids placed on the MFL site, not through the app) actually show up.
-// Deduped by add id so an app-submitted claim isn't listed twice. Best-effort + fail-soft: any read
-// failure yields just the local view. Returns claimView-shaped rows.
+// queued on MFL (including bids placed on the MFL site, not through the app) show up, and claims a
+// RUN has since settled (won or outbid) stop showing as pending. Deduped by add id. Best-effort +
+// fail-soft: only a READ FAILURE (throw) falls back to the raw local mirror; a successful (even
+// empty) read is authoritative and reconciles the mirror. Returns claimView-shaped rows.
 async function reconciledPending(cookie, token, league, byId) {
   const leagueId = league.leagueId;
-  const local = store.list(token, leagueId, config.demoMode ? demo.pendingClaims(leagueId) : []).map((c) => claimView(c, byId));
-  if (config.demoMode) return local;
+  const localClaims = store.list(token, leagueId, config.demoMode ? demo.pendingClaims(leagueId) : []);
+  if (config.demoMode) return localClaims.map((c) => claimView(c, byId));
+  let reqs;
   try {
-    const reqs = await mflRepo.pendingWaivers(league, cookie);
-    const mflPending = reqs.flatMap((req) =>
-      req.picks.map((pick, i) => {
-        const add = pick.add ? playersLib.resolve(byId, pick.add) : null;
-        const drop = pick.drop ? playersLib.resolve(byId, pick.drop) : null;
-        return {
-          id: `mfl-${req.system}-${req.round}-${i}`,
-          system: req.system,
-          add: add ? { id: add.id, name: add.name, position: add.position } : null,
-          drop: drop ? { id: drop.id, name: drop.name, position: drop.position } : null,
-          bid: pick.bid,
-          priority: null,
-          round: req.round,
-          status: 'pending',
-          processTime: null,
-          source: 'mfl',
-        };
-      })
-    );
-    if (!mflPending.length) return local;
-    const mflAdds = new Set(mflPending.map((c) => c.add && c.add.id).filter(Boolean));
-    return [...mflPending, ...local.filter((c) => !(c.add && mflAdds.has(c.add.id)))];
+    reqs = await mflRepo.pendingWaivers(league, cookie);
   } catch (e) {
-    return local;
+    return localClaims.map((c) => claimView(c, byId)); // read failed → keep the optimistic mirror as-is
   }
+  const mflPending = reqs.flatMap((req) =>
+    req.picks.map((pick, i) => {
+      const add = pick.add ? playersLib.resolve(byId, pick.add) : null;
+      const drop = pick.drop ? playersLib.resolve(byId, pick.drop) : null;
+      return {
+        id: `mfl-${req.system}-${req.round}-${i}`,
+        system: req.system,
+        add: add ? { id: add.id, name: add.name, position: add.position } : null,
+        drop: drop ? { id: drop.id, name: drop.name, position: drop.position } : null,
+        bid: pick.bid,
+        priority: null,
+        round: req.round,
+        status: 'pending',
+        processTime: null,
+        source: 'mfl',
+      };
+    })
+  );
+  const mflAddIds = new Set(mflPending.map((c) => c.add && c.add.id).filter(Boolean).map(String));
+  const { keep, removeIds } = reconcileLocalClaims(localClaims, mflAddIds, Date.now(), PENDING_GRACE_MS);
+  for (const id of removeIds) store.remove(token, leagueId, [], id); // persist the cleanup
+  return [...mflPending, ...keep.map((c) => claimView(c, byId))];
 }
 
 // Normalize a result to the flat { add, addId, drop, dropId, bid, result, at } shape the app renders.
@@ -1048,6 +1079,7 @@ async function submitMulti(cookie, token, leagueId, claims) {
         priority: c.priority,
         status: pv.immediate ? 'processed' : 'pending',
         processTime: pv.immediate ? 'immediate' : pv.clearTime,
+        at: Date.now(), // submit time → the grace window that protects a just-filed claim in reconcile
       });
       results.push({ add: c.add, ok: true, claim });
     } catch (e) {
@@ -1089,6 +1121,7 @@ async function submit(cookie, token, leagueId, payload) {
     priority: p.priority,
     status: p.immediate ? 'processed' : 'pending',
     processTime: p.immediate ? 'immediate' : p.clearTime,
+    at: Date.now(), // submit time → the grace window that protects a just-filed claim in reconcile
   });
 
   // An immediate (free-agency) add/drop changes the roster and FA pool right away;
@@ -1925,4 +1958,4 @@ async function recentResults(cookie, _token) {
   return { results: per.flat() };
 }
 
-module.exports = { getBoard, getOverview, getSuggestions, getLeagueSuggestion, preview, submit, previewMulti, submitMulti, cancel, edit, reorder, getBestAvailable, getPending, freeAgentIds, invalidate, nextWaiverRun, reconciledPending, recentResults, suggestBidPlan };
+module.exports = { getBoard, getOverview, getSuggestions, getLeagueSuggestion, preview, submit, previewMulti, submitMulti, cancel, edit, reorder, getBestAvailable, getPending, freeAgentIds, invalidate, nextWaiverRun, reconciledPending, reconcileLocalClaims, recentResults, suggestBidPlan };
