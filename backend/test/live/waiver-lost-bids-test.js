@@ -57,6 +57,15 @@ const lostRows = (res) => res.results.filter((r) => r.result === 'lost');
   assert(lostRows(res).length === 1, 're-load keeps exactly one loss (no duplication)');
   console.log('✓ view 3: reload is idempotent (one loss, still no pending)');
 
+  // VIEW 4 (self-heal) — the transactions log was LATE: 14080 actually WON, and the win now posts.
+  // The loss recorded in view 2 (booked before the win was visible) must be corrected, not stuck.
+  state.pending = [];
+  state.txns = [{ type: 'BBID_WAIVER', franchise: '0001', transaction: '14080,|12.00|14849,', timestamp: '1781200000' }];
+  res = await waivers.getPending(CK, TK);
+  assert(lostRows(res).length === 0, 'view 4: the false loss self-heals once the win posts');
+  assert(res.results.some((r) => r.result === 'won' && r.addId === '14080' && r.bid === 12), 'view 4: 14080 now shows as a WON result');
+  console.log('✓ view 4: a loss booked before the win posted is corrected once the win is visible (self-heal)');
+
   // WON path — a fresh league/token: bid queued, then it WINS (in transactions) → NOT a loss.
   const TK2 = 'tk2';
   state.pending = [{ system: 'faab', round: 1, picks: [{ add: '15000', bid: 5, drop: null }] }];

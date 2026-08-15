@@ -37,6 +37,15 @@ function sync(token, leagueId, currentPicks, wonAddIds, now) {
   const currentKeys = new Set(currentPicks.map(keyOf));
   const clearedAddIds = [];
 
+  // 0) Self-heal a MISATTRIBUTED loss. A bid gets recorded 'lost' the instant it vanishes from MFL's
+  // pending set, judged against the wins we could see AT THAT MOMENT — but the transactions log can
+  // lag a run, or its read can fail-soft to empty, so a bid we actually WON can be booked as a loss.
+  // Once the win becomes visible in wonAddIds, drop the false loss; otherwise a won player would read
+  // as "outbid" for the ~3 weeks the loss is retained. Safe: a real loss never appears in wins.
+  if (wonAddIds && wonAddIds.size) {
+    b.resolved = b.resolved.filter((r) => !(r.result === 'lost' && wonAddIds.has(String(r.addId))));
+  }
+
   // 1) A previously-pending bid that's gone from MFL's set → the run processed it.
   for (const [k, bid] of Object.entries(b.pending)) {
     if (currentKeys.has(k)) continue; // still queued
