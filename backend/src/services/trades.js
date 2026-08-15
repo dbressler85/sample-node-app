@@ -1201,6 +1201,10 @@ async function propose(cookie, token, leagueId, payload) {
       err.detail = detail;
       throw err;
     }
+    // A proposal adds an OUTGOING offer but moves no players, so clear just the pending-offers read
+    // (not the whole league) — the offers list reflects the just-sent proposal immediately instead
+    // of lagging behind its (short) cache TTL. Mirrors accept/reject/revoke, which invalidate too.
+    mfl.invalidateExportType(cookie, league.leagueId, 'pendingTrades');
   }
 
   const byId = await playersLib.load(cookie);
