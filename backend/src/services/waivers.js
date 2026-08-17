@@ -595,7 +595,12 @@ async function loadClaimCtx(cookie, token, leagueId) {
     playersLib.load(cookie),
     rosterService.getRoster(cookie, leagueId),
     enrichmentLib.snapshot(await leagueFormat.format(cookie, league), cookie),
-    freeAgentIds(cookie, league),
+    // NO cap for VALIDATION: freeAgentIds defaults to the top-400 slice it serves the cross-league
+    // hub, but a claim must be accepted for ANY real free agent in the league. A deep league (2QB,
+    // 24-man rosters) has a far larger pool, and the wizard/best-available seeds an add from the FULL
+    // pool sorted by VALUE — a high-value FA past export-position 400 was offered yet rejected here as
+    // "not available in this league". The full id list is already memoized, so this adds no fetch.
+    freeAgentIds(cookie, league, Infinity),
     (config.demoMode ? Promise.resolve(demo.week()) : nflLib.currentWeek(cookie)).catch(() => null),
   ]);
   // Free-agent set is validated in live too (from MFL freeAgents), not only in demo — so
@@ -608,7 +613,7 @@ async function loadClaimCtx(cookie, token, leagueId) {
   let faIds = faIds0;
   if (!config.demoMode && faIds.length === 0) {
     faIdsMemo.invalidate(`${cookie}|${league.leagueId}`);
-    faIds = await freeAgentIds(cookie, league);
+    faIds = await freeAgentIds(cookie, league, Infinity);
   }
   const available = new Set(faIds);
   const rosterIds = new Set([...roster.starters, ...roster.bench, ...roster.ir, ...roster.taxi].map((p) => p.id));
