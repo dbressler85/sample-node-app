@@ -85,14 +85,18 @@ src/
   demo/fixtures.js     DEMO_MODE data (rosters, projected stats, scoring, lineup rules)
 ```
 
-## Going live — what still needs verifying
+## Going live — verification status
 
 The MFL read/write shapes are coded to the [public API docs](https://api.myfantasyleague.com/2020/api_info?STATE=details)
-but haven't been run against a real account here. Before trusting live mode,
-verify against your own leagues: `login`, `myleagues`, `liveScoring`, `schedule`,
-`leagueStandings`, `rosters`, `players`, and — for lineups — `projectedScores`
-(used directly as format-aware projections in live mode) plus parsing each
-league's starting requirements from `league`.
+and have been exercised against the owner's real accounts for **every write except
+Set-All lineup** (draft pick, waiver claim/cancel, add/drop across leagues, trades,
+trade bait, IR/taxi). `import?TYPE=lineup` (Set-All) is the one write still to be
+confirmed live — see [`docs/BETA_LIVE_TEST.md`](../docs/BETA_LIVE_TEST.md). When first
+trusting live mode on a NEW environment, still spot-check the core reads against your
+own leagues: `login`, `myleagues`, `liveScoring`, `schedule`, `leagueStandings`,
+`rosters`, `players`, and — for lineups — `projectedScores` (used directly as
+format-aware projections in live mode) plus parsing each league's starting
+requirements from `league`.
 
 **Scoring/format awareness.** The optimizer is format-aware: projections are the
 player's projected points *in each league's scoring* (PPR, TE premium, pass-TD

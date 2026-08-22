@@ -4,8 +4,11 @@ The one thing no automated test or agent can do: exercise the real MFL read/writ
 own account**. This is the pre-beta gate (PO pass, must-have #1). Run it on a real login before handing a
 build to any external tester — a broken write on day 1 ends the beta before feedback starts.
 
-Owner has already live-validated: **draft pick · trade propose · trade bait · waivers**. This checklist
-focuses on what's **still unproven live**, then a fast regression sweep of the rest.
+Owner has live-validated **every MFL write against real accounts except Set-All lineup** — draft
+picks, waiver claims/cancels, add/drop across leagues, trade propose/counter/accept/reject/withdraw,
+trade bait, and IR/taxi roster moves are all confirmed landing on MFL. This checklist focuses on the
+**one still-unproven write (Set-All lineup)** plus push-notification delivery, then a fast regression
+sweep of the rest.
 
 ## Still unproven — verify these first
 

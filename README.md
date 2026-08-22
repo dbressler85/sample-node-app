@@ -110,12 +110,18 @@ deploys, but a redeploy still resets them — the paid plan + disk is the robust
 - [x] **M2.5 — Safe & informed Set All:** availability-aware (never starts OUT / injured / bye players), floor/ceiling + matchup with win probability, safe/balanced/aggressive modes, and a review-diff before bulk apply
 - [x] **M3 — Waivers / FAAB:** per-league board for all three MFL systems (FAAB / FCFS / free agents), filter/sort, cross-league best-available, smart drop + bid guidance, validated claim/cancel
 - [x] **M4 — Player hub:** universe search + rankings, rich profile (projection/floor/ceiling, game log + season, schedule difficulty, cross-league ownership), and player-centric **add/drop across leagues**
-- [ ] **M5 — Trades:** propose / counter / accept / reject, launched from the player profile
-- [ ] **M6 — Hardening:** lock deadlines, push notifications, persistent session store, live-MFL verification, Play Store
+- [x] **M5 — Trades:** propose / counter / accept / reject / withdraw, launched from the player profile — live-validated against real accounts
+- [ ] **M6 — Hardening:** lock deadlines, push notifications, persistent session store, live-MFL verification (writes done except Set-All lineup — see below), Play Store
 
 ## Notes on live MFL
 
 Live-mode request/response shapes follow the
-[MFL API docs](https://api.myfantasyleague.com/2020/api_info?STATE=details) but
-have not yet been exercised against a real account in this repo — see
-[`backend/README.md`](backend/README.md#going-live--what-still-needs-verifying).
+[MFL API docs](https://api.myfantasyleague.com/2020/api_info?STATE=details).
+
+**Live-write verification (as of Aug 2026):** the owner has exercised **every MFL write
+against real accounts except Set-All lineup** — draft picks, waiver claims/cancels,
+add/drop across leagues, trade propose/counter/accept/reject/withdraw, trade bait, and
+IR/taxi roster moves are all confirmed landing on MFL. The **one write still unproven live
+is Set-All lineup** (`import?TYPE=lineup`), which is the top item on the pre-beta gate
+(alongside push-notification delivery on a physical device). See
+[`docs/BETA_LIVE_TEST.md`](docs/BETA_LIVE_TEST.md) for the running verification log.
