@@ -25,6 +25,10 @@ const PATHS = {
   up: ['M12 20 V6.5', 'M6.5 12 L12 5 L17.5 12'],
   // Star (the watchlist sign).
   star: ['M12 2.6 L14.55 9.1 L21.5 9.35 L15.95 13.7 L17.9 20.5 L12 16.5 L6.1 20.5 L8.05 13.7 L2.5 9.35 L9.45 9.1 Z'],
+  // Four-point sparkle (a suggested deal / a highlight) — the neon replacement for the ✦ dingbat.
+  spark: ['M12 2.5 L13.7 10.3 L21.5 12 L13.7 13.7 L12 21.5 L10.3 13.7 L2.5 12 L10.3 10.3 Z'],
+  // Balance scale (compare / weigh two players) — replaces the ⚖ emoji: post, base, beam, two pans.
+  scale: ['M12 4.5 V18', 'M8.5 19.5 H15.5', 'M5 8 H19', 'M5 8 L3 12', 'M5 8 L7 12', 'M3 12 A2 2 0 0 0 7 12', 'M19 8 L17 12', 'M19 8 L21 12', 'M17 12 A2 2 0 0 0 21 12'],
   // Hourglass (deadline).
   hourglass: ['M6 4 H18', 'M6 20 H18', 'M7.5 4 L12 12 L7.5 20', 'M16.5 4 L12 12 L16.5 20'],
   // Inbox tray.

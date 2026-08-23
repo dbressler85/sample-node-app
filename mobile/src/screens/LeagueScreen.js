@@ -2,6 +2,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, FlatList, ScrollView, RefreshControl } from 'react-native';
 import { colors, positionColors } from '../theme';
 import { TopbarTitle } from '../components/Brand';
+import { GlyphMark } from '../components/NeonGlyphs';
 import ErrorView from '../components/ErrorView';
 import ListSkeleton from '../components/ListSkeleton';
 import EmptyView from '../components/EmptyView';
@@ -205,7 +206,12 @@ function MatchupCard({ leagueId, onOpenLineup }) {
       </View>
       <View style={styles.matchMetaRow}>
         {pct != null && !game.locked ? <Text style={[styles.matchMeta, { color: st.color }]}>{pct}% win</Text> : null}
-        {game.close && !game.locked ? <Text style={styles.matchClose}>⚡ close</Text> : null}
+        {game.close && !game.locked ? (
+          <View style={styles.matchCloseRow}>
+            <GlyphMark name="bolt" size={11} color={colors.warn} weight={2.2} />
+            <Text style={styles.matchClose}>close</Text>
+          </View>
+        ) : null}
         {!game.locked && (toPlay || oppToPlay) ? <Text style={styles.matchMeta}>{toPlay} of yours to play</Text> : null}
       </View>
     </View>
@@ -445,6 +451,7 @@ const styles = StyleSheet.create({
   matchVs: { color: colors.textDim, fontSize: 13, fontWeight: '700', marginLeft: 'auto', flexShrink: 1, textAlign: 'right' },
   matchMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 8 },
   matchMeta: { color: colors.textDim, fontSize: 12, fontWeight: '700' },
+  matchCloseRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   matchClose: { color: colors.warn, fontSize: 12, fontWeight: '800' },
   // Scoped action row — accent-outlined chips (actions, not values). Wraps so all are visible (#12).
   actionRow: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 16, gap: 8, rowGap: 8, paddingTop: 8, paddingBottom: 2 },

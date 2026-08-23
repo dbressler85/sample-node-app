@@ -6,6 +6,7 @@ import { api } from '../api';
 import { colors, positionColors, rgb } from '../theme';
 import { displayLabel } from '../typography';
 import AvailabilityBadge from '../components/AvailabilityBadge';
+import { GlyphMark } from '../components/NeonGlyphs';
 import AddAcrossSheet from '../components/AddAcrossSheet';
 import TradeAcrossSheet from '../components/TradeAcrossSheet';
 import TradeBaitSheet from '../components/TradeBaitSheet';
@@ -201,8 +202,9 @@ export default function PlayerProfileScreen({ playerId, seed, onBack, onOpenTrad
       <View style={styles.topbar}>
         <Pressable onPress={onBack} hitSlop={10}><Text style={styles.back}>‹ Players</Text></Pressable>
         {onCompare ? (
-          <Pressable onPress={() => onCompare({ id: p.id, name: p.name })} hitSlop={10}>
-            <Text style={styles.compareLink}>⚖ Compare</Text>
+          <Pressable onPress={() => onCompare({ id: p.id, name: p.name })} hitSlop={10} style={styles.compareBtn}>
+            <GlyphMark name="scale" size={14} color={colors.accent} weight={2} />
+            <Text style={styles.compareLink}>Compare</Text>
           </Pressable>
         ) : null}
       </View>
@@ -583,6 +585,7 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8 },
   back: { color: colors.accent, fontSize: 16, fontWeight: '600' },
+  compareBtn: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   compareLink: { color: colors.accent, fontSize: 15, fontWeight: '700' },
   star: { color: colors.textDim, fontSize: 14, fontWeight: '800' },
   starOn: { color: colors.gold },

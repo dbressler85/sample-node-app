@@ -57,7 +57,7 @@ function sortAssets(list, key) {
 const SORTS = [['position', 'Pos'], ['value', 'Market'], ['name', 'Name']];
 const CONSTRUCTION = {
   good: { color: colors.good, icon: '✓' },
-  caution: { color: colors.warn, icon: '⚠' }, // a cautionary roster read is a warning (orange), not a hard no (red)
+  caution: { color: colors.warn, icon: '!' }, // a cautionary roster read is a warning (orange), not a hard no (red). '!' is text-safe (⚠ renders as color emoji on Android)
   neutral: { color: colors.textDim, icon: '•' },
 };
 
@@ -1026,9 +1026,10 @@ function OfferCard({ offer, busy, onAccept, onReject, onDismiss, onWithdraw, onC
       {offer.tagNotes && offer.tagNotes.length ? (
         <View style={styles.tagNotes}>
           {offer.tagNotes.map((n, i) => (
-            <Text key={i} style={[styles.tagNote, { color: n.level === 'good' ? colors.good : colors.warn }]}>
-              {n.level === 'good' ? '✓' : '⚠'} {n.text}
-            </Text>
+            <View key={i} style={styles.tagNoteRow}>
+              <GlyphMark name={n.level === 'good' ? 'check' : 'bang'} size={11} color={n.level === 'good' ? colors.good : colors.warn} weight={2.2} />
+              <Text style={[styles.tagNote, { color: n.level === 'good' ? colors.good : colors.warn, flex: 1 }]}>{n.text}</Text>
+            </View>
           ))}
         </View>
       ) : null}
@@ -1057,7 +1058,10 @@ function OfferCard({ offer, busy, onAccept, onReject, onDismiss, onWithdraw, onC
         // reject it (it just lingers until timeout). Say so plainly and offer a local Dismiss.
         <>
           <View style={styles.invalidBanner}>
-            <Text style={styles.invalidText}>⚠ No longer valid{offer.invalidReason ? ` — ${offer.invalidReason}` : ''}. MyFantasyLeague won’t let this be accepted or rejected.</Text>
+            <View style={styles.invalidRow}>
+              <GlyphMark name="bang" size={13} color={colors.bad} weight={2.2} />
+              <Text style={[styles.invalidText, { flex: 1 }]}>No longer valid{offer.invalidReason ? ` — ${offer.invalidReason}` : ''}. MyFantasyLeague won’t let this be accepted or rejected.</Text>
+            </View>
           </View>
           <Button title="Dismiss" variant="ghost" onPress={() => onDismiss(offer)} busy={busy} style={{ marginTop: space.sm }} />
         </>
@@ -1352,7 +1356,9 @@ const styles = StyleSheet.create({
   cardActions: { flexDirection: 'row', gap: 10, marginTop: 12 },
   noRespond: { color: colors.textDim, fontSize: 12, textAlign: 'center', marginTop: 10, fontStyle: 'italic' },
   invalidBanner: { marginTop: 12, backgroundColor: colors.bad + '18', borderRadius: 10, borderWidth: 1, borderColor: colors.bad + '55', padding: 10 },
+  invalidRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
   invalidText: { color: colors.bad, fontSize: 12.5, fontWeight: '700', lineHeight: 17 },
+  tagNoteRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 5 },
   dismissBtn: { marginTop: 10, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.cardAlt, paddingVertical: 12, alignItems: 'center' },
   dismissText: { color: colors.text, fontSize: 14, fontWeight: '800' },
   faabRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6, paddingVertical: 2, paddingHorizontal: 8, borderRadius: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, backgroundColor: colors.card },
