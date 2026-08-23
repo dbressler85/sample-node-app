@@ -717,13 +717,13 @@ function PlayerRow({ p, rank, sub, tag, watched, showTrend, showWinNow, onTag, o
           <View style={styles.actions}>
             {acts ? (
               <>
-                <Pressable hitSlop={13} onPress={() => onTag(p.id, t === 'target' ? null : 'target', t)} accessibilityLabel="Target">
+                <Pressable hitSlop={13} onPress={() => onTag(p.id, t === 'target' ? null : 'target', t)} accessibilityRole="button" accessibilityState={{ selected: t === 'target' }} accessibilityLabel={t === 'target' ? `Clear target on ${p.name}` : `Target ${p.name}`}>
                   <NeonToggle active={t === 'target'} triplet={rgb.good} renderGlyph={(on) => <TargetIcon size={18} color={on ? colors.good : colors.textDim} glow={on} />} />
                 </Pressable>
-                <Pressable hitSlop={13} onPress={() => onTag(p.id, t === 'avoid' ? null : 'avoid', t)} accessibilityLabel="Avoid">
+                <Pressable hitSlop={13} onPress={() => onTag(p.id, t === 'avoid' ? null : 'avoid', t)} accessibilityRole="button" accessibilityState={{ selected: t === 'avoid' }} accessibilityLabel={t === 'avoid' ? `Clear avoid on ${p.name}` : `Avoid ${p.name}`}>
                   <NeonToggle active={t === 'avoid'} triplet={rgb.bad} renderGlyph={(on) => <AvoidIcon size={18} color={on ? colors.bad : colors.textDim} glow={on} />} />
                 </Pressable>
-                <Pressable hitSlop={13} onPress={() => onWatch(p.id, !w)} accessibilityLabel="Watch">
+                <Pressable hitSlop={13} onPress={() => onWatch(p.id, !w)} accessibilityRole="button" accessibilityState={{ selected: w }} accessibilityLabel={w ? `Remove ${p.name} from watchlist` : `Add ${p.name} to watchlist`}>
                   <NeonToggle active={w} triplet={rgb.watch} renderGlyph={(on) => <WatchIcon size={18} color={on ? colors.watch : colors.textDim} filled={on} glow={on} />} />
                 </Pressable>
               </>
