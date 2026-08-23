@@ -11,6 +11,7 @@ import { appAlert } from "../components/AppAlert";
 import { lineupsPreferDevice } from '../mflDevice';
 import { colors } from '../theme';
 import MatchupLine from '../components/MatchupLine';
+import { GlyphMark } from '../components/NeonGlyphs';
 import ErrorView from '../components/ErrorView';
 import ListSkeleton from '../components/ListSkeleton';
 import NavTools from '../components/NavTools';
@@ -169,17 +170,20 @@ function Row({ item, onPress }) {
       {item.matchup ? <MatchupLine matchup={item.matchup} style={styles.matchup} /> : null}
 
       {warnings.length ? (
-        <Text style={styles.warn} numberOfLines={2}>
-          ⚠ {warnings.map((w, i) => {
-            // Bye ≠ injury: a bye-week gap is a caution (warn), an injury/OUT is a real loss (bad).
-            const isBye = /bye/i.test(w.status || '');
-            return (
-              <Text key={w.playerId || i} style={isBye ? { color: colors.warn } : null}>
-                {i > 0 ? ' · ' : ''}{w.name.split(',')[0]} {w.status}
-              </Text>
-            );
-          })}
-        </Text>
+        <View style={styles.warnRow}>
+          <GlyphMark name="bang" size={12} color={colors.bad} weight={2.2} />
+          <Text style={[styles.warn, styles.warnText]} numberOfLines={2}>
+            {warnings.map((w, i) => {
+              // Bye ≠ injury: a bye-week gap is a caution (warn), an injury/OUT is a real loss (bad).
+              const isBye = /bye/i.test(w.status || '');
+              return (
+                <Text key={w.playerId || i} style={isBye ? { color: colors.warn } : null}>
+                  {i > 0 ? ' · ' : ''}{w.name.split(',')[0]} {w.status}
+                </Text>
+              );
+            })}
+          </Text>
+        </View>
       ) : null}
 
       <View style={styles.rowBottom}>
@@ -226,6 +230,8 @@ const styles = StyleSheet.create({
   format: { color: colors.textDim, fontSize: 11, fontWeight: '700', marginTop: 4, letterSpacing: 0.3 },
   matchup: { color: colors.textDim, fontSize: 12, marginTop: 6 },
   warn: { color: colors.bad, fontSize: 12, marginTop: 6, fontWeight: '600' },
+  warnRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 4, marginTop: 6 },
+  warnText: { flex: 1, marginTop: 0 },
   badge: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3 },
   badgeText: { fontSize: 11, fontWeight: '800' },
   pts: { fontSize: 15 },

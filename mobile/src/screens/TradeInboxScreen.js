@@ -34,7 +34,7 @@ const VRANK = { favorable: 0, fair: 1, unfavorable: 2 };
 const TONE = { good: colors.good, warn: colors.warn, bad: colors.bad, neutral: colors.textDim };
 const CONSTRUCTION = {
   good: { color: colors.good, icon: '✓' },
-  caution: { color: colors.warn, icon: '⚠' }, // a cautionary roster read is a warning (orange), not a hard no (red)
+  caution: { color: colors.warn, icon: '!' }, // a cautionary roster read is a warning (orange), not a hard no (red). '!' is text-safe (⚠ renders as color emoji on Android)
   neutral: { color: colors.textDim, icon: '•' },
 };
 // Compact dynasty outlook ("Win-now window" -> "Win-now") + a color per stance, matching
@@ -364,7 +364,7 @@ function OfferCard({ offer, busy, onRespond, onOpenLeague, onCounter, onManualCo
         <View style={styles.tagNotes}>
           {offer.tagNotes.map((n, i) => (
             <Text key={i} style={[styles.tagNote, { color: n.level === 'good' ? colors.good : colors.warn }]}>
-              {n.level === 'good' ? '✓' : '⚠'} {n.text}
+              {n.level === 'good' ? '✓' : '!'} {n.text}
             </Text>
           ))}
         </View>
