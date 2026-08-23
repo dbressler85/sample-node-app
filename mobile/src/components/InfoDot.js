@@ -36,7 +36,7 @@ export default function InfoDot({ id, size = 14, color = colors.textDim, style }
                 </Pressable>
               ) : null}
               <View style={{ flex: 1 }} />
-              <Pressable style={styles.close} onPress={() => setOpen(false)}>
+              <Pressable style={styles.close} onPress={() => setOpen(false)} accessibilityRole="button" accessibilityLabel="Close">
                 <Text style={styles.closeText}>Got it</Text>
               </Pressable>
             </View>
