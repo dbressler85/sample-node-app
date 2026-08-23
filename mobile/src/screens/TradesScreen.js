@@ -7,6 +7,8 @@ import tradeMath from '../tradeMath';
 import { colors, positionColors, size, space } from '../theme';
 import { displayLabel } from '../typography';
 import Button from '../components/Button';
+import EmptyView from '../components/EmptyView';
+import ListSkeleton from '../components/ListSkeleton';
 import { GlyphMark } from '../components/NeonGlyphs';
 import { TopbarTitle } from '../components/Brand';
 import { celebrate } from '../components/Celebrate';
@@ -178,13 +180,17 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
     try {
       const d = await api.leagueTrades(league.leagueId);
       setData(d);
+      setError(null); // a good read clears any prior failure so a stale banner can't linger
       primeResource(deskKey, d);
       setValue(deskKey, d); // disk write-through, so reopening a league after an app restart paints instantly
       // Default the partner only if none is chosen — prefer the seeded partner (the
       // team that holds the player you came to trade for), else the first.
       if (d.partners && d.partners.length) setPartnerId((cur) => cur || (seed && seed.partnerFranchiseId) || d.partners[0].franchiseId);
     } catch (e) {
+      // The cold-load branch (no data) surfaces this with a Retry. A BACKGROUND refetch that fails
+      // while a cached desk is on screen must NOT cover it — see the C5 fix at the render site below.
       setError(e.message);
+      if (__DEV__) console.warn('[trades] desk load failed:', e.message);
     } finally {
       setLoading(false);
     }
@@ -555,9 +561,19 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
   }
 
   if (loading) {
+    // Cold load only (nothing cached). Keep the topbar so Back works, and use the house skeleton
+    // instead of a blank spinner — the trade desk is one of the heaviest reads, the worst place to
+    // stare at an empty screen.
     return (
-      <View style={[styles.container, styles.center]}>
-        <ActivityIndicator color={colors.accent} size="large" />
+      <View style={styles.container}>
+        <View style={styles.topbar}>
+          <Pressable onPress={onBack} hitSlop={10}>
+            <Text style={styles.back}>‹ Back</Text>
+          </Pressable>
+          <TopbarTitle numberOfLines={1}>{league.name}</TopbarTitle>
+          <View style={{ width: 44 }} />
+        </View>
+        <ListSkeleton rows={5} style={styles.list} />
       </View>
     );
   }
@@ -646,7 +662,9 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
         )}
       </View>
 
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {/* No inline error banner here: with a desk already on screen, a failed background refetch must
+          not cover good data with red (UX guardrail C5). Cold-load failures are handled by the !data
+          branch above with a Retry; a refetch failure just keeps the last-good desk. */}
 
       {tab === 'inbox' || tab === 'sent' ? (
         <ScrollView contentContainerStyle={styles.list}>
@@ -675,6 +693,15 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
                 : null}
             </>
           ) : null}
+        </ScrollView>
+      ) : (data.partners || []).length === 0 ? (
+        <ScrollView contentContainerStyle={styles.list}>
+          <EmptyView
+            title="No trade partners yet"
+            message="When your leaguemates have rosters set — or you open a player you want and tap Trade for him — their teams show up here to build an offer against."
+            actionTitle="Back to inbox"
+            onAction={() => setTab('inbox')}
+          />
         </ScrollView>
       ) : (
         <ScrollView contentContainerStyle={[styles.list, { paddingBottom: footerH + 24 }]}>

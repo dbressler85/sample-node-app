@@ -26,7 +26,7 @@ export default class ErrorBoundary extends React.Component {
       const msg = (e && (e.message || e.toString())) || 'Unknown error';
       return (
         <ScrollView style={styles.wrap} contentContainerStyle={styles.content}>
-          <Text style={styles.title}>⚠ The app hit an error</Text>
+          <Text style={styles.title}>The app hit an error</Text>
           <Text style={styles.label}>Message</Text>
           <Text style={styles.msg}>{String(msg)}</Text>
           {this.state.stack ? (

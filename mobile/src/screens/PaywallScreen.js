@@ -84,7 +84,7 @@ export default function PaywallScreen({ context = {}, onClose }) {
           <View style={styles.features}>
             {FEATURES.map((f) => (
               <View key={f} style={styles.featureRow}>
-                <Text style={styles.check}>✓</Text>
+                <GlyphMark name="check" size={14} color={colors.good} weight={2.6} />
                 <Text style={styles.featureText}>{f}</Text>
               </View>
             ))}
