@@ -15,6 +15,7 @@ const CHANNELS = [
   { key: 'tradeOffer', label: 'New trade offers', desc: 'When another owner sends you an offer.' },
   { key: 'lineupAttention', label: 'Lineup needs attention', desc: 'A start/sit problem before kickoff — an injured or empty starter.' },
   { key: 'watchlist', label: 'Watchlist alerts', desc: 'A player you track becomes a free agent or is put on the block.' },
+  { key: 'waiverReminder', label: 'Waivers run soon', desc: 'A couple of hours before your waiver run — a last chance to review, edit, or reorder your pending claims.' },
   { key: 'waiverResult', label: 'Waiver results', desc: 'When a waiver claim of yours processes — you won a player (with the FAAB bid).' },
   { key: 'valueMove', label: 'Value moves', desc: 'A notable week-over-week swing in your total dynasty value — a reason to check in during the offseason.' },
 ];

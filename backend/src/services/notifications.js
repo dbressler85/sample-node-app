@@ -33,13 +33,34 @@ const db = () => persist.ns('push'); // token -> { expoPushToken, prefs, primed,
 // The push channels the owner can toggle, all on by default. The keys are the source of
 // truth for both the register merge and the prefs GET/POST, so a new channel is added in
 // exactly one place.
-const DEFAULT_PREFS = { draftClock: true, tradeOffer: true, lineupAttention: true, watchlist: true, waiverResult: true, valueMove: true };
+const DEFAULT_PREFS = { draftClock: true, tradeOffer: true, lineupAttention: true, watchlist: true, waiverResult: true, valueMove: true, waiverReminder: true };
 const CHANNELS = Object.keys(DEFAULT_PREFS);
 
 // How big a week-over-week swing in total dynasty value is worth a nudge. The offseason (no lineups /
 // waivers / trades most weeks) is when this channel earns its keep — a reason to open the app when the
 // in-season signals are quiet. Kept high enough that normal daily noise doesn't fire it.
 const VALUE_MOVE_PCT_BAR = 3;
+
+// How far ahead of a league's waiver run to remind the owner their pending claims are about to
+// process. Long enough to actually act (edit a bid, reorder, drop a claim), short enough to read as
+// "now" — a couple of hours before the run.
+const WAIVER_REMINDER_MS = 3 * 60 * 60 * 1000;
+
+// Group a device's pending waiver claims by league and keep only leagues whose run is IMMINENT —
+// within `windowMs` from now and still in the future — so we can remind the owner to review/edit
+// before it locks. `pending` is waivers.getPending's rows ({ leagueId, leagueName, at:ISO }); returns
+// [{ leagueId, leagueName, at:ms, inMs, count }], soonest first. Pure (clock injected) for testing.
+function imminentWaiverRuns(pending, now, windowMs) {
+  const byLeague = new Map();
+  for (const p of pending || []) {
+    const at = p && p.at ? Date.parse(p.at) : NaN;
+    if (!Number.isFinite(at) || at <= now || at - now > windowMs) continue;
+    const cur = byLeague.get(p.leagueId);
+    if (cur) cur.count += 1;
+    else byLeague.set(p.leagueId, { leagueId: p.leagueId, leagueName: p.leagueName || 'your league', at, inMs: at - now, count: 1 });
+  }
+  return [...byLeague.values()].sort((a, b) => a.at - b.at);
+}
 
 // Slow/email-draft clock reminder: a SECOND nudge (after "you're on the clock") when your pick timer is
 // about to expire, so a long clock doesn't quietly lapse into an autopick you didn't want. Only for
@@ -104,6 +125,7 @@ function registerToken(token, expoPushToken, prefs) {
     waiverKeys: existing.waiverKeys || [],
     clockWarnKeys: existing.clockWarnKeys || [],
     valueMoveKey: existing.valueMoveKey || null,
+    waiverSoonKeys: existing.waiverSoonKeys || [],
   };
   persist.touch();
   return { ok: true, prefs: d[token].prefs };
@@ -237,7 +259,7 @@ async function getStatus(account, deps = {}) {
 // Compute the messages to send for one device given fresh draft + trade state,
 // plus the new "seen" sets to store. Only *newly* on-the-clock leagues and
 // *newly* seen offers fire.
-function buildFor(state, draftOv, tradeOv, deck = { items: [] }, watchAlerts = { alerts: [] }, waiverRes = { results: [] }, valueSeries = []) {
+function buildFor(state, draftOv, tradeOv, deck = { items: [] }, watchAlerts = { alerts: [] }, waiverRes = { results: [] }, valueSeries = [], imminentRuns = []) {
   const prefs = state.prefs || {};
   const msgs = [];
 
@@ -288,6 +310,11 @@ function buildFor(state, draftOv, tradeOv, deck = { items: [] }, watchAlerts = {
   const moveKey = move && Math.abs(move.pct) >= VALUE_MOVE_PCT_BAR ? `${move.date}:${move.pct}` : null;
   const prevMoveKey = state.valueMoveKey || null;
 
+  // Imminent waiver runs (already filtered to the reminder window by the tick, which holds the clock).
+  const curWaiverSoon = imminentRuns || [];
+  const waiverSoonKeys = curWaiverSoon.map((r) => `${r.leagueId}:${r.at}`);
+  const prevWaiverSoon = new Set(state.waiverSoonKeys || []);
+
   // Draft clock is CURRENT state, not replayable history — being on the clock RIGHT NOW is exactly what
   // you want pushed, including on the very first tick after a reinstall (a new Expo token resets
   // `primed` to false). So this channel is EXEMPT from the priming gate below; the `prevClock` seen-set
@@ -303,6 +330,23 @@ function buildFor(state, draftOv, tradeOv, deck = { items: [] }, watchAlerts = {
     for (const d of curClockWarn) {
       if (!prevClockWarn.has(`${d.leagueId}:${d.myClock.round}.${d.myClock.pick}`)) {
         msgs.push({ to: state.expoPushToken, title: 'Pick clock running low ⏳', body: `${d.name} — about ${shortDur(d.myClock.remainingMs)} left to pick ${d.myClock.round}.${String(d.myClock.pick).padStart(2, '0')}`, data: { type: 'draft_clock_warn', leagueId: d.leagueId } });
+      }
+    }
+  }
+
+  // Waiver run IMMINENT: your pending claims in a league are about to process — a last chance to edit
+  // a bid, reorder, or drop a claim. Like the draft clock this is CURRENT actionable state, not
+  // replayable history, so it's EXEMPT from the priming gate; the run-key seen-set dedups it to one
+  // push per run (so it never repeats every 45s within the window).
+  if (prefs.waiverReminder !== false) {
+    for (const r of curWaiverSoon) {
+      if (!prevWaiverSoon.has(`${r.leagueId}:${r.at}`)) {
+        msgs.push({
+          to: state.expoPushToken,
+          title: 'Waivers run soon ⏰',
+          body: `${r.leagueName} — ${r.count} claim${r.count === 1 ? '' : 's'} process in ~${shortDur(r.inMs)}. Review or edit before it locks.`,
+          data: { type: 'waiver_soon', leagueId: r.leagueId },
+        });
       }
     }
   }
@@ -364,7 +408,7 @@ function buildFor(state, draftOv, tradeOv, deck = { items: [] }, watchAlerts = {
     }
   }
 
-  return { msgs, clockLeagues, offerIds, lineupKeys, watchKeys, waiverKeys, clockWarnKeys, valueMoveKey: moveKey || prevMoveKey };
+  return { msgs, clockLeagues, offerIds, lineupKeys, watchKeys, waiverKeys, clockWarnKeys, valueMoveKey: moveKey || prevMoveKey, waiverSoonKeys };
 }
 
 // One scheduler pass over every registered device.
@@ -376,6 +420,7 @@ async function tick(deps = {}) {
   const watchAlerts = deps.watchAlerts || watchlistService.alerts;
   const waiverResults = deps.waiverResults || waiversService.recentResults;
   const portfolioDashboard = deps.portfolioDashboard || portfolioService.getDashboard;
+  const pendingClaims = deps.pendingClaims || waiversService.getPending;
   const send = deps.sender || sender;
 
   const d = db();
@@ -393,13 +438,14 @@ async function tick(deps = {}) {
     if (!session) continue; // login expired — can't poll their MFL, skip (keep the registration)
     const prefs = state.prefs || {};
     try {
-      const [draftOv, tradeOv, deck, watch, waiverRes] = await Promise.all([
+      const [draftOv, tradeOv, deck, watch, waiverRes, pend] = await Promise.all([
         Promise.resolve(draftOverview(session.cookie, token)).catch(() => ({ drafts: [] })),
         Promise.resolve(tradeOverview(session.cookie, token)).catch(() => ({ offers: [] })),
         // Only pay for the extra reads when the device wants that channel.
         prefs.lineupAttention !== false ? Promise.resolve(onDeck(session.cookie, token)).catch(() => ({ items: [] })) : Promise.resolve({ items: [] }),
         prefs.watchlist !== false ? Promise.resolve(watchAlerts(session.cookie, token)).catch(() => ({ alerts: [] })) : Promise.resolve({ alerts: [] }),
         prefs.waiverResult !== false ? Promise.resolve(waiverResults(session.cookie, token)).catch(() => ({ results: [] })) : Promise.resolve({ results: [] }),
+        prefs.waiverReminder !== false ? Promise.resolve(pendingClaims(session.cookie, token)).catch(() => ({ pending: [] })) : Promise.resolve({ pending: [] }),
       ]);
       // Keep the portfolio value series filling DAILY for anyone with a live session — not just on the
       // days they happen to open the Portfolio tab. getDashboard records today's point as a side effect
@@ -415,7 +461,9 @@ async function tick(deps = {}) {
       }
       // The value-move series is the (now-fresh) portfolio history — a cheap durable-store read.
       const valueSeries = prefs.valueMove !== false ? historyStore.history(token) : [];
-      const { msgs, clockLeagues, offerIds, lineupKeys, watchKeys, waiverKeys, clockWarnKeys, valueMoveKey } = buildFor(state, draftOv, tradeOv, deck, watch, waiverRes, valueSeries);
+      // Which leagues' waiver runs are within the reminder window (the clock lives here, not in buildFor).
+      const imminent = imminentWaiverRuns((pend && pend.pending) || [], Date.now(), WAIVER_REMINDER_MS);
+      const { msgs, clockLeagues, offerIds, lineupKeys, watchKeys, waiverKeys, clockWarnKeys, valueMoveKey, waiverSoonKeys } = buildFor(state, draftOv, tradeOv, deck, watch, waiverRes, valueSeries, imminent);
       state.clockLeagues = clockLeagues;
       state.offerIds = offerIds;
       state.lineupKeys = lineupKeys;
@@ -423,6 +471,7 @@ async function tick(deps = {}) {
       state.waiverKeys = waiverKeys;
       state.clockWarnKeys = clockWarnKeys;
       state.valueMoveKey = valueMoveKey;
+      state.waiverSoonKeys = waiverSoonKeys;
       state.primed = true;
       persist.touch();
       if (msgs.length) {
@@ -440,4 +489,4 @@ async function tick(deps = {}) {
   return { tokens: tokens.length, sent };
 }
 
-module.exports = { registerToken, unregister, getPrefs, setPrefs, tick, buildFor, sendTest, getStatus, weeklyMove, _setSender, DEFAULT_PREFS };
+module.exports = { registerToken, unregister, getPrefs, setPrefs, tick, buildFor, sendTest, getStatus, weeklyMove, imminentWaiverRuns, _setSender, DEFAULT_PREFS };
