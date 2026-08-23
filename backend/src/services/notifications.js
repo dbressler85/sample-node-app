@@ -24,6 +24,7 @@ const tradesService = require('./trades');
 const ondeckService = require('./ondeck');
 const watchlistService = require('./watchlist');
 const waiversService = require('./waivers');
+const historyStore = require('../store/portfolioHistory');
 
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 const db = () => persist.ns('push'); // token -> { expoPushToken, prefs, primed, clockLeagues[], offerIds[] }
@@ -31,8 +32,13 @@ const db = () => persist.ns('push'); // token -> { expoPushToken, prefs, primed,
 // The push channels the owner can toggle, all on by default. The keys are the source of
 // truth for both the register merge and the prefs GET/POST, so a new channel is added in
 // exactly one place.
-const DEFAULT_PREFS = { draftClock: true, tradeOffer: true, lineupAttention: true, watchlist: true, waiverResult: true };
+const DEFAULT_PREFS = { draftClock: true, tradeOffer: true, lineupAttention: true, watchlist: true, waiverResult: true, valueMove: true };
 const CHANNELS = Object.keys(DEFAULT_PREFS);
+
+// How big a week-over-week swing in total dynasty value is worth a nudge. The offseason (no lineups /
+// waivers / trades most weeks) is when this channel earns its keep — a reason to open the app when the
+// in-season signals are quiet. Kept high enough that normal daily noise doesn't fire it.
+const VALUE_MOVE_PCT_BAR = 3;
 
 // Slow/email-draft clock reminder: a SECOND nudge (after "you're on the clock") when your pick timer is
 // about to expire, so a long clock doesn't quietly lapse into an autopick you didn't want. Only for
@@ -47,6 +53,33 @@ function shortDur(ms) {
   const h = Math.floor(m / 60);
   const min = m % 60;
   return h > 0 ? `${h}h ${min}m` : `${min}m`;
+}
+
+// "+1,240" / "−980" — a signed, thousands-grouped whole number for the push body.
+function signedInt(n) {
+  const v = Math.round(Math.abs(n)).toLocaleString();
+  return n >= 0 ? `+${v}` : `−${v}`;
+}
+
+// A week-over-week move from the stored daily total-value series ([{ date:'YYYY-MM-DD', value }]).
+// Compares the newest point to the newest point at least 6 days older (falling back to the oldest),
+// so it reads as "over the past week". Pure — the series is the already-computed portfolio history,
+// so this costs no MFL read. Returns { pct, absolute, latest, date } or null when it can't compute.
+function weeklyMove(series) {
+  if (!Array.isArray(series) || series.length < 2) return null;
+  const latest = series[series.length - 1];
+  if (!latest || !(latest.value > 0)) return null;
+  const latestT = Date.parse(`${latest.date}T00:00:00Z`);
+  if (!Number.isFinite(latestT)) return null;
+  let base = series[0];
+  for (let i = series.length - 2; i >= 0; i--) {
+    const t = Date.parse(`${series[i].date}T00:00:00Z`);
+    if (Number.isFinite(t) && latestT - t >= 6 * 24 * 60 * 60 * 1000) { base = series[i]; break; }
+  }
+  if (!base || !(base.value > 0) || base.date === latest.date) return null;
+  const absolute = latest.value - base.value;
+  const pct = Math.round((absolute / base.value) * 1000) / 10; // one decimal
+  return { pct, absolute, latest: latest.value, date: latest.date };
 }
 
 function registerToken(token, expoPushToken, prefs) {
@@ -69,6 +102,7 @@ function registerToken(token, expoPushToken, prefs) {
     watchKeys: existing.watchKeys || [],
     waiverKeys: existing.waiverKeys || [],
     clockWarnKeys: existing.clockWarnKeys || [],
+    valueMoveKey: existing.valueMoveKey || null,
   };
   persist.touch();
   return { ok: true, prefs: d[token].prefs };
@@ -202,7 +236,7 @@ async function getStatus(account, deps = {}) {
 // Compute the messages to send for one device given fresh draft + trade state,
 // plus the new "seen" sets to store. Only *newly* on-the-clock leagues and
 // *newly* seen offers fire.
-function buildFor(state, draftOv, tradeOv, deck = { items: [] }, watchAlerts = { alerts: [] }, waiverRes = { results: [] }) {
+function buildFor(state, draftOv, tradeOv, deck = { items: [] }, watchAlerts = { alerts: [] }, waiverRes = { results: [] }, valueSeries = []) {
   const prefs = state.prefs || {};
   const msgs = [];
 
@@ -245,6 +279,13 @@ function buildFor(state, draftOv, tradeOv, deck = { items: [] }, watchAlerts = {
   const curWaivers = waiverRes.results || [];
   const waiverKeys = curWaivers.map((r) => `${r.leagueId}:${r.addId || r.add}:${r.at}`);
   const prevWaivers = new Set(state.waiverKeys || []);
+
+  // Portfolio value MOVE: a notable week-over-week swing in total dynasty value, read from the
+  // already-computed daily history (no MFL read). Keyed by latest date + pct so a given move fires
+  // exactly once; a sub-threshold tick keeps the last key so we never re-fire the same move.
+  const move = weeklyMove(valueSeries);
+  const moveKey = move && Math.abs(move.pct) >= VALUE_MOVE_PCT_BAR ? `${move.date}:${move.pct}` : null;
+  const prevMoveKey = state.valueMoveKey || null;
 
   // Draft clock is CURRENT state, not replayable history — being on the clock RIGHT NOW is exactly what
   // you want pushed, including on the very first tick after a reinstall (a new Expo token resets
@@ -309,9 +350,20 @@ function buildFor(state, draftOv, tradeOv, deck = { items: [] }, watchAlerts = {
         }
       }
     }
+    // Value move is backlog-priming like the others — a fresh device isn't nudged about a standing
+    // number; only a NEW notable swing fires, exactly once (deduped by moveKey).
+    if (prefs.valueMove !== false && moveKey && moveKey !== prevMoveKey) {
+      const up = move.absolute >= 0;
+      msgs.push({
+        to: state.expoPushToken,
+        title: up ? 'Your dynasty value is up 📈' : 'Your dynasty value dipped 📉',
+        body: `${up ? '+' : ''}${move.pct}% over the past week (${signedInt(move.absolute)}).`,
+        data: { type: 'value_move' },
+      });
+    }
   }
 
-  return { msgs, clockLeagues, offerIds, lineupKeys, watchKeys, waiverKeys, clockWarnKeys };
+  return { msgs, clockLeagues, offerIds, lineupKeys, watchKeys, waiverKeys, clockWarnKeys, valueMoveKey: moveKey || prevMoveKey };
 }
 
 // One scheduler pass over every registered device.
@@ -347,13 +399,17 @@ async function tick(deps = {}) {
         prefs.watchlist !== false ? Promise.resolve(watchAlerts(session.cookie, token)).catch(() => ({ alerts: [] })) : Promise.resolve({ alerts: [] }),
         prefs.waiverResult !== false ? Promise.resolve(waiverResults(session.cookie, token)).catch(() => ({ results: [] })) : Promise.resolve({ results: [] }),
       ]);
-      const { msgs, clockLeagues, offerIds, lineupKeys, watchKeys, waiverKeys, clockWarnKeys } = buildFor(state, draftOv, tradeOv, deck, watch, waiverRes);
+      // The value-move series is the already-computed portfolio history (a cheap durable-store read,
+      // no MFL fan-out), so it's read here rather than in the Promise.all above.
+      const valueSeries = prefs.valueMove !== false ? historyStore.history(token) : [];
+      const { msgs, clockLeagues, offerIds, lineupKeys, watchKeys, waiverKeys, clockWarnKeys, valueMoveKey } = buildFor(state, draftOv, tradeOv, deck, watch, waiverRes, valueSeries);
       state.clockLeagues = clockLeagues;
       state.offerIds = offerIds;
       state.lineupKeys = lineupKeys;
       state.watchKeys = watchKeys;
       state.waiverKeys = waiverKeys;
       state.clockWarnKeys = clockWarnKeys;
+      state.valueMoveKey = valueMoveKey;
       state.primed = true;
       persist.touch();
       if (msgs.length) {
@@ -371,4 +427,4 @@ async function tick(deps = {}) {
   return { tokens: tokens.length, sent };
 }
 
-module.exports = { registerToken, unregister, getPrefs, setPrefs, tick, buildFor, sendTest, getStatus, _setSender, DEFAULT_PREFS };
+module.exports = { registerToken, unregister, getPrefs, setPrefs, tick, buildFor, sendTest, getStatus, weeklyMove, _setSender, DEFAULT_PREFS };
