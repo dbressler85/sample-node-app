@@ -24,6 +24,7 @@ const tradesService = require('./trades');
 const ondeckService = require('./ondeck');
 const watchlistService = require('./watchlist');
 const waiversService = require('./waivers');
+const portfolioService = require('./portfolio');
 const historyStore = require('../store/portfolioHistory');
 
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
@@ -374,6 +375,7 @@ async function tick(deps = {}) {
   const onDeck = deps.onDeck || ondeckService.getOnDeck;
   const watchAlerts = deps.watchAlerts || watchlistService.alerts;
   const waiverResults = deps.waiverResults || waiversService.recentResults;
+  const portfolioDashboard = deps.portfolioDashboard || portfolioService.getDashboard;
   const send = deps.sender || sender;
 
   const d = db();
@@ -399,8 +401,19 @@ async function tick(deps = {}) {
         prefs.watchlist !== false ? Promise.resolve(watchAlerts(session.cookie, token)).catch(() => ({ alerts: [] })) : Promise.resolve({ alerts: [] }),
         prefs.waiverResult !== false ? Promise.resolve(waiverResults(session.cookie, token)).catch(() => ({ results: [] })) : Promise.resolve({ results: [] }),
       ]);
-      // The value-move series is the already-computed portfolio history (a cheap durable-store read,
-      // no MFL fan-out), so it's read here rather than in the Promise.all above.
+      // Keep the portfolio value series filling DAILY for anyone with a live session — not just on the
+      // days they happen to open the Portfolio tab. getDashboard records today's point as a side effect
+      // (partial-guarded, so a half-loaded read never poisons the series), so we just call it once per
+      // UTC day when today's point is missing. This makes the value-over-time line + movers accurate for
+      // everyone, and lets the value-move push detect swings during an offseason absence. Best-effort.
+      if (prefs.valueMove !== false) {
+        const today = historyStore.dayKey();
+        const have = historyStore.history(token);
+        if (!have.length || have[have.length - 1].date !== today) {
+          await Promise.resolve(portfolioDashboard(session.cookie, token)).catch(() => {});
+        }
+      }
+      // The value-move series is the (now-fresh) portfolio history — a cheap durable-store read.
       const valueSeries = prefs.valueMove !== false ? historyStore.history(token) : [];
       const { msgs, clockLeagues, offerIds, lineupKeys, watchKeys, waiverKeys, clockWarnKeys, valueMoveKey } = buildFor(state, draftOv, tradeOv, deck, watch, waiverRes, valueSeries);
       state.clockLeagues = clockLeagues;

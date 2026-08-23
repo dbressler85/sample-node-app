@@ -13,6 +13,7 @@ process.env.DATA_DIR = DIR;
 process.env.MFL_DEMO_MODE = 'true';
 
 const notifications = require('../../src/services/notifications');
+const historyStore = require('../../src/store/portfolioHistory');
 const { weeklyMove, buildFor } = notifications;
 const assert = (c, m) => { if (!c) throw new Error('FAIL: ' + m); };
 
@@ -88,6 +89,36 @@ const moveMsgs = (r) => r.msgs.filter((m) => m.data && m.data.type === 'value_mo
 
   // Channel is on by default.
   assert(notifications.DEFAULT_PREFS.valueMove === true, 'valueMove is a default-on channel');
+
+  // ---- tick records a DAILY value snapshot (once per UTC day, gated on the valueMove pref) ----
+  let dashCalls = 0;
+  const deps = {
+    sessions: { get: () => ({ cookie: 'ck' }) },
+    draftOverview: async () => ({ drafts: [] }),
+    tradeOverview: async () => ({ offers: [] }),
+    onDeck: async () => ({ items: [] }),
+    watchAlerts: async () => ({ alerts: [] }),
+    waiverResults: async () => ({ results: [] }),
+    // Stand in for getDashboard's side effect: record today's total.
+    portfolioDashboard: async (cookie, token) => { dashCalls += 1; historyStore.record(token, 1000); return {}; },
+    sender: async () => {},
+  };
+  const ON = 'vm-on';
+  notifications.registerToken(ON, 'ExpoOn', {});
+  await notifications.tick(deps);
+  assert(dashCalls === 1, 'first tick records today’s value snapshot');
+  const h = historyStore.history(ON);
+  assert(h.length && h[h.length - 1].date === historyStore.dayKey() && h[h.length - 1].value === 1000, 'snapshot landed on today’s point');
+  await notifications.tick(deps);
+  assert(dashCalls === 1, 'second tick the same UTC day does NOT re-snapshot');
+
+  // A device with valueMove OFF is never snapshotted server-side.
+  const OFF = 'vm-off';
+  notifications.registerToken(OFF, 'ExpoOff', { valueMove: false });
+  await notifications.tick(deps);
+  assert(dashCalls === 1, 'valueMove off → no daily snapshot for that device');
+  assert(historyStore.history(OFF).length === 0, 'off device has no recorded history');
+  console.log('✓ tick: daily value snapshot recorded once/day, gated on the valueMove pref');
 
   fs.rmSync(DIR, { recursive: true, force: true });
   console.log('\nPUSH VALUE-MOVE HARNESS PASSED');
