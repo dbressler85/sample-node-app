@@ -428,7 +428,7 @@ export default function HomeScreen({ active = true, demoMode, onOpenLineup, onOp
     <View style={styles.container}>
       <View style={styles.topbar}>
         <View>
-          <ScreenTitle focused={active}>Command Center</ScreenTitle>
+          <ScreenTitle focused={active}>Hub</ScreenTitle>
           <Text style={styles.subtitle}>
             {loading
               ? `Updating ${progress.done}/${progress.total}…`
@@ -459,7 +459,7 @@ export default function HomeScreen({ active = true, demoMode, onOpenLineup, onOp
               <View>
                 <Pressable style={styles.sectionRow} onPress={onOpenDraftHub}>
                   <Text style={[styles.section, displayLabel()]}>Drafts · {drafts.length}</Text>
-                  <Text style={styles.sectionLink}>Hub ›</Text>
+                  <Text style={styles.sectionLink}>Draft hub ›</Text>
                 </Pressable>
                 {drafts.map((d) => (
                   <Pressable
