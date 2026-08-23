@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Animated } from 'react-native';
+import { View, Text, StyleSheet, Animated, AccessibilityInfo } from 'react-native';
 import { colors } from '../theme';
 import { signFor, planDuration, flickerPlan } from '../neon';
 import NeonSign from './NeonSign';
@@ -45,7 +45,11 @@ export function CelebrationHost() {
       // A physical beat on every celebrated moment: success for the happy signs, a softer warning
       // buzz for the sad ones (a lost matchup / outbid claim still stings).
       (MOODS[sign.spark] === 'happy' ? haptics.success : haptics.warning)();
-      setEvent({ key, sign, line: pick(lines), id: `${Date.now()}-${Math.random()}` });
+      const line = pick(lines);
+      // A celebration is a neon+haptic PUNCTUATION beat — invisible to a screen reader without this.
+      // Announce the line politely so VoiceOver/TalkBack users get the same "it landed" acknowledgement.
+      try { AccessibilityInfo.announceForAccessibility(line); } catch (e) { /* best-effort */ }
+      setEvent({ key, sign, line, id: `${Date.now()}-${Math.random()}` });
     };
     return () => { emit = null; };
   }, []);

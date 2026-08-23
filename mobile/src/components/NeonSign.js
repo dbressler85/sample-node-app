@@ -16,6 +16,15 @@ import useReducedMotion from '../useReducedMotion';
 //
 // Give it EITHER `glyph` (a NeonGlyphs name) or `word` (neon text). `animateKey` re-fires a moment's
 // ignition when it changes (e.g. a new celebration id); a fresh mount ignites once.
+
+// Screen-reader phrases for the glyph family, so an unlabeled sign announces "trade" — not the raw
+// token "swap". Unmapped glyphs fall through to no label (role="image"), never the internal name.
+const GLYPH_LABELS = {
+  swap: 'trade', waivers: 'waivers', bolt: 'live', check: 'done', bang: 'warning', info: 'info',
+  star: 'watchlist', flag: 'lineup', cross: 'roster move', lock: 'locked', trophy: 'trophy',
+  hourglass: 'deadline', tray: 'inbox', target: 'on the clock', dollar: 'value', tag: 'trade block',
+  search: 'search', pause: 'paused', undo: 'counter', up: 'up', down: 'down', dot: 'live', calendar: 'scheduled',
+};
 export default function NeonSign({
   glyph,
   word,
@@ -63,7 +72,7 @@ export default function NeonSign({
     <Animated.View
       style={[styles.wrap, halo, { opacity }, style]}
       accessibilityRole="image"
-      accessibilityLabel={accessibilityLabel || word || glyph}
+      accessibilityLabel={accessibilityLabel || word || GLYPH_LABELS[glyph]}
     >
       {word ? (
         <Text

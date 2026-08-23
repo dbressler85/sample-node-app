@@ -18,6 +18,14 @@ export function winColor(p) {
   return colors.warn;
 }
 
+// A one-word verdict so the win% isn't conveyed by COLOR ALONE (WCAG 1.4.1) — a colorblind reader
+// (or a screen reader) gets "favored / toss-up / underdog" in text, matching winColor's thresholds.
+export function winWord(p) {
+  if (p >= 0.6) return 'favored';
+  if (p <= 0.4) return 'underdog';
+  return 'toss-up';
+}
+
 const winPct = (p) => `${Math.round((p || 0) * 100)}% win`;
 
 export default function MatchupLine({ matchup, mode, variant = 'compact', style, basisStyle }) {
@@ -28,6 +36,7 @@ export default function MatchupLine({ matchup, mode, variant = 'compact', style,
       <Text style={style}>
         vs {matchup.opponent} ·{' '}
         <Text style={[{ color: winColor(matchup.winProb) }, detail && styles.winStrong]}>{winPct(matchup.winProb)}</Text>
+        <Text style={styles.winWord}> · {winWord(matchup.winProb)}</Text>
         {detail ? <Text style={styles.estTag}> est.</Text> : null}
         {detail && mode ? <Text style={styles.modeTag}>  ·  {mode.toUpperCase()}</Text> : null}
       </Text>
@@ -42,6 +51,7 @@ export default function MatchupLine({ matchup, mode, variant = 'compact', style,
 
 const styles = StyleSheet.create({
   winStrong: { fontWeight: '800' },
+  winWord: { color: colors.textDim, fontWeight: '700' },
   estTag: { color: colors.textDim, fontSize: 11, fontWeight: '700' },
   modeTag: { color: colors.accent, fontSize: 11, fontWeight: '800' },
   basisTag: { color: colors.textDim, fontSize: 11, marginTop: 2, fontStyle: 'italic', opacity: 0.8 },
