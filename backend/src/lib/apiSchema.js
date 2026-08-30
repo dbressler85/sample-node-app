@@ -513,7 +513,8 @@ const PlayerSchedule = z.object({
   playerId: z.string(),
   team: z.string().nullable().optional(),
   week: z.number().nullable().optional(),
-  scoringLeague: z.object({ id: z.string(), name: z.string() }).nullable().optional(),
+  tep: z.boolean().optional(), // TE-premium basis on/off
+  scoring: z.string().optional(), // human-readable basis label, e.g. "PPR · TE+0.5 · 4pt PaTD"
   weeks: z.array(
     z.object({
       week: z.number(),
