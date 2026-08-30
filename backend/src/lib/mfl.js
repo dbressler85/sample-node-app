@@ -512,6 +512,19 @@ async function importRequest(type, { host = config.apiHost, cookie = null, ...pa
     // throws — so a successful waiver claim was surfacing to the user as "rejected the claim: OK".
     // Recognize the success marker and return it as a normal result; anything else is a real error.
     if (isImportOk(e)) return { status: 'OK' };
+    // MFL's import endpoints ALWAYS answer in plain XML/HTML, never JSON (JSON=1 is ignored) — a refusal
+    // comes back as `<error>…</error>` (or an HTML page), so it surfaces here as the generic "non-JSON"
+    // carrier with MFL's real reason sitting in e.body. Translate it into MFL's own message (hard-won
+    // rule: never a bare status or "non-JSON for import?TYPE=…" the owner can't act on). Tag it mflError
+    // so the API maps it to a 502 (an MFL-side refusal, not our bug).
+    const detail = errorDetail(e);
+    if (detail && detail !== e.message) {
+      const err = new Error(`MFL rejected the ${type} request: ${detail}`);
+      err.mflError = e.mflError || detail;
+      err.body = e.body;
+      if (e.status) err.status = e.status;
+      throw err;
+    }
     throw e;
   }
 }
