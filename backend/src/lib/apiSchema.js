@@ -508,6 +508,24 @@ const LeagueTrades = z.object({
   myPlayers: z.array(PlayerIdentity),
 });
 
+// GET /api/players/:id/schedule — full-season game-by-game schedule (projected + actual points).
+const PlayerSchedule = z.object({
+  playerId: z.string(),
+  team: z.string().nullable().optional(),
+  week: z.number().nullable().optional(),
+  scoringLeague: z.object({ id: z.string(), name: z.string() }).nullable().optional(),
+  weeks: z.array(
+    z.object({
+      week: z.number(),
+      opp: z.string().nullable().optional(),
+      home: z.boolean().nullable().optional(),
+      bye: z.boolean().optional(),
+      projected: z.number().nullable().optional(),
+      actual: z.number().nullable().optional(),
+    })
+  ),
+});
+
 const schemas = {
   Dashboard,
   Leagues,
@@ -522,6 +540,7 @@ const schemas = {
   Rankings,
   Compare,
   Profile,
+  PlayerSchedule,
   WaiversOverview,
   WaiversBest,
   WaiversPending,

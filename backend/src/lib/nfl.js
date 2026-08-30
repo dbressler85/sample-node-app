@@ -215,4 +215,32 @@ async function upcomingOpponents(cookie, team, fromWeek, count = 4) {
   return out;
 }
 
-module.exports = { currentWeek, byeMap, injuryMap, nextKickoff, upcomingOpponents, _resetWeekCache };
+// A team's FULL-season schedule from the one W=ALL fetch (cached 6h): [{ week, opp, home, bye }]
+// for every week the schedule carries. A week the team doesn't appear in is a bye (opp null). `opp`
+// is the bare opponent code; `home` is the home/away flag (MFL lists the away team first). Powers the
+// player profile's game-by-game schedule; opponent strength (difficulty) isn't wired live, so it's
+// omitted here rather than fabricated.
+async function teamSchedule(cookie, team) {
+  if (!team) return [];
+  const code = String(team).toUpperCase();
+  let byWeek;
+  try {
+    byWeek = await fullSeasonByWeek(cookie);
+  } catch (e) {
+    return [];
+  }
+  const weeks = [...byWeek.keys()].filter((n) => n >= 1).sort((a, b) => a - b);
+  return weeks.map((w) => {
+    const matchups = byWeek.get(w) || [];
+    for (const m of matchups) {
+      const teams = mfl.toArray(m && m.team);
+      const meIdx = teams.findIndex((t) => String(t && t.id).toUpperCase() === code);
+      if (meIdx === -1) continue;
+      const opp = teams[1 - meIdx];
+      return { week: w, opp: opp && opp.id ? String(opp.id).toUpperCase() : null, home: meIdx !== 0, bye: false };
+    }
+    return { week: w, opp: null, home: null, bye: true };
+  });
+}
+
+module.exports = { currentWeek, byeMap, injuryMap, nextKickoff, upcomingOpponents, teamSchedule, _resetWeekCache };

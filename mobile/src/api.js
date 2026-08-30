@@ -197,6 +197,7 @@ export const api = {
     return request(`/api/players/rankings?${p.toString()}`);
   },
   playerProfile: (id) => request(`/api/players/${id}`),
+  playerSchedule: (id) => request(`/api/players/${id}/schedule`),
   comparePlayers: (ids) => request(`/api/players/compare?ids=${ids.map(encodeURIComponent).join(',')}`),
   playerAddPreview: (id) => request(`/api/players/${id}/add/preview`),
   playerAdd: (id, leagues) => request(`/api/players/${id}/add`, { method: 'POST', body: { leagues } }),

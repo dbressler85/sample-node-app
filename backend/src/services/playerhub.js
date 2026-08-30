@@ -382,6 +382,77 @@ async function livePlayerScore(cookie, league, playerId, W) {
   }
 }
 
+// Projected points for a player in a SPECIFIC week (or the current week if W is omitted), under one
+// league's format-aware scoring — the week-addressable sibling of liveLeagueProjection, for the
+// game-by-game schedule.
+async function liveWeekProjection(cookie, league, playerId, W) {
+  try {
+    const hit = (await mflRepo.projectedScores(league, cookie, W != null ? { W } : {}))
+      .find((p) => String(p.id) === String(playerId));
+    return hit && hit.score !== '' && hit.score != null ? Math.round((Number(hit.score) || 0) * 10) / 10 : null;
+  } catch (e) {
+    logDegrade(`playerhub.liveWeekProjection league=${league.leagueId} player=${playerId} W=${W}`, e);
+    return null;
+  }
+}
+
+// The player's full current-season schedule, GAME BY GAME: opponent (+ home/away, byes), the PROJECTED
+// points for the current/upcoming weeks and the ACTUAL points for completed ones — scored under the
+// owner's primary league. This is heavy (one score read per week), so it's its own lazy-loaded endpoint
+// (never folded into the profile's first paint) and memoized per (cookie, player) on the short TTL.
+const scheduleMemo = createMemo({ ttlMs: config.mflCacheTtlMs });
+
+// Demo: synthesize the same table shape from the game-log (past actuals) + upcoming-schedule fixtures.
+function demoGameSchedule(playerId, base) {
+  const log = demo.gameLog(playerId); // [{ week, pts, line }]
+  const sched = demo.schedule(base.team); // [{ week, opp:'@XXX', difficulty }]
+  const avg = log.length ? log.reduce((s, g) => s + g.pts, 0) / log.length : 12;
+  const weeks = log.map((g) => ({ week: g.week, opp: null, home: null, bye: false, projected: null, actual: g.pts }));
+  for (const s of sched) {
+    const away = String(s.opp || '').startsWith('@');
+    // A plausible projection: the player's average nudged by matchup difficulty (higher = harder).
+    const proj = Math.round((avg + (5 - (s.difficulty != null ? s.difficulty : 5)) * 0.4) * 10) / 10;
+    weeks.push({ week: s.week, opp: String(s.opp || '').replace('@', '') || null, home: !away, bye: false, projected: Math.max(0, proj), actual: null });
+  }
+  weeks.sort((a, b) => a.week - b.week);
+  return { playerId: String(playerId), team: base.team || null, week: demo.week(), weeks, scoringLeague: null };
+}
+
+async function gameSchedule(cookie, token, playerId) {
+  const byId = await playersLib.load(cookie);
+  const base = playersLib.resolve(byId, playerId);
+  if (config.demoMode) return demoGameSchedule(playerId, base);
+  return scheduleMemo.get(`${cookie}|${playerId}`, async () => {
+    const [leagues, week] = await Promise.all([
+      leaguesService.listLeagues(cookie).catch(() => []),
+      nflLib.currentWeek(cookie).catch(() => null),
+    ]);
+    const league = leagues[0] || null;
+    const scoringLeague = league ? { id: league.leagueId, name: league.name } : null;
+    const sched = await nflLib.teamSchedule(cookie, base.team).catch(() => []);
+    if (!sched.length) return { playerId: String(playerId), team: base.team || null, week, weeks: [], scoringLeague };
+    // One score read per week — actuals for completed weeks, projections for the current/upcoming ones.
+    // Parallel, but the shared MFL concurrency limiter keeps this from stampeding one league's host.
+    const weeks = await Promise.all(sched.map(async (s) => {
+      if (s.bye) return { week: s.week, opp: null, home: null, bye: true, projected: null, actual: null };
+      const past = week != null && s.week < week;
+      let actual = null;
+      let projected = null;
+      if (league) {
+        if (past) {
+          actual = await livePlayerScore(cookie, league, playerId, s.week);
+        } else {
+          projected = await liveWeekProjection(cookie, league, playerId, s.week);
+          // The current week can carry BOTH — a live/final actual alongside the pre-game projection.
+          if (week != null && s.week === week) actual = await livePlayerScore(cookie, league, playerId, s.week);
+        }
+      }
+      return { week: s.week, opp: s.opp, home: s.home, bye: false, projected, actual };
+    }));
+    return { playerId: String(playerId), team: base.team || null, week, weeks, scoringLeague };
+  });
+}
+
 // Live season line + recent game log for a player, scored under one of the
 // owner's leagues. Season totals come from YTD + AVG (2 calls) so we don't loop
 // every week; the game log fetches only the last few completed weeks.
@@ -804,4 +875,4 @@ async function compare(cookie, token, ids) {
   return { players: players.filter(Boolean) };
 }
 
-module.exports = { search, rankings, profile, compare, previewAdd, submitAdd, submitDrop, invalidateGather, gather, primeGlobals, _pprPointsFromBox: pprPointsFromBox };
+module.exports = { search, rankings, profile, compare, gameSchedule, previewAdd, submitAdd, submitDrop, invalidateGather, gather, primeGlobals, _pprPointsFromBox: pprPointsFromBox };

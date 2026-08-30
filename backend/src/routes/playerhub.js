@@ -85,6 +85,16 @@ router.post('/players/:id/drop', async (req, res, next) => {
   }
 });
 
+// GET /api/players/:id/schedule — full-season game-by-game schedule with projected + actual points.
+// Lazy-loaded by the profile screen (heavier than the profile itself: one score read per week).
+router.get('/players/:id/schedule', async (req, res, next) => {
+  try {
+    res.json(checkResponse(schemas.PlayerSchedule, await hub.gameSchedule(req.mflCookie, req.account, req.params.id), 'GET /players/:id/schedule'));
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/players/:id — full profile. (Registered last so static paths win.)
 router.get('/players/:id', async (req, res, next) => {
   try {
