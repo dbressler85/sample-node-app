@@ -55,5 +55,21 @@ function mockBody(text) {
   assert(threw2, 'an HTML error body is not treated as OK');
   console.log('✓ HTML error body → still throws');
 
+  // 6) An IR/taxi refusal comes back as PLAIN XML (JSON=1 ignored), so it arrives as the generic
+  //    "non-JSON" carrier. MFL's real reason must reach the thrown error's MESSAGE — the app surfaces
+  //    err.message, so a bare "MFL returned non-JSON for import?TYPE=ir" would hide WHY the move failed.
+  mockBody('<error>Player is not eligible for injured reserve.</error>');
+  let threw3 = null;
+  try {
+    await mfl.importRequest('ir', { host: 'www45.myfantasyleague.com', cookie: 'ck', L: '69597', DEACTIVATE: '1' });
+  } catch (e) {
+    threw3 = e;
+  }
+  assert(threw3, 'an IR refusal throws');
+  assert(!/non-JSON/i.test(threw3.message), `the opaque non-JSON message is replaced, got "${threw3.message}"`);
+  assert(/not eligible for injured reserve/i.test(threw3.message), `MFL's own reason is surfaced in the message, got "${threw3.message}"`);
+  assert(threw3.mflError, 'the refusal is tagged mflError → 502, not a 500');
+  console.log('✓ IR refusal surfaces MFL’s reason in the message');
+
   console.log('\nIMPORT OK HARNESS PASSED');
 })().catch((e) => { console.error(e.message); process.exit(1); });
