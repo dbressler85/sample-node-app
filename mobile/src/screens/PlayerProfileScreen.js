@@ -116,6 +116,7 @@ export default function PlayerProfileScreen({ playerId, seed, onBack, onOpenTrad
   const [sheet, setSheet] = useState(null); // 'add' | 'drop' | 'trade'
   const [watched, setWatched] = useState(false);
   const [tag, setTag] = useState(null); // 'target' | 'avoid' | null
+  const [showSchedule, setShowSchedule] = useState(false); // reveal the heavy full-season points table on tap
 
   // Keep the personal Watch/Target/Avoid controls in step with the loaded profile — reseeded
   // whenever a fresh (or cached) profile paints. The optimistic toggles below don't touch `p`,
@@ -388,6 +389,18 @@ export default function PlayerProfileScreen({ playerId, seed, onBack, onOpenTrad
           </Card>
         ) : null}
 
+        {/* Full-season game-by-game: projected points for games ahead, actual for games played, both
+            for the live week. It's a heavier read (one score fetch per week on the backend), so it's
+            revealed on tap and only then lazy-loaded — the profile's first paint stays cheap. */}
+        {showSchedule ? (
+          <SeasonSchedule playerId={playerId} />
+        ) : (
+          <Pressable style={styles.revealBtn} onPress={() => setShowSchedule(true)} accessibilityRole="button" accessibilityLabel="Show full-season schedule with projected and actual points">
+            <GlyphMark name="calendar" size={14} color={colors.accent} weight={2} />
+            <Text style={styles.revealTxt}>Full-season schedule · proj + actual</Text>
+          </Pressable>
+        )}
+
         {/* Cross-league ownership */}
         <Card title="Across your leagues">
           {p.crossLeague.map((c) => {
@@ -506,6 +519,74 @@ function Band({ label, value, big }) {
     <View style={styles.band}>
       <Text style={[styles.bandValue, big && { fontSize: 26, color: colors.text }]}>{value}</Text>
       <Text style={styles.bandLabel}>{label}</Text>
+    </View>
+  );
+}
+
+// Full-season game-by-game table: Week · Opp · Proj · Actual. Lazy-loaded (mounted only after the
+// owner reveals it) from the dedicated /schedule endpoint — the backend reads a score per week, so
+// this is deliberately kept off the profile's first paint. Past weeks carry the actual, the live week
+// carries both, weeks ahead carry the projection, byes are marked. Same instant-paint/non-destructive
+// contract as the profile: a warm reopen paints from cache, a failed refresh keeps the last table.
+function SeasonSchedule({ playerId }) {
+  const { data, error, loading } = useCachedResource(
+    `player:schedule:${playerId}`,
+    () => api.playerSchedule(playerId),
+    { staleMs: STALE.SLOW }
+  );
+
+  if (loading) {
+    return (
+      <View style={styles.card}>
+        <Text style={[styles.cardTitle, displayLabel()]}>Season schedule</Text>
+        <ListSkeleton rows={4} />
+      </View>
+    );
+  }
+  if (error && !data) {
+    return (
+      <View style={styles.card}>
+        <Text style={[styles.cardTitle, displayLabel()]}>Season schedule</Text>
+        <Text style={styles.schedEmpty}>Couldn’t load the schedule. {error}</Text>
+      </View>
+    );
+  }
+  const weeks = (data && data.weeks) || [];
+  if (!weeks.length) {
+    return (
+      <View style={styles.card}>
+        <Text style={[styles.cardTitle, displayLabel()]}>Season schedule</Text>
+        <Text style={styles.schedEmpty}>No schedule available for this player.</Text>
+      </View>
+    );
+  }
+  const now = data && data.week;
+  const fmt = (n) => (n == null ? '—' : (Number.isInteger(n) ? String(n) : n.toFixed(1)));
+  return (
+    <View style={styles.card}>
+      <Text style={[styles.cardTitle, displayLabel()]}>Season schedule</Text>
+      <View style={styles.stHead}>
+        <Text style={[styles.stWk, styles.stHeadTxt]}>WK</Text>
+        <Text style={[styles.stOpp, styles.stHeadTxt]}>OPP</Text>
+        <Text style={[styles.stNum, styles.stHeadTxt]}>PROJ</Text>
+        <Text style={[styles.stNum, styles.stHeadTxt]}>ACT</Text>
+      </View>
+      {weeks.map((w) => {
+        const live = now != null && w.week === now;
+        return (
+          <View key={w.week} style={[styles.stRow, live && styles.stRowLive]}>
+            <Text style={[styles.stWk, styles.stCell, live && styles.stLiveTxt]}>{w.week}</Text>
+            <Text style={[styles.stOpp, styles.stCell, w.bye && styles.stByeTxt, live && styles.stLiveTxt]} numberOfLines={1}>
+              {w.bye ? 'Bye' : (w.opp ? `${w.home ? 'vs ' : '@ '}${w.opp}` : '—')}
+            </Text>
+            <Text style={[styles.stNum, styles.stCell, styles.stProj, live && styles.stLiveTxt]}>{w.bye ? '' : fmt(w.projected)}</Text>
+            <Text style={[styles.stNum, styles.stCell, styles.stAct, live && styles.stLiveTxt]}>{w.bye ? '' : fmt(w.actual)}</Text>
+          </View>
+        );
+      })}
+      {data && data.scoringLeague ? (
+        <Text style={styles.schedNote}>Points scored under {data.scoringLeague.name}.</Text>
+      ) : null}
     </View>
   );
 }
@@ -637,6 +718,24 @@ const styles = StyleSheet.create({
   schedOpp: { color: colors.text, fontSize: 13, fontWeight: '700', marginVertical: 4 },
   diffPill: { borderWidth: 1, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 1 },
   diffText: { fontSize: 12, fontWeight: '900' },
+  // Reveal control for the heavy full-season points table (lazy-loaded on tap).
+  revealBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 12, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
+  revealTxt: { color: colors.accent, fontSize: 13, fontWeight: '800' },
+  // Full-season schedule table: Week · Opp · Proj · Actual.
+  stHead: { flexDirection: 'row', alignItems: 'center', paddingBottom: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+  stHeadTxt: { color: colors.violetText, fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
+  stRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 7, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+  stRowLive: { backgroundColor: rgb.accent ? `rgba(${rgb.accent},0.10)` : colors.card, borderRadius: 8 },
+  stCell: { color: colors.text, fontSize: 13, fontVariant: ['tabular-nums'] },
+  stWk: { width: 34, fontWeight: '700', color: colors.textDim },
+  stOpp: { flex: 1, fontWeight: '700' },
+  stNum: { width: 52, textAlign: 'right', fontWeight: '800' },
+  stProj: { color: colors.textDim },
+  stAct: { color: colors.text },
+  stByeTxt: { color: colors.textDim, fontStyle: 'italic', fontWeight: '600' },
+  stLiveTxt: { color: colors.accent },
+  schedNote: { color: colors.textDim, fontSize: 11, marginTop: 10, fontStyle: 'italic' },
+  schedEmpty: { color: colors.textDim, fontSize: 13, lineHeight: 18 },
   news: { color: colors.text, fontSize: 13, lineHeight: 18, flex: 1 },
   newsRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 8 },
   newsDot: { width: 7, height: 7, borderRadius: 4, marginTop: 5, marginRight: 8 },
