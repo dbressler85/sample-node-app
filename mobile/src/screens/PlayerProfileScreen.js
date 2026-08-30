@@ -524,69 +524,77 @@ function Band({ label, value, big }) {
 }
 
 // Full-season game-by-game table: Week · Opp · Proj · Actual. Lazy-loaded (mounted only after the
-// owner reveals it) from the dedicated /schedule endpoint — the backend reads a score per week, so
-// this is deliberately kept off the profile's first paint. Past weeks carry the actual, the live week
-// carries both, weeks ahead carry the projection, byes are marked. Same instant-paint/non-destructive
-// contract as the profile: a warm reopen paints from cache, a failed refresh keeps the last table.
+// owner reveals it) from the dedicated /schedule endpoint — the backend scores a stat line per week,
+// so this is deliberately kept off the profile's first paint. Points are a FIXED basis (full PPR, with
+// a TE-premium toggle) computed server-side, not a league's own scoring. Past weeks carry the actual,
+// the live week carries both, weeks ahead carry the projection, byes are marked. Same instant-paint /
+// non-destructive contract as the profile: a warm reopen paints from cache, a failed refresh keeps the
+// last table. The TE-premium toggle re-keys the cache so each basis paints its own cached table.
 function SeasonSchedule({ playerId }) {
+  const [tep, setTep] = useState(false); // TE-premium basis: +0.5/reception for TEs (mirrors the Players lens)
   const { data, error, loading } = useCachedResource(
-    `player:schedule:${playerId}`,
-    () => api.playerSchedule(playerId),
+    `player:schedule:${playerId}:${tep ? 'tep' : 'ppr'}`,
+    () => api.playerSchedule(playerId, tep),
     { staleMs: STALE.SLOW }
   );
 
-  if (loading) {
-    return (
-      <View style={styles.card}>
-        <Text style={[styles.cardTitle, displayLabel()]}>Season schedule</Text>
-        <ListSkeleton rows={4} />
-      </View>
-    );
-  }
-  if (error && !data) {
-    return (
-      <View style={styles.card}>
-        <Text style={[styles.cardTitle, displayLabel()]}>Season schedule</Text>
-        <Text style={styles.schedEmpty}>Couldn’t load the schedule. {error}</Text>
-      </View>
-    );
-  }
-  const weeks = (data && data.weeks) || [];
-  if (!weeks.length) {
-    return (
-      <View style={styles.card}>
-        <Text style={[styles.cardTitle, displayLabel()]}>Season schedule</Text>
-        <Text style={styles.schedEmpty}>No schedule available for this player.</Text>
-      </View>
-    );
-  }
   const now = data && data.week;
+  const weeks = (data && data.weeks) || [];
   const fmt = (n) => (n == null ? '—' : (Number.isInteger(n) ? String(n) : n.toFixed(1)));
+
+  const header = (
+    <View style={styles.stTitleRow}>
+      <Text style={[styles.cardTitle, displayLabel(), { marginBottom: 0 }]}>Season schedule</Text>
+      <Pressable
+        style={[styles.tepToggle, tep && styles.tepToggleOn]}
+        onPress={() => setTep((v) => !v)}
+        accessibilityRole="switch"
+        accessibilityState={{ checked: tep }}
+        accessibilityLabel="TE premium scoring"
+      >
+        <Text style={[styles.tepToggleText, tep && styles.tepToggleTextOn]}>TE PREM</Text>
+      </Pressable>
+    </View>
+  );
+
+  let body;
+  if (loading) {
+    body = <ListSkeleton rows={4} />;
+  } else if (error && !data) {
+    body = <Text style={styles.schedEmpty}>Couldn’t load the schedule. {error}</Text>;
+  } else if (!weeks.length) {
+    body = <Text style={styles.schedEmpty}>No schedule available for this player.</Text>;
+  } else {
+    body = (
+      <>
+        <View style={styles.stHead}>
+          <Text style={[styles.stWk, styles.stHeadTxt]}>WK</Text>
+          <Text style={[styles.stOpp, styles.stHeadTxt]}>OPP</Text>
+          <Text style={[styles.stNum, styles.stHeadTxt]}>PROJ</Text>
+          <Text style={[styles.stNum, styles.stHeadTxt]}>ACT</Text>
+        </View>
+        {weeks.map((w) => {
+          const live = now != null && w.week === now;
+          return (
+            <View key={w.week} style={[styles.stRow, live && styles.stRowLive]}>
+              <Text style={[styles.stWk, styles.stCell, live && styles.stLiveTxt]}>{w.week}</Text>
+              <Text style={[styles.stOpp, styles.stCell, w.bye && styles.stByeTxt, live && styles.stLiveTxt]} numberOfLines={1}>
+                {w.bye ? 'Bye' : (w.opp ? `${w.home ? 'vs ' : '@ '}${w.opp}` : '—')}
+              </Text>
+              <Text style={[styles.stNum, styles.stCell, styles.stProj, live && styles.stLiveTxt]}>{w.bye ? '' : fmt(w.projected)}</Text>
+              <Text style={[styles.stNum, styles.stCell, styles.stAct, live && styles.stLiveTxt]}>{w.bye ? '' : fmt(w.actual)}</Text>
+            </View>
+          );
+        })}
+        {data && data.scoring ? <Text style={styles.schedNote}>{data.scoring}</Text> : null}
+      </>
+    );
+  }
+
   return (
     <View style={styles.card}>
-      <Text style={[styles.cardTitle, displayLabel()]}>Season schedule</Text>
-      <View style={styles.stHead}>
-        <Text style={[styles.stWk, styles.stHeadTxt]}>WK</Text>
-        <Text style={[styles.stOpp, styles.stHeadTxt]}>OPP</Text>
-        <Text style={[styles.stNum, styles.stHeadTxt]}>PROJ</Text>
-        <Text style={[styles.stNum, styles.stHeadTxt]}>ACT</Text>
-      </View>
-      {weeks.map((w) => {
-        const live = now != null && w.week === now;
-        return (
-          <View key={w.week} style={[styles.stRow, live && styles.stRowLive]}>
-            <Text style={[styles.stWk, styles.stCell, live && styles.stLiveTxt]}>{w.week}</Text>
-            <Text style={[styles.stOpp, styles.stCell, w.bye && styles.stByeTxt, live && styles.stLiveTxt]} numberOfLines={1}>
-              {w.bye ? 'Bye' : (w.opp ? `${w.home ? 'vs ' : '@ '}${w.opp}` : '—')}
-            </Text>
-            <Text style={[styles.stNum, styles.stCell, styles.stProj, live && styles.stLiveTxt]}>{w.bye ? '' : fmt(w.projected)}</Text>
-            <Text style={[styles.stNum, styles.stCell, styles.stAct, live && styles.stLiveTxt]}>{w.bye ? '' : fmt(w.actual)}</Text>
-          </View>
-        );
-      })}
-      {data && data.scoringLeague ? (
-        <Text style={styles.schedNote}>Points scored under {data.scoringLeague.name}.</Text>
-      ) : null}
+      {header}
+      {body}
     </View>
   );
 }
@@ -722,6 +730,11 @@ const styles = StyleSheet.create({
   revealBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 12, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
   revealTxt: { color: colors.accent, fontSize: 13, fontWeight: '800' },
   // Full-season schedule table: Week · Opp · Proj · Actual.
+  stTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  tepToggle: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
+  tepToggleOn: { backgroundColor: colors.accent + '22', borderColor: colors.accent },
+  tepToggleText: { color: colors.textDim, fontSize: 11, fontWeight: '800', letterSpacing: 0.5 },
+  tepToggleTextOn: { color: colors.accent },
   stHead: { flexDirection: 'row', alignItems: 'center', paddingBottom: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   stHeadTxt: { color: colors.violetText, fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
   stRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 7, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },

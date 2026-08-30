@@ -89,7 +89,7 @@ router.post('/players/:id/drop', async (req, res, next) => {
 // Lazy-loaded by the profile screen (heavier than the profile itself: one score read per week).
 router.get('/players/:id/schedule', async (req, res, next) => {
   try {
-    res.json(checkResponse(schemas.PlayerSchedule, await hub.gameSchedule(req.mflCookie, req.account, req.params.id), 'GET /players/:id/schedule'));
+    res.json(checkResponse(schemas.PlayerSchedule, await hub.gameSchedule(req.mflCookie, req.account, req.params.id, { tep: req.query.tep }), 'GET /players/:id/schedule'));
   } catch (err) {
     next(err);
   }

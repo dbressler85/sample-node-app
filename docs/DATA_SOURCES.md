@@ -112,6 +112,8 @@ per-player/-pick values rendered inside the app.
 | **Injuries** / game status | MFL `injuries` `injury[].{id,status}` | `lib/nfl.js:157` | Authoritative for availability. RotoBaller news severity is a parallel display-only narrative (unreconciled — [Q8](#q8--documented-as-is-limitations)). |
 | Next kickoff (lineup lock) | MFL `nflSchedule` `matchup.kickoff` | `lib/nfl.js:174` | |
 | Strength-of-schedule / opp difficulty | **none wired** — `difficulty: null` hardcoded | `lib/nfl.js:208` | Noted as a gap, not a source. |
+| Player **full-season schedule** (opp + home/away, byes) | MFL `nflSchedule?W=ALL` → `nfl.teamSchedule` | `lib/nfl.js:223` | One cached W=ALL fetch serves every week. |
+| Player schedule **points** (proj + actual, per week) | **Sleeper** weekly `stats` / `projections` → `scoring.projectPoints` at a FIXED PPR/TEP basis | `lib/weeklyStats.js`; `services/playerhub.js` `gameSchedule` | We compute the points ourselves (full PPR, `TE PREM` toggle = +0.5/rec) — MFL only scores under a league's own rules and can't recompute an arbitrary basis ([MFL_API_AUDIT.md](MFL_API_AUDIT.md)). Own-engine number may differ slightly from Sleeper `pts_ppr` (bonuses/2pt omitted). |
 
 ---
 
