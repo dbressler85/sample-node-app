@@ -112,13 +112,24 @@ async function build(cookie, league, prefetchedFranchises) {
   // Fast path: no real division structure (or we can't place my own franchise) → never multi-copy,
   // and crucially NO roster read. Normal leagues pay nothing here.
   if (divisions.size < 2 || myDivision == null) {
+    // Diagnostic: a league the owner expects to be multi-division but that reports <2 divisions (or
+    // an unplaced franchise) here means the `division` attribute isn't being read off the `league`
+    // export — detection can't even start. Log the shape so that failure mode is visible in the
+    // server logs instead of silently degrading to multiCopy:false (which looks like "not working").
+    if (franchiseRows.length) {
+      console.log(`[divisionContext] league=${league.leagueId} franchises=${franchiseRows.length} divisions=${divisions.size} myDivision=${myDivision == null ? 'null' : myDivision} → multiCopy=false (no detection — needs ≥2 divisions and a placed franchise)`);
+    }
     return makeContext({ multiCopy: false, myDivision, franchiseDivision });
   }
   // ≥2 divisions: we need rosters to tell a shared pool from a normal divisioned league. Reuse the
   // caller's already-fetched rosters when provided; otherwise one memoized `rosters` read.
   const rosterFranchises = prefetchedFranchises || (await mflRepo.rosters(league, cookie).catch(() => null));
-  const { multiCopy } = detect(franchiseDivision, rosterFranchises);
-  return makeContext({ multiCopy, myDivision, franchiseDivision });
+  const det = detect(franchiseDivision, rosterFranchises);
+  // Diagnostic: with ≥2 divisions we ran real detection — log the evidence (distinct players, how many
+  // appear in >1 division, the share vs the threshold) so a real shared-pool league that fails to trip
+  // the threshold, or one that correctly trips it, is legible in the logs.
+  console.log(`[divisionContext] league=${league.leagueId} divisions=${divisions.size} myDivision=${myDivision} rosterFranchises=${Array.isArray(rosterFranchises) ? rosterFranchises.length : 'null'} distinctPlayers=${det.distinctPlayers} crossDivision=${det.crossDivision} share=${det.share.toFixed(3)} threshold=${MULTICOPY_MIN_SHARE} → multiCopy=${det.multiCopy}`);
+  return makeContext({ multiCopy: det.multiCopy, myDivision, franchiseDivision });
 }
 
 // Resolve (and cache) the division context for a league. `franchises` (optional) is the raw `rosters`
