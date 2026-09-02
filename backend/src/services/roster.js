@@ -408,7 +408,14 @@ async function rosterFromDeviceFranchises(cookie, league, franchises) {
     config.demoMode ? Promise.resolve(demo.byes()) : nflLib.byeMap(cookie, week),
     leagueFormat.format(cookie, league).then((fmt) => enrichmentLib.snapshot(fmt, cookie)),
   ]);
-  return assembleRoster(league, franchises, { byId, week, statusMap, byeMap, enr, picks: [] });
+  // Multi-copy leagues: rank my strength/age against MY division only — parity with the backend
+  // buildRoster path, which already scopes. The ctx is warmed by the portfolio sweep, so this resolve
+  // is a cache hit (no extra read). No-op for normal leagues (multiCopy:false → keep all franchises).
+  const divCtx = await divisionContext.resolve(cookie, league).catch(() => null);
+  const scoped = divCtx && divCtx.multiCopy && Array.isArray(franchises)
+    ? franchises.filter((f) => divCtx.includes(f.id))
+    : franchises;
+  return assembleRoster(league, scoped, { byId, week, statusMap, byeMap, enr, picks: [] });
 }
 
 // Every franchise in a league with its roster valued and broken out by position —
@@ -435,7 +442,14 @@ async function leagueFranchises(cookie, leagueId) {
       allFranchiseRosters(league, cookie),
       leaguesService.franchiseNames(cookie, league),
     ]);
-    raw = (franchises || []).map((f) => ({
+    // Multi-copy leagues: keep only MY OWN division's franchises — the "which rival would want this
+    // player" model and the trade-block market must not reach into other divisions' independent pools.
+    // Reuses the rosters read just fetched. No-op for normal leagues (multiCopy:false → keep all).
+    const divCtx = await divisionContext.resolve(cookie, league, franchises).catch(() => null);
+    const scopedFranchises = divCtx && divCtx.multiCopy && Array.isArray(franchises)
+      ? franchises.filter((f) => divCtx.includes(f.id))
+      : (franchises || []);
+    raw = scopedFranchises.map((f) => ({
       franchiseId: String(f.id),
       name: names.get(String(f.id)) || `Team ${f.id}`,
       mine: String(f.id) === league.franchiseId,

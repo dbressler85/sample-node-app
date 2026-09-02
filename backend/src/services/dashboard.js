@@ -7,6 +7,7 @@
 
 const mfl = require('../lib/mfl');
 const mflRepo = require('../lib/mflRepo');
+const divisionContext = require('../lib/divisionContext');
 const { withRetry } = require('../lib/retry');
 const config = require('../config');
 const demo = require('../demo/fixtures');
@@ -58,8 +59,13 @@ async function liveMatchup(league, cookie) {
 async function standing(league, cookie) {
   try {
     const franchises = await mflRepo.standings(league, cookie);
-    const idx = franchises.findIndex((f) => String(f.id) === league.franchiseId);
-    const mine = idx >= 0 ? franchises[idx] : null;
+    // Multi-copy leagues: rank me within MY division (1–10), not across all 40 franchises. Filtering
+    // preserves the standings order, so my position among my division-mates is my true rank. No-op
+    // for normal leagues (includes() is always true when not multiCopy).
+    const divCtx = await divisionContext.resolve(cookie, league).catch(() => null);
+    const ranked = divCtx && divCtx.multiCopy ? franchises.filter((f) => divCtx.includes(f.id)) : franchises;
+    const idx = ranked.findIndex((f) => String(f.id) === league.franchiseId);
+    const mine = idx >= 0 ? ranked[idx] : null;
     if (!mine) return { record: null, standingRank: null };
     const record =
       mine.h2hw !== undefined ? `${mine.h2hw || 0}-${mine.h2hl || 0}${mine.h2ht > 0 ? `-${mine.h2ht}` : ''}` : null;
