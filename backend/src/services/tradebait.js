@@ -18,6 +18,7 @@ const nflLib = require('../lib/nfl');
 const demo = require('../demo/fixtures');
 const leaguesService = require('./leagues');
 const rosterService = require('./roster');
+const divisionContext = require('../lib/divisionContext');
 const leagueContext = require('../lib/leagueContext');
 const leagueFormat = require('../lib/leagueformat');
 const playerhubService = require('./playerhub');
@@ -286,14 +287,21 @@ async function getBlockDemo(cookie, token) {
 // (docs/DATA_SOURCES.md Q3), so a rival's superflex QB is valued as this league would pay. Split out
 // so the market can be fetched a league at a time (stepped load) as well as all-at-once.
 async function marketForLeague(cookie, token, league, { byId, ctx }) {
-  const [baits, names, context, enr] = await Promise.all([
+  const [baits, names, context, enr, divCtx] = await Promise.all([
     mflRepo.tradeBaits(league, cookie, { INCLUDE_DRAFT_PICKS: 1 }).catch(() => []),
     leaguesService.franchiseNames(cookie, league).catch(() => new Map()),
     leagueContext.build(cookie, league).catch(() => null),
     enrichmentLib.snapshot(await leagueFormat.format(cookie, league), cookie),
+    divisionContext.resolve(cookie, league).catch(() => null),
   ]);
+  // Multi-copy leagues: only show MY OWN division's trade blocks — the other divisions are independent
+  // pools I can't trade into. No-op for normal leagues (includes() is always true when not multiCopy).
+  const inScope = (fid) => !(divCtx && divCtx.multiCopy) || divCtx.includes(fid);
   const teams = baits
-    .filter((b) => mfl.text(mfl.attr(b, 'franchise_id', 'franchiseId')) !== String(league.franchiseId))
+    .filter((b) => {
+      const fid = mfl.text(mfl.attr(b, 'franchise_id', 'franchiseId'));
+      return fid !== String(league.franchiseId) && inScope(fid);
+    })
     .map((b) => {
       const fid = mfl.text(mfl.attr(b, 'franchise_id', 'franchiseId'));
       const assets = sortAssets(

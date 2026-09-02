@@ -11,6 +11,7 @@ const demo = require('../demo/fixtures');
 const mfl = require('../lib/mfl');
 const { withWriteRetry } = require('../lib/retry');
 const mflRepo = require('../lib/mflRepo');
+const divisionContext = require('../lib/divisionContext');
 const { logDegrade } = require('../lib/safe');
 const enrichmentLib = require('../lib/enrichment');
 const leagueFormat = require('../lib/leagueformat');
@@ -362,8 +363,14 @@ async function liveRosters(cookie, league) {
   try {
     const franchises = await mflRepo.rosters(league, cookie);
     const names = await leaguesService.franchiseNames(cookie, league);
+    // Multi-copy leagues: only MY OWN division's franchises are real trade partners — the other
+    // divisions are independent player universes I can't trade with (surfacing them would offer 30
+    // phantom partners). Reuses the rosters read just fetched. No-op for normal leagues (includes()
+    // is always true when multiCopy is false).
+    const divCtx = await divisionContext.resolve(cookie, league, franchises).catch(() => null);
+    const inScope = (id) => !(divCtx && divCtx.multiCopy) || divCtx.includes(id);
     return franchises
-      .filter((f) => String(f.id) !== league.franchiseId)
+      .filter((f) => String(f.id) !== league.franchiseId && inScope(f.id))
       .map((f) => ({
         franchiseId: String(f.id),
         name: names.get(String(f.id)) || `Team ${f.id}`,
