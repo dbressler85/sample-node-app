@@ -17,6 +17,7 @@ const mfl = require('../lib/mfl');
 const mflRepo = require('../lib/mflRepo');
 const picksLib = require('../lib/picks');
 const playersLib = require('../lib/players');
+const divisionContext = require('../lib/divisionContext');
 const leaguesService = require('./leagues');
 const lineupsService = require('./lineups');
 const rosterService = require('./roster');
@@ -367,6 +368,13 @@ async function getDashboard(cookie, token, { deviceRosters = null } = {}) {
       throw err;
     });
   }
+  // Ensure multi-copy (per-division shared pool) detection has RUN for EVERY league, not just the ones
+  // whose individual Roster/Standings/Waivers screen happened to be opened. The device-origin roster
+  // path below never triggers detection on its own, so a genuine multi-copy league could otherwise go
+  // undetected here indefinitely. Fire-and-forget + memoized: a normal league costs one cached `league`
+  // read and only a real ≥2-division league pays a (memoized) rosters read, and nothing blocks the
+  // dashboard. Also warms the ctx cache so the division-aware consumers get an immediate hit.
+  for (const l of leagues) divisionContext.resolve(cookie, l).catch(() => {});
   // Pinned leagues sort first in the per-league breakdown (muting is a Home/On Deck/exposure concern).
   // Resolve NFL byes (team → week) alongside the rosters, best-effort, for bye-week concentration.
   // Per-league roster load. DEVICE path: assemble from the franchises the device fetched (no MFL read
