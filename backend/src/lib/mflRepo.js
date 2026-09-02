@@ -89,7 +89,19 @@ async function freeAgentUnits(league, cookie, params = {}) {
   // also backs the memoized free-agent id set (watchlist "now free" + claim validation) — a swallowed
   // empty would drop a league's pool or reject a valid add. (Retry lives here now, so callers don't wrap.)
   const res = await withRetry(() => read('freeAgents', league, cookie, params));
-  return mflRead.reads.freeAgents.parse(res);
+  const units = mflRead.reads.freeAgents.parse(res);
+  // DIAGNOSTIC (divisioned / multi-copy leagues): MFL nests a `leagueUnit` per "unit" in the freeAgents
+  // response, with a `unit` attribute. For a multi-copy league that can be one block PER DIVISION
+  // (unit=<divisionId>) — in which case flattening every unit together mixes the divisions' independent
+  // pools and surfaces players who aren't actually free in MY division. Log the units so we can see
+  // whether MFL is handing us per-division availability we should scope to. Only logs when there's real
+  // unit structure (≥2 units, or a single non-LEAGUE unit), so normal leagues stay silent.
+  const firstUnit = units[0] ? mfl.text(mfl.attr(units[0], 'unit')) : '';
+  if (units.length >= 2 || (firstUnit && firstUnit.toUpperCase() !== 'LEAGUE')) {
+    const summary = units.map((u) => `${mfl.text(mfl.attr(u, 'unit')) || '?'}:${mfl.toArray(u && u.player).length}`).join(' ');
+    console.log(`[freeAgents.units] league=${league.leagueId} units=${units.length} → ${summary}`);
+  }
+  return units;
 }
 
 // `draftResults` export -> the draft unit(s); the caller picks the LEAGUE unit and reads draftPick[].
