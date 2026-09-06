@@ -229,7 +229,7 @@ const styles = StyleSheet.create({
   name: { color: colors.text, fontSize: 16, fontWeight: '700', flexShrink: 1, marginRight: 8 },
   leagueSub: { color: colors.textDim, fontSize: 12, marginTop: 3 },
   riskTag: { color: colors.warn, fontWeight: '700' },
-  dlChip: { color: colors.textDim, backgroundColor: colors.cardAlt, fontSize: 10, fontWeight: '800', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 5, overflow: 'hidden' },
+  dlChip: { color: colors.textDim, backgroundColor: colors.cardAlt, fontSize: 11, fontWeight: '800', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 5, overflow: 'hidden' },
   dlChipUrgent: { color: colors.onAccent, backgroundColor: colors.warn },
   chev: { color: colors.textDim, fontSize: 20, fontWeight: '700', paddingLeft: 4 },
   error: { color: colors.bad, textAlign: 'center', padding: 12 },

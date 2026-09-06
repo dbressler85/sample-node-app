@@ -483,7 +483,7 @@ const styles = StyleSheet.create({
   stRec: { width: 52, color: colors.textDim, fontSize: 13, fontWeight: '700', textAlign: 'right', fontVariant: ['tabular-nums'] },
   stPf: { width: 62, color: colors.text, fontSize: 13, fontWeight: '800', textAlign: 'right', fontVariant: ['tabular-nums'] },
   playoffLine: { borderTopWidth: 1, borderTopColor: colors.violet, borderStyle: 'dashed', marginVertical: 6, alignItems: 'center' },
-  playoffText: { color: colors.violetText, fontSize: 10, fontWeight: '800', letterSpacing: 1, marginTop: 3 },
+  playoffText: { color: colors.violetText, fontSize: 11, fontWeight: '800', letterSpacing: 1, marginTop: 3 },
 
   // rosters
   chipRow: { paddingHorizontal: 16, gap: 8, paddingVertical: 6, alignItems: 'center' },
@@ -504,7 +504,7 @@ const styles = StyleSheet.create({
   pRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 7 },
   pDot: { width: 10, height: 10, borderRadius: 5, marginRight: 10 },
   pName: { color: colors.text, fontSize: 14, fontWeight: '700', flexShrink: 1 },
-  pTag: { color: colors.warn, fontSize: 9, fontWeight: '900', marginLeft: 6, borderWidth: 1, borderColor: colors.warn, borderRadius: 4, paddingHorizontal: 3, paddingVertical: 1, overflow: 'hidden' },
+  pTag: { color: colors.warn, fontSize: 11, fontWeight: '900', marginLeft: 6, borderWidth: 1, borderColor: colors.warn, borderRadius: 4, paddingHorizontal: 3, paddingVertical: 1, overflow: 'hidden' },
   pMeta: { color: colors.textDim, fontSize: 12, marginLeft: 'auto', marginRight: 10 },
   pVal: { color: colors.gold, fontSize: 14, fontWeight: '900', width: 40, textAlign: 'right', fontVariant: ['tabular-nums'] },
 

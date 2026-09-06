@@ -257,7 +257,7 @@ const styles = StyleSheet.create({
   row: { gap: 12, marginBottom: 12 },
   card: { flex: 1, backgroundColor: colors.card, borderRadius: 16, borderWidth: 1, borderColor: colors.border, borderTopColor: colors.gold, borderTopWidth: 3, padding: 16, alignItems: 'center' },
   cup: { marginBottom: 4 },
-  medalLabel: { fontSize: 10, fontWeight: '900', letterSpacing: 0.6, textTransform: 'uppercase', marginTop: 4 },
+  medalLabel: { fontSize: 11, fontWeight: '900', letterSpacing: 0.6, textTransform: 'uppercase', marginTop: 4 },
   year: { color: colors.gold, fontSize: 15, fontWeight: '900', marginTop: 2, fontVariant: ['tabular-nums'] },
   team: { color: colors.text, fontSize: 15, fontWeight: '800', textAlign: 'center', marginTop: 4 },
   league: { color: colors.textDim, fontSize: 12, fontWeight: '600', textAlign: 'center', marginTop: 2 },

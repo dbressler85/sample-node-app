@@ -177,7 +177,7 @@ const styles = StyleSheet.create({
   leagueTop: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
   leagueName: { color: colors.text, fontSize: 16, fontWeight: '900', letterSpacing: 0.4, flex: 1, marginRight: 12 },
   leagueVal: { alignItems: 'flex-end' },
-  leagueValCap: { color: colors.textDim, fontSize: 10, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase', marginTop: -2 },
+  leagueValCap: { color: colors.textDim, fontSize: 11, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase', marginTop: -2 },
   leagueMeta: { color: colors.textDim, fontSize: 12, marginTop: 3 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 8 },
   chip: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3, marginRight: 7, marginBottom: 6 },
@@ -199,7 +199,7 @@ const styles = StyleSheet.create({
   roundBadge: { width: 38, paddingVertical: 3, borderRadius: 6, borderWidth: 1, alignItems: 'center', marginRight: 10 },
   roundText: { fontSize: 11, fontWeight: '800' },
   pickLabel: { color: colors.text, fontSize: 15, fontWeight: '700' },
-  tag: { color: colors.warn, fontSize: 10, fontWeight: '900' },
+  tag: { color: colors.warn, fontSize: 11, fontWeight: '900' },
   meta: { color: colors.textDim, fontSize: 12, marginTop: 2 },
   // Trade glyph — trade is an ACTION → accent (color law), not the decorative violet.
   tradeBtn: { marginLeft: 10, width: 32, height: 32, borderRadius: 8, borderWidth: 1, borderColor: colors.accent, backgroundColor: 'rgba(79,140,255,0.10)', alignItems: 'center', justifyContent: 'center' },

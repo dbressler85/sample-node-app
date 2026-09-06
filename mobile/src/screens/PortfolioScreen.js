@@ -977,11 +977,11 @@ const styles = StyleSheet.create({
   holdTabOn: { backgroundColor: colors.cardAlt },
   holdTabTxt: { color: colors.textDim, fontSize: 12, fontWeight: '800' },
   holdTabTxtOn: { color: colors.text },
-  holdScope: { color: colors.textDim, fontSize: 10, fontWeight: '800', letterSpacing: 0.5, marginBottom: 8 },
+  holdScope: { color: colors.textDim, fontSize: 11, fontWeight: '800', letterSpacing: 0.5, marginBottom: 8 },
   holdKeyRow: { flexDirection: 'row', alignItems: 'flex-end', paddingBottom: 6, marginBottom: 2, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
-  holdKeyName: { flex: 1, color: colors.textDim, fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.3 },
-  holdKeyVal: { color: colors.gold, fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.3 },
-  holdKeyPct: { color: colors.textDim, fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.3, marginTop: 1 },
+  holdKeyName: { flex: 1, color: colors.textDim, fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.3 },
+  holdKeyVal: { color: colors.gold, fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.3 },
+  holdKeyPct: { color: colors.textDim, fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.3, marginTop: 1 },
   // Fixed height (must equal HOLDING_ROW_HEIGHT) so the FlatList's getItemLayout is exact — a fast
   // fling then never flashes blank rows (UX_GUARDRAILS §2). Two single-line texts, so content never
   // changes the height; alignItems centers them in the fixed box.
@@ -993,7 +993,7 @@ const styles = StyleSheet.create({
   shopTxtOn: { color: colors.onAccent },
   betBanner: { backgroundColor: colors.bg, borderRadius: 10, borderLeftWidth: 3, borderLeftColor: colors.gold, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 12 },
   betBannerHot: { borderLeftColor: colors.warn },
-  betLabel: { color: colors.textDim, fontSize: 10, fontWeight: '800', letterSpacing: 0.5, marginBottom: 3 },
+  betLabel: { color: colors.textDim, fontSize: 11, fontWeight: '800', letterSpacing: 0.5, marginBottom: 3 },
   betText: { color: colors.textDim, fontSize: 13, lineHeight: 18 },
   seasonBanner: { backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, borderLeftWidth: 3, borderLeftColor: colors.textDim, padding: 14, marginBottom: 14 },
   seasonBannerActive: { borderLeftColor: colors.gold },
@@ -1088,7 +1088,7 @@ const styles = StyleSheet.create({
   teamNameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   teamName: { color: colors.text, fontSize: 15, fontWeight: '800' },
   winPill: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 1 },
-  winPillText: { fontSize: 10, fontWeight: '900', letterSpacing: 0.2 },
+  winPillText: { fontSize: 11, fontWeight: '900', letterSpacing: 0.2 },
   teamMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 },
   oDot: { width: 8, height: 8, borderRadius: 4 },
   teamMeta: { color: colors.textDim, fontSize: 12, fontWeight: '600', flex: 1 },
