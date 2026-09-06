@@ -76,10 +76,14 @@ async function pendingTrades(league, cookie, params = {}) {
 }
 
 // `liveScoring` export -> per-franchise live score rows (each nests players.player internally).
-async function liveScoring(league, cookie, params = {}) {
+async function liveScoring(league, cookie, params = {}, { retries = 3, maxRetries } = {}) {
   // Retry a transient throttle: the live scoreboard fans this out on Sunday — the exact peak when MFL
   // throttles — and a dropped league silently vanishes a live game from the board. Retry at the source.
-  const res = await withRetry(() => read('liveScoring', league, cookie, params));
+  // A FOREGROUND single-league read (the matchup card) passes retries:1 + maxRetries:1 to fail fast
+  // instead of burning the full ladder; the fan-out keeps the defaults. maxRetries rides through as a
+  // named exportRequest option (it never reaches the URL / cache key).
+  const readParams = maxRetries != null ? { ...params, maxRetries } : params;
+  const res = await withRetry(() => read('liveScoring', league, cookie, readParams), retries);
   return mfl.toArray(res && res.liveScoring && res.liveScoring.franchise);
 }
 

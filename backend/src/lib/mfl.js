@@ -265,7 +265,11 @@ async function fetchAllowlisted(startUrl, init) {
   throw err;
 }
 
-async function rawRequest({ host, command, params, cookie, method = 'GET', body, year, priority = 'normal' }) {
+async function rawRequest({ host, command, params, cookie, method = 'GET', body, year, priority = 'normal', maxRetries = null }) {
+  // A foreground read the user is waiting on (e.g. the single-league matchup card) can pass a small
+  // maxRetries so a transient 503 fails fast to a "tap to retry" instead of burning the full
+  // 800·2^n ladder (~12s) and 502-ing. Defaults to the global cap for every background/fan-out read.
+  const retryCap = maxRetries != null ? maxRetries : config.mflMaxRetries;
   const url = buildUrl(host, command, params, year);
   const headers = { 'User-Agent': config.userAgent, Accept: 'application/json' };
   if (cookie) headers.Cookie = `MFL_USER_ID=${cookie}`;
@@ -300,7 +304,7 @@ async function rawRequest({ host, command, params, cookie, method = 'GET', body,
       text = await res.text();
       break;
     }
-    if (res.status === 503 && attempt < config.mflMaxRetries) {
+    if (res.status === 503 && attempt < retryCap) {
       metrics.record503();
       const waitMs = Math.min(10000, 800 * 2 ** attempt);
       const jitter = Math.floor(Math.random() * 250);
@@ -405,7 +409,7 @@ const LEAGUE_GLOBAL_TYPES = new Set([
 // intraday on game day, so freshness still matters; it's the redundancy that's removed, not the cadence.
 
 // Read data via the export command (cached, TTL depends on how volatile it is).
-async function exportRequest(type, { host = config.apiHost, cookie = null, maxAge = null, year = null, priority = null, ...params } = {}) {
+async function exportRequest(type, { host = config.apiHost, cookie = null, maxAge = null, year = null, priority = null, maxRetries = null, ...params } = {}) {
   // Priority resolution: an explicit priority (the always-background warm/prime workers pass
   // 'low') wins; otherwise inherit the ambient request priority — 'low' for a request the client
   // flagged as a background fan-out (Fix A), 'normal' for an ordinary foreground read.
@@ -439,7 +443,7 @@ async function exportRequest(type, { host = config.apiHost, cookie = null, maxAg
   }
   metrics.recordMiss();
 
-  const promise = rawRequest({ host, command: 'export', params: { TYPE: type, ...params }, cookie, year, priority: effPriority });
+  const promise = rawRequest({ host, command: 'export', params: { TYPE: type, ...params }, cookie, year, priority: effPriority, maxRetries });
   const entry = { at: Date.now(), ttl, promise };
   readCache.set(key, entry);
   // A failed read must not be cached: drop it so the next call retries.
