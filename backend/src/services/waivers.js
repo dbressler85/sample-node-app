@@ -213,15 +213,35 @@ async function buildFreeAgentIds(cookie, league) {
     // because this list is memoized (faIdsMemo): a swallowed [] would stick for the whole TTL — dropping
     // watchlist "now free" alerts AND making validateClaim reject a VALID add as "not available in this
     // league" (a sticky, misleading block). Retrying at the source re-reads instead of caching empty.
-    return freeAgentIdsFromUnits(await mflRepo.freeAgentUnits(league, cookie));
+    const [units, divCtx] = await Promise.all([
+      mflRepo.freeAgentUnits(league, cookie),
+      divisionContext.resolve(cookie, league).catch(() => null),
+    ]);
+    return freeAgentIdsFromUnits(units, divCtx);
   } catch (e) {
     return [];
   }
 }
+// MFL returns free agents as one `leagueUnit` PER division (unit="DIVISION00"/"01"/...). In a multi-copy
+// league each division is an INDEPENDENT pool, so flattening every unit surfaces players who aren't free
+// in MY division (they're free in another division but rostered — or absent — in mine). Keep only my
+// division's unit. No-op for a normal league: a single `LEAGUE` unit, or multiCopy:false, keeps every
+// unit. Fail-open — if no unit carries my division's label, keep them all rather than hide the pool.
+function scopeUnitsToMyDivision(units, divCtx) {
+  const all = mfl.toArray(units);
+  if (!divCtx || !divCtx.multiCopy || divCtx.myDivision == null) return all;
+  const myDiv = String(divCtx.myDivision);
+  const mine = all.filter((u) => {
+    const d = mfl.text(mfl.attr(u, 'unit')).replace(/^DIVISION/i, '').trim();
+    return d === myDiv || (d !== '' && Number(d) === Number(myDiv));
+  });
+  return mine.length ? mine : all;
+}
 // Flatten the `freeAgents` export units to a plain id list — used for the backend read AND for a
 // device-origin read where the DEVICE fetched the units straight from MFL (docs/DEVICE_ORIGIN_MFL.md).
-function freeAgentIdsFromUnits(units) {
-  return mfl.toArray(units).flatMap((u) => mfl.toArray(u && u.player)).map((p) => String(p.id));
+// `divCtx` (optional) scopes a multi-copy league to my division's unit before flattening.
+function freeAgentIdsFromUnits(units, divCtx = null) {
+  return scopeUnitsToMyDivision(units, divCtx).flatMap((u) => mfl.toArray(u && u.player)).map((p) => String(p.id));
 }
 
 async function loadFreeAgents(cookie, league, settings) {
@@ -254,8 +274,12 @@ async function buildFreeAgents(cookie, league, settings) {
     const [faIds, proj] = await Promise.all([
       (async () => {
         try {
-          const units = await mflRepo.freeAgentUnits(league, cookie);
-          const players = units.flatMap((u) => mfl.toArray(u && u.player));
+          const [units, divCtx] = await Promise.all([
+            mflRepo.freeAgentUnits(league, cookie),
+            divisionContext.resolve(cookie, league).catch(() => null),
+          ]);
+          // Multi-copy: keep only MY division's leagueUnit (see scopeUnitsToMyDivision). No-op normally.
+          const players = scopeUnitsToMyDivision(units, divCtx).flatMap((u) => mfl.toArray(u && u.player));
           const out = players.map((p) => String(p.id)).slice(0, 300); // cap payload
           console.log(`[freeAgents] league=${league.leagueId} total=${players.length} returned=${out.length}`);
           return out;
@@ -289,8 +313,11 @@ async function freeAgentSummary(cookie, league, deviceFreeAgents = null) {
     enrichmentLib.snapshot(await leagueFormat.format(cookie, league), cookie),
   ]);
   // When the device supplied this league's freeAgents units (device-origin overview), flatten those
-  // instead of fetching the pool from MFL (docs/DEVICE_ORIGIN_MFL.md).
-  const ids = deviceFreeAgents ? freeAgentIdsFromUnits(deviceFreeAgents) : await freeAgentIds(cookie, league);
+  // instead of fetching the pool from MFL (docs/DEVICE_ORIGIN_MFL.md). Scope to my division either way
+  // (freeAgentIds does it internally; the device flatten takes the resolved ctx).
+  const ids = deviceFreeAgents
+    ? freeAgentIdsFromUnits(deviceFreeAgents, await divisionContext.resolve(cookie, league).catch(() => null))
+    : await freeAgentIds(cookie, league);
   const valid = [];
   for (const id of ids) {
     const p = playersLib.resolve(byId, id);
@@ -1415,7 +1442,11 @@ async function getBestAvailable(cookie, token, { deviceReads = null, format = nu
       const dr = deviceReads ? deviceReads[String(league.leagueId)] : null;
       const [settings, ids] = await Promise.all([
         loadSettings(league, cookie, { fresh: false }), // read-only board — the 24h league cache is fine (no live FAAB needed)
-        dr ? Promise.resolve(freeAgentIdsFromUnits(dr)) : freeAgentIds(cookie, league),
+        // Scope to my division's unit in a multi-copy league (freeAgentIds does it internally; the
+        // device flatten needs the resolved ctx).
+        dr
+          ? divisionContext.resolve(cookie, league).catch(() => null).then((dc) => freeAgentIdsFromUnits(dr, dc))
+          : freeAgentIds(cookie, league),
       ]);
       const scoring = config.demoMode ? demo.scoring(league.leagueId) || {} : {};
       const statMap = config.demoMode ? demo.statProjections() : {};
@@ -1963,4 +1994,4 @@ async function recentResults(cookie, _token) {
   return { results: per.flat() };
 }
 
-module.exports = { getBoard, getOverview, getSuggestions, getLeagueSuggestion, preview, submit, previewMulti, submitMulti, cancel, edit, reorder, getBestAvailable, getPending, freeAgentIds, invalidate, nextWaiverRun, reconciledPending, reconcileLocalClaims, recentResults, suggestBidPlan };
+module.exports = { getBoard, getOverview, getSuggestions, getLeagueSuggestion, preview, submit, previewMulti, submitMulti, cancel, edit, reorder, getBestAvailable, getPending, freeAgentIds, freeAgentIdsFromUnits, invalidate, nextWaiverRun, reconciledPending, reconcileLocalClaims, recentResults, suggestBidPlan };
