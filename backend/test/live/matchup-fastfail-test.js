@@ -1,10 +1,11 @@
 'use strict';
 
 // The single-league matchup card (GET /leagues/:id/matchup → scoreboard.getLeagueMatchup) is a FOREGROUND
-// read. When MFL is throttling/503-ing it must FAIL FAST — a bounded 1-retry ladder — and DEGRADE to an
-// empty card (game:null, HTTP 200), never hang ~5–12s on the full retry ladder and 502 the screen. The
-// Sunday scoreboard fan-out keeps the full retries (a real drop still throws → honest `partial`). This
-// pins the fast-fail opts threaded to liveScoring AND the degrade-to-null on failure.
+// read. When MFL is throttling/503-ing it must FAIL FAST — a bounded 1-retry ladder so it throws in ~1s
+// instead of hanging ~5–12s on the full ladder. It THROWS (does not degrade to null): the client keeps the
+// last-known card from cache (non-destructive errors, C4), and a null return stays reserved for a clean
+// "nothing live" read. The Sunday scoreboard fan-out keeps the full retries. This pins the fast-fail opts
+// threaded to liveScoring AND that a failed read throws (never a false-empty card).
 
 process.env.MFL_DEMO_MODE = 'false';
 process.env.MFL_WEEK = '3';
@@ -26,13 +27,24 @@ mflRepo.liveScoring = async (league, cookie, params = {}, opts = {}) => {
 const scoreboard = require('../../src/services/scoreboard');
 
 (async () => {
-  const out = await scoreboard.getLeagueMatchup('ck', '1000');
-  // Degrades to an empty card — a 200 with game:null — rather than propagating a 502.
-  assert(out && out.game === null, `matchup degrades to game:null on a failed live read, got ${JSON.stringify(out)}`);
-  assert(out.week === 3, `week still resolves, got ${out.week}`);
-  // And it asked liveScoring to fail fast: one source retry, one 503 retry.
+  // A throttled live read must THROW (so the client keeps its last-known card via C4), not resolve to a
+  // false-empty card — but it must throw FAST, having asked liveScoring for the bounded retry budget.
+  let threw = null;
+  try {
+    await scoreboard.getLeagueMatchup('ck', '1000');
+  } catch (e) {
+    threw = e;
+  }
+  assert(threw, 'a failed live read throws (never a false-empty card the client would treat as "no game")');
   assert(captured && captured.retries === 1 && captured.maxRetries === 1, `matchup reads live with fast-fail opts, got ${JSON.stringify(captured)}`);
-  console.log('✓ matchup: fails fast (retries:1, maxRetries:1) and degrades to an empty card, not a 502');
+  console.log('✓ matchup: fails FAST (retries:1, maxRetries:1) by throwing — client keeps the last-known card (C4)');
+
+  // A SUCCESSFUL read with no matchup for me still returns a clean empty card (null game) — the "failed vs
+  // empty" distinction is preserved.
+  mflRepo.liveScoring = async () => []; // read ok, but no franchises → nothing live
+  const empty = await scoreboard.getLeagueMatchup('ck', '1000');
+  assert(empty && empty.game === null && empty.week === 3, `a clean "nothing live" read → game:null, got ${JSON.stringify(empty)}`);
+  console.log('✓ matchup: a successful "nothing live" read still returns a clean empty card (game:null)');
 
   console.log('\nMATCHUP FAST-FAIL HARNESS PASSED');
 })().catch((e) => { console.error(e.message); process.exit(1); });
