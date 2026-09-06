@@ -439,7 +439,7 @@ const styles = StyleSheet.create({
   ctxBlock: { marginBottom: 12, gap: 6 },
   fmtRow: { flexDirection: 'row' }, // keeps the pill hugging its text instead of stretching full-width
   ctxRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
-  fmtPill: { alignSelf: 'flex-start', color: colors.accent, backgroundColor: colors.accent + '1A', borderWidth: 1, borderColor: colors.accent + '55', borderRadius: 6, fontSize: 11, fontWeight: '800', paddingHorizontal: 7, paddingVertical: 2, overflow: 'hidden' },
+  fmtPill: { alignSelf: 'flex-start', color: colors.accent, backgroundColor: colors.accent + '1A', borderWidth: 1, borderColor: colors.accent + '55', borderRadius: 6, fontSize: 11, lineHeight: 13, fontWeight: '800', paddingHorizontal: 7, paddingVertical: 2, overflow: 'hidden' },
   ctxText: { color: colors.textDim, fontSize: 12, fontWeight: '600' },
   side: { marginBottom: 10 },
   sideLabel: { color: colors.violetText, fontSize: 12, fontWeight: '800', marginBottom: 4 },

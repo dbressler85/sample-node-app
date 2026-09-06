@@ -1396,7 +1396,7 @@ const styles = StyleSheet.create({
   partnerChip: { backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 8, maxWidth: 190 },
   partnerChipActive: { backgroundColor: colors.cardAlt, borderColor: colors.accent },
   chipBait: { color: colors.accent, fontSize: 11, fontWeight: '800', marginTop: 2 },
-  baitTag: { color: colors.accent, fontSize: 11, fontWeight: '900', marginLeft: 6, borderWidth: 1, borderColor: colors.accent, borderRadius: 4, paddingHorizontal: 3, paddingVertical: 1, overflow: 'hidden' },
+  baitTag: { color: colors.accent, fontSize: 11, lineHeight: 13, fontWeight: '900', marginLeft: 6, borderWidth: 1, borderColor: colors.accent, borderRadius: 4, paddingHorizontal: 3, paddingVertical: 1, overflow: 'hidden' },
   blockHint: { color: colors.gold, fontSize: 11, fontWeight: '800' },
   partnerText: { color: colors.textDim, fontSize: 13, fontWeight: '700' },
   assetRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 8 },

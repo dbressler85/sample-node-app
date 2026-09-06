@@ -773,7 +773,7 @@ const styles = StyleSheet.create({
   submittedBid: { color: colors.accent, fontSize: 13, fontWeight: '800' },
   submittedDelta: { fontSize: 12, fontWeight: '800', marginTop: 1 },
   submittedIdx: { color: colors.textDim, fontSize: 13, fontWeight: '800' },
-  mflTag: { color: colors.accent, fontSize: 11, fontWeight: '900', borderWidth: 1, borderColor: colors.accent, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, overflow: 'hidden', marginRight: 4 },
+  mflTag: { color: colors.accent, fontSize: 11, lineHeight: 13, fontWeight: '900', borderWidth: 1, borderColor: colors.accent, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, overflow: 'hidden', marginRight: 4 },
   submittedActions: { flexDirection: 'row', alignItems: 'center', gap: 2, marginLeft: 4 },
   reorderBtn: { paddingHorizontal: 6, paddingVertical: 4 },
   reorderArrow: { color: colors.accent, fontSize: 13, fontWeight: '900' },
@@ -781,7 +781,7 @@ const styles = StyleSheet.create({
   submittedDelete: { color: colors.bad, fontSize: 14, fontWeight: '900' },
   // League + team context chip row (format / outlook / avg age).
   ctxRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
-  ctxChip: { color: colors.textDim, fontSize: 11, fontWeight: '800', borderWidth: 1, borderColor: colors.border, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, overflow: 'hidden' },
+  ctxChip: { color: colors.textDim, fontSize: 11, lineHeight: 13, fontWeight: '800', borderWidth: 1, borderColor: colors.border, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, overflow: 'hidden' },
   ctxChipSf: { color: colors.accent, borderColor: colors.accent },
   ctxChipOutlook: { color: colors.textDim, borderColor: colors.border },
   // Full-roster drop picker rows, grouped by position.
@@ -790,7 +790,7 @@ const styles = StyleSheet.create({
   posBadgeSm: { width: 36, paddingVertical: 2, borderRadius: 6, borderWidth: 1, alignItems: 'center', marginRight: 10 },
   posSm: { fontSize: 11, fontWeight: '800' },
   rosterName: { color: colors.text, fontSize: 14, fontWeight: '700', flexShrink: 1 },
-  starterTag: { color: colors.textDim, fontSize: 11, fontWeight: '900', letterSpacing: 0.4, borderWidth: 1, borderColor: colors.border, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, marginLeft: 6, overflow: 'hidden' },
+  starterTag: { color: colors.textDim, fontSize: 11, lineHeight: 13, fontWeight: '900', letterSpacing: 0.4, borderWidth: 1, borderColor: colors.border, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, marginLeft: 6, overflow: 'hidden' },
   rosterMeta: { color: colors.textDim, fontSize: 12, marginTop: 2 },
   rosterValue: { color: colors.gold, fontSize: 14, fontWeight: '900', marginLeft: 10 },
   dropBox: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 14 },
@@ -813,7 +813,7 @@ const styles = StyleSheet.create({
   submit: { flex: 1, backgroundColor: colors.accent, borderRadius: 14, paddingVertical: 16, alignItems: 'center' },
   submitOff: { backgroundColor: colors.cardAlt },
   submitText: { color: colors.onAccent, fontSize: 16, fontWeight: '800' },
-  sysBadge: { fontSize: 11, fontWeight: '900', borderWidth: 1, borderRadius: 5, paddingHorizontal: 6, paddingVertical: 1, overflow: 'hidden' },
+  sysBadge: { fontSize: 11, lineHeight: 13, fontWeight: '900', borderWidth: 1, borderRadius: 5, paddingHorizontal: 6, paddingVertical: 1, overflow: 'hidden' },
   // summary
   doneMark: { color: colors.good, fontSize: 56, fontWeight: '900', marginBottom: 8 },
   doneTitle: { color: colors.text, fontSize: 22, fontWeight: '900', textAlign: 'center' },
