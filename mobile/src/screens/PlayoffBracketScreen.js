@@ -172,5 +172,5 @@ const styles = StyleSheet.create({
   check: { color: colors.good, fontSize: 13, fontWeight: '900', marginRight: 4 },
   dimText: { color: colors.textDim, opacity: 0.7 },
   tbd: { color: colors.textDim, fontSize: 12, fontStyle: 'italic', textAlign: 'center', padding: 8 },
-  liveTag: { color: colors.warn, fontSize: 10, fontWeight: '900', letterSpacing: 1, textAlign: 'center', paddingBottom: 4 },
+  liveTag: { color: colors.warn, fontSize: 11, fontWeight: '900', letterSpacing: 1, textAlign: 'center', paddingBottom: 4 },
 });

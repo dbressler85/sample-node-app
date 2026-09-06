@@ -208,7 +208,7 @@ const styles = StyleSheet.create({
   wpText: { color: colors.textDim, fontSize: 11, fontWeight: '600' },
   lineupHint: { color: colors.accent, fontSize: 12, fontWeight: '800' },
   ytpLine: { color: colors.text, fontSize: 12, marginTop: 8, lineHeight: 17, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, paddingTop: 8 },
-  ytpLabel: { color: colors.violetText, fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
+  ytpLabel: { color: colors.violetText, fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
   error: { color: colors.bad, textAlign: 'center' },
   emptyWrap: { paddingHorizontal: 24, paddingTop: 60, alignItems: 'center' },
   emptyTitle: { color: colors.text, fontSize: 17, fontWeight: '800', marginBottom: 8 },

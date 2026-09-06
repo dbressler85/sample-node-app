@@ -33,7 +33,7 @@ export default function ValueDelta({ addValue, dropValue, net }) {
 const styles = StyleSheet.create({
   box: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginTop: 12, backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, paddingVertical: 12, paddingHorizontal: 14 },
   col: { alignItems: 'center', minWidth: 48 },
-  label: { color: colors.violetText, fontSize: 10, fontWeight: '800', letterSpacing: 1, marginBottom: 3 },
+  label: { color: colors.violetText, fontSize: 11, fontWeight: '800', letterSpacing: 1, marginBottom: 3 },
   add: { color: colors.gold, fontSize: 18, fontWeight: '800', fontVariant: ['tabular-nums'] },
   drop: { color: colors.textDim, fontSize: 18, fontWeight: '800', fontVariant: ['tabular-nums'] },
   op: { color: colors.textDim, fontSize: 16, fontWeight: '700' },

@@ -79,6 +79,6 @@ const styles = StyleSheet.create({
   chipAccent: { borderColor: colors.accent, backgroundColor: 'rgba(79,140,255,0.10)' },
   chipText: { fontSize: 11, fontWeight: '800', letterSpacing: 0.3 },
   line: { color: colors.text, fontSize: 12.5, lineHeight: 17 },
-  lineLabel: { color: colors.textDim, fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
+  lineLabel: { color: colors.textDim, fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
   startTotal: { color: colors.text, fontWeight: '900' },
 });

@@ -392,7 +392,7 @@ const styles = StyleSheet.create({
   nameLine: { flexDirection: 'row', alignItems: 'center' },
   name: { color: colors.text, fontSize: 15, fontWeight: '700', flexShrink: 1 },
   struck: { textDecorationLine: 'line-through' },
-  draftedTag: { color: colors.bad, fontSize: 9, fontWeight: '900', marginLeft: 6, borderWidth: 1, borderColor: colors.bad, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1, overflow: 'hidden' },
+  draftedTag: { color: colors.bad, fontSize: 11, fontWeight: '900', marginLeft: 6, borderWidth: 1, borderColor: colors.bad, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1, overflow: 'hidden' },
   meta: { color: colors.textDim, fontSize: 12, marginTop: 2 },
   ctrls: { flexDirection: 'row', alignItems: 'center', gap: 2, marginLeft: 6 },
   // Five reorder controls per row (⤒ ↑ ↓ ⤓ ✕) — sized as real targets (~32×36) with near-zero hitSlop
