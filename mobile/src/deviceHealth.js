@@ -26,12 +26,27 @@ function classifyError(e) {
 }
 
 let offlineUntil = 0;
+let netFailStreak = 0;
 
-// Record the outcome of a device read. A `network` failure opens the offline cooldown; a success (reason
-// null/undefined) closes it early so we resume device reads the moment connectivity is back.
+// A single device-read timeout is usually just ONE slow league (a 40-franchise roster past our 8s cap),
+// not a dead network — and opening the GLOBAL cooldown on it suppressed every screen's device reads for
+// 15s, collapsing the two-pipe model onto the shared backend for the sake of one heavy league. So require
+// TWO consecutive network failures before suppressing: a real outage keeps failing, a lone slow read does
+// not. ANY response at all — a success, a 429, an expired cookie, an assemble error — proves the network
+// is up and resets the streak. (With the parallel home fan-out this means a single timed-out league among
+// successful ones never trips suppression, because the successes reset the streak.)
+const NET_FAILS_TO_SUPPRESS = 2;
+
+// Record the outcome of a device read. Two consecutive `network` failures open the offline cooldown; any
+// success (reason null/undefined) closes it early so we resume device reads the moment connectivity is back.
 function noteResult(reason, nowMs = Date.now()) {
-  if (reason === 'network') offlineUntil = nowMs + OFFLINE_COOLDOWN_MS;
-  else if (!reason) offlineUntil = 0;
+  if (reason === 'network') {
+    netFailStreak += 1;
+    if (netFailStreak >= NET_FAILS_TO_SUPPRESS) offlineUntil = nowMs + OFFLINE_COOLDOWN_MS;
+  } else {
+    netFailStreak = 0; // any reply (even a 429/expired/incomplete) proves the network is up
+    if (!reason) offlineUntil = 0; // a success also lifts the cooldown early
+  }
 }
 
 // Are we in the post-network-failure cooldown? While true, callers skip the device attempt and go straight
@@ -46,6 +61,6 @@ function shouldBeacon(nowMs = Date.now()) {
   return nowMs >= offlineUntil;
 }
 
-function _reset() { offlineUntil = 0; }
+function _reset() { offlineUntil = 0; netFailStreak = 0; }
 
 module.exports = { classifyError, noteResult, deviceSuppressed, shouldBeacon, OFFLINE_COOLDOWN_MS, _reset };

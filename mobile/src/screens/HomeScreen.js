@@ -122,6 +122,13 @@ let refreshInFlight = false; // guards the fan-out across remounts (a per-mount 
 // visible cards stall ("Updating 0/15" frozen for 30s+). Bumping this on each warmHome makes the old
 // queue's workers bail before their next read, handing budget back to the new visible fan-out.
 let warmGen = 0;
+// Supersede the in-flight Home warm from OUTSIDE warmHome — called when the user leaves Home before it
+// finishes. Bumping warmGen makes the still-draining warm queue (the app's heaviest speculative reads:
+// portfolio, free agents, rankings, boards) AND the remaining visible-triage reads bail at their next
+// checkpoint, so an orphaned Home load stops competing for MFL budget with the screen the user actually
+// went to (which is what made leaving mid-load feel like it broke the app). Returning to Home starts a
+// fresh warmHome. Does NOT touch refreshInFlight — warmHome's own finally still clears it.
+export function supersedeHomeWarm() { warmGen += 1; }
 // How long the cross-league Home triage stays "fresh" before a passive return (from an overlay/tab)
 // re-fans-out all your leagues. Kept generous — dynasty triage doesn't change second to second, and
 // any ACTION you take (set lineup, file claim, make a pick) resets this to 0 via onCacheInvalidate, so
@@ -205,12 +212,14 @@ export async function warmHome() {
     const collected = { ...(homeCache.statuses || {}) };
     patchHome({ progress: { done: Object.keys(collected).length, total: list.length } });
     await runPool(list, CONCURRENCY, async (lg) => {
+      if (myGen !== warmGen) return; // superseded (user left Home) — stop firing the remaining league reads
       try {
         const t = await leagueTriagePreferDevice(lg.leagueId, true);
         collected[lg.leagueId] = { name: t.name, status: t.status, items: t.items, phase: t.phase, dynasty: t.dynasty, tradeDeadline: t.tradeDeadline };
       } catch (e) {
         collected[lg.leagueId] = { name: lg.name, status: 'error', items: [] };
       }
+      if (myGen !== warmGen) return; // don't paint stale progress for a superseded run
       // Emit the accumulating map (a fresh object each time so React re-renders) + progress.
       patchHome({ statuses: { ...collected }, progress: { done: Object.keys(collected).length, total: list.length } });
     });
@@ -280,7 +289,17 @@ export async function warmHome() {
     // warmGen, so a stale queue never steals budget from the next visible fan-out.
     runPool(queue, WARM_CONCURRENCY, async (w) => {
       if (myGen !== warmGen) return; // superseded before we started this item — skip it
-      try { const v = await w.run(); if (myGen !== warmGen) return; setValue(w.key, v); primeResource(w.key, v); } catch (e) { /* warm is best-effort */ }
+      try {
+        const v = await w.run();
+        if (myGen !== warmGen) return;
+        // Never cache a DEGRADED warm. A cross-league read that came back partial (e.g. a portfolio with
+        // placeholder leagues because the pipe was throttled/suppressed) would otherwise prime as the
+        // screen's "loaded" state and show wrong/incomplete data until a manual refresh. Let that screen's
+        // own cold load fetch it fresh instead.
+        if (v && v.partial) return;
+        setValue(w.key, v);
+        primeResource(w.key, v);
+      } catch (e) { /* warm is best-effort */ }
     });
   } catch (e) {
     patchHome({ error: e.message });

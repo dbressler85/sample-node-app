@@ -8,7 +8,7 @@ import { registerForPush, unregisterPush } from './src/push';
 import { clearAll as clearCache } from './src/cache';
 import { prefetchOtherTabs } from './src/prefetch';
 import LoginScreen from './src/screens/LoginScreen';
-import HomeScreen, { resetHomeCache, warmHome } from './src/screens/HomeScreen';
+import HomeScreen, { resetHomeCache, warmHome, supersedeHomeWarm } from './src/screens/HomeScreen';
 import { clearResourceCache } from './src/useCachedResource';
 import deviceReadCache from './src/deviceReadCache';
 import deviceEnrichCache from './src/deviceEnrichCache';
@@ -245,6 +245,15 @@ export default function App() {
     const t = setTimeout(() => { prefetchOtherTabs(tab); }, 1800);
     return () => clearTimeout(t);
   }, [authed, booting, tab, overlayStack.length]);
+
+  // Leaving Home before its cross-league warm finishes: supersede that warm so its heaviest speculative
+  // reads (portfolio, free agents, rankings, boards) and its remaining league-triage reads stop competing
+  // for MFL budget with the tab the user actually opened. Returning to Home starts a fresh warm; the idle
+  // prefetch above re-warms the other tabs once the new screen settles. (Overlays live in overlayStack, not
+  // `tab`, so opening a Draft Hub / inbox — which the warm queue is pre-warming FOR — does not cancel it.)
+  useEffect(() => {
+    if (tab !== 'home') supersedeHomeWarm();
+  }, [tab]);
 
   // If a request finds the session dead or the backend unreachable, drop to login.
   useEffect(() => {

@@ -54,12 +54,19 @@ test('ready() false: device not attempted, backend served, no fallback reason', 
   assert.equal(beacons[0].meta.reason, null, 'a backend read with device off is not a "fallback"');
 });
 
-test('network failure opens the offline cooldown AND suppresses its own beacon (U-3)', async () => {
+test('TWO consecutive network failures open the offline cooldown; one does not (U-3)', async () => {
+  deviceHealth._reset();
   const { preferDevice, beacons } = build();
-  const out = await preferDevice('portfolio', async () => { throw new Error('Network request failed'); }, async () => ({ ok: 1 }));
-  assert.equal(out._source, 'backend');
-  assert.equal(deviceHealth.deviceSuppressed(), true, 'a network failure opens the offline cooldown');
-  assert.equal(beacons.length, 0, 'no beacon is fired to a dead network');
+  const netFail = () => preferDevice('portfolio', async () => { throw new Error('Network request failed'); }, async () => ({ ok: 1 }));
+  const out1 = await netFail();
+  assert.equal(out1._source, 'backend');
+  assert.equal(deviceHealth.deviceSuppressed(), false, 'ONE network failure does not suppress — it could be one slow league, not a dead network');
+  const out2 = await netFail();
+  assert.equal(out2._source, 'backend');
+  assert.equal(deviceHealth.deviceSuppressed(), true, 'two consecutive network failures open the offline cooldown');
+  // The beacon storm is what U-3 guards: the first failure still beacons (network looks up), but once the
+  // cooldown is open the second (and subsequent) fallbacks fire no beacon to the dead network.
+  assert.equal(beacons.length, 1, 'no beacon storm once the network is believed down');
 });
 
 test('expired cookie triggers the cred refresh (U-7) then falls back', async () => {
