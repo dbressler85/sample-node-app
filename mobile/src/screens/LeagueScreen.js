@@ -504,14 +504,14 @@ const styles = StyleSheet.create({
   pRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 7 },
   pDot: { width: 10, height: 10, borderRadius: 5, marginRight: 10 },
   pName: { color: colors.text, fontSize: 14, fontWeight: '700', flexShrink: 1 },
-  pTag: { color: colors.warn, fontSize: 11, fontWeight: '900', marginLeft: 6, borderWidth: 1, borderColor: colors.warn, borderRadius: 4, paddingHorizontal: 3, paddingVertical: 1, overflow: 'hidden' },
+  pTag: { color: colors.warn, fontSize: 11, lineHeight: 13, fontWeight: '900', marginLeft: 6, borderWidth: 1, borderColor: colors.warn, borderRadius: 4, paddingHorizontal: 3, paddingVertical: 1, overflow: 'hidden' },
   pMeta: { color: colors.textDim, fontSize: 12, marginLeft: 'auto', marginRight: 10 },
   pVal: { color: colors.gold, fontSize: 14, fontWeight: '900', width: 40, textAlign: 'right', fontVariant: ['tabular-nums'] },
 
   // transactions
   txn: { backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 12, marginBottom: 8 },
   txnTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
-  txnType: { color: colors.violetText, backgroundColor: colors.violet + '22', borderRadius: 6, fontSize: 11, fontWeight: '800', paddingHorizontal: 7, paddingVertical: 2, overflow: 'hidden', marginRight: 8 },
+  txnType: { color: colors.violetText, backgroundColor: colors.violet + '22', borderRadius: 6, fontSize: 11, lineHeight: 13, fontWeight: '800', paddingHorizontal: 7, paddingVertical: 2, overflow: 'hidden', marginRight: 8 },
   txnWho: { color: colors.text, fontSize: 13, fontWeight: '700', flex: 1 },
   txnTime: { color: colors.textDim, fontSize: 11, fontWeight: '600', marginLeft: 8 },
   txnAdd: { color: colors.good, fontSize: 13, fontWeight: '600', marginTop: 2 },

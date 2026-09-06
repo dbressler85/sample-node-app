@@ -155,7 +155,7 @@ const styles = StyleSheet.create({
   card: { backgroundColor: colors.card, borderRadius: 14, borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: 12 },
   cardTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   team: { color: colors.text, fontSize: 16, fontWeight: '900', letterSpacing: 0.3, flex: 1, marginRight: 10 },
-  needTag: { color: colors.good, fontSize: 11, fontWeight: '800', letterSpacing: 0.2, borderWidth: 1, borderColor: colors.good, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, overflow: 'hidden' },
+  needTag: { color: colors.good, fontSize: 11, lineHeight: 13, fontWeight: '800', letterSpacing: 0.2, borderWidth: 1, borderColor: colors.good, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, overflow: 'hidden' },
   chip: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
   dot: { width: 6, height: 6, borderRadius: 3, marginRight: 5 },
   chipText: { fontSize: 11, fontWeight: '800', letterSpacing: 0.2 },
