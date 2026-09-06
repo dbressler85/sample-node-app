@@ -428,20 +428,20 @@ export default function HomeScreen({ active = true, demoMode, onOpenLineup, onOp
       .sort((a, b) => a.dl.at - b.dl.at);
   }, [leagues, statuses]);
 
-  if (booting) {
-    return (
-      <View style={[styles.container, styles.center]}>
-        <ActivityIndicator color={colors.accent} size="large" />
-      </View>
-    );
-  }
-
+  // No full-screen boot spinner. Paint the real scaffold on the first frame — the topbar (Hub +
+  // NavTools), the Portfolio card (its tiles/donut carry their own small spinners while summaryLoading),
+  // and pull-to-refresh — so the screen is never a blank gate you must wait behind, and you can leave
+  // from a real screen. The per-section lists below are already gated on `.length`, so they simply stay
+  // empty until data lands.
   const loading = !!progress && progress.done < progress.total;
-  // The portfolio summary is only trustworthy once every current league has
-  // reported. Until then (a fresh load with no cache), show a spinner in place
-  // of the aggregate counts rather than a misleading run of zeroes. When we have
-  // cached data, statuses are already complete, so numbers update in place.
-  const summaryLoading = busy && !(leagues.length > 0 && leagues.every((l) => statuses[l.leagueId]));
+  // How many CURRENT leagues have reported their triage. The portfolio aggregate is computed over exactly
+  // these and climbs as each lands, so we don't hide it behind the slowest of ~15 leagues.
+  const reported = leagues.filter((l) => statuses[l.leagueId]).length;
+  // Spin the summary only when we genuinely have nothing yet (a cold load, zero reported). The moment the
+  // FIRST league lands, show the real (partial) numbers and let them count up — the "Updating N/M…"
+  // subtitle is the "not final yet" signal. A warm return already has every status, so numbers update in
+  // place. (`booting` = the pre-first-paint window before any cache/patch.)
+  const summaryLoading = (busy || booting) && reported === 0;
 
   return (
     <View style={styles.container}>
@@ -451,7 +451,9 @@ export default function HomeScreen({ active = true, demoMode, onOpenLineup, onOp
           <Text style={styles.subtitle}>
             {loading
               ? `Updating ${progress.done}/${progress.total}…`
-              : `${portfolio.leagues} leagues${phase === 'offseason' ? ' · Offseason' : ''}${demoMode ? ' · DEMO' : ''}`}
+              : !leagues.length && (busy || booting)
+                ? 'Loading your leagues…'
+                : `${portfolio.leagues} leagues${phase === 'offseason' ? ' · Offseason' : ''}${demoMode ? ' · DEMO' : ''}`}
           </Text>
         </View>
         <NavTools active={active} />
