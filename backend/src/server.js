@@ -5,6 +5,7 @@ const config = require('./config');
 const persist = require('./store/persist');
 const notifications = require('./services/notifications');
 const warm = require('./services/warm');
+const metrics = require('./lib/metrics');
 
 // Demo mode accepts ANY credentials and mints a working token (fixture data only). That's
 // correct for local/demo, but shipping it to production would be an open door — so make it
@@ -47,6 +48,16 @@ const NOTIFY_MS = Number(process.env.NOTIFY_INTERVAL_MS) || 45000;
 const notifyTimer = setInterval(() => { notifications.tick().catch(() => {}); }, NOTIFY_MS);
 notifyTimer.unref();
 
+// Two-pipe health: periodically log a compact device-vs-backend read mix + fallback reasons + throttle
+// (429/503) + cache/latency line, so the effect of the device-origin + fast-fail work is visible in the
+// server logs without hitting /_metrics. Silent when idle. Live mode only (demo makes no MFL calls).
+const METRICS_LOG_MS = Number(process.env.METRICS_LOG_INTERVAL_MS) || 10 * 60 * 1000;
+let metricsTimer = null;
+if (!config.demoMode) {
+  metricsTimer = setInterval(() => { try { metrics.logSummary(); } catch (e) { /* never let logging crash a tick */ } }, METRICS_LOG_MS);
+  metricsTimer.unref();
+}
+
 // Sunday pre-warm worker: keep active users' lineup reads warm through the game-day window. Live
 // (non-demo) mode only — it makes real MFL calls with real session cookies.
 if (config.warmEnabled && !config.demoMode) warm.start();
@@ -59,6 +70,7 @@ if (!config.demoMode) warm.startValuePrime();
 function shutdown(signal) {
   console.log(`\n${signal} received — flushing state and shutting down`);
   clearInterval(notifyTimer);
+  if (metricsTimer) clearInterval(metricsTimer);
   warm.stop();
   persist.flushSync(); // sync: the process is exiting, an async write wouldn't finish
   server.close(() => process.exit(0));
