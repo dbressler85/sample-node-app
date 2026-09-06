@@ -69,6 +69,21 @@ test('TWO consecutive network failures open the offline cooldown; one does not (
   assert.equal(beacons.length, 1, 'no beacon storm once the network is believed down');
 });
 
+test('a SKIPPED read inside the offline cooldown does not clear it — suppression actually holds', async () => {
+  deviceHealth._reset();
+  // ready() mirrors the real app: attempt the device only when NOT suppressed.
+  const { preferDevice } = build({ ready: async () => !deviceHealth.deviceSuppressed() });
+  const netFail = () => preferDevice('rosters', async () => { throw new Error('Network request failed'); }, async () => ({ ok: 1 }));
+  await netFail(); // 1st network failure (device attempted)
+  await netFail(); // 2nd consecutive → opens the 15s cooldown
+  assert.equal(deviceHealth.deviceSuppressed(), true, 'two consecutive failures open the cooldown');
+  // The next read is SKIPPED (ready=false while suppressed) and served from the backend. It must NOT clear
+  // the cooldown — before the fix, noteResult(null) on the skip evaporated the 15s window immediately.
+  const out = await preferDevice('rosters', async () => ({ never: true }), async () => ({ ok: 1 }));
+  assert.equal(out._source, 'backend', 'a suppressed read serves from the backend');
+  assert.equal(deviceHealth.deviceSuppressed(), true, 'the cooldown still HOLDS after a skipped read — it is not cleared by a skip');
+});
+
 test('expired cookie triggers the cred refresh (U-7) then falls back', async () => {
   const { preferDevice, opts } = build();
   const out = await preferDevice('rosters', async () => { const e = new Error('nope'); e.status = 401; throw e; }, async () => ({ ok: 1 }));

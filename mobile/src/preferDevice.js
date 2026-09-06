@@ -16,7 +16,9 @@ function createPreferDevice({ ready, health, beacon, onCookieExpired, version, n
     let payload = null;
     let reason = null;
     let ms = null;
+    let attempted = false;
     if (await ready()) {
+      attempted = true;
       const t0 = now();
       try {
         payload = { ...(await deviceFn()), _source: 'device' };
@@ -26,7 +28,12 @@ function createPreferDevice({ ready, health, beacon, onCookieExpired, version, n
         if (reason === 'cookie_expired' && onCookieExpired) onCookieExpired();
       }
     }
-    health.noteResult(payload ? null : reason); // a network failure opens the offline cooldown; a success clears it
+    // Only record an outcome when we ACTUALLY attempted a device read. A read we SKIPPED (device off, no
+    // creds, or — the important case — inside the offline cooldown) carries no new signal, and recording
+    // noteResult(null) here would clear the cooldown on the very NEXT read: the 15s "skip doomed reads"
+    // window then evaporated on the next read of a fan-out and never actually held. Skip the note so the
+    // cooldown runs its course; a real device attempt (success or failure) is what updates it.
+    if (attempted) health.noteResult(payload ? null : reason);
     if (!payload) {
       const t0 = now();
       payload = { ...(await backendFn()), _source: 'backend' };
