@@ -25,6 +25,21 @@ function runLow(fn) {
   return als.run({ priority: 'low' }, fn);
 }
 
+// Run fn as a FOREGROUND read (a user-waited GET) carrying a capped MFL retry budget, so a read that
+// hits a sustained throttle fails fast to the client's last-known content instead of hanging on the full
+// 503 ladder. Only the priority middleware sets this (for non-low GETs); background jobs and writes never
+// enter it, so they keep the full retry budget. Priority stays 'normal' (foreground preempts the LOW lane).
+function runForeground(maxRetries, fn) {
+  return als.run({ priority: 'normal', foregroundMaxRetries: maxRetries }, fn);
+}
+
+// The ambient foreground retry cap, or undefined when there's no foreground context (a low-priority
+// background fan-out, a write, or a non-HTTP job) — in which case callers use the full retry budget.
+function foregroundMaxRetries() {
+  const store = als.getStore();
+  return store ? store.foregroundMaxRetries : undefined;
+}
+
 // The ambient request priority, or 'normal' when there's no context (an ordinary foreground request,
 // a worker outside any HTTP request). exportRequest uses this as the fallback when a call site doesn't
 // pass an explicit priority.
@@ -33,4 +48,4 @@ function current() {
   return (store && store.priority) || 'normal';
 }
 
-module.exports = { runLow, current };
+module.exports = { runLow, runForeground, current, foregroundMaxRetries };

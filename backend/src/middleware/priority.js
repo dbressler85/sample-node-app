@@ -9,10 +9,18 @@
 // never escalate above the normal lane (there is nothing above it, and this keeps the header from
 // being a priority-boost lever). Anything else is ignored and the request runs at normal priority.
 const reqPriority = require('../lib/reqPriority');
+const config = require('../config');
 
 module.exports = function priorityFromHeader(req, res, next) {
   if (req.get('x-dc-priority') === 'low') {
     return reqPriority.runLow(next);
+  }
+  // A foreground GET (a read the user is waiting on): carry a capped MFL retry budget so a sustained
+  // throttle fails fast to the client's last-known content (C4) instead of hanging on the full ladder.
+  // Writes (POST/PUT/DELETE) are untouched — a write must not give up early — and background jobs never
+  // reach this middleware, so they keep the full retry budget.
+  if (req.method === 'GET') {
+    return reqPriority.runForeground(config.mflForegroundMaxRetries, next);
   }
   return next();
 };
