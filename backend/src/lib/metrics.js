@@ -164,6 +164,32 @@ function snapshot() {
   };
 }
 
+// Compact one-line two-pipe health summary for the server logs, so device-vs-backend read mix,
+// fallback reasons (a 'network' spike = device timeouts, the suppression trigger), throttle pressure
+// (429/503), cache hit rate and the device-vs-backend latency are visible passively in Render logs
+// without hitting /_metrics. Returns null (nothing logged) when idle, so a quiet server stays quiet.
+function summaryLine() {
+  const s = snapshot();
+  const dev = s.deviceReads.reduce((a, r) => a + r.device, 0);
+  const back = s.deviceReads.reduce((a, r) => a + r.backend, 0);
+  if (dev + back === 0 && s.callsLast5Min === 0) return null; // idle — nothing worth a line
+  const devPct = dev + back > 0 ? Math.round((dev / (dev + back)) * 100) : null;
+  const fallbacks = s.deviceReads.reduce((a, r) => a + r.fallbacks, 0);
+  const reasons = {};
+  for (const r of s.deviceReads) for (const [k, v] of Object.entries(r.reasons || {})) reasons[k] = (reasons[k] || 0) + v;
+  const topReasons = Object.entries(reasons).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([k, v]) => `${k}:${v}`).join(',') || '—';
+  const lat = s.deviceLatency;
+  return `[metrics] two-pipe: device=${dev} backend=${back}${devPct != null ? ` (${devPct}% device)` : ''}`
+    + ` fallbacks=${fallbacks} reasons=${topReasons} | 429=${s.http429} 503=${s.http503} err=${s.errors}`
+    + ` | cacheHit=${s.hitRatePct != null ? `${s.hitRatePct}%` : '—'} callsLast5m=${s.callsLast5Min}`
+    + ` | lat dev/back=${lat.deviceAvgMs != null ? lat.deviceAvgMs : '—'}/${lat.backendAvgMs != null ? lat.backendAvgMs : '—'}ms`
+    + `${lat.deviceFasterPct != null ? ` (device ${lat.deviceFasterPct > 0 ? '+' : ''}${lat.deviceFasterPct}% faster)` : ''}`;
+}
+function logSummary() {
+  const line = summaryLine();
+  if (line) console.log(line);
+}
+
 // Test-only reset so a harness starts clean.
 function _reset() {
   for (const k of Object.keys(counters)) counters[k] = 0;
@@ -176,4 +202,4 @@ function _reset() {
   recent.length = 0;
 }
 
-module.exports = { recordFetch, recordHit, recordMiss, record429, record503, recordError, recordDeviceRead, recordDeviceVersion, recordParity, fetchCount, snapshot, _reset };
+module.exports = { recordFetch, recordHit, recordMiss, record429, record503, recordError, recordDeviceRead, recordDeviceVersion, recordParity, fetchCount, snapshot, summaryLine, logSummary, _reset };
