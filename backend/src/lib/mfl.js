@@ -266,10 +266,18 @@ async function fetchAllowlisted(startUrl, init) {
 }
 
 async function rawRequest({ host, command, params, cookie, method = 'GET', body, year, priority = 'normal', maxRetries = null }) {
-  // A foreground read the user is waiting on (e.g. the single-league matchup card) can pass a small
-  // maxRetries so a transient 503 fails fast to a "tap to retry" instead of burning the full
-  // 800·2^n ladder (~12s) and 502-ing. Defaults to the global cap for every background/fan-out read.
-  const retryCap = maxRetries != null ? maxRetries : config.mflMaxRetries;
+  // 503 retry budget: an explicit per-read maxRetries wins (e.g. the matchup card's 1). Otherwise a
+  // FOREGROUND read the user is waiting on (a GET the priority middleware wrapped) uses the small
+  // foreground cap so a sustained throttle fails fast to the client's last-known content (C4) instead of
+  // burning the full 800·2^n ladder (~12s) and 502-ing; background fan-outs ('low'), writes, and non-HTTP
+  // jobs fall through to the full global cap. The withRetry layer above still gives a couple of attempts,
+  // so a transient blip recovers — only a sustained throttle fails fast.
+  const foregroundCap = reqPriority.foregroundMaxRetries();
+  const retryCap = maxRetries != null
+    ? maxRetries
+    : foregroundCap != null
+    ? foregroundCap
+    : config.mflMaxRetries;
   const url = buildUrl(host, command, params, year);
   const headers = { 'User-Agent': config.userAgent, Accept: 'application/json' };
   if (cookie) headers.Cookie = `MFL_USER_ID=${cookie}`;

@@ -114,6 +114,13 @@ const config = {
   // On HTTP 503, retry this many times with backoff. NOTE: a 429 is NOT retried — MFL's
   // docs say "if a request fails, don't retry"; we cool down and surface it instead.
   mflMaxRetries: int(process.env.MFL_MAX_RETRIES, 4),
+  // A FOREGROUND read the user is actively waiting on (a GET the priority middleware wraps) caps its
+  // 503 retry ladder to this, so a sustained throttle FAILS FAST — the client keeps its last-known
+  // content (C4) and a pull-to-refresh retries — instead of hanging on the full ladder and 502-ing.
+  // Background fan-outs (X-DC-Priority: low), writes, and non-HTTP jobs keep the full mflMaxRetries.
+  // The withRetry layer still gives a couple of attempts, so transient blips recover; only a sustained
+  // throttle fails fast. Env-tunable / reversible (set to mflMaxRetries to disable).
+  mflForegroundMaxRetries: int(process.env.MFL_FOREGROUND_MAX_RETRIES, 1),
 
   // Per-IP failed-login throttle for /api/auth/login (credentials pass straight to
   // MFL, so this stops the backend being an open brute-force proxy). Lock a source
