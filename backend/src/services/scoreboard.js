@@ -58,7 +58,7 @@ function buildCard(league, live, opponentName) {
   };
 }
 
-async function liveForLeague(cookie, league) {
+async function liveForLeague(cookie, league, { fastFail = false } = {}) {
   if (config.demoMode) {
     const live = demo.live(league.leagueId);
     if (!live) return null;
@@ -71,7 +71,17 @@ async function liveForLeague(cookie, league) {
   // Best-effort; verify against a real account. A read FAILURE (throttle / expired cookie) throws so
   // mapLeaguesSettled records the league as not-loaded (drives an honest `partial`); a successful read
   // with no matchup for me returns null — loaded fine, simply nothing live. The two must stay distinct.
-  const franchises = await mflRepo.liveScoring(league, cookie);
+  // fastFail (the single-league matchup card): read with a bounded 1-retry ladder AND degrade a failure
+  // to null — the card shows "no live game" in ~1s instead of a 5–12s hang that 502s the whole screen.
+  // The scoreboard fan-out keeps fastFail=false so a real drop still throws and drives an honest partial.
+  let franchises;
+  try {
+    franchises = await mflRepo.liveScoring(league, cookie, {}, fastFail ? { retries: 1, maxRetries: 1 } : {});
+  } catch (e) {
+    if (!fastFail) throw e;
+    console.log(`[liveScoring] league=${league.leagueId} fast-fail degraded: ${e.message}`);
+    return null;
+  }
   console.log(`[liveScoring] league=${league.leagueId} franchises=${franchises.length}`);
   const mine = franchises.find((f) => String(f.id) === league.franchiseId);
   if (!mine) return null; // no live data (e.g. offseason / no games in progress) — ok, just empty
@@ -140,7 +150,7 @@ async function getLeagueMatchup(cookie, leagueId) {
   const leagues = await leaguesService.listLeagues(cookie);
   const league = leagues.find((l) => String(l.leagueId) === String(leagueId));
   if (!league) return { week: null, game: null };
-  const game = await liveForLeague(cookie, league);
+  const game = await liveForLeague(cookie, league, { fastFail: true }); // foreground card — fail fast, degrade to empty
   return {
     week: config.demoMode ? demo.week() : await nflLib.currentWeek(cookie),
     game: game || null,
