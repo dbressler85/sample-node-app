@@ -112,6 +112,21 @@ function partnerTendency(partner) {
   return null;
 }
 
+// Pick a partner id that actually resolves against the desk we have. The seeded partner (from a
+// "Trade for him" deep-link) — or a partnerId carried over from another league — can point at a
+// franchise that ISN'T in this desk's partner list: division-scoped out in a multi-copy league, an
+// owner we can't trade with, or a franchise-id format mismatch between the deep-link source and the
+// backend's `String(f.id)`. The old `cur || seed || first` chain let that ghost stick — `partner`
+// stayed null and the builder was stranded on "Pick a team above" with no way to recover. Keep the
+// current pick only if it's real, then the seed only if it's real, else fall back to the first
+// partner, so a non-empty partner list ALWAYS has a live selection.
+function validPartnerId(partners, cur, seedId) {
+  const has = (id) => id != null && partners.some((p) => p.franchiseId === id);
+  if (has(cur)) return cur;
+  if (has(seedId)) return seedId;
+  return partners[0].franchiseId;
+}
+
 export default function TradesScreen({ league, onBack, initialTab, seed, onOpenPlayer, onSent, onOpenRoster }) {
   const requirePro = useRequirePro();
   // Seed the desk read (partners, my players/picks, offers) from the survive-remount cache, keyed
@@ -136,7 +151,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
   const [partnerId, setPartnerId] = useState(() => {
     const cached = peekResource(deskKey) ? peekResource(deskKey).value : null;
     if (cached && cached.partners && cached.partners.length) {
-      return (seed && seed.partnerFranchiseId) || cached.partners[0].franchiseId;
+      return validPartnerId(cached.partners, null, seed && seed.partnerFranchiseId);
     }
     return null;
   });
@@ -185,7 +200,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
       setValue(deskKey, d); // disk write-through, so reopening a league after an app restart paints instantly
       // Default the partner only if none is chosen — prefer the seeded partner (the
       // team that holds the player you came to trade for), else the first.
-      if (d.partners && d.partners.length) setPartnerId((cur) => cur || (seed && seed.partnerFranchiseId) || d.partners[0].franchiseId);
+      if (d.partners && d.partners.length) setPartnerId((cur) => validPartnerId(d.partners, cur, seed && seed.partnerFranchiseId));
     } catch (e) {
       // The cold-load branch (no data) surfaces this with a Retry. A BACKGROUND refetch that fails
       // while a cached desk is on screen must NOT cover it — see the C5 fix at the render site below.
@@ -209,7 +224,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
         setData(cached);
         primeResource(deskKey, cached, 0);
         setLoading(false);
-        if (cached.partners && cached.partners.length) setPartnerId((cur) => cur || (seed && seed.partnerFranchiseId) || cached.partners[0].franchiseId);
+        if (cached.partners && cached.partners.length) setPartnerId((cur) => validPartnerId(cached.partners, cur, seed && seed.partnerFranchiseId));
       }
       if (alive) load();
     });
@@ -221,7 +236,7 @@ export default function TradesScreen({ league, onBack, initialTab, seed, onOpenP
   // sit on "Pick a team above" while data is present.
   useEffect(() => {
     if (data && data.partners && data.partners.length) {
-      setPartnerId((cur) => cur || (seed && seed.partnerFranchiseId) || data.partners[0].franchiseId);
+      setPartnerId((cur) => validPartnerId(data.partners, cur, seed && seed.partnerFranchiseId));
     }
   }, [data, seed]);
 
