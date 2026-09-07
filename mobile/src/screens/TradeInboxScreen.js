@@ -46,7 +46,7 @@ const teamCtx = (t) => {
   return [shortOutlook(t.outlook), t.avgAge != null ? `${t.avgAge} yr` : null].filter(Boolean).join(' · ') || null;
 };
 
-export default function TradeInboxScreen({ active = true, onBack, onOpenLeague, onProposeInLeague, onOpenBlock, onCounter, onManualCounter, onOpenPlayer }) {
+export default function TradeInboxScreen({ active = true, onBack, onOpenLeague, onProposeInLeague, onOpenWizard, onOpenBlock, onCounter, onManualCounter, onOpenPlayer }) {
   const requirePro = useRequirePro();
   // Offers via the shared hook: instant paint on remount (survives the tab-switch unmount),
   // throttled reloads, non-destructive on a failed refresh. Same 'trades:overview' key the
@@ -249,6 +249,18 @@ export default function TradeInboxScreen({ active = true, onBack, onOpenLeague, 
           <Text style={styles.blockBannerChev}>›</Text>
         </Pressable>
       ) : null}
+      {/* Trade Wizard: scan several leagues at once for ready-to-send deals. Needs the league list,
+          so it only appears once the overview has loaded. */}
+      {onOpenWizard && leagues.length ? (
+        <Pressable onPress={() => onOpenWizard(leagues.map((l) => ({ leagueId: l.leagueId, name: l.name, fit: fitByLeague[String(l.leagueId)] !== undefined ? fitByLeague[String(l.leagueId)] : l.fit })))} style={({ pressed }) => [styles.wizardBanner, pressed && { opacity: 0.85 }]}>
+          <NeonSign glyph="search" color="accent" grade="inline" size={22} style={styles.wizardIcon} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.wizardTitle}>Trade Wizard</Text>
+            <Text style={styles.wizardSub} numberOfLines={1}>Scan your leagues for ready-to-send deals</Text>
+          </View>
+          <Text style={styles.blockBannerChev}>›</Text>
+        </Pressable>
+      ) : null}
       {data && data.seasonal ? (
         <View style={styles.seasonBanner}>
           <View style={styles.seasonLabelRow}>
@@ -427,6 +439,10 @@ const styles = StyleSheet.create({
   blockBannerTitle: { color: colors.violetText, fontSize: 15, fontWeight: '900' },
   blockBannerSub: { color: colors.textDim, fontSize: 12, marginTop: 1 },
   blockBannerChev: { color: colors.textDim, fontSize: 22, fontWeight: '300' },
+  wizardBanner: { flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: 16, marginTop: 10, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: colors.card, borderRadius: 14, borderWidth: 1, borderColor: colors.accent + '55' },
+  wizardIcon: { fontSize: 20 },
+  wizardTitle: { color: colors.violetText, fontSize: 15, fontWeight: '900' },
+  wizardSub: { color: colors.textDim, fontSize: 12, marginTop: 1 },
   list: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 32 },
   card: { backgroundColor: colors.card, borderRadius: 16, borderWidth: 1, borderColor: colors.border, padding: 16, marginBottom: 14 },
   leagueRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 10, marginBottom: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },

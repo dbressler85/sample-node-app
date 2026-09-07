@@ -30,6 +30,7 @@ import WaiverWizardScreen from './src/screens/WaiverWizardScreen';
 import TradesScreen from './src/screens/TradesScreen';
 import TradeInboxScreen from './src/screens/TradeInboxScreen';
 import TradeWizardScreen from './src/screens/TradeWizardScreen';
+import TradeWizardMultiScreen from './src/screens/TradeWizardMultiScreen';
 import OnTheBlockScreen from './src/screens/OnTheBlockScreen';
 import DraftScreen from './src/screens/DraftScreen';
 import DraftHubScreen from './src/screens/DraftHubScreen';
@@ -362,6 +363,8 @@ export default function App() {
   // instantly instead of a blank spinner while the heavy cross-league read resolves.
   const openPlayer = (playerId, seed) => pushOverlay({ type: 'playerProfile', playerId, seed });
   const openTradeWizard = (queue) => pushOverlay({ type: 'tradeWizard', queue });
+  // The multi-league Trade Wizard: pick leagues, scan each for ready-to-send deals, open one seeded.
+  const openTradeWizardMulti = (leagues) => pushOverlay({ type: 'tradeWizardMulti', leagues });
   // Tab jump — used from the Home TAB, where switching to the Waivers tab is the expected move and there's
   // no overlay stack to preserve.
   const openWaivers = (target) => {
@@ -406,6 +409,7 @@ export default function App() {
             active={uncovered}
             onOpenLeague={openTrades}
             onProposeInLeague={(league) => openTrades(league, 'propose')}
+            onOpenWizard={openTradeWizardMulti}
             onOpenBlock={openBlock}
             onCounter={(ctx) => openTrades({ leagueId: ctx.leagueId, name: ctx.name }, 'propose', { counterOfferId: ctx.offerId })}
             onManualCounter={(ctx) => openTrades({ leagueId: ctx.leagueId, name: ctx.name }, 'propose', { partnerFranchiseId: ctx.partnerFranchiseId })}
@@ -576,6 +580,14 @@ export default function App() {
         return <CompareScreen seedPlayer={o.seedPlayer} onBack={popOverlay} onOpenPlayer={openPlayer} />;
       case 'tradeWizard':
         return <TradeWizardScreen queue={o.queue} onExit={popOverlay} onOpenPlayer={openPlayer} />;
+      case 'tradeWizardMulti':
+        return (
+          <TradeWizardMultiScreen
+            leagues={o.leagues}
+            onExit={popOverlay}
+            onOpenDeal={(ctx) => openTrades({ leagueId: ctx.leagueId, name: ctx.name }, 'propose', { partnerFranchiseId: ctx.partnerFranchiseId, sendTokens: ctx.sendTokens, receiveTokens: ctx.receiveTokens })}
+          />
+        );
       default:
         return null;
     }
