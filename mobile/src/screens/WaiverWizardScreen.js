@@ -444,7 +444,7 @@ export default function WaiverWizardScreen({ leagues, seedAddId = null, onBack, 
               <View style={styles.posChips}>
                 <PosChip label="All" active={!posFilter} onPress={() => setPosFilter(null)} />
                 {posOptions.map((p) => (
-                  <PosChip key={p} label={p} active={posFilter === p} onPress={() => setPosFilter(p)} />
+                  <PosChip key={p} label={p === 'PK' ? 'K' : p} active={posFilter === p} onPress={() => setPosFilter(p)} />
                 ))}
               </View>
             ) : null}
@@ -457,7 +457,7 @@ export default function WaiverWizardScreen({ leagues, seedAddId = null, onBack, 
                 <PlayerLine p={c} showValue compact />
               </Pressable>
             ))}
-            {filteredCandidates.length === 0 ? <Text style={styles.benchName}>No {posFilter} available in this league.</Text> : null}
+            {filteredCandidates.length === 0 ? <Text style={styles.benchName}>No {posFilter === 'PK' ? 'K' : posFilter} available in this league.</Text> : null}
           </View>
         ) : null}
 
