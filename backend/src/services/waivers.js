@@ -1709,7 +1709,7 @@ async function leagueSuggestionOne(cookie, token, league, { seedAddId = null } =
         // this-week/this-year points, the pending queue, and the calendar/draft posture signals. This
         // is the wizard's first-paint HOT PATH, so nothing here runs sequentially (the enrichment used
         // to chain settings→format→batch→pending→posture→lockReason, which made a single league slow).
-        const [roster, fas, waiverRun, enr, points, pend, calLock, faOpen, draftReason] = await Promise.all([
+        const [roster, fas, waiverRun, enr, points, pend, calLock, faOpen, draftReason, starterSlots] = await Promise.all([
           rosterService.getRoster(cookie, league.leagueId),
           loadFreeAgents(cookie, league, settings),
           config.demoMode ? Promise.resolve(null) : nextWaiverRun(cookie, league).catch(() => null),
@@ -1722,6 +1722,9 @@ async function leagueSuggestionOne(cookie, token, league, { seedAddId = null } =
           // draft-pending league's lock still explains itself ("Draft hasn't happened yet…"). Without this
           // the calendar-only reason lost the DRAFT case, leaving a bare, undebuggable lock.
           config.demoMode ? Promise.resolve(null) : draftService.draftLockReason(cookie, token, league).catch(() => null),
+          // The league's startable positions (for candidate coverage below). A cache hit — buildFormat
+          // already resolved this same starters spec, so it adds no MFL round-trip.
+          leagueFormat.requirements(cookie, league).catch(() => []),
         ]);
 
         // Posture — waiverPosture's rules, inlined so its reads (calLock/faOpen above) joined the batch
@@ -1750,10 +1753,31 @@ async function leagueSuggestionOne(cookie, token, league, { seedAddId = null } =
         const full = rosterIsFull(roster, settings);
         // A deeper, position-diverse pool so the wizard can filter by position and
         // pick a different player — not just the single best add.
-        const candidates = freeAgents.slice(0, 30).map((p) => ({
+        const toCand = (p) => ({
           id: p.id, name: p.name, position: p.position, team: p.team,
           value: p.value, projection: p.projection, trend: p.trend, ownership: p.ownership, availability: p.availability, bye: p.bye,
-        }));
+        });
+        // The 30 best available by dynasty value = the "best adds" shortlist that seeds the recommendation.
+        const shortlist = freeAgents.slice(0, 30);
+        const shortlistPos = new Set(shortlist.map((p) => p.position));
+        // But a flat value cut STARVES the low-value-but-startable positions: kickers (and, in a thin
+        // deep-league pool, defenses) carry almost no dynasty value, so in a league that STARTS them they
+        // never reach the top 30 — which is why the wizard offered no K filter and no way to stream one.
+        // Guarantee coverage: for every STARTABLE position (from the league's own lineup requirements) the
+        // shortlist missed, append that position's best free agents, ranked by this-week PROJECTION then
+        // value — projection, not dynasty value, is what a K/DEF (or IDP) stream actually turns on.
+        const startablePositions = new Set();
+        for (const slot of (starterSlots || [])) for (const pos of (slot.eligible || [])) startablePositions.add(pos);
+        const coverage = [];
+        for (const pos of startablePositions) {
+          if (shortlistPos.has(pos)) continue;
+          const best = freeAgents
+            .filter((p) => p.position === pos)
+            .sort((a, b) => (b.projection || 0) - (a.projection || 0) || (b.value || 0) - (a.value || 0))
+            .slice(0, 20);
+          coverage.push(...best);
+        }
+        const candidates = [...shortlist, ...coverage].map(toCand);
         // When the wizard is SEEDED with a specific player (the "claim in N leagues" hand-off), make him
         // the recommended add for this league — pulled to the front of the candidate list (fetched into
         // it if he's outside the top 30) — so the wizard opens on HIM with a smart drop/bid, not the
