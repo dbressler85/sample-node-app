@@ -89,13 +89,13 @@ export const HELP = [
   },
   {
     id: 'lineupModes',
-    title: 'Lineup modes: Auto, Safe, Balanced, Aggressive',
+    title: 'Lineup posture: Safe, Balanced, Upside',
     body: [
-      'These pick which projection the optimizer starts each lineup from. It only sets the starting point — you can still hand-edit any slot afterward, in the wizard or on a single league.',
-      'Auto — the recommended pick. It reads your matchup and leans safer when you’re favored or more aggressive when you’re an underdog, so you protect a lead or chase points as the situation calls for.',
-      'Safe — maximizes the floor. Starts the steadiest projected scorers to guard against a bust — best when you’re favored and just need to not lose.',
-      'Balanced — starts the highest median (most-likely) projection and ignores the matchup. A straight “expected points” lineup.',
-      'Aggressive — maximizes the ceiling. Starts the highest-upside players even if they’re boom-or-bust — best when you’re an underdog and need a big week.',
+      'These pick which projection each lineup starts from — a starting point only. Every league begins on Balanced; you can lean Safe or Upside per league, and hand-edit any slot afterward in the wizard or on a single league.',
+      'Safe — risk-averse. Maximizes the floor by starting the steadiest projected scorers to guard against a bust — best when you’re favored and just need to not lose.',
+      'Balanced — the default. Starts the highest median (most-likely) projection and ignores the matchup. A straight “expected points” lineup.',
+      'Upside — high-ceiling. Starts the highest-upside players even if they’re boom-or-bust — best when you’re an underdog and need a big week.',
+      'When your matchup clearly favors one posture, the wizard says so as a tip — but it never switches for you. You choose.',
     ],
   },
   {

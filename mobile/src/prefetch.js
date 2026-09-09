@@ -22,7 +22,7 @@ const RESOURCES = [
   { tab: 'trades', key: 'trades:overview', fetch: () => bg(() => api.trades()) },
   { tab: 'players', key: 'players:rankings:value:all:1qb:std', fetch: () => bg(() => api.playerRankings('value', null, '1qb')) },
   { tab: 'waivers', key: 'waivers:overview', fetch: () => waiversOverviewPreferDevice(true) },
-  { tab: 'lineups', key: 'lineups:auto', fetch: () => lineupsPreferDevice('auto', true), device: true },
+  { tab: 'lineups', key: 'lineups:balanced', fetch: () => lineupsPreferDevice('balanced', true), device: true },
   { tab: 'scores', key: 'scores:overview', fetch: () => bg(() => api.scoreboard()) },
 ];
 

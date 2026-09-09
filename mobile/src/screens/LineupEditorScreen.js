@@ -37,7 +37,9 @@ export default function LineupEditorScreen({ league, onBack, onOpenWaivers }) {
     setError(null);
     setLoading(true);
     try {
-      const d = await api.lineupDetail(league.leagueId);
+      // Balanced is the app-wide default suggestion basis (no auto-decided posture) — so the single-league
+      // editor's "Optimize" pre-fills the same balanced lineup the wizard starts from.
+      const d = await api.lineupDetail(league.leagueId, 'balanced');
       setDetail(d);
       primeResource(editKey, d);
       setAssignments(slotsToAssignments(d));
@@ -100,7 +102,7 @@ export default function LineupEditorScreen({ league, onBack, onOpenWaivers }) {
     if (!requirePro('lineup.apply')) return; // Pro gate (inert until enforced)
     setSaving(true);
     try {
-      const updated = await api.applyLineup(league.leagueId, assignments.filter(Boolean));
+      const updated = await api.applyLineup(league.leagueId, assignments.filter(Boolean), 'balanced');
       setDetail(updated);
       setAssignments(updated.slots.map((s) => (s.current ? s.current.id : null)));
       setPreOptimize(null);

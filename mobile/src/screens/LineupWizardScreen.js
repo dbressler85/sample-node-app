@@ -9,17 +9,22 @@ import SlotEditor from '../components/SlotEditor';
 import InfoDot from '../components/InfoDot';
 import useAndroidBack from '../useAndroidBack';
 
+// Risk-averse → high-upside spectrum. No "Auto": the wizard never auto-decides a posture — every league
+// starts from a BALANCED suggestion, and the owner leans Safe (protect the floor) or Upside (chase the
+// ceiling) as they see fit (backend key stays 'aggressive'; the label reads "Upside").
 const MODES = [
-  { key: 'auto', label: 'Auto' },
   { key: 'safe', label: 'Safe' },
   { key: 'balanced', label: 'Balanced' },
-  { key: 'aggressive', label: 'Aggr' },
+  { key: 'aggressive', label: 'Upside' },
 ];
+const MODE_LABEL = { safe: 'Safe', balanced: 'Balanced', aggressive: 'Upside' };
+// Why the matchup leans a posture — surfaced as ADVICE only (a nudge, never auto-applied).
+const REC_REASON = { safe: 'you’re favored — protect the floor', aggressive: 'you’re an underdog — chase the ceiling', balanced: 'a close matchup' };
 
 // Wizard that walks league-to-league, pre-filling each lineup with the suggested
 // (optimal-for-mode) starters, letting the owner tweak, then submit and advance.
 // `leagues` is the pre-filtered queue of leagues to step through.
-export default function LineupWizardScreen({ leagues, initialMode = 'auto', onBack }) {
+export default function LineupWizardScreen({ leagues, initialMode = 'balanced', onBack }) {
   const requirePro = useRequirePro();
   const [mode, setMode] = useState(initialMode);
   const [index, setIndex] = useState(0);
@@ -170,7 +175,6 @@ export default function LineupWizardScreen({ leagues, initialMode = 'auto', onBa
                     {Math.round(detail.matchup.winProb * 100)}% win
                   </Text>
                   <Text style={styles.estTag}> est.</Text>
-                  {detail.mode ? <Text style={styles.modeTag}>  ·  suggested: {detail.mode.toUpperCase()}</Text> : null}
                 </Text>
                 <Text style={styles.basisTag}>
                   {detail.matchup.basis === 'submitted'
@@ -197,6 +201,17 @@ export default function LineupWizardScreen({ leagues, initialMode = 'auto', onBa
             </View>
             <InfoDot id="lineupModes" size={15} style={styles.modeInfo} />
           </View>
+
+          {/* Advice, not automation: when the matchup leans a different posture than what's selected, say so
+              and let the owner switch with one tap — the suggestion never applies itself. */}
+          {detail.recommendedMode && detail.recommendedMode !== mode && MODE_LABEL[detail.recommendedMode] ? (
+            <Pressable style={({ pressed }) => [styles.recHint, pressed && { opacity: 0.7 }]} onPress={() => changeMode(detail.recommendedMode)}>
+              <Text style={styles.recHintText} numberOfLines={2}>
+                Matchup leans <Text style={styles.recHintStrong}>{MODE_LABEL[detail.recommendedMode]}</Text> · {REC_REASON[detail.recommendedMode]}
+                <Text style={styles.recHintUse}>   Use ›</Text>
+              </Text>
+            </Pressable>
+          ) : null}
 
           <SlotEditor slots={detail.slots} players={detail.players} assignments={assignments} onChange={(a) => { editedRef.current = true; setAssignments(a); }} />
 
@@ -278,7 +293,10 @@ const styles = StyleSheet.create({
   matchup: { color: colors.textDim, fontSize: 13, marginTop: 4 },
   basisTag: { color: colors.textDim, fontSize: 11, marginTop: 2, fontStyle: 'italic', opacity: 0.8 },
   estTag: { color: colors.textDim, fontSize: 11, fontWeight: '700' },
-  modeTag: { color: colors.accent, fontSize: 11, fontWeight: '800' },
+  recHint: { marginHorizontal: 16, marginTop: 8, marginBottom: 2, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.accent + '55' },
+  recHintText: { color: colors.textDim, fontSize: 12, fontWeight: '600', lineHeight: 17 },
+  recHintStrong: { color: colors.accent, fontWeight: '900' },
+  recHintUse: { color: colors.accent, fontWeight: '900' },
   modeWrap: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginTop: 4, marginBottom: 4 },
   modeRow: { flex: 1, flexDirection: 'row', backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.border, padding: 3 },
   modeInfo: { marginLeft: 8 },
