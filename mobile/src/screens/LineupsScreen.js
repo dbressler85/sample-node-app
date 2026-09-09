@@ -27,11 +27,13 @@ const STATUS = {
   optimal: { label: 'Optimal', color: colors.gold },
 };
 
+// Risk-averse → high-upside spectrum. No "Auto" — we don't auto-decide a posture; every lineup starts
+// from Balanced and the owner chooses to lean safe or chase upside per league (backend key stays
+// 'aggressive'; the label reads "Upside").
 const MODES = [
-  { key: 'auto', label: 'Auto' },
   { key: 'safe', label: 'Safe' },
   { key: 'balanced', label: 'Balanced' },
-  { key: 'aggressive', label: 'Aggr' },
+  { key: 'aggressive', label: 'Upside' },
 ];
 
 // Two clearly-labeled paths for setting lineups (docs/LINEUP_FLOW_OPTIONS.md, owner decision):
@@ -40,7 +42,7 @@ const MODES = [
 //   2. Editor  — tapping any league row opens its own lineup to review what's set and hand-adjust it.
 // There is deliberately no third "bulk auto-set" path; it was the redundant flow the review flagged.
 export default function LineupsScreen({ active = true, onOpenLineup, onStartWizard }) {
-  const [mode, setMode] = useState('auto');
+  const [mode, setMode] = useState('balanced');
 
   // Stale-while-revalidate: paint the last lineups for this mode instantly, refetch
   // in the background. Keyed by mode so switching modes paints that mode's cache.
