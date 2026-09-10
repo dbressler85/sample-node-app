@@ -31,6 +31,18 @@ router.get('/players/:id/trade/preview', async (req, res, next) => {
   }
 });
 
+// GET /api/players/:id/sell/preview — the SELL mirror of trade/preview: leagues where you OWN this
+// player, each with the partner who most needs his position + a suggested return targeting your needs.
+router.get('/players/:id/sell/preview', async (req, res, next) => {
+  try {
+    // Optional ?leagues=a,b,c — the leagues where the caller already knows he's on your roster.
+    const leagueIds = req.query.leagues ? String(req.query.leagues).split(',').filter(Boolean) : null;
+    res.json(await trades.sellPreview(req.mflCookie, req.account, req.params.id, leagueIds));
+  } catch (err) {
+    next(err);
+  }
+});
+
 // POST /api/players/:id/trade — send the offer for this player in each selected
 // league. Body: { leagues: [{ leagueId, partnerFranchiseId, giveIds }] }.
 router.post('/players/:id/trade', async (req, res, next) => {

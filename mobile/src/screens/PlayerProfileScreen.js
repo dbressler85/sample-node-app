@@ -9,6 +9,7 @@ import AvailabilityBadge from '../components/AvailabilityBadge';
 import { GlyphMark } from '../components/NeonGlyphs';
 import AddAcrossSheet from '../components/AddAcrossSheet';
 import TradeAcrossSheet from '../components/TradeAcrossSheet';
+import TradeAwaySheet from '../components/TradeAwaySheet';
 import TradeBaitSheet from '../components/TradeBaitSheet';
 import BottomSheet from '../components/BottomSheet';
 import Button from '../components/Button';
@@ -452,7 +453,7 @@ export default function PlayerProfileScreen({ playerId, seed, onBack, onOpenTrad
           {/* Shop and Drop carry the same count (both act over the leagues you roster him), so spell out
               that they're NOT the same action — one keeps him, one lets him go (usability backlog #23). */}
           {canShop && canDrop ? (
-            <Text style={styles.actionHint}>Shop lists him on your trade block (he stays yours) · Drop releases him to free agency</Text>
+            <Text style={styles.actionHint}>Trade away builds a needs-fitting offer in each league you own him · Shop lists him on your block (he stays yours) · Drop releases him to free agency</Text>
           ) : null}
           {/* Consistent labels: Add (N) · Trade for (N) · Shop (N) · Drop (N) — each count is the number
               of your leagues that action applies to. */}
@@ -465,6 +466,11 @@ export default function PlayerProfileScreen({ playerId, seed, onBack, onOpenTrad
             {canTrade ? (
               <Pressable style={[styles.actionBtn, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.accent }]} onPress={() => setSheet('trade')}>
                 <Text style={[styles.actionText, { color: colors.accent }]}>Trade for ({tradeLeagues})</Text>
+              </Pressable>
+            ) : null}
+            {canDrop ? (
+              <Pressable style={[styles.actionBtn, { backgroundColor: colors.accent }]} onPress={() => setSheet('sell')}>
+                <Text style={styles.actionText}>Trade away ({p.actions.dropLeagues.length})</Text>
               </Pressable>
             ) : null}
             {canShop ? (
@@ -494,6 +500,14 @@ export default function PlayerProfileScreen({ playerId, seed, onBack, onOpenTrad
       ) : null}
       {sheet === 'trade' ? (
         <TradeAcrossSheet
+          player={p}
+          onClose={() => setSheet(null)}
+          onCraft={(ctx) => { setSheet(null); onOpenTradeDesk && onOpenTradeDesk(ctx); }}
+          onStartWizard={(queue) => { setSheet(null); onOpenTradeWizard && onOpenTradeWizard(queue); }}
+        />
+      ) : null}
+      {sheet === 'sell' ? (
+        <TradeAwaySheet
           player={p}
           onClose={() => setSheet(null)}
           onCraft={(ctx) => { setSheet(null); onOpenTradeDesk && onOpenTradeDesk(ctx); }}
@@ -769,10 +783,12 @@ const styles = StyleSheet.create({
   clValue: { color: colors.gold, fontSize: 13, fontWeight: '900', width: 34, textAlign: 'right' },
   clProj: { color: colors.textDim, fontSize: 13, fontWeight: '800', width: 40, textAlign: 'right' },
   actionBar: { position: 'absolute', left: 0, right: 0, bottom: 0, padding: 14, backgroundColor: colors.bg, borderTopWidth: 1, borderTopColor: colors.border },
-  actionRow: { flexDirection: 'row', gap: 10 },
+  actionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   // Disambiguates the same-count Shop vs Drop buttons above the bar (#23).
   actionHint: { color: colors.textDim, fontSize: 11, lineHeight: 15, fontWeight: '600', marginBottom: 8 },
-  actionBtn: { flex: 1, borderRadius: 12, paddingVertical: 15, alignItems: 'center' },
+  // flexBasis ~47% + grow lets 2 buttons sit per row and wrap to a second row when a player is
+  // actionable several ways at once (e.g. Trade away · Shop · Drop), instead of crushing 4-5 into one line.
+  actionBtn: { flexGrow: 1, flexBasis: '47%', minWidth: 0, borderRadius: 12, paddingVertical: 15, alignItems: 'center' },
   actionText: { color: colors.onAccent, fontSize: 15, fontWeight: '800' },
   error: { color: colors.bad, textAlign: 'center', marginBottom: 16 },
   backBtn: { backgroundColor: colors.card, borderRadius: 10, paddingHorizontal: 20, paddingVertical: 10 },
