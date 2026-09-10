@@ -202,6 +202,9 @@ export const api = {
   playerAddPreview: (id) => request(`/api/players/${id}/add/preview`),
   playerAdd: (id, leagues) => request(`/api/players/${id}/add`, { method: 'POST', body: { leagues } }),
   playerTradePreview: (id, leagueIds) => request(`/api/players/${id}/trade/preview${leagueIds && leagueIds.length ? `?leagues=${leagueIds.map(encodeURIComponent).join(',')}` : ''}`),
+  // Sell mirror of trade preview: leagues where you OWN this player, each with a partner who needs his
+  // position + a suggested return targeting your needs. Drives the "Trade away" cross-league flow.
+  playerSellPreview: (id, leagueIds) => request(`/api/players/${id}/sell/preview${leagueIds && leagueIds.length ? `?leagues=${leagueIds.map(encodeURIComponent).join(',')}` : ''}`),
   playerTrade: (id, leagues) => request(`/api/players/${id}/trade`, { method: 'POST', body: { leagues } }),
   playerDrop: (id, leagues) => request(`/api/players/${id}/drop`, { method: 'POST', body: { leagues } }),
 

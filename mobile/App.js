@@ -570,7 +570,7 @@ export default function App() {
             playerId={o.playerId}
             seed={o.seed}
             onBack={popOverlay}
-            onOpenTradeDesk={(ctx) => openTrades({ leagueId: ctx.leagueId, name: ctx.name }, 'propose', { targetPlayerId: ctx.targetPlayerId, partnerFranchiseId: ctx.partnerFranchiseId })}
+            onOpenTradeDesk={(ctx) => openTrades({ leagueId: ctx.leagueId, name: ctx.name }, 'propose', { targetPlayerId: ctx.targetPlayerId, partnerFranchiseId: ctx.partnerFranchiseId, sendTokens: ctx.sendTokens, receiveTokens: ctx.receiveTokens })}
             onOpenTradeWizard={openTradeWizard}
             onCompare={openCompare}
             onStartWaiverWizard={openWaiverWizard}

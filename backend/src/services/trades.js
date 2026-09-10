@@ -734,6 +734,15 @@ async function suggestFor(cookie, token, leagueId, targetId, partnerFranchiseId)
 // The mirror image of suggestFor. Returns the ask package + a fairness read.
 async function askFor(cookie, token, leagueId, sendIds, partnerFranchiseId) {
   const data = await tradeData(cookie, token, leagueId);
+  const baitMap = await tradeBaitByFranchise(cookie, token, data.league);
+  return buildAsk(data, baitMap, token, sendIds, partnerFranchiseId);
+}
+
+// Pure (no I/O): given already-fetched tradeData + baitMap, suggest what to ASK FOR when sending
+// `sendIds` to `partnerFranchiseId` — a fair return biased to their trade bait, MY needs, and my
+// Targets. Shared by askFor (the desk's "suggest what to ask") and sellPreview (shop a player across
+// the leagues you own him in), so both compute the return the same way from one data fetch.
+function buildAsk(data, baitMap, token, sendIds, partnerFranchiseId) {
   const { league, byId, enr, roster, rawPartners, ns } = data;
   const ids = (Array.isArray(sendIds) ? sendIds : String(sendIds || '').split(','))
     .map((s) => String(s).trim())
@@ -750,7 +759,6 @@ async function askFor(cookie, token, leagueId, sendIds, partnerFranchiseId) {
   const val = (arr) => Math.round(arr.reduce((s, a) => s + (a.value || 0), 0) * 10) / 10;
   const sendValue = val(send);
 
-  const baitMap = await tradeBaitByFranchise(cookie, token, league);
   const theirBait = baitMap.get(partnerId) || new Set();
   const myNeeds = new Set(((ns[String(league.franchiseId)] || {}).needs || []).map((n) => n.pos));
 
@@ -802,6 +810,80 @@ async function askFor(cookie, token, leagueId, sendIds, partnerFranchiseId) {
     verdict,
     myNeeds: [...myNeeds],
     format: leagueFormat.label(data.fmt),
+  };
+}
+
+// Pick the best partner to shop a `position` player to, from already-fetched tradeData. Prefer teams
+// that NEED the position (ranked by the size of their gap below the league), then teams whose surplus
+// best covers MY needs (a richer return), then general depth. K/DEF carry no needs/surplus (tradefit
+// excludes them), so for those there's no "needs it" signal and this falls back to the best-return
+// partner. Returns a rawPartners entry, or null if the league has no partners.
+function bestSellPartner(data, position) {
+  const { rawPartners, ns, league } = data;
+  const myNeeds = new Set(((ns[String(league.franchiseId)] || {}).needs || []).map((n) => n.pos));
+  const scored = rawPartners.map((pt) => {
+    const fid = String(pt.franchiseId);
+    const need = (((ns[fid] || {}).needs) || []).find((n) => n.pos === position);
+    const surplus = ((ns[fid] || {}).surplus) || [];
+    const paysMyNeeds = surplus.filter((s) => myNeeds.has(s.pos)).length;
+    let s = 0;
+    if (need) s += 1000 + (need.gap || 0); // needs the position — the primary signal
+    s += paysMyNeeds * 40; // and can pay me back where I'm thin
+    s += Math.min(surplus.length, 4) * 5; // general depth
+    return { pt, s };
+  });
+  scored.sort((a, b) => b.s - a.s);
+  return scored.length ? scored[0].pt : null;
+}
+
+// "Trade away this player" — for every league where you OWN him, find the partner who most needs his
+// position and suggest a fair return targeting YOUR needs. The sell-side mirror of crossLeaguePreview
+// (acquire). The caller (player profile) passes the leagues where he's on your roster, so we probe only
+// those. Each league resolves independently and a league we can't read (or don't own him in) drops out.
+async function sellPreview(cookie, token, playerId, leagueIds) {
+  const pid = String(playerId);
+  let leagues = await leaguesService.listLeagues(cookie);
+  if (Array.isArray(leagueIds) && leagueIds.length) {
+    const want = new Set(leagueIds.map(String));
+    leagues = leagues.filter((l) => want.has(String(l.leagueId)));
+  }
+  const byId = await playersLib.load(cookie);
+  const base = playersLib.resolve(byId, pid);
+  const position = base.position;
+  const probed = await Promise.all(
+    leagues.map(async (league) => {
+      try {
+        const data = await tradeData(cookie, token, league.leagueId);
+        const { roster, rawPartners, ns } = data;
+        const myIds = new Set(
+          [...roster.starters, ...roster.bench, ...(roster.ir || []), ...(roster.taxi || [])].map((p) => String(p.id))
+        );
+        if (!myIds.has(pid)) return null; // not on your roster here → not a sell candidate
+        if (!rawPartners.length) return null;
+        const partner = bestSellPartner(data, position);
+        if (!partner) return null;
+        const baitMap = await tradeBaitByFranchise(cookie, token, league);
+        const askRes = buildAsk(data, baitMap, token, [pid], partner.franchiseId);
+        const needsPosition = (((ns[String(partner.franchiseId)] || {}).needs) || []).some((n) => n.pos === position);
+        return {
+          leagueId: league.leagueId,
+          name: league.name,
+          partnerFranchiseId: String(partner.franchiseId),
+          partnerName: partner.name || `Team ${partner.franchiseId}`,
+          needsPosition,
+          sendValue: askRes.sendValue,
+          receive: askRes.ask,
+          receiveValue: askRes.askValue,
+          verdict: askRes.verdict,
+        };
+      } catch (e) {
+        return null; // skip a league we couldn't read
+      }
+    })
+  );
+  return {
+    player: { id: base.id, name: base.name, position, team: base.team },
+    leagues: probed.filter(Boolean),
   };
 }
 
@@ -1542,4 +1624,4 @@ async function pickPartners(cookie, token, leagueId, intent) {
   };
 }
 
-module.exports = { getOverview, getLeague, getLeagueFit, respond, dismiss, propose, analyze, crossLeaguePreview, crossLeaguePropose, suggestFor, askFor, fullDealFor, findDeals, counterFor, pickPartners, nextTradeDeadline, effectiveDeadline, tradeFitSummary, tradeBaitByFranchise, personalAnalyze, tagNotes, ownerIndexFromAssets, markOfferValidity };
+module.exports = { getOverview, getLeague, getLeagueFit, respond, dismiss, propose, analyze, crossLeaguePreview, crossLeaguePropose, sellPreview, suggestFor, askFor, fullDealFor, findDeals, counterFor, pickPartners, nextTradeDeadline, effectiveDeadline, tradeFitSummary, tradeBaitByFranchise, personalAnalyze, tagNotes, ownerIndexFromAssets, markOfferValidity };

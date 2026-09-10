@@ -69,7 +69,7 @@ export default function TradeWizardScreen({ queue, onExit, onOpenPlayer }) {
           key={`${cur.leagueId}:${reseed}`}
           league={{ leagueId: cur.leagueId, name: cur.name }}
           initialTab="propose"
-          seed={{ targetPlayerId: cur.targetPlayerId, partnerFranchiseId: cur.partnerFranchiseId }}
+          seed={{ targetPlayerId: cur.targetPlayerId, partnerFranchiseId: cur.partnerFranchiseId, sendTokens: cur.sendTokens, receiveTokens: cur.receiveTokens }}
           onBack={onExit}
           onSent={onSent}
           onOpenPlayer={onOpenPlayer}
