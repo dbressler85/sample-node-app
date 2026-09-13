@@ -137,11 +137,11 @@ async function weekResultsForLeague(cookie, league, week) {
   if (!week) return null;
   try {
     const oppId = await opponentFranchiseIdFromSchedule(cookie, league, week);
-    if (!oppId) return null; // bye / unscheduled
-    const [franchises, actualList, projList, names] = await Promise.all([
+    if (!oppId) { console.log(`[scoreboard.fallback] league=${league.leagueId} week=${week} bail=no-opponent (bye/unscheduled)`); return null; }
+    // Rosters + names first: we need the SET starters before we can score them (playerScores must be
+    // scoped to specific PLAYERS — see below).
+    const [franchises, names] = await Promise.all([
       mflRepo.rosters(league, cookie),
-      mflRepo.playerScores(league, cookie, { W: week }),
-      mflRepo.projectedScores(league, cookie, { W: week }).catch(() => []),
       leaguesService.franchiseNames(cookie, league),
     ]);
     const startersFor = (fid) => {
@@ -151,11 +151,20 @@ async function weekResultsForLeague(cookie, league, week) {
     };
     const myStarters = startersFor(league.franchiseId);
     const oppStarters = startersFor(oppId);
-    if (!myStarters.length && !oppStarters.length) return null; // no lineups set yet — nothing to score
-    // Only light up once the week has ACTUALLY started scoring (some game has been played). Before
-    // kickoff and in the offseason, playerScores is empty/all-zero — returning a card there would
-    // fabricate a 0–0 "live" game, so bail to the honest empty state instead.
-    if (!actualList.some((p) => (Number(p.score) || 0) > 0)) return null;
+    if (!myStarters.length && !oppStarters.length) { console.log(`[scoreboard.fallback] league=${league.leagueId} week=${week} bail=no-starters (mine=${myStarters.length} opp=${oppStarters.length})`); return null; }
+    // Score exactly this matchup's starters. MFL playerScores REQUIRES a PLAYERS list (an unscoped
+    // W-only call returns nothing — every other caller passes PLAYERS); scoping it here is both correct
+    // and cheap (~40 ids, not the whole league). projectedScores is scoped the same way for the rest-
+    // of-day projection.
+    const players = [...new Set([...myStarters, ...oppStarters])].join(',');
+    const [actualList, projList] = await Promise.all([
+      mflRepo.playerScores(league, cookie, { W: week, PLAYERS: players }),
+      mflRepo.projectedScores(league, cookie, { W: week, PLAYERS: players }).catch(() => []),
+    ]);
+    // Only light up once the week has ACTUALLY started scoring (some starter has banked points). Before
+    // kickoff and in the offseason nothing is scored, so returning a card there would fabricate a 0–0
+    // "live" game — bail to the honest empty state instead.
+    if (!actualList.some((p) => (Number(p.score) || 0) > 0)) { console.log(`[scoreboard.fallback] league=${league.leagueId} week=${week} bail=no-scores-yet (scored rows=${actualList.length}, starters=${myStarters.length + oppStarters.length})`); return null; }
     const actual = new Map(actualList.map((p) => [String(p.id), Number(p.score) || 0]));
     const proj = new Map(projList.map((p) => [String(p.id), Number(p.score) || 0]));
     // A starter already in the scored feed has played; one that isn't is still to come (his projection
